@@ -140,7 +140,7 @@ test('verified mirrored profiles stay symmetric while asymmetric source lines re
   assert.equal(emitted.has(lineKey([205, 127], [230, 124])), false)
   assert.equal(proposal.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1)
-  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.24.0')
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.25.0')
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /geometry and effective visual style both mirror/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /unpaired or asymmetric source segment remains an auxiliary line/u)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
@@ -1115,6 +1115,33 @@ test('semantic feature-control frames compile as native TOLERANCE without opaque
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ ...featureControlFrames[0], rows: [{ characteristic: 'unknown', tolerance: '0.1' }] }] }), /characteristic is invalid/u)
 })
 
+test('feature-control datum labels preserve bounded common-datum tokens and reject ambiguous forms atomically', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const build = label => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ position: [120, 80], role: 'dimensions', rows: [{ characteristic: 'position', tolerance: '0.04', datumReferences: [{ label }] }] }] })
+  for (const label of ['A', '7', 'A-B', 'U-D-U', 'A1-B2-C3']) {
+    const tolerance = build(label).commandArgs.entities.find(entity => entity.type === 'TOLERANCE')
+    assert.equal(tolerance.payload.text, String.raw`{\Fgdt;j}%%v0.04%%v${label}%%v%%v%%v%%v^J`)
+  }
+
+  const proposal = build('A1-B2-C3')
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const expectedText = String.raw`{\Fgdt;j}%%v0.04%%vA1-B2-C3%%v%%v%%v%%v^J`
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  const dxf = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  assert.equal(kjd.listEntities({ type: 'TOLERANCE' }).at(-1).payload.text, expectedText)
+  assert.equal(dxf.listEntities({ type: 'TOLERANCE' }).at(-1).payload.text, expectedText)
+
+  const entityCount = document.listEntities().length
+  for (const label of ['', '-A', 'A-', 'A--B', ' A-B', 'A B', 'a-B', 'A–B', 'A.B', 'A_B', 'A1-B2-C34']) {
+    assert.throws(() => build(label), /common-datum token/u)
+    assert.equal(document.listEntities().length, entityCount)
+  }
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ position: [120, 80], role: 'dimensions', rows: [{ characteristic: 'position', tolerance: '0.04', datumReferences: [{ label: 'A-B', sourceHandle: '1' }] }] }] }), /unsupported field/u)
+  assert.equal(document.listEntities().length, entityCount)
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.ontology.objectKinds.includes('common-datum-token'), true)
+  assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.featureControlFrames, /single ASCII hyphens/u)
+})
+
 test('feature-control datum slots preserve intentional empty cells', () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ position: [120, 80], role: 'dimensions', rows: [{ characteristic: 'concentricity', tolerance: '0.03', datumReferences: [{ label: 'A', slot: 1 }, { label: 'B', slot: 2 }] }] }] })
@@ -1295,7 +1322,7 @@ test('generic orthographic geometry remains native when the circular end view is
     symbols,
     dimensions,
   })
-  assert.equal(proposal.evidence.knowledgePackVersion, '2.24.0')
+  assert.equal(proposal.evidence.knowledgePackVersion, '2.25.0')
   assert.equal(proposal.evidence.parameters.endViewPresent, false)
   assert.equal(proposal.evidence.parameters.ringCount, 0)
   assert.equal(proposal.commandArgs.entities.some(entity => entity.type === 'CIRCLE'), false)
