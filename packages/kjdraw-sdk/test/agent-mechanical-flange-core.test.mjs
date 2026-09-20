@@ -96,6 +96,17 @@ test('sheet-note attachment points are bounded to multiline MTEXT', () => {
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...base, sheet: { ...base.sheet, notes: [{ ...note, kind: 'multiline', attachmentPoint: 5.5 }] } }), /attachmentPoint is only valid/u)
 })
 
+test('outer frame offsets preserve measured borders without shifting inset geometry', () => {
+  const document = createKJDrawSDK().createDocument({ units: 'millimeter' }), base = input(document.revision)
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...base, sheet: { ...base.sheet, outerFrameOffset: [0.125, -0.25] } })
+  const lines = proposal.commandArgs.entities.filter(entity => entity.type === 'LINE')
+  const hasLine = (start, end) => lines.some(entity => JSON.stringify(entity.payload.start) === JSON.stringify([...start, 0]) && JSON.stringify(entity.payload.end) === JSON.stringify([...end, 0]))
+  assert.equal(hasLine([0.125, -0.25], [400.125, -0.25]), true)
+  assert.equal(hasLine([8, 8], [392, 8]), true)
+  assert.equal(hasLine([8.125, 7.75], [392.125, 7.75]), false)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...base, sheet: { ...base.sheet, outerFrameOffset: [1.001, 0] } }), /within one drawing unit/u)
+})
+
 test('symmetric profile line directions preserve independent dash phases', () => {
   const document = createKJDrawSDK().createDocument({ units: 'millimeter' }), base = input(0)
   const proposal = buildAgentMechanicalFlangeCore(document, { ...base, sideViewAxis: { xRange: [190, 280], symmetricProfiles: [{

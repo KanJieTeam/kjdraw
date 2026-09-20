@@ -637,6 +637,7 @@ function validate(document, source) {
         'origin',
         'size',
         'inset',
+        'outerFrameOffset',
         'outerFrameStyleKey',
         'insetFrameStyleKey',
         'outerFrameSides',
@@ -647,6 +648,11 @@ function validate(document, source) {
     const sheetOrigin = point(sheet.origin, 'input.sheet.origin'), sheetSize = point(sheet.size, 'input.sheet.size');
     if (sheetSize[0] < 100 || sheetSize[1] < 100) throw new KJValidationError('input.sheet.size is too small');
     const inset = finite(sheet.inset, 'input.sheet.inset', 0, Math.min(...sheetSize) / 2 - 1);
+    const outerFrameOffset = sheet.outerFrameOffset == null ? [
+        0,
+        0
+    ] : point(sheet.outerFrameOffset, 'input.sheet.outerFrameOffset');
+    if (outerFrameOffset.some((value)=>Math.abs(value) > 1)) throw new KJValidationError('input.sheet.outerFrameOffset must stay within one drawing unit');
     const outerFrameStyleKey = entityStyleKey(sheet.outerFrameStyleKey, 'input.sheet.outerFrameStyleKey'), insetFrameStyleKey = entityStyleKey(sheet.insetFrameStyleKey, 'input.sheet.insetFrameStyleKey');
     const frameSides = (value, label)=>{
         if (value == null) return [
@@ -1664,6 +1670,7 @@ function validate(document, source) {
         sheetOrigin,
         sheetSize,
         inset,
+        outerFrameOffset,
         outerFrameStyleKey,
         insetFrameStyleKey,
         outerFrameSides,
@@ -2068,7 +2075,10 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             y
         ], style.layerId, style.name);
     };
-    frameRectangle(input.sheetOrigin, input.sheetSize, input.outerFrameSides, input.outerFrameStyleKey);
+    frameRectangle([
+        input.sheetOrigin[0] + input.outerFrameOffset[0],
+        input.sheetOrigin[1] + input.outerFrameOffset[1]
+    ], input.sheetSize, input.outerFrameSides, input.outerFrameStyleKey);
     if (input.inset > 0) frameRectangle([
         input.sheetOrigin[0] + input.inset,
         input.sheetOrigin[1] + input.inset

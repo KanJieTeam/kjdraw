@@ -485,6 +485,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
         origin: Point2;
         size: Point2;
         inset: number;
+        outerFrameOffset?: Point2;
         outerFrameStyleKey?: string;
         insetFrameStyleKey?: string;
         outerFrameSides?: KJFlangeFrameSide[];

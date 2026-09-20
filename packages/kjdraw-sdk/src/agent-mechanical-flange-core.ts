@@ -279,7 +279,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   symbols?: { definitions: KJFlangeSymbolDefinition[]; instances: KJFlangeSymbolInstance[] }
   styleResources?: { textStyles: KJFlangeTextStyleDefinition[]; dimensionStyles: KJFlangeDimensionStyleDefinition[] }
   styleProfile?: KJFlangeStyleProfile
-  sheet: { origin: Point2; size: Point2; inset: number; outerFrameStyleKey?: string; insetFrameStyleKey?: string; outerFrameSides?: KJFlangeFrameSide[]; insetFrameSides?: KJFlangeFrameSide[]; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
+  sheet: { origin: Point2; size: Point2; inset: number; outerFrameOffset?: Point2; outerFrameStyleKey?: string; insetFrameStyleKey?: string; outerFrameSides?: KJFlangeFrameSide[]; insetFrameSides?: KJFlangeFrameSide[]; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
 }
 
 const finite = (value: unknown, label: string, min: number, max: number): number => {
@@ -568,10 +568,12 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const styleKey = entityStyleKey(hatch.styleKey, `${label}.styleKey`)
     return { edges, lineAngle, lineSpacing, patternOrigin, ...(styleKey == null ? {} : { styleKey }) }
   })
-  const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'outerFrameStyleKey', 'insetFrameStyleKey', 'outerFrameSides', 'insetFrameSides', 'titleGrid', 'notes'], 'input.sheet')
+  const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'outerFrameOffset', 'outerFrameStyleKey', 'insetFrameStyleKey', 'outerFrameSides', 'insetFrameSides', 'titleGrid', 'notes'], 'input.sheet')
   const sheetOrigin = point(sheet.origin, 'input.sheet.origin'), sheetSize = point(sheet.size, 'input.sheet.size')
   if (sheetSize[0] < 100 || sheetSize[1] < 100) throw new KJValidationError('input.sheet.size is too small')
   const inset = finite(sheet.inset, 'input.sheet.inset', 0, Math.min(...sheetSize) / 2 - 1)
+  const outerFrameOffset = sheet.outerFrameOffset == null ? [0, 0] as Point2 : point(sheet.outerFrameOffset, 'input.sheet.outerFrameOffset')
+  if (outerFrameOffset.some(value => Math.abs(value) > 1)) throw new KJValidationError('input.sheet.outerFrameOffset must stay within one drawing unit')
   const outerFrameStyleKey = entityStyleKey(sheet.outerFrameStyleKey, 'input.sheet.outerFrameStyleKey'), insetFrameStyleKey = entityStyleKey(sheet.insetFrameStyleKey, 'input.sheet.insetFrameStyleKey')
   const frameSides = (value: unknown, label: string): KJFlangeFrameSide[] => {
     if (value == null) return ['bottom', 'right', 'top', 'left']
@@ -929,7 +931,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source
     return { key: String(key), definition: styleRole(definition, `input.styleProfile.custom[${index}]`) }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -1058,7 +1060,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     if (sides.includes('top')) line([x + w, y + h], [x, y + h], style.layerId, style.name)
     if (sides.includes('left')) line([x, y + h], [x, y], style.layerId, style.name)
   }
-  frameRectangle(input.sheetOrigin, input.sheetSize, input.outerFrameSides, input.outerFrameStyleKey)
+  frameRectangle([input.sheetOrigin[0] + input.outerFrameOffset[0], input.sheetOrigin[1] + input.outerFrameOffset[1]], input.sheetSize, input.outerFrameSides, input.outerFrameStyleKey)
   if (input.inset > 0) frameRectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2], input.insetFrameSides, input.insetFrameStyleKey)
   if (input.titleGrid) {
     const grid = input.titleGrid, [x, y] = grid.origin, [w, h] = grid.size
