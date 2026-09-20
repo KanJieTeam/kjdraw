@@ -1802,9 +1802,13 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
   for (const type of resources.linetypes) {
     fields(type, ['id', 'name', 'pattern']); validateIdentity(type, typeNames)
     if (['BYLAYER', 'BYBLOCK'].includes(normalizeName(type.name))) throw new KJValidationError('CREATEBATCH resource linetype names cannot shadow inheritance keywords')
-    if (!Array.isArray(type.pattern) || type.pattern.length > 32 || type.pattern.length % 2 !== 0 || type.pattern.some((segment, index) => typeof segment !== 'number' || !Number.isFinite(segment) || Math.abs(segment) > 1e12 || (index % 2 === 0 ? segment <= 0 : segment >= 0))) throw new KJValidationError('CREATEBATCH linetype patterns must be empty for continuous lines or contain alternating positive dashes and negative gaps')
+    // Native simple DXF linetypes store an ordered segment sequence: positive
+    // values are dashes, negative values are gaps, and zero is a point. Do not
+    // force an artificial positive/negative pairing that would erase point
+    // segments or reject valid repeated dash/gap elements.
+    if (!Array.isArray(type.pattern) || type.pattern.length > 32 || type.pattern.some(segment => typeof segment !== 'number' || !Number.isFinite(segment) || Math.abs(segment) > 1e12)) throw new KJValidationError('CREATEBATCH linetype patterns must be a bounded sequence of native dash, gap, or point segments')
     const length = type.pattern.reduce((sum, segment) => sum + Math.abs(segment), 0)
-    if ((type.pattern.length > 0 && !(length > 0)) || !Number.isFinite(length)) throw new KJValidationError('CREATEBATCH nonempty linetype length must be finite and positive')
+    if ((type.pattern.length > 0 && !(length > 0)) || !Number.isFinite(length)) throw new KJValidationError('CREATEBATCH nonempty linetype length must contain at least one finite non-point segment')
     linetypes.set(type.id, type.name)
   }
   const layerNames = new Set(document.getTable('layers')!.records.map(item => normalizeName(String(item.name))))
