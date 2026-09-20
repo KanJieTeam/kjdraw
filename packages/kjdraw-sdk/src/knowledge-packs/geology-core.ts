@@ -212,6 +212,8 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack> = vali
         gap: 0.6, valueOffset: 3, markerOffset: 0, dateOffset: -3,
       },
       patternLabelStyle: { height: 1.5, textWidthFactor: 1, minimumBandHeight: 2 },
+      titleMarginFacts: [{ key: 'recordNumber', label: '记录号', separator: ':', edge: 'top', anchor: 'right', offset: [-5, -4],
+        height: 2, textWidthFactor: 0.8, horizontalAlignment: 'right', verticalAlignment: 'baseline', rotationDegrees: 0 }],
       textFlow: {
         firstGroupBorrowMm: 8,
         firstGroupUnruled: true,

@@ -196,6 +196,7 @@ interface ColumnLayout {
   sampleMarkerStyle?: { height: number; gap: number; baselineOffset: number }
   groundwaterAnnotationStyle?: { fieldRole: 'pattern'; textHeight: number; markerHeight: number; textWidthFactor: number; gap: number; valueOffset: number; markerOffset: number; dateOffset: number }
   patternLabelStyle?: { height: number; textWidthFactor: number; minimumBandHeight: number }
+  titleMarginFacts?: TitleMarginFactPlacement[]
   verticalScaleDenominators: number[]
   sourceTemplate?: { sourceId: string; sourceSha256: string; verticalScaleDenominator: number; innerGridWidthMillimeters: number; fieldRoles: string[]; footerLabels: string[]; gridLineHandles: string[] }
 }
@@ -204,6 +205,19 @@ type HeaderRole = 'projectName' | 'holeId' | 'collarElevation' | 'depth' | 'x' |
 type HeaderCellGeometry = { start?: number; valueStart?: number }
 type HeaderCell = ({ role: HeaderRole; label: string; optional?: boolean } | { role: 'documentFact'; key: string; label: string; optional?: boolean }) & HeaderCellGeometry
 type FooterCell = { start: number; key: string; label: string }
+type TitleMarginFactPlacement = {
+  key: string
+  label: string
+  separator: string
+  edge: 'top'
+  anchor: 'left' | 'center' | 'right'
+  offset: [number, number]
+  height: number
+  textWidthFactor: number
+  horizontalAlignment: 'left' | 'center' | 'right'
+  verticalAlignment: 'baseline' | 'middle'
+  rotationDegrees: number
+}
 const headerRoles = new Set<HeaderRole>(['projectName', 'holeId', 'collarElevation', 'depth', 'x', 'y', 'startDate', 'endDate', 'initialWaterDepth', 'stableWaterDepth', 'verticalScale'])
 const stableDocumentFactKey = (value: unknown, label = 'document fact key'): string => {
   if (typeof value !== 'string' || !/^[A-Za-z][A-Za-z0-9]{0,31}$/u.test(value) || ['constructor', 'prototype'].includes(value.toLowerCase())) throw new KJValidationError(`Geology: invalid ${label}`)
@@ -282,7 +296,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -523,6 +537,37 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: pattern label style is unreadable')
     patternLabelStyle = { height, textWidthFactor, minimumBandHeight }
   }
+  let titleMarginFacts: ColumnLayout['titleMarginFacts']
+  if (value.titleMarginFacts != null) {
+    if (!isFieldGrid || !Array.isArray(value.titleMarginFacts) || value.titleMarginFacts.length < 1 || value.titleMarginFacts.length > 8)
+      throw new KJValidationError('Geology: title margin facts require 1–8 declarative field-grid placements')
+    const seen = new Set<string>()
+    titleMarginFacts = value.titleMarginFacts.map((raw, index) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError(`Geology: title margin fact ${index + 1} is invalid`)
+      const item = raw as Record<string, unknown>
+      if (Object.keys(item).sort().join(',') !== 'anchor,edge,height,horizontalAlignment,key,label,offset,rotationDegrees,separator,textWidthFactor,verticalAlignment')
+        throw new KJValidationError('Geology: title margin fact needs an exact versioned placement schema')
+      const key = stableDocumentFactKey(item.key, 'title margin fact key'), canonical = key.toLowerCase()
+      if (seen.has(canonical)) throw new KJValidationError('Geology: duplicate title margin fact key')
+      seen.add(canonical)
+      const label = bounded(item.label, 'title margin fact label', 24)
+      if (typeof item.separator !== 'string' || item.separator.length > 4 || /[\u0000-\u001f\u007f]/u.test(item.separator))
+        throw new KJValidationError('Geology: invalid title margin fact separator')
+      if (item.edge !== 'top' || !['left', 'center', 'right'].includes(String(item.anchor)) ||
+        !['left', 'center', 'right'].includes(String(item.horizontalAlignment)) || !['baseline', 'middle'].includes(String(item.verticalAlignment)))
+        throw new KJValidationError('Geology: unsupported title margin edge or alignment')
+      if (!Array.isArray(item.offset) || item.offset.length !== 2) throw new KJValidationError('Geology: title margin fact offset needs two coordinates')
+      const offset = item.offset.map((coordinate, coordinateIndex) => numeric(coordinate, `title margin fact offset ${coordinateIndex + 1}`)) as [number, number]
+      const height = numeric(item.height, 'title margin fact height')
+      const textWidthFactor = numeric(item.textWidthFactor, 'title margin fact width factor')
+      const rotationDegrees = numeric(item.rotationDegrees, 'title margin fact rotation')
+      if (height < 0.8 || height > 8 || textWidthFactor < 0.4 || textWidthFactor > 1.5 || rotationDegrees < -180 || rotationDegrees > 180)
+        throw new KJValidationError('Geology: title margin fact typography is unreadable')
+      return { key, label, separator: item.separator, edge: 'top' as const, anchor: item.anchor as TitleMarginFactPlacement['anchor'], offset,
+        height, textWidthFactor, horizontalAlignment: item.horizontalAlignment as TitleMarginFactPlacement['horizontalAlignment'],
+        verticalAlignment: item.verticalAlignment as TitleMarginFactPlacement['verticalAlignment'], rotationDegrees }
+    })
+  }
   let verticalScaleDenominators = [...defaultColumnVerticalScales]
   if (value.verticalScaleDenominators != null) {
     if (!Array.isArray(value.verticalScaleDenominators) || value.verticalScaleDenominators.length < 1 || value.verticalScaleDenominators.length > 16)
@@ -572,6 +617,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}),
     ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sampleMarkerStyle ? { sampleMarkerStyle } : {}),
     ...(groundwaterAnnotationStyle ? { groundwaterAnnotationStyle } : {}), ...(patternLabelStyle ? { patternLabelStyle } : {}),
+    ...(titleMarginFacts ? { titleMarginFacts } : {}),
     ...(sourceTemplate ? { sourceTemplate } : {}) }
 }
 
@@ -755,6 +801,12 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     ...(centered ? { horizontalAlignment: 1 } : {}), ...(verticalAlignment == null ? {} : { verticalAlignment }),
     ...(centered || verticalAlignment != null ? { alignmentPoint: [x, y, 0] } : {}),
   })
+  const placedText = (layer: number, x: number, y: number, value: string, height: number, widthFactor: number,
+    horizontalAlignment: 0 | 1 | 2, verticalAlignment: 0 | 2, rotation: number) => add('TEXT', layer, {
+    position: [x, y, 0], text: value, height, widthFactor, rotation,
+    ...(horizontalAlignment === 0 ? {} : { horizontalAlignment }), ...(verticalAlignment === 0 ? {} : { verticalAlignment }),
+    ...(horizontalAlignment !== 0 || verticalAlignment !== 0 ? { alignmentPoint: [x, y, 0] } : {}),
+  })
   const mtext = (layer: number, x: number, y: number, value: string, height: number, width: number) => add('MTEXT', layer, {
     position: [x, y, 0], text: value, height, width, attachmentPoint: 1,
   })
@@ -771,7 +823,7 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     evidence: { packId: 'geology.core', packVersion: '1.0.0', packHash: stableHash({ pattern, hatches }), intentHash: stableHash(input), templateId, rootObjectId: prefix, expectedRevision, entityCount: entities.length,
       ...(parameters ? { parameters } : {}) },
   })
-  return { line, semanticLine, text, mtext, poly, rect, circle, hatch, finish }
+  return { line, semanticLine, text, placedText, mtext, poly, rect, circle, hatch, finish }
 }
 
 export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<KJKnowledgeCompileResult> {
@@ -779,12 +831,12 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
     headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights,
-    stratigraphicNotationStyle, sampleMarkerStyle, groundwaterAnnotationStyle, patternLabelStyle, layerNumberStyle, sourceTemplate } = layout
+    stratigraphicNotationStyle, sampleMarkerStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
     throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style')
   const documentFacts = documentFactRecord(input.documentFacts)
   const declaredDocumentFactKeys = new Set([...(headerGrid?.rows.flat().filter((cell): cell is Extract<HeaderCell, { role: 'documentFact' }> => cell.role === 'documentFact').map(cell => cell.key) ?? []),
-    ...(footerGrid?.cells.map(cell => cell.key) ?? [])])
+    ...(footerGrid?.cells.map(cell => cell.key) ?? []), ...(titleMarginFacts?.map(item => item.key) ?? [])])
   for (const key of Object.keys(documentFacts)) if (!declaredDocumentFactKeys.has(key)) throw new KJValidationError(`Geology: document fact ${key} is not declared by the style pack`)
   const gridField = (role: FieldRole) => fieldGrid?.find(field => field.role === role)
   const gridEnd = (field: NonNullable<ColumnLayout['fieldGrid']>[number]): number => fieldGrid?.[fieldGrid.indexOf(field) + 1]?.start ?? right
@@ -922,6 +974,34 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       hole.startDate ? `${labels.startDate} ${hole.startDate}` : '', hole.endDate ? `${labels.endDate} ${hole.endDate}` : ''].filter(Boolean).join('   ')
     if (location) g.text(3, left + 2, pageHeight - 43, location, 2.3)
     g.text(3, left + 2, pageHeight - 50, `${labels.verticalScale} 1:${scaleDenominator(verticalScaleDenominator)}   ${labels.datum}`, 2.6)
+  }
+  if (titleMarginFacts) {
+    const occupied: { left: number; right: number; bottom: number; top: number }[] = []
+    for (const placement of titleMarginFacts) {
+      const fact = documentFacts[placement.key]
+      if (fact == null) continue
+      const value = `${placement.label}${placement.separator}${fact}`
+      const x = (placement.anchor === 'left' ? 0 : placement.anchor === 'center' ? pageWidth / 2 : pageWidth) + placement.offset[0]
+      const y = pageHeight + placement.offset[1]
+      const width = [...value].reduce((sum, character) => sum +
+        (/^[\x20-\x7e]$/u.test(character) ? placement.height * 0.64 : placement.height), 0) * placement.textWidthFactor
+      const baseLeft = placement.horizontalAlignment === 'left' ? x : placement.horizontalAlignment === 'center' ? x - width / 2 : x - width
+      const baseBottom = placement.verticalAlignment === 'baseline' ? y : y - placement.height / 2
+      const radians = placement.rotationDegrees * Math.PI / 180, cosine = Math.cos(radians), sine = Math.sin(radians)
+      const points = [[baseLeft, baseBottom], [baseLeft + width, baseBottom], [baseLeft + width, baseBottom + placement.height], [baseLeft, baseBottom + placement.height]]
+        .map(([pointX, pointY]) => [x + (pointX! - x) * cosine - (pointY! - y) * sine,
+          y + (pointX! - x) * sine + (pointY! - y) * cosine] as const)
+      const bounds = { left: Math.min(...points.map(point => point[0])), right: Math.max(...points.map(point => point[0])),
+        bottom: Math.min(...points.map(point => point[1])), top: Math.max(...points.map(point => point[1])) }
+      if (bounds.left < -1e-9 || bounds.right > pageWidth + 1e-9 || bounds.bottom < frameTop + 0.5 || bounds.top > pageHeight + 1e-9)
+        throw new KJValidationError(`Geology: title margin fact ${placement.key} crosses the page or drawing frame`)
+      if (occupied.some(prior => bounds.left < prior.right && bounds.right > prior.left && bounds.bottom < prior.top && bounds.top > prior.bottom))
+        throw new KJValidationError(`Geology: title margin fact ${placement.key} overlaps another title margin fact`)
+      occupied.push(bounds)
+      g.placedText(3, x, y, value, placement.height, placement.textWidthFactor,
+        placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2,
+        placement.verticalAlignment === 'baseline' ? 0 : 2, radians)
+    }
   }
   const renderLegend = (): void => {
     const distinct = [...new Map(strata.map(layer => [layer.patternKey ?? layer.lithology, layer])).values()]

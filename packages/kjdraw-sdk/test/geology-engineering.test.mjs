@@ -246,6 +246,8 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
       groundwaterAnnotationStyle: { fieldRole: 'pattern', textHeight: 2, markerHeight: 2.5,
         textWidthFactor: 0.8, gap: 0.6, valueOffset: 3, markerOffset: 0, dateOffset: -3 },
       patternLabelStyle: { height: 1.5, textWidthFactor: 1, minimumBandHeight: 2 },
+      titleMarginFacts: [{ key: 'recordNumber', label: 'Record', separator: ':', edge: 'top', anchor: 'right', offset: [-10, -4],
+        height: 3, textWidthFactor: 0.8, horizontalAlignment: 'right', verticalAlignment: 'baseline', rotationDegrees: 0 }],
     } } })
   const source = { ...hole('PHYS-1', 0, 123.45, [0.6, 4, 18]), x: 123456.78, y: 654321.09,
     startDate: '2026-01-02', endDate: '2026-01-03', initialWaterDepth: 2.5, stableWaterDepth: 3 }
@@ -256,7 +258,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   source.strata[2].stratigraphicNotation = { symbol: 'N', superscript: 'al' }
   source.observations = [{ kind: 'sample', id: 'S1', depth: 5, sampleMarker: 'filled-circle' }]
   source.groundwaterObservations = [{ depth: 3.25, elevation: 120.2, observedOn: '2026-01-04', marker: 'filled-down-triangle' }]
-  const input = { hole: source, projectName: 'Project A', documentFacts: { projectCode: 'P-18' },
+  const input = { hole: source, projectName: 'Project A', documentFacts: { projectCode: 'P-18', recordNumber: '18' },
     verticalScaleDenominator: 100, expectedRevision: 0, columnStylePack: style }
   const compiled = compileGeologyColumn(input)
   const texts = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT')
@@ -271,6 +273,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} groundwater annotation`)
   assert.ok(texts.some(entity => entity.payload.text === 'SC' && entity.payload.height === 1.5 &&
     entity.payload.horizontalAlignment === 1 && entity.payload.verticalAlignment === 2), 'centered pattern lane label')
+  assert.ok(texts.some(entity => entity.payload.text === 'Record:18' && entity.payload.position[0] === 180 &&
+    entity.payload.position[1] === 286 && entity.payload.height === 3 && entity.payload.widthFactor === 0.8 &&
+    entity.payload.horizontalAlignment === 2 && entity.payload.rotation === 0), 'declared title-margin document fact')
   const headerBottom = 245, headerTop = 260
   const vertical = compiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
     entity.payload.start[0] === entity.payload.end[0] && entity.payload.start[1] >= headerBottom && entity.payload.end[1] <= headerTop)
@@ -281,12 +286,12 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const kjd = await sdk.writeDocument(document, { format: 'KJD', version: '1' })
   const reopened = await sdk.readDocument(dxf, { format: 'DXF' }), reopenedKjd = await sdk.readDocument(kjd, { format: 'KJD' })
   assert.equal(reopened.validate().valid, true); assert.equal(reopenedKjd.validate().valid, true)
-  for (const value of ['2.50', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04']) {
+  for (const value of ['2.50', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18']) {
     assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `DXF ${value}`)
     assert.ok(reopenedKjd.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `KJD ${value}`)
   }
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
-    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); xs=sorted({round(e.dxf.start.x,6) for e in m.query("LINE") if abs(e.dxf.start.x-e.dxf.end.x)<1e-9 and e.dxf.start.y>=245 and e.dxf.end.y<=260}); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"xs":xs,"texts":[e.dxf.text for e in m.query("TEXT")]},ensure_ascii=False))'],
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); ts=list(m.query("TEXT")); xs=sorted({round(e.dxf.start.x,6) for e in m.query("LINE") if abs(e.dxf.start.x-e.dxf.end.x)<1e-9 and e.dxf.start.y>=245 and e.dxf.end.y<=260}); rs=[e for e in ts if e.dxf.text=="Record:18"]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"xs":xs,"texts":[e.dxf.text for e in ts],"record":[[e.dxf.insert.x,e.dxf.insert.y,e.dxf.height,e.dxf.width,e.dxf.halign,e.dxf.valign,e.dxf.rotation] for e in rs]},ensure_ascii=False))'],
   dxf, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
     PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
   if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
@@ -297,8 +302,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     const report = JSON.parse(independent.stdout)
     assert.deepEqual([report.errors, report.fixes], [0, 0])
     for (const x of [25, 55, 75, 105, 125, 145, 165]) assert.ok(report.xs.includes(x), `ezdxf header x=${x}`)
-    for (const value of ['2.50', '3.00', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04'])
+    for (const value of ['2.50', '3.00', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18'])
       assert.ok(report.texts.includes(value), `ezdxf ${value}`)
+    assert.deepEqual(report.record, [[180, 286, 3, 0.8, 2, 0, 0]])
   }
   const partial = structuredClone(input)
   delete partial.columnStylePack.rules['geology-column-layout'].headerGrid.rows[0][1].valueStart
@@ -348,6 +354,15 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const oversizedPatternLabel = structuredClone(input)
   oversizedPatternLabel.hole.strata[1].patternLabel = 'THIS LABEL CANNOT FIT'
   assert.throws(() => compileGeologyColumn(oversizedPatternLabel), /pattern label for 2 does not fit/u)
+  const undeclaredTitleFact = structuredClone(input)
+  delete undeclaredTitleFact.columnStylePack.rules['geology-column-layout'].titleMarginFacts
+  assert.throws(() => compileGeologyColumn(undeclaredTitleFact), /document fact recordNumber is not declared/u)
+  const outsideTitleFact = structuredClone(input)
+  outsideTitleFact.columnStylePack.rules['geology-column-layout'].titleMarginFacts[0].offset = [20, -4]
+  assert.throws(() => compileGeologyColumn(outsideTitleFact), /crosses the page or drawing frame/u)
+  const frameCrossingTitleFact = structuredClone(input)
+  frameCrossingTitleFact.columnStylePack.rules['geology-column-layout'].titleMarginFacts[0].offset = [-10, -16]
+  assert.throws(() => compileGeologyColumn(frameCrossingTitleFact), /crosses the page or drawing frame/u)
 })
 
 test('bundled Chinese column header renders the selected physical vertical scale as visible native text', () => {
