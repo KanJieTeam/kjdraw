@@ -5,21 +5,22 @@ import { stableHash } from '../utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePack({
   schema: 'kjdraw.knowledge-pack.v1',
   id: 'mechanical-flange-core',
-  version: '2.22.0',
-  title: 'Parameterized flange orthographic-view and sheet-grid rules',
+  version: '2.23.0',
+  title: 'Parameterized mechanical orthographic-view and sheet-grid rules',
   domain: 'mechanical-manufacturing',
   license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
   sources: [{
     id: 'kjdraw-authored-flange-rules-v1',
     title: 'KJDraw authored flange geometry and layout rules',
     license: 'MIT',
-    contentHash: stableHash('flange-views:concentric-rings:polar-hole-arrays:legacy-square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:multi-boundary-loop-hatch:spline-hatch-edges:parameterized-ansi31:caller-supplied-style-roles:caller-supplied-entity-style-overrides:caller-supplied-annotation-style-resources:semantic-auxiliary-lines:semantic-auxiliary-points:standard-point-display:symbol-text-hatch-solid:empty-symbol-blocks:semantic-native-curves:generic-local-symbols:nested-local-symbols:attributed-local-symbols:complete-attribute-sequences:semantic-feature-control-frames:auxiliary-circles:native-leaders:native-derived-dimensions:entity-local-dimension-overrides:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:per-side-frame-styles:bounded-64-style-catalogs:native-structured-wipeout:bounded-1024-auxiliary-lines:bounded-512-auxiliary-curves:bounded-symbol-catalogs:native-ordinate-dimensions:positive-finite-small-radius-arcs:ordered-linetype-segments:verified-symmetric-profile-pairs:v2.22'),
+    contentHash: stableHash('flange-views:concentric-rings:polar-hole-arrays:legacy-square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:multi-boundary-loop-hatch:spline-hatch-edges:parameterized-ansi31:caller-supplied-style-roles:caller-supplied-entity-style-overrides:caller-supplied-annotation-style-resources:semantic-auxiliary-lines:semantic-auxiliary-points:standard-point-display:symbol-text-hatch-solid:empty-symbol-blocks:semantic-native-curves:generic-local-symbols:nested-local-symbols:attributed-local-symbols:complete-attribute-sequences:semantic-feature-control-frames:auxiliary-circles:native-leaders:native-derived-dimensions:entity-local-dimension-overrides:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:per-side-frame-styles:bounded-64-style-catalogs:native-structured-wipeout:bounded-1024-auxiliary-lines:bounded-512-auxiliary-curves:bounded-symbol-catalogs:native-ordinate-dimensions:positive-finite-small-radius-arcs:ordered-linetype-segments:verified-symmetric-profile-pairs:generic-orthographic-without-end-view:v2.23'),
   }],
   ontology: {
-    objectKinds: ['flange', 'bore', 'concentric-ring', 'polar-hole-pattern', 'square-hole-pattern', 'end-view-outline', 'cutting-plane-mark', 'side-view-axis', 'symmetric-meridian-profile', 'side-view-outline', 'cut-face', 'hatch-boundary-loop', 'hatch-spline-edge', 'native-dimension', 'native-leader', 'feature-control-frame', 'local-symbol', 'attribute-definition', 'attached-attribute', 'sheet-frame', 'native-point', 'title-grid', 'sheet-note', 'masking-area'],
+    objectKinds: ['mechanical-orthographic-object', 'flange', 'bore', 'concentric-ring', 'polar-hole-pattern', 'square-hole-pattern', 'end-view-outline', 'cutting-plane-mark', 'side-view-axis', 'symmetric-meridian-profile', 'side-view-outline', 'cut-face', 'hatch-boundary-loop', 'hatch-spline-edge', 'native-dimension', 'native-leader', 'feature-control-frame', 'local-symbol', 'attribute-definition', 'attached-attribute', 'sheet-frame', 'native-point', 'title-grid', 'sheet-note', 'masking-area'],
     relationKinds: ['concentric-with', 'projects-to', 'mirrors-across-axis', 'placed-on'],
   },
   rules: {
+    orthographicObject: 'the circular end view is optional for source-measured mechanical objects; when omitted, at least one bounded native geometry family must be supplied, and a side-view axis must carry its explicit absolute coordinate rather than inherit an absent center',
     endView: 'concentric rings, bounded polar mounting-hole arrays with count, pitch radius, hole radius and start angle, a backward-compatible four-corner square array, and optional source-measured line, arc or circle outlines relative to the view center',
     sectionMarks: 'bounded source-positioned cutting-plane stems, ticks and optional native arrowheads relative to the end-view center',
     sideView: 'axis plus optional mirrored meridian profiles and source-measured line, arc or circle outlines relative to that axis; repeated stations encode shoulders; symmetric profiles are reserved for source pairs whose geometry and effective visual style both mirror across the declared side axis, while every unpaired or asymmetric source segment remains an auxiliary line and is never inferred',

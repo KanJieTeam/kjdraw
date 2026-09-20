@@ -589,7 +589,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     units: 'millimeter';
     drawingId: string;
     entityDrawOrder?: number[];
-    endView: {
+    endView?: {
         center: Point2;
         ringRadii: number[];
         ringStyleKeys?: (string | null)[];

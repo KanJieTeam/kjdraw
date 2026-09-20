@@ -236,8 +236,9 @@ function validate(document, source) {
         if (!entityStyleKeys.has(key)) throw new KJValidationError(`${label} must reference input.styleProfile.custom`);
         return key;
     };
-    const end = plain(input.endView, 'input.endView');
-    exact(end, [
+    const endViewPresent = input.endView != null;
+    const end = endViewPresent ? plain(input.endView, 'input.endView') : {};
+    if (endViewPresent) exact(end, [
         'center',
         'ringRadii',
         'ringStyleKeys',
@@ -246,9 +247,12 @@ function validate(document, source) {
         'outlineSegments',
         'cuttingPlaneMarks'
     ], 'input.endView');
-    const center = point(end.center, 'input.endView.center');
-    const ringRadii = increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000);
-    if (ringRadii.length < 1) throw new KJValidationError('input.endView.ringRadii requires at least one radius');
+    const center = endViewPresent ? point(end.center, 'input.endView.center') : [
+        0,
+        0
+    ];
+    const ringRadii = endViewPresent ? increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000) : [];
+    if (endViewPresent && ringRadii.length < 1) throw new KJValidationError('input.endView.ringRadii requires at least one radius');
     if (end.ringStyleKeys != null && (!Array.isArray(end.ringStyleKeys) || end.ringStyleKeys.length !== ringRadii.length)) throw new KJValidationError('input.endView.ringStyleKeys must match ringRadii');
     const ringStyleKeys = end.ringStyleKeys == null ? ringRadii.map(()=>undefined) : end.ringStyleKeys.map((value, index)=>entityStyleKey(value, `input.endView.ringStyleKeys[${index}]`));
     let pitch, radius;
@@ -422,6 +426,7 @@ function validate(document, source) {
         'horizontal',
         'vertical'
     ].includes(orientation)) throw new KJValidationError('input.sideViewAxis.orientation is invalid');
+    if (side && !endViewPresent && side.axisCoordinate == null) throw new KJValidationError('input.sideViewAxis.axisCoordinate is required when input.endView is omitted');
     const axisCoordinate = side ? finite(side.axisCoordinate ?? (orientation === 'horizontal' ? center[1] : center[0]), 'input.sideViewAxis.axisCoordinate', -1_000_000, 1_000_000) : null;
     if (side?.axisVisible != null && typeof side.axisVisible !== 'boolean') throw new KJValidationError('input.sideViewAxis.axisVisible must be boolean');
     const axisVisible = side != null && side.axisVisible !== false;
@@ -2340,10 +2345,15 @@ function validate(document, source) {
             definition: styleRole(definition, `input.styleProfile.custom[${index}]`)
         };
     });
+    const placedSymbolKeys = new Set(symbolInstances.map((instance)=>instance.symbolKey));
+    const placedSymbolHasGeometry = symbolDefinitions.some((definition)=>placedSymbolKeys.has(definition.key) && definition.members.length > 0);
+    const hasDrawingGeometry = endViewPresent || axisVisible || symmetricProfiles.length > 0 || sideOutlineSegments.length > 0 || sectionHatches.length > 0 || auxiliaryLines.length > 0 || auxiliaryPoints.length > 0 || auxiliarySolids.length > 0 || auxiliaryWipeouts.length > 0 || auxiliaryCurves.length > 0 || auxiliaryHatches.length > 0 || placedSymbolHasGeometry;
+    if (!hasDrawingGeometry) throw new KJValidationError('input requires at least one actual geometry family when input.endView is omitted');
     return {
         expectedRevision,
         drawingId: input.drawingId.trim(),
         entityDrawOrder,
+        endViewPresent,
         center,
         ringRadii,
         ringStyleKeys,
@@ -3558,6 +3568,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             expectedRevision: input.expectedRevision,
             entityCount: orderedEntities.length,
             parameters: {
+                endViewPresent: input.endViewPresent,
                 ringCount: input.ringRadii.length,
                 squareHolePitch: input.pitch,
                 squareHoleRadius: input.radius,

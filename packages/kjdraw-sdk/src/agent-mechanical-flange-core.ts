@@ -394,7 +394,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   units: 'millimeter'
   drawingId: string
   entityDrawOrder?: number[]
-  endView: { center: Point2; ringRadii: number[]; ringStyleKeys?: (string | null)[]; squareHoles?: { pitch: number; radius: number }; holePatterns?: KJFlangePolarHolePattern[]; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
+  endView?: { center: Point2; ringRadii: number[]; ringStyleKeys?: (string | null)[]; squareHoles?: { pitch: number; radius: number }; holePatterns?: KJFlangePolarHolePattern[]; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
   sideViewAxis?: { xRange?: Point2; stationRange?: Point2; orientation?: 'horizontal' | 'vertical'; axisCoordinate?: number; axisVisible?: boolean; axisDirection?: 'forward' | 'reverse'; axisStyleKey?: string; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
   dimensions?: KJFlangeDimension[]
   leaders?: KJFlangeLeader[]
@@ -525,10 +525,12 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     if (!entityStyleKeys.has(key)) throw new KJValidationError(`${label} must reference input.styleProfile.custom`)
     return key
   }
-  const end = plain(input.endView, 'input.endView'); exact(end, ['center', 'ringRadii', 'ringStyleKeys', 'squareHoles', 'holePatterns', 'outlineSegments', 'cuttingPlaneMarks'], 'input.endView')
-  const center = point(end.center, 'input.endView.center')
-  const ringRadii = increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000)
-  if (ringRadii.length < 1) throw new KJValidationError('input.endView.ringRadii requires at least one radius')
+  const endViewPresent = input.endView != null
+  const end = endViewPresent ? plain(input.endView, 'input.endView') : {}
+  if (endViewPresent) exact(end, ['center', 'ringRadii', 'ringStyleKeys', 'squareHoles', 'holePatterns', 'outlineSegments', 'cuttingPlaneMarks'], 'input.endView')
+  const center: Point2 = endViewPresent ? point(end.center, 'input.endView.center') : [0, 0]
+  const ringRadii = endViewPresent ? increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000) : []
+  if (endViewPresent && ringRadii.length < 1) throw new KJValidationError('input.endView.ringRadii requires at least one radius')
   if (end.ringStyleKeys != null && (!Array.isArray(end.ringStyleKeys) || end.ringStyleKeys.length !== ringRadii.length)) throw new KJValidationError('input.endView.ringStyleKeys must match ringRadii')
   const ringStyleKeys = end.ringStyleKeys == null ? ringRadii.map(() => undefined) : end.ringStyleKeys.map((value, index) => entityStyleKey(value, `input.endView.ringStyleKeys[${index}]`))
   let pitch: number | undefined, radius: number | undefined
@@ -602,6 +604,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   const xRange = side ? point(side[rangeKey], 'input.sideViewAxis.' + rangeKey) : null
   const orientation = side?.orientation ?? 'horizontal'
   if (!['horizontal', 'vertical'].includes(orientation as string)) throw new KJValidationError('input.sideViewAxis.orientation is invalid')
+  if (side && !endViewPresent && side.axisCoordinate == null) throw new KJValidationError('input.sideViewAxis.axisCoordinate is required when input.endView is omitted')
   const axisCoordinate = side ? finite(side.axisCoordinate ?? (orientation === 'horizontal' ? center[1] : center[0]), 'input.sideViewAxis.axisCoordinate', -1_000_000, 1_000_000) : null
   if (side?.axisVisible != null && typeof side.axisVisible !== 'boolean') throw new KJValidationError('input.sideViewAxis.axisVisible must be boolean')
   const axisVisible = side != null && side.axisVisible !== false
@@ -1325,7 +1328,11 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source
     return { key: String(key), definition: styleRole(definition, `input.styleProfile.custom[${index}]`) }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, orientation, axisCoordinate, axisVisible, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryPoints, pointDisplay, auxiliarySolids, auxiliaryWipeouts, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSideStyleKeys, insetFrameSideStyleKeys, outerFrameSides, insetFrameSides, titleGrid, notes }
+  const placedSymbolKeys = new Set(symbolInstances.map(instance => instance.symbolKey))
+  const placedSymbolHasGeometry = symbolDefinitions.some(definition => placedSymbolKeys.has(definition.key) && definition.members.length > 0)
+  const hasDrawingGeometry = endViewPresent || axisVisible || symmetricProfiles.length > 0 || sideOutlineSegments.length > 0 || sectionHatches.length > 0 || auxiliaryLines.length > 0 || auxiliaryPoints.length > 0 || auxiliarySolids.length > 0 || auxiliaryWipeouts.length > 0 || auxiliaryCurves.length > 0 || auxiliaryHatches.length > 0 || placedSymbolHasGeometry
+  if (!hasDrawingGeometry) throw new KJValidationError('input requires at least one actual geometry family when input.endView is omitted')
+  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, endViewPresent, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, orientation, axisCoordinate, axisVisible, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryPoints, pointDisplay, auxiliarySolids, auxiliaryWipeouts, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSideStyleKeys, insetFrameSideStyleKeys, outerFrameSides, insetFrameSides, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -1651,7 +1658,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     evidence: { knowledgePackId: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.id,
       knowledgePackVersion: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version,
       expectedRevision: input.expectedRevision, entityCount: orderedEntities.length,
-      parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1), holeCount: input.holePatterns.reduce((sum, pattern) => sum + pattern.count, input.pitch == null ? 0 : 4), titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null, sideViewOrientation: input.orientation, sideViewAxisVisible: input.axisVisible,
+      parameters: { endViewPresent: input.endViewPresent, ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1), holeCount: input.holePatterns.reduce((sum, pattern) => sum + pattern.count, input.pitch == null ? 0 : 4), titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null, sideViewOrientation: input.orientation, sideViewAxisVisible: input.axisVisible,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
         sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryLineBudget: MAX_AUXILIARY_LINES, auxiliaryPointCount: input.auxiliaryPoints.length, pointDisplay: input.pointDisplay, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryWipeoutCount: input.auxiliaryWipeouts.length, auxiliaryCurveCount: input.auxiliaryCurves.length, auxiliaryCurveBudget: MAX_AUXILIARY_CURVES, auxiliaryArcRadiusMinimum: MIN_AUXILIARY_ARC_RADIUS,
