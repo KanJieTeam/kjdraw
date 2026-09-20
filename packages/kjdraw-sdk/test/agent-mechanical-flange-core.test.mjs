@@ -140,7 +140,7 @@ test('verified mirrored profiles stay symmetric while asymmetric source lines re
   assert.equal(emitted.has(lineKey([205, 127], [230, 124])), false)
   assert.equal(proposal.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1)
-  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.22.0')
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.23.0')
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /geometry and effective visual style both mirror/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /unpaired or asymmetric source segment remains an auxiliary line/u)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
@@ -1208,4 +1208,72 @@ test('native x and y ordinate dimensions preserve axes, rotation, and derived ge
   assert.throws(() => check([{ kind: 'aligned', axis: 'x', definitionPoints: [origin, xFeature, xEnd] }]), /only valid for ordinate/u)
   assert.throws(() => check([{ kind: 'ordinate', axis: 'x', definitionPoints: [origin, xFeature] }]), /must contain 3 points/u)
   assert.throws(() => check([{ kind: 'ordinate', axis: 'x', definitionPoints: [origin, origin, origin] }]), /projectable native dimension/u)
+})
+
+test('generic orthographic geometry remains native when the circular end view is omitted', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const base = {
+    version: '1.0.0', expectedRevision: document.revision, units: 'millimeter', drawingId: 'PUBLIC-GENERIC-ORTHOGRAPHIC',
+    sheet: { origin: [0, 0], size: [400, 300], inset: 8 },
+  }
+  const dimensions = [{ kind: 'aligned', definitionPoints: [[10, 10], [30, 10], [20, 16]], textPosition: [20, 16] }]
+  const symbols = {
+    definitions: [{ key: 'projection-mark', basePoint: [0, 0], members: [
+      { kind: 'line', start: [-1, 0], end: [1, 0], role: 'geometry' },
+    ] }],
+    instances: [{ symbolKey: 'projection-mark', position: [50, 40], role: 'geometry' }],
+  }
+  const proposal = buildAgentMechanicalFlangeCore(document, {
+    ...base,
+    auxiliaryLines: [{ start: [10, 10], end: [30, 10], role: 'geometry' }],
+    auxiliaryCurves: [{ kind: 'arc', center: [30, 25], radius: 8, startAngle: 0, endAngle: 1.5, role: 'geometry' }],
+    symbols,
+    dimensions,
+  })
+  assert.equal(proposal.evidence.knowledgePackVersion, '2.23.0')
+  assert.equal(proposal.evidence.parameters.endViewPresent, false)
+  assert.equal(proposal.evidence.parameters.ringCount, 0)
+  assert.equal(proposal.commandArgs.entities.some(entity => entity.type === 'CIRCLE'), false)
+  assert.deepEqual(proposal.commandArgs.entities.filter(entity => ['ARC', 'INSERT', 'DIMENSION'].includes(entity.type)).map(entity => entity.type), ['ARC', 'INSERT', 'DIMENSION'])
+
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
+  const modelCounts = reopened => {
+    const modelSpaceId = reopened.snapshot().spaces.modelSpaceId
+    return reopened.listEntities().filter(entity => entity.ownerId === modelSpaceId).reduce((counts, entity) => {
+      counts[entity.type] = (counts[entity.type] ?? 0) + 1
+      return counts
+    }, {})
+  }
+  for (const reopened of [kjd, dxf]) {
+    const counts = modelCounts(reopened)
+    assert.equal(counts.LINE, 9)
+    assert.equal(counts.ARC, 1)
+    assert.equal(counts.INSERT, 1)
+    assert.equal(counts.DIMENSION, 1)
+    assert.equal(counts.CIRCLE ?? 0, 0)
+  }
+
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"lines":len(m.query("LINE")),"arcs":len(m.query("ARC")),"inserts":len(m.query("INSERT")),"dimensions":len(m.query("DIMENSION")),"circles":len(m.query("CIRCLE"))}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || independent.status !== 0 && /No module named ['"]ezdxf/u.test(independent.stderr ?? '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr ?? independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, lines: 9, arcs: 1, inserts: 1, dimensions: 1, circles: 0 })
+  }
+
+  assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...base, dimensions }), /actual geometry family/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), {
+    ...base,
+    symbols: { definitions: [{ key: 'empty-mark', basePoint: [0, 0], members: [] }], instances: [{ symbolKey: 'empty-mark', position: [10, 10], role: 'geometry' }] },
+  }), /actual geometry family/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...base, sideViewAxis: { xRange: [10, 30] } }), /axisCoordinate is required/u)
+  const explicitAxis = buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...base, sideViewAxis: { xRange: [10, 30], axisCoordinate: 20 } })
+  assert.equal(explicitAxis.evidence.parameters.endViewPresent, false)
+  assert.equal(explicitAxis.commandArgs.entities.some(entity => entity.type === 'LINE'), true)
 })
