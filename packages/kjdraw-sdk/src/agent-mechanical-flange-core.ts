@@ -288,7 +288,9 @@ export interface KJFlangeSheetNote {
 /** A bounded native mechanical dimension supplied as engineering annotation
  *  facts. Measurements are derived from definition points, never accepted. */
 export interface KJFlangeDimension {
-  kind: 'aligned' | 'rotated' | 'diameter' | 'radius' | 'angular'
+  kind: 'aligned' | 'rotated' | 'diameter' | 'radius' | 'angular' | 'ordinate'
+  /** Ordinate measurement axis; required only when kind is ordinate. */
+  axis?: 'x' | 'y'
   definitionPoints: Point2[]
   textPosition?: Point2
   textOverride?: string
@@ -875,8 +877,11 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   if ((input.dimensions as unknown[] | undefined)?.length && (input.dimensions as unknown[]).length > 128) throw new KJValidationError('input.dimensions exceed their budget')
   const dimensions: KJFlangeDimension[] = ((input.dimensions ?? []) as unknown[]).map((value, index) => {
     const dimension = plain(value, `input.dimensions[${index}]`)
-    exact(dimension, ['kind', 'definitionPoints', 'textPosition', 'textOverride', 'rotation', 'textHeight', 'arrowSize', 'styleKey'], `input.dimensions[${index}]`)
-    if (!['aligned', 'rotated', 'diameter', 'radius', 'angular'].includes(dimension.kind as string)) throw new KJValidationError(`input.dimensions[${index}].kind is invalid`)
+    exact(dimension, ['kind', 'axis', 'definitionPoints', 'textPosition', 'textOverride', 'rotation', 'textHeight', 'arrowSize', 'styleKey'], `input.dimensions[${index}]`)
+    if (!['aligned', 'rotated', 'diameter', 'radius', 'angular', 'ordinate'].includes(dimension.kind as string)) throw new KJValidationError(`input.dimensions[${index}].kind is invalid`)
+    const axis = dimension.axis
+    if (dimension.kind === 'ordinate' && !['x', 'y'].includes(axis as string)) throw new KJValidationError(`input.dimensions[${index}].axis must be x or y for an ordinate dimension`)
+    if (dimension.kind !== 'ordinate' && axis != null) throw new KJValidationError(`input.dimensions[${index}].axis is only valid for ordinate dimensions`)
     const requiredPoints = dimension.kind === 'angular' ? 5 : ['diameter', 'radius'].includes(dimension.kind as string) ? 2 : 3
     if (!Array.isArray(dimension.definitionPoints) || dimension.definitionPoints.length !== requiredPoints) throw new KJValidationError(`input.dimensions[${index}].definitionPoints must contain ${requiredPoints} points`)
     const definitionPoints = dimension.definitionPoints.map((value, pointIndex) => point(value, `input.dimensions[${index}].definitionPoints[${pointIndex}]`))
@@ -887,12 +892,14 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const textHeight = dimension.textHeight == null ? undefined : finite(dimension.textHeight, `input.dimensions[${index}].textHeight`, 1e-12, 1e12)
     const arrowSize = dimension.arrowSize == null ? undefined : finite(dimension.arrowSize, `input.dimensions[${index}].arrowSize`, 0, 1e12)
     const dimensionType = String(dimension.kind).toUpperCase()
+    const dxfDimensionType = dimension.kind === 'ordinate' ? axis === 'x' ? 70 : 6 : undefined
     const payload = { dimensionType, definitionPoints: definitionPoints.map(([x, y]) => [x, y, 0]),
       ...(textPosition == null ? {} : { textPosition: [...textPosition, 0] }), textOverride: textOverride ?? null, rotation,
+      ...(dxfDimensionType == null ? {} : { dxfDimensionType }),
       ...(textHeight == null ? {} : { textHeight }), ...(arrowSize == null ? {} : { arrowSize }) }
     if (!projectDimension(payload)) throw new KJValidationError(`input.dimensions[${index}] does not define a projectable native dimension`)
     const styleKey = annotationStyleKey(dimension.styleKey, dimensionStyleKeys, `input.dimensions[${index}].styleKey`)
-    return { kind: dimension.kind as KJFlangeDimension['kind'], definitionPoints, ...(textPosition == null ? {} : { textPosition }),
+    return { kind: dimension.kind as KJFlangeDimension['kind'], ...(axis == null ? {} : { axis: axis as 'x' | 'y' }), definitionPoints, ...(textPosition == null ? {} : { textPosition }),
       ...(textOverride == null ? {} : { textOverride }), rotation, ...(textHeight == null ? {} : { textHeight }),
       ...(arrowSize == null ? {} : { arrowSize }), ...(styleKey == null ? {} : { styleKey }) }
   })
@@ -1612,7 +1619,9 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     ...(note.width == null ? {} : { width: note.width }), ...(note.attachmentPoint == null ? {} : { attachmentPoint: note.attachmentPoint }), ...(style == null ? {} : { styleId: style.id }), layerId: entityStyle.layerId,
   }, entityStyle.name) }
   for (const dimension of input.dimensions) { const style = dimension.styleKey == null ? null : dimensionStyleByKey.get(dimension.styleKey)!; emit('DIMENSION', {
-    dimensionType: dimension.kind.toUpperCase(), definitionPoints: dimension.definitionPoints.map(([x, y]) => p3(x, y)),
+    dimensionType: dimension.kind.toUpperCase(),
+    ...(dimension.kind === 'ordinate' ? { dxfDimensionType: dimension.axis === 'x' ? 70 : 6 } : {}),
+    definitionPoints: dimension.definitionPoints.map(([x, y]) => p3(x, y)),
     ...(dimension.textPosition == null ? {} : { textPosition: p3(...dimension.textPosition) }),
     textOverride: dimension.textOverride ?? null, rotation: dimension.rotation ?? 0,
     ...(dimension.textHeight == null ? {} : { textHeight: dimension.textHeight }), ...(dimension.arrowSize == null ? {} : { arrowSize: dimension.arrowSize }),
@@ -1647,7 +1656,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
         sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryLineBudget: MAX_AUXILIARY_LINES, auxiliaryPointCount: input.auxiliaryPoints.length, pointDisplay: input.pointDisplay, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryWipeoutCount: input.auxiliaryWipeouts.length, auxiliaryCurveCount: input.auxiliaryCurves.length, auxiliaryCurveBudget: MAX_AUXILIARY_CURVES,
         symbolDefinitionCount: input.symbolDefinitions.length, symbolDefinitionBudget: MAX_SYMBOL_DEFINITIONS, symbolMemberCount: input.symbolDefinitions.reduce((sum, definition) => sum + definition.members.length, 0), symbolMemberBudgetPerDefinition: MAX_SYMBOL_MEMBERS_PER_DEFINITION, symbolMemberBudgetTotal: MAX_SYMBOL_MEMBERS_TOTAL, symbolInstanceCount: input.symbolInstances.length, symbolInstanceBudget: MAX_SYMBOL_INSTANCES, symbolAttributeCount: input.symbolAttributeCount, featureControlFrameCount: input.featureControlFrames.length,
         entityStyleCount: input.customStyles.length, textStyleCount: input.textStyles.length, dimensionStyleCount: input.dimensionStyles.length,
-        noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
+        noteCount: input.notes.length, dimensionCount: input.dimensions.length, ordinateDimensionCount: input.dimensions.filter(dimension => dimension.kind === 'ordinate').length, leaderCount: input.leaders.length },
       limitations: ['Flange end-view, symmetric axial-profile, cut-face hatches, native dimension and sheet-grid core only', 'Local symbols are bounded to editable local blocks and complete attached attribute sequences', 'Private drawings and labels are not embedded'],
     },
   }

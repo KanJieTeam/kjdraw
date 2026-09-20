@@ -1066,6 +1066,7 @@ function validate(document, source) {
         const dimension = plain(value, `input.dimensions[${index}]`);
         exact(dimension, [
             'kind',
+            'axis',
             'definitionPoints',
             'textPosition',
             'textOverride',
@@ -1079,8 +1080,15 @@ function validate(document, source) {
             'rotated',
             'diameter',
             'radius',
-            'angular'
+            'angular',
+            'ordinate'
         ].includes(dimension.kind)) throw new KJValidationError(`input.dimensions[${index}].kind is invalid`);
+        const axis = dimension.axis;
+        if (dimension.kind === 'ordinate' && ![
+            'x',
+            'y'
+        ].includes(axis)) throw new KJValidationError(`input.dimensions[${index}].axis must be x or y for an ordinate dimension`);
+        if (dimension.kind !== 'ordinate' && axis != null) throw new KJValidationError(`input.dimensions[${index}].axis is only valid for ordinate dimensions`);
         const requiredPoints = dimension.kind === 'angular' ? 5 : [
             'diameter',
             'radius'
@@ -1094,6 +1102,7 @@ function validate(document, source) {
         const textHeight = dimension.textHeight == null ? undefined : finite(dimension.textHeight, `input.dimensions[${index}].textHeight`, 1e-12, 1e12);
         const arrowSize = dimension.arrowSize == null ? undefined : finite(dimension.arrowSize, `input.dimensions[${index}].arrowSize`, 0, 1e12);
         const dimensionType = String(dimension.kind).toUpperCase();
+        const dxfDimensionType = dimension.kind === 'ordinate' ? axis === 'x' ? 70 : 6 : undefined;
         const payload = {
             dimensionType,
             definitionPoints: definitionPoints.map(([x, y])=>[
@@ -1109,6 +1118,9 @@ function validate(document, source) {
             },
             textOverride: textOverride ?? null,
             rotation,
+            ...dxfDimensionType == null ? {} : {
+                dxfDimensionType
+            },
             ...textHeight == null ? {} : {
                 textHeight
             },
@@ -1120,6 +1132,9 @@ function validate(document, source) {
         const styleKey = annotationStyleKey(dimension.styleKey, dimensionStyleKeys, `input.dimensions[${index}].styleKey`);
         return {
             kind: dimension.kind,
+            ...axis == null ? {} : {
+                axis: axis
+            },
             definitionPoints,
             ...textPosition == null ? {} : {
                 textPosition
@@ -3446,6 +3461,9 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         const style = dimension.styleKey == null ? null : dimensionStyleByKey.get(dimension.styleKey);
         emit('DIMENSION', {
             dimensionType: dimension.kind.toUpperCase(),
+            ...dimension.kind === 'ordinate' ? {
+                dxfDimensionType: dimension.axis === 'x' ? 70 : 6
+            } : {},
             definitionPoints: dimension.definitionPoints.map(([x, y])=>p3(x, y)),
             ...dimension.textPosition == null ? {} : {
                 textPosition: p3(...dimension.textPosition)
@@ -3574,6 +3592,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 dimensionStyleCount: input.dimensionStyles.length,
                 noteCount: input.notes.length,
                 dimensionCount: input.dimensions.length,
+                ordinateDimensionCount: input.dimensions.filter((dimension)=>dimension.kind === 'ordinate').length,
                 leaderCount: input.leaders.length
             },
             limitations: [
