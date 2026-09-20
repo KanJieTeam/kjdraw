@@ -241,7 +241,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
       fieldHeaderHeight: 10, footerReserve: 15, titleHeight: 10, verticalScaleDenominators: [100],
       fieldGrid, headerGrid: { rows: physicalRows }, footerGrid: { height: 10, cells: [
         { start: 5, key: 'organization', label: 'Organization' }, { start: 65, key: 'checkedBy', label: 'Checked' },
-        { start: 125, key: 'drawingNumber', label: 'Drawing' },
+        { start: 125, key: 'drawingNumber', label: 'Drawing', internalDivider: 145 },
       ] }, legendMode: 'none', textHeights: {
         headerFact: 3, fieldHeader: 3, fieldSubHeader: 2.5, majorValue: 3, intervalDepth: 2.5, observation: 2,
       }, stratigraphicNotationStyle: { symbolHeight: 3, qualifierHeight: 1.5 },
@@ -313,6 +313,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const fullWidthSeparators = compiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
     entity.payload.start[0] === 5 && entity.payload.end[0] === 185 && entity.payload.start[1] === entity.payload.end[1])
   for (const y of [260, 255, 250, 245, 235, 15]) assert.ok(fullWidthSeparators.some(entity => entity.payload.start[1] === y), `separator y=${y}`)
+  assert.ok(compiled.commandArgs.entities.some(entity => entity.type === 'LINE' && entity.payload.start[0] === 145 &&
+    entity.payload.end[0] === 145 && entity.payload.start[1] === 5 && entity.payload.end[1] === 15),
+  'declared footer internal divider spans the exact footer height')
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
   const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
@@ -322,6 +325,10 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   for (const reopenedDocument of [reopened, reopenedKjd]) assert.equal(reopenedDocument.listEntities({ type: 'LWPOLYLINE' })
     .filter(entity => entity.payload.closed !== true && entity.payload.vertices.length === 3).length, 2,
   'groundwater guide and title-margin decoration survive KJD/DXF reopen')
+  for (const reopenedDocument of [reopened, reopenedKjd]) assert.ok(reopenedDocument.listEntities({ type: 'LINE' }).some(entity =>
+    entity.payload.start[0] === 145 && entity.payload.end[0] === 145 &&
+    Math.min(entity.payload.start[1], entity.payload.end[1]) === 5 && Math.max(entity.payload.start[1], entity.payload.end[1]) === 15),
+  'declared footer internal divider survives KJD/DXF reopen')
   for (const value of ['2.50', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18']) {
     assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `DXF ${value}`)
     assert.ok(reopenedKjd.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `KJD ${value}`)
@@ -420,6 +427,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const malformedTopology = structuredClone(input)
   malformedTopology.columnStylePack.rules['geology-column-layout'].formTopology.patternCells = 'hatch-only'
   assert.throws(() => compileGeologyColumn(malformedTopology), /unsupported form topology strategy/u)
+  const invalidFooterDivider = structuredClone(input)
+  invalidFooterDivider.columnStylePack.rules['geology-column-layout'].footerGrid.cells[2].internalDivider = 184
+  assert.throws(() => compileGeologyColumn(invalidFooterDivider), /footer cell is out of bounds or unreadable/u)
   const topologyWithoutFooter = structuredClone(input)
   delete topologyWithoutFooter.columnStylePack.rules['geology-column-layout'].footerGrid
   assert.throws(() => compileGeologyColumn(topologyWithoutFooter), /form topology needs field, header and footer grids/u)

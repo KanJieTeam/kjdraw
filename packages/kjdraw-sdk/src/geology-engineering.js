@@ -479,20 +479,27 @@ function columnLayout(input) {
         if (height < 7 || height > 16 || height + 5 > footerReserve || !Array.isArray(cells) || cells.length < 3 || cells.length > 8) throw new KJValidationError('Geology: footer grid does not fit the declared sheet');
         const keys = new Set();
         const parsed = cells.map((raw, index)=>{
-            if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'key,label,start') throw new KJValidationError('Geology: footer cell needs an exact key, label and start');
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw) || ![
+                'key,label,start',
+                'internalDivider,key,label,start'
+            ].includes(Object.keys(raw).sort().join(','))) throw new KJValidationError('Geology: footer cell needs an exact key, label, start and optional internal divider');
             const cell = raw, start = numeric(cell.start, `footer cell start ${index + 1}`);
             const key = stableDocumentFactKey(cell.key, 'footer fact key'), label = bounded(cell.label, 'footer fact label', 16);
+            const internalDivider = cell.internalDivider == null ? undefined : numeric(cell.internalDivider, `footer cell internal divider ${index + 1}`);
             if (keys.has(key.toLowerCase())) throw new KJValidationError('Geology: duplicate footer fact key');
             keys.add(key.toLowerCase());
             return {
                 start,
                 key,
-                label
+                label,
+                ...internalDivider == null ? {} : {
+                    internalDivider
+                }
             };
         });
         for (const [index, cell] of parsed.entries()){
             const end = parsed[index + 1]?.start ?? right;
-            if (cell.start < left || end - cell.start < 20 || index && cell.start <= parsed[index - 1].start) throw new KJValidationError('Geology: footer cell is out of bounds or unreadable');
+            if (cell.start < left || end - cell.start < 20 || index && cell.start <= parsed[index - 1].start || cell.internalDivider != null && (cell.internalDivider - cell.start < 4 || end - cell.internalDivider < 4)) throw new KJValidationError('Geology: footer cell is out of bounds or unreadable');
         }
         if (Math.abs(parsed[0].start - left) > 1e-6) throw new KJValidationError('Geology: footer grid must start at the table margin');
         footerGrid = {
@@ -1581,6 +1588,7 @@ export function compileGeologyColumn(input) {
         for (const [index, cell] of footerGrid.cells.entries()){
             const end = footerGrid.cells[index + 1]?.start ?? right;
             if (index) g.line(0, cell.start, bottom, cell.start, top);
+            if (cell.internalDivider != null) g.line(0, cell.internalDivider, bottom, cell.internalDivider, top);
             const width = end - cell.start;
             const labelHeight = width < 25 ? 1.4 : 1.55;
             g.text(3, cell.start + width / 2, top - labelHeight - 1, cell.label, labelHeight, true);
