@@ -119,6 +119,21 @@ export interface KJGeologyDefaultTextStyle {
     dxfFlags: number;
     generationFlags: number;
 }
+/** Exact source-backed placement for one physical field-header line. Offsets
+ * are millimetres from the field's lower-left corner. */
+export interface KJGeologyFieldHeaderTextPlacement {
+    offset: [number, number];
+    height: number;
+    textWidthFactor: number;
+    horizontalAlignment: 'left' | 'center' | 'right';
+    verticalAlignment: 'baseline' | 'middle';
+}
+/** A field header may contain one main line and, only when the field declares
+ * a sublabel, one independently placed sub line. */
+export interface KJGeologyFieldHeaderTextStyle {
+    main: KJGeologyFieldHeaderTextPlacement;
+    sub?: KJGeologyFieldHeaderTextPlacement;
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,

@@ -211,11 +211,16 @@ test('versioned header grid uses only present borehole facts and keeps a deep-lo
 
 test('source-backed physical header cells preserve unequal real-form lanes and separate initial from stable water', async t => {
   const fieldGrid = [
-    { start: 5, role: 'layerNumber', label: 'No' }, { start: 15, role: 'layerName', label: 'Name' },
+    { start: 5, role: 'layerNumber', label: 'No', headerTextStyle: { main: {
+      offset: [1.25, 4.4], height: 2.6, textWidthFactor: 0.85, horizontalAlignment: 'left', verticalAlignment: 'baseline',
+    } } }, { start: 15, role: 'layerName', label: 'Name' },
     { start: 33, role: 'baseElevation', label: 'Base', textWidthFactor: 0.7 },
     { start: 45, role: 'thickness', label: 'Thick', textWidthFactor: 0.7 },
     { start: 55, role: 'depth', label: 'Depth', textWidthFactor: 0.7 },
-    { start: 65, role: 'pattern', label: 'Pattern', subLabel: '1:{verticalScale}' },
+    { start: 65, role: 'pattern', label: 'Pattern', subLabel: '1:{verticalScale}', headerTextStyle: {
+      main: { offset: [1.5, 7.1], height: 2.75, textWidthFactor: 0.8, horizontalAlignment: 'left', verticalAlignment: 'baseline' },
+      sub: { offset: [2.25, 2.1], height: 2.25, textWidthFactor: 0.9, horizontalAlignment: 'left', verticalAlignment: 'baseline' },
+    } },
     { start: 85, role: 'description', label: 'Description' }, { start: 145, role: 'sample', label: 'Sample' },
     { start: 165, role: 'spt', label: 'SPT' },
   ]
@@ -281,8 +286,13 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     .every(entity => entity.payload.styleId === declaredTextStyle.id), 'all column text uses the declared source style')
   for (const [value, x] of [['P-18', 127], ['PHYS-1', 167], ['2.50', 127], ['3.00', 167]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x), `${value} at ${x}`)
-  for (const [value, height] of [['Project', 3], ['Pattern', 3], ['1:100', 2.5], ['Fill', 2], ['0.60', 2.5], ['S1', 2]])
+  for (const [value, height] of [['Project', 3], ['Pattern', 2.75], ['1:100', 2.25], ['Fill', 2], ['0.60', 2.5], ['S1', 2]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} height ${height}`)
+  for (const [value, x, y, height, widthFactor] of [
+    ['No', 6.25, 239.4, 2.6, 0.85], ['Pattern', 66.5, 242.1, 2.75, 0.8], ['1:100', 67.25, 237.1, 2.25, 0.9],
+  ]) assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x &&
+    entity.payload.position[1] === y && entity.payload.height === height && entity.payload.widthFactor === widthFactor &&
+    entity.payload.horizontalAlignment == null && entity.payload.alignmentPoint == null), `${value} uses its source-backed field-header placement`)
   for (const [value, height] of [['Q', 3], ['4', 1.5], ['ml', 1.5], ['3', 1.5], ['N', 3], ['al', 1.5]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} notation height ${height}`)
   assert.ok(texts.some(entity => entity.payload.text === '●' && entity.payload.height === 1), 'filled sample marker')
@@ -381,6 +391,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const incompleteTextHeights = structuredClone(input)
   delete incompleteTextHeights.columnStylePack.rules['geology-column-layout'].textHeights.observation
   assert.throws(() => compileGeologyColumn(incompleteTextHeights), /exact versioned schema/u)
+  const incompleteFieldHeaderPlacement = structuredClone(input)
+  delete incompleteFieldHeaderPlacement.columnStylePack.rules['geology-column-layout'].fieldGrid[5].headerTextStyle.sub
+  assert.throws(() => compileGeologyColumn(incompleteFieldHeaderPlacement), /exactly match the field sublabel/u)
   const unsafeTextStyle = structuredClone(input)
   unsafeTextStyle.columnStylePack.rules['geology-column-layout'].defaultTextStyle.fontFile = 'https://invalid.example/font.ttf'
   assert.throws(() => compileGeologyColumn(unsafeTextStyle), /invalid default text font file/u)

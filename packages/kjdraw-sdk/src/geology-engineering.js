@@ -433,17 +433,69 @@ function columnLayout(input) {
     if (isFieldGrid) {
         if (!Array.isArray(value.fieldGrid) || value.fieldGrid.length < 7 || value.fieldGrid.length > 24) throw new KJValidationError('Geology: field grid needs 7–24 declared physical columns');
         const roles = new Set(), measurementKeys = new Set();
+        const fieldHeaderTextPlacement = (raw, label)=>{
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'height,horizontalAlignment,offset,textWidthFactor,verticalAlignment') throw new KJValidationError(`Geology: ${label} needs an exact source-backed placement schema`);
+            const rule = raw;
+            if (!Array.isArray(rule.offset) || rule.offset.length !== 2) throw new KJValidationError(`Geology: ${label} offset must contain two millimetre coordinates`);
+            const offset = rule.offset.map((coordinate, index)=>numeric(coordinate, `${label} offset ${index + 1}`));
+            const height = numeric(rule.height, `${label} height`);
+            const textWidthFactor = numeric(rule.textWidthFactor, `${label} width factor`);
+            if (![
+                'left',
+                'center',
+                'right'
+            ].includes(rule.horizontalAlignment) || ![
+                'baseline',
+                'middle'
+            ].includes(rule.verticalAlignment) || height < 1.2 || height > 5 || textWidthFactor < 0.5 || textWidthFactor > 1.5) throw new KJValidationError(`Geology: ${label} placement is unreadable`);
+            return {
+                offset,
+                height,
+                textWidthFactor,
+                horizontalAlignment: rule.horizontalAlignment,
+                verticalAlignment: rule.verticalAlignment
+            };
+        };
         fieldGrid = value.fieldGrid.map((raw, index)=>{
             if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: field grid column must be a declared object');
             const cell = raw;
             const role = cell.role;
-            const optionalSubLabel = cell.subLabel == null ? '' : ',subLabel';
-            const optionalWidthFactor = cell.textWidthFactor == null ? '' : ',textWidthFactor';
-            const schema = role === 'measurement' ? cell.decimals == null ? `key,label,role,start${optionalSubLabel}${optionalWidthFactor}` : `decimals,key,label,role,start${optionalSubLabel}${optionalWidthFactor}` : `label,role,start${optionalSubLabel}${optionalWidthFactor}`;
+            const schema = [
+                'label',
+                'role',
+                'start',
+                ...cell.subLabel == null ? [] : [
+                    'subLabel'
+                ],
+                ...cell.textWidthFactor == null ? [] : [
+                    'textWidthFactor'
+                ],
+                ...cell.headerTextStyle == null ? [] : [
+                    'headerTextStyle'
+                ],
+                ...role === 'measurement' ? [
+                    'key',
+                    ...cell.decimals == null ? [] : [
+                        'decimals'
+                    ]
+                ] : []
+            ].sort().join(',');
             if (!fieldRoles.has(role) || Object.keys(cell).sort().join(',') !== schema) throw new KJValidationError('Geology: field grid column needs an exact role schema');
             const start = numeric(cell.start, `field grid start ${index + 1}`), label = bounded(cell.label, `field grid label ${index + 1}`, 32);
             const subLabel = cell.subLabel == null ? undefined : bounded(cell.subLabel, `field grid sublabel ${index + 1}`, 24);
             const textWidthFactor = cell.textWidthFactor == null ? undefined : numeric(cell.textWidthFactor, `field grid text width factor ${index + 1}`);
+            let headerTextStyle;
+            if (cell.headerTextStyle != null) {
+                if (!cell.headerTextStyle || typeof cell.headerTextStyle !== 'object' || Array.isArray(cell.headerTextStyle)) throw new KJValidationError('Geology: field header text style must be an object');
+                const supplied = cell.headerTextStyle;
+                if (Object.keys(supplied).sort().join(',') !== (subLabel ? 'main,sub' : 'main')) throw new KJValidationError('Geology: field header text style must declare main and exactly match the field sublabel');
+                headerTextStyle = {
+                    main: fieldHeaderTextPlacement(supplied.main, `field ${index + 1} main header`),
+                    ...subLabel ? {
+                        sub: fieldHeaderTextPlacement(supplied.sub, `field ${index + 1} sub header`)
+                    } : {}
+                };
+            }
             if (textWidthFactor != null && (textWidthFactor < 0.5 || textWidthFactor > 1.5)) throw new KJValidationError('Geology: field grid text width factor must be 0.5–1.5');
             if (role !== 'measurement' && roles.has(role)) throw new KJValidationError(`Geology: duplicate field role ${role}`);
             roles.add(role);
@@ -463,6 +515,9 @@ function columnLayout(input) {
                     ...textWidthFactor == null ? {} : {
                         textWidthFactor
                     },
+                    ...headerTextStyle ? {
+                        headerTextStyle
+                    } : {},
                     key,
                     decimals
                 };
@@ -476,7 +531,10 @@ function columnLayout(input) {
                 } : {},
                 ...textWidthFactor == null ? {} : {
                     textWidthFactor
-                }
+                },
+                ...headerTextStyle ? {
+                    headerTextStyle
+                } : {}
             };
         });
         if (requiredFieldRoles.some((role)=>!roles.has(role)) || Math.abs(fieldGrid[0].start - left) > 1e-6) throw new KJValidationError('Geology: field grid misses a core role or left margin');
@@ -487,6 +545,12 @@ function columnLayout(input) {
                 'pattern'
             ].includes(field.role) ? 12 : 10;
             if (width < minimum || field.start < left || field.start >= right) throw new KJValidationError(`Geology: field ${field.role} is out of bounds or unreadable`);
+            for (const placement of field.headerTextStyle ? [
+                field.headerTextStyle.main,
+                field.headerTextStyle.sub
+            ].filter(Boolean) : []){
+                if (placement.offset[0] < 0 || placement.offset[0] > width || placement.offset[1] < 0 || placement.offset[1] > fieldHeaderHeight) throw new KJValidationError(`Geology: field ${field.role} header placement is outside its physical cell`);
+            }
         }
     }
     let footerGrid;
@@ -1917,7 +1981,15 @@ export function compileGeologyColumn(input) {
         for (const item of fieldGrid){
             if (item.start !== left) g.line(0, item.start, formBottom, item.start, pageHeight - headerDepth);
             const centerX = item.start + fieldWidth(item) / 2;
-            if (item.subLabel) {
+            if (item.headerTextStyle) {
+                const emitFieldHeaderText = (value, placement)=>{
+                    const horizontalAlignment = placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2;
+                    const verticalAlignment = placement.verticalAlignment === 'baseline' ? 0 : 2;
+                    g.placedText(3, item.start + placement.offset[0], top + placement.offset[1], value, placement.height, placement.textWidthFactor, horizontalAlignment, verticalAlignment, 0);
+                };
+                emitFieldHeaderText(item.label, item.headerTextStyle.main);
+                if (item.subLabel) emitFieldHeaderText(item.subLabel.replaceAll('{verticalScale}', scaleDenominator(verticalScaleDenominator)), item.headerTextStyle.sub);
+            } else if (item.subLabel) {
                 const subLabel = item.subLabel.replaceAll('{verticalScale}', scaleDenominator(verticalScaleDenominator));
                 g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.42, item.label, textHeights?.fieldHeader ?? 1.8, true, item.textWidthFactor);
                 g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.78, subLabel, textHeights?.fieldSubHeader ?? 1.6, true, item.textWidthFactor);
