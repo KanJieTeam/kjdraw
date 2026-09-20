@@ -107,11 +107,29 @@ export function hatchPatternFromCatalog(source, name, options = {}) {
 }
 export function buildHatchPatternKnowledgePack(input) {
     const catalog = parseAutoCADPat(input.patSource);
+    const patternBaseOffset = input.patternBaseOffset ?? [
+        0,
+        0
+    ];
+    if (!Array.isArray(patternBaseOffset) || patternBaseOffset.length !== 2 || patternBaseOffset.some((value)=>!Number.isFinite(value) || Math.abs(value) > 1e12)) fail('patternBaseOffset must contain two bounded finite coordinates');
     if (!Array.isArray(input.selectedPatterns) || input.selectedPatterns.length < 1 || input.selectedPatterns.length > 64 || new Set(input.selectedPatterns.map((name)=>String(name).trim().toUpperCase())).size !== input.selectedPatterns.length) fail('selectedPatterns must contain 1-64 unique names');
     const selected = input.selectedPatterns.map((name)=>{
         const pattern = catalog.patterns.find((item)=>item.name.toUpperCase() === String(name).trim().toUpperCase());
         if (!pattern) fail(`selected pattern does not exist: ${String(name)}`);
-        return pattern;
+        return {
+            ...pattern,
+            lines: pattern.lines.map((line)=>{
+                const base = [
+                    line.base[0] + patternBaseOffset[0],
+                    line.base[1] + patternBaseOffset[1]
+                ];
+                if (base.some((value)=>!Number.isFinite(value) || Math.abs(value) > 1e12)) fail('translated pattern base is outside the bounded coordinate range');
+                return {
+                    ...line,
+                    base
+                };
+            })
+        };
     });
     if (selected.reduce((sum, pattern)=>sum + pattern.lines.length, 0) > 1024) fail('selected patterns exceed 1024 total line families');
     if (!input.mappings || typeof input.mappings !== 'object' || Array.isArray(input.mappings) || Object.keys(input.mappings).length < 1 || Object.keys(input.mappings).length > 256) fail('mappings must contain 1-256 semantic keys');

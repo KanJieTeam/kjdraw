@@ -30,6 +30,9 @@ export interface KJHatchPatternKnowledgePackInput {
     patSource: string;
     selectedPatterns: string[];
     mappings: Record<string, string>;
+    /** Physical offset added to every selected PAT line base while normalizing
+     * a source drawing into the target sheet coordinate system. */
+    patternBaseOffset?: readonly [number, number];
 }
 /** Parse the data subset of AutoCAD PAT files without evaluating code or retaining file paths. */
 export declare function parseAutoCADPat(source: string): ReadonlyDeep<KJHatchPatternCatalog>;
