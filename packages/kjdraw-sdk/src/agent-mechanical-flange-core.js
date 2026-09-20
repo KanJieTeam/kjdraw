@@ -371,12 +371,18 @@ function validate(document, source) {
     const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis');
     if (side) exact(side, [
         'xRange',
+        'axisDirection',
         'axisStyleKey',
         'symmetricProfiles',
         'outlineSegments',
         'sectionHatches'
     ], 'input.sideViewAxis');
     const xRange = side ? point(side.xRange, 'input.sideViewAxis.xRange') : null;
+    const axisDirection = side?.axisDirection ?? 'forward';
+    if (![
+        'forward',
+        'reverse'
+    ].includes(axisDirection)) throw new KJValidationError('input.sideViewAxis.axisDirection is invalid');
     const axisStyleKey = side == null ? undefined : entityStyleKey(side.axisStyleKey, 'input.sideViewAxis.axisStyleKey');
     if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.xRange must increase');
     if (side?.symmetricProfiles != null && !Array.isArray(side.symmetricProfiles)) throw new KJValidationError('input.sideViewAxis.symmetricProfiles must be an array');
@@ -1603,6 +1609,7 @@ function validate(document, source) {
         cuttingPlaneMarks,
         sideOutlineSegments,
         xRange,
+        axisDirection,
         axisStyleKey,
         symmetricProfiles,
         sectionHatches,
@@ -2109,12 +2116,15 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         }
     }
     if (input.xRange) {
-        const style = styled(input.axisStyleKey, 'center');
+        const style = styled(input.axisStyleKey, 'center'), [startX, endX] = input.axisDirection === 'reverse' ? [
+            input.xRange[1],
+            input.xRange[0]
+        ] : input.xRange;
         line([
-            input.xRange[0],
+            startX,
             cy
         ], [
-            input.xRange[1],
+            endX,
             cy
         ], style.layerId, style.name);
     }

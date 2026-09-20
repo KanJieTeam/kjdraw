@@ -265,7 +265,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   units: 'millimeter'
   drawingId: string
   endView: { center: Point2; ringRadii: number[]; ringStyleKeys?: (string | null)[]; squareHoles?: { pitch: number; radius: number }; holePatterns?: KJFlangePolarHolePattern[]; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
-  sideViewAxis?: { xRange: Point2; axisStyleKey?: string; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
+  sideViewAxis?: { xRange: Point2; axisDirection?: 'forward' | 'reverse'; axisStyleKey?: string; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
   dimensions?: KJFlangeDimension[]
   leaders?: KJFlangeLeader[]
   featureControlFrames?: KJFlangeFeatureControlFrame[]
@@ -448,8 +448,10 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       ...(stemStyleKey == null ? {} : { stemStyleKey }), ...(tickStyleKey == null ? {} : { tickStyleKey }), ...(arrowheadStyleKey == null ? {} : { arrowheadStyleKey }) }
   })
   const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis')
-  if (side) exact(side, ['xRange', 'axisStyleKey', 'symmetricProfiles', 'outlineSegments', 'sectionHatches'], 'input.sideViewAxis')
+  if (side) exact(side, ['xRange', 'axisDirection', 'axisStyleKey', 'symmetricProfiles', 'outlineSegments', 'sectionHatches'], 'input.sideViewAxis')
   const xRange = side ? point(side.xRange, 'input.sideViewAxis.xRange') : null
+  const axisDirection = side?.axisDirection ?? 'forward'
+  if (!['forward', 'reverse'].includes(axisDirection as string)) throw new KJValidationError('input.sideViewAxis.axisDirection is invalid')
   const axisStyleKey = side == null ? undefined : entityStyleKey(side.axisStyleKey, 'input.sideViewAxis.axisStyleKey')
   if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.xRange must increase')
   if (side?.symmetricProfiles != null && !Array.isArray(side.symmetricProfiles)) throw new KJValidationError('input.sideViewAxis.symmetricProfiles must be an array')
@@ -906,7 +908,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source
     return { key: String(key), definition: styleRole(definition, `input.styleProfile.custom[${index}]`) }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -1050,7 +1052,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     for (const segment of grid.verticalSegments ?? []) { const style = styled(segment.styleKey, 'grid'); line([x + segment.offset, y + segment.start], [x + segment.offset, y + segment.end], style.layerId, style.name) }
     if (grid.diagonalHeader) { const style = styled(grid.diagonalHeader.styleKey, 'grid'); line([x, y + h], [x + grid.diagonalHeader.width, y + h - grid.diagonalHeader.drop], style.layerId, style.name) }
   }
-  if (input.xRange) { const style = styled(input.axisStyleKey, 'center'); line([input.xRange[0], cy], [input.xRange[1], cy], style.layerId, style.name) }
+  if (input.xRange) { const style = styled(input.axisStyleKey, 'center'), [startX, endX] = input.axisDirection === 'reverse' ? [input.xRange[1], input.xRange[0]] : input.xRange; line([startX, cy], [endX, cy], style.layerId, style.name) }
   for (const profile of input.symmetricProfiles) {
     const style = styled(profile.styleKey, 'geometry')
     for (let index = 1; index < profile.vertices.length; index++) {

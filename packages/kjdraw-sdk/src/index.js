@@ -9,6 +9,7 @@ export * from './mechanical-topology.js';
 export * from './agent-mechanical-flange-core.js';
 export * from './agent-architecture-plan.js';
 export * from './agent-site-plan.js';
+export * from './agent-geology-plan.js';
 export * from './agent-cartesian-chart.js';
 export * from './knowledge-pack.js';
 export * from './knowledge-compiler.js';
