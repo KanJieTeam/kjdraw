@@ -80,12 +80,19 @@ export interface KJFlangeTitleGrid {
  *  Stations are absolute drawing X coordinates and radii are positive
  *  distances from the side-view axis. Repeated stations express shoulders.
  */
+export type KJFlangeLineDirection = 'forward' | 'reverse';
 export interface KJFlangeSymmetricProfile {
     vertices: {
         station: number;
         radius: number;
     }[];
     endCaps?: 'none' | 'start' | 'end' | 'both';
+    segmentDirections?: {
+        upper?: KJFlangeLineDirection;
+        lower?: KJFlangeLineDirection;
+    }[];
+    startCapDirection?: KJFlangeLineDirection;
+    endCapDirection?: KJFlangeLineDirection;
     styleKey?: string;
     startCapStyleKey?: string;
     endCapStyleKey?: string;

@@ -31,9 +31,13 @@ export interface KJFlangeTitleGrid {
  *  Stations are absolute drawing X coordinates and radii are positive
  *  distances from the side-view axis. Repeated stations express shoulders.
  */
+export type KJFlangeLineDirection = 'forward' | 'reverse'
 export interface KJFlangeSymmetricProfile {
   vertices: { station: number; radius: number }[]
   endCaps?: 'none' | 'start' | 'end' | 'both'
+  segmentDirections?: { upper?: KJFlangeLineDirection; lower?: KJFlangeLineDirection }[]
+  startCapDirection?: KJFlangeLineDirection
+  endCapDirection?: KJFlangeLineDirection
   styleKey?: string
   startCapStyleKey?: string
   endCapStyleKey?: string
@@ -458,7 +462,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   if ((side?.symmetricProfiles as unknown[] | undefined)?.length && (side!.symmetricProfiles as unknown[]).length > 64) throw new KJValidationError('input.sideViewAxis.symmetricProfiles exceed their budget')
   const symmetricProfiles: KJFlangeSymmetricProfile[] = ((side?.symmetricProfiles ?? []) as unknown[]).map((value, profileIndex) => {
     const profile = plain(value, `input.sideViewAxis.symmetricProfiles[${profileIndex}]`)
-    exact(profile, ['vertices', 'endCaps', 'styleKey', 'startCapStyleKey', 'endCapStyleKey'], `input.sideViewAxis.symmetricProfiles[${profileIndex}]`)
+    exact(profile, ['vertices', 'endCaps', 'segmentDirections', 'startCapDirection', 'endCapDirection', 'styleKey', 'startCapStyleKey', 'endCapStyleKey'], `input.sideViewAxis.symmetricProfiles[${profileIndex}]`)
     if (!Array.isArray(profile.vertices) || profile.vertices.length < 2 || profile.vertices.length > 64) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices must contain 2 to 64 points`)
     const vertices = profile.vertices.map((vertexValue, vertexIndex) => {
       const vertex = plain(vertexValue, `input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices[${vertexIndex}]`)
@@ -472,12 +476,21 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       if (current.station < previous.station) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}] stations must not decrease`)
       if (current.station === previous.station && current.radius === previous.radius) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}] contains a zero-length segment`)
     }
+    const direction = (value: unknown, label: string): KJFlangeLineDirection => { if (value == null) return 'forward'; if (value !== 'forward' && value !== 'reverse') throw new KJValidationError(label + ' is invalid'); return value }
+    if (profile.segmentDirections != null && (!Array.isArray(profile.segmentDirections) || profile.segmentDirections.length !== vertices.length - 1)) throw new KJValidationError('input.sideViewAxis.symmetricProfiles[' + profileIndex + '].segmentDirections must match the segment count')
+    const segmentDirections = ((profile.segmentDirections ?? Array.from({ length: vertices.length - 1 }, () => ({}))) as unknown[]).map((value, index) => {
+      const label = 'input.sideViewAxis.symmetricProfiles[' + profileIndex + '].segmentDirections[' + index + ']', entry = plain(value, label)
+      exact(entry, ['upper', 'lower'], label)
+      return { upper: direction(entry.upper, label + '.upper'), lower: direction(entry.lower, label + '.lower') }
+    })
+    const startCapDirection = direction(profile.startCapDirection, 'input.sideViewAxis.symmetricProfiles[' + profileIndex + '].startCapDirection')
+    const endCapDirection = direction(profile.endCapDirection, 'input.sideViewAxis.symmetricProfiles[' + profileIndex + '].endCapDirection')
     const endCaps = profile.endCaps ?? 'none'
     if (!['none', 'start', 'end', 'both'].includes(endCaps as string)) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].endCaps is invalid`)
     const styleKey = entityStyleKey(profile.styleKey, `input.sideViewAxis.symmetricProfiles[${profileIndex}].styleKey`)
     const startCapStyleKey = entityStyleKey(profile.startCapStyleKey, `input.sideViewAxis.symmetricProfiles[${profileIndex}].startCapStyleKey`)
     const endCapStyleKey = entityStyleKey(profile.endCapStyleKey, `input.sideViewAxis.symmetricProfiles[${profileIndex}].endCapStyleKey`)
-    return { vertices, endCaps, ...(styleKey == null ? {} : { styleKey }), ...(startCapStyleKey == null ? {} : { startCapStyleKey }), ...(endCapStyleKey == null ? {} : { endCapStyleKey }) } as KJFlangeSymmetricProfile
+    return { vertices, endCaps, segmentDirections, startCapDirection, endCapDirection, ...(styleKey == null ? {} : { styleKey }), ...(startCapStyleKey == null ? {} : { startCapStyleKey }), ...(endCapStyleKey == null ? {} : { endCapStyleKey }) } as KJFlangeSymmetricProfile
   })
   if (side?.outlineSegments != null && !Array.isArray(side.outlineSegments)) throw new KJValidationError('input.sideViewAxis.outlineSegments must be an array')
   if ((side?.outlineSegments as unknown[] | undefined)?.length && (side!.outlineSegments as unknown[]).length > 128) throw new KJValidationError('input.sideViewAxis.outlineSegments exceed their budget')
@@ -1053,16 +1066,20 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     if (grid.diagonalHeader) { const style = styled(grid.diagonalHeader.styleKey, 'grid'); line([x, y + h], [x + grid.diagonalHeader.width, y + h - grid.diagonalHeader.drop], style.layerId, style.name) }
   }
   if (input.xRange) { const style = styled(input.axisStyleKey, 'center'), [startX, endX] = input.axisDirection === 'reverse' ? [input.xRange[1], input.xRange[0]] : input.xRange; line([startX, cy], [endX, cy], style.layerId, style.name) }
+  const directedProfileLine = (points: [Point2, Point2], direction: KJFlangeLineDirection | undefined, layerId: string, styleName: string) => line(direction === 'reverse' ? points[1] : points[0], direction === 'reverse' ? points[0] : points[1], layerId, styleName)
   for (const profile of input.symmetricProfiles) {
     const style = styled(profile.styleKey, 'geometry')
     for (let index = 1; index < profile.vertices.length; index++) {
       const previous = profile.vertices[index - 1]!, current = profile.vertices[index]!
-      line([previous.station, cy + previous.radius], [current.station, cy + current.radius], style.layerId, style.name)
-      line([previous.station, cy - previous.radius], [current.station, cy - current.radius], style.layerId, style.name)
+      const directions = profile.segmentDirections?.[index - 1] ?? { upper: 'forward', lower: 'forward' }
+      const upper: [Point2, Point2] = [[previous.station, cy + previous.radius], [current.station, cy + current.radius]]
+      const lower: [Point2, Point2] = [[previous.station, cy - previous.radius], [current.station, cy - current.radius]]
+      directedProfileLine(upper, directions.upper, style.layerId, style.name)
+      directedProfileLine(lower, directions.lower, style.layerId, style.name)
     }
     const start = profile.vertices[0]!, end = profile.vertices.at(-1)!
-    if (profile.endCaps === 'start' || profile.endCaps === 'both') { const capStyle = styled(profile.startCapStyleKey ?? profile.styleKey, 'geometry'); line([start.station, cy - start.radius], [start.station, cy + start.radius], capStyle.layerId, capStyle.name) }
-    if (profile.endCaps === 'end' || profile.endCaps === 'both') { const capStyle = styled(profile.endCapStyleKey ?? profile.styleKey, 'geometry'); line([end.station, cy - end.radius], [end.station, cy + end.radius], capStyle.layerId, capStyle.name) }
+    if (profile.endCaps === 'start' || profile.endCaps === 'both') { const capStyle = styled(profile.startCapStyleKey ?? profile.styleKey, 'geometry'), points: [Point2, Point2] = [[start.station, cy - start.radius], [start.station, cy + start.radius]]; directedProfileLine(points, profile.startCapDirection, capStyle.layerId, capStyle.name) }
+    if (profile.endCaps === 'end' || profile.endCaps === 'both') { const capStyle = styled(profile.endCapStyleKey ?? profile.styleKey, 'geometry'), points: [Point2, Point2] = [[end.station, cy - end.radius], [end.station, cy + end.radius]]; directedProfileLine(points, profile.endCapDirection, capStyle.layerId, capStyle.name) }
   }
   for (const segment of input.sideOutlineSegments) {
     const style = styled(segment.styleKey, 'geometry')

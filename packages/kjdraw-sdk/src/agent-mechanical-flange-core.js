@@ -392,6 +392,9 @@ function validate(document, source) {
         exact(profile, [
             'vertices',
             'endCaps',
+            'segmentDirections',
+            'startCapDirection',
+            'endCapDirection',
             'styleKey',
             'startCapStyleKey',
             'endCapStyleKey'
@@ -415,6 +418,27 @@ function validate(document, source) {
             if (current.station < previous.station) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}] stations must not decrease`);
             if (current.station === previous.station && current.radius === previous.radius) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}] contains a zero-length segment`);
         }
+        const direction = (value, label)=>{
+            if (value == null) return 'forward';
+            if (value !== 'forward' && value !== 'reverse') throw new KJValidationError(label + ' is invalid');
+            return value;
+        };
+        if (profile.segmentDirections != null && (!Array.isArray(profile.segmentDirections) || profile.segmentDirections.length !== vertices.length - 1)) throw new KJValidationError('input.sideViewAxis.symmetricProfiles[' + profileIndex + '].segmentDirections must match the segment count');
+        const segmentDirections = (profile.segmentDirections ?? Array.from({
+            length: vertices.length - 1
+        }, ()=>({}))).map((value, index)=>{
+            const label = 'input.sideViewAxis.symmetricProfiles[' + profileIndex + '].segmentDirections[' + index + ']', entry = plain(value, label);
+            exact(entry, [
+                'upper',
+                'lower'
+            ], label);
+            return {
+                upper: direction(entry.upper, label + '.upper'),
+                lower: direction(entry.lower, label + '.lower')
+            };
+        });
+        const startCapDirection = direction(profile.startCapDirection, 'input.sideViewAxis.symmetricProfiles[' + profileIndex + '].startCapDirection');
+        const endCapDirection = direction(profile.endCapDirection, 'input.sideViewAxis.symmetricProfiles[' + profileIndex + '].endCapDirection');
         const endCaps = profile.endCaps ?? 'none';
         if (![
             'none',
@@ -428,6 +452,9 @@ function validate(document, source) {
         return {
             vertices,
             endCaps,
+            segmentDirections,
+            startCapDirection,
+            endCapDirection,
             ...styleKey == null ? {} : {
                 styleKey
             },
@@ -2128,45 +2155,64 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             cy
         ], style.layerId, style.name);
     }
+    const directedProfileLine = (points, direction, layerId, styleName)=>line(direction === 'reverse' ? points[1] : points[0], direction === 'reverse' ? points[0] : points[1], layerId, styleName);
     for (const profile of input.symmetricProfiles){
         const style = styled(profile.styleKey, 'geometry');
         for(let index = 1; index < profile.vertices.length; index++){
             const previous = profile.vertices[index - 1], current = profile.vertices[index];
-            line([
-                previous.station,
-                cy + previous.radius
-            ], [
-                current.station,
-                cy + current.radius
-            ], style.layerId, style.name);
-            line([
-                previous.station,
-                cy - previous.radius
-            ], [
-                current.station,
-                cy - current.radius
-            ], style.layerId, style.name);
+            const directions = profile.segmentDirections?.[index - 1] ?? {
+                upper: 'forward',
+                lower: 'forward'
+            };
+            const upper = [
+                [
+                    previous.station,
+                    cy + previous.radius
+                ],
+                [
+                    current.station,
+                    cy + current.radius
+                ]
+            ];
+            const lower = [
+                [
+                    previous.station,
+                    cy - previous.radius
+                ],
+                [
+                    current.station,
+                    cy - current.radius
+                ]
+            ];
+            directedProfileLine(upper, directions.upper, style.layerId, style.name);
+            directedProfileLine(lower, directions.lower, style.layerId, style.name);
         }
         const start = profile.vertices[0], end = profile.vertices.at(-1);
         if (profile.endCaps === 'start' || profile.endCaps === 'both') {
-            const capStyle = styled(profile.startCapStyleKey ?? profile.styleKey, 'geometry');
-            line([
-                start.station,
-                cy - start.radius
-            ], [
-                start.station,
-                cy + start.radius
-            ], capStyle.layerId, capStyle.name);
+            const capStyle = styled(profile.startCapStyleKey ?? profile.styleKey, 'geometry'), points = [
+                [
+                    start.station,
+                    cy - start.radius
+                ],
+                [
+                    start.station,
+                    cy + start.radius
+                ]
+            ];
+            directedProfileLine(points, profile.startCapDirection, capStyle.layerId, capStyle.name);
         }
         if (profile.endCaps === 'end' || profile.endCaps === 'both') {
-            const capStyle = styled(profile.endCapStyleKey ?? profile.styleKey, 'geometry');
-            line([
-                end.station,
-                cy - end.radius
-            ], [
-                end.station,
-                cy + end.radius
-            ], capStyle.layerId, capStyle.name);
+            const capStyle = styled(profile.endCapStyleKey ?? profile.styleKey, 'geometry'), points = [
+                [
+                    end.station,
+                    cy - end.radius
+                ],
+                [
+                    end.station,
+                    cy + end.radius
+                ]
+            ];
+            directedProfileLine(points, profile.endCapDirection, capStyle.layerId, capStyle.name);
         }
     }
     for (const segment of input.sideOutlineSegments){
