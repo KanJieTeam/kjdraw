@@ -281,6 +281,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
       formTopology: { containers: 'outer-frame-separators', headerDividers: 'merge-adjacent-collinear', patternCells: 'closed-outline' },
       textFlow: { firstGroupBorrowMm: 8, firstGroupUnruled: true, firstBaselineMm: 3.4,
         labelPitchMm: 5, labelHeightMm: 2, paragraphGapMm: 0.8 },
+      descriptionTextStyle: { fieldRole: 'description', anchor: 'declared-major-group-boundary', height: 2.5 },
       descriptionBoundaryStyle: { inset: 2, clearance: 1.5 },
       titleMarginFacts: [{ key: 'recordNumber', label: 'Record', separator: ':', edge: 'top', anchor: 'right', offset: [-10, -10],
         height: 3, textWidthFactor: 0.8, horizontalAlignment: 'right', verticalAlignment: 'baseline', rotationDegrees: 0,
@@ -291,6 +292,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   source.strata[0].name = 'Fill'; source.strata[1].name = 'Clay'; source.strata[2].name = 'Sand'
   for (const [index, layer] of source.strata.entries()) Object.assign(layer, { groupId: String(index + 1), groupRole: 'principal',
     description: ['Compact fill.', 'Stiff clay.', 'Dense sand.'][index] })
+  source.strata[0].descriptionPlacement = { boundaryRole: 'top', offsetMm: -1 }
+  source.strata[1].descriptionPlacement = { boundaryRole: 'midpoint', offsetMm: 0 }
+  source.strata[2].descriptionPlacement = { boundaryRole: 'top', offsetMm: -2 }
   source.strata[0].stratigraphicNotation = { symbol: 'Q', subscript: '4', superscript: 'ml' }
   source.strata[1].stratigraphicNotation = { symbol: 'Q', subscript: '3' }
   source.strata[1].patternLabel = 'SC'
@@ -337,6 +341,10 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     Math.abs(entity.payload.position[1] - y) < 1e-9 && entity.payload.height === height && entity.payload.widthFactor === 1 &&
     (entity.payload.horizontalAlignment ?? 0) === horizontalAlignment && entity.payload.verticalAlignment === 2),
   `${value} uses its semantic notation placement`)
+  const descriptions = compiled.commandArgs.entities.filter(entity => entity.type === 'MTEXT')
+  for (const [value, y] of [['Compact fill.', 234], ['Stiff clay.', 212], ['Dense sand.', 193]])
+    assert.ok(descriptions.some(entity => entity.payload.text === value && entity.payload.position[0] === 87 &&
+      entity.payload.position[1] === y && entity.payload.height === 2.5), `${value} uses its declared group-boundary anchor`)
   assert.ok(texts.some(entity => entity.payload.text === '●' && entity.payload.height === 1), 'filled sample marker')
   for (const [value, x, y, height, widthFactor] of [
     ['S1', 148, 186.1, 2, 0.9], ['●', 152, 186.1, 1, 0.95],
@@ -400,6 +408,10 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     entity.payload.start[0] === 145 && entity.payload.end[0] === 145 &&
     Math.min(entity.payload.start[1], entity.payload.end[1]) === 5 && Math.max(entity.payload.start[1], entity.payload.end[1]) === 15),
   'declared footer internal divider survives KJD/DXF reopen')
+  for (const reopenedDocument of [reopened, reopenedKjd]) for (const [value, y] of [
+    ['Compact fill.', 234], ['Stiff clay.', 212], ['Dense sand.', 193],
+  ]) assert.ok(reopenedDocument.listEntities({ type: 'MTEXT' }).some(entity => entity.payload.text === value &&
+    entity.payload.position[0] === 87 && entity.payload.position[1] === y), `declared ${value} anchor survives reopen`)
   for (const value of ['0.60', '2.50', 'Q', 'ml', 'S1', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18', 'D-7']) {
     assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `DXF ${value}`)
     assert.ok(reopenedKjd.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `KJD ${value}`)
@@ -465,6 +477,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const malformedNotation = structuredClone(input)
   malformedNotation.hole.strata[0].stratigraphicNotation.extra = 'invented'
   assert.throws(() => compileGeologyColumn(malformedNotation), /exact symbol\/qualifier schema/u)
+  const incompleteDescriptionPlacement = structuredClone(input)
+  delete incompleteDescriptionPlacement.hole.strata[1].descriptionPlacement
+  assert.throws(() => compileGeologyColumn(incompleteDescriptionPlacement), /lacks its declared description boundary placement/u)
   const missingMarkerStyle = structuredClone(input)
   delete missingMarkerStyle.columnStylePack.rules['geology-column-layout'].sampleMarkerStyle
   assert.throws(() => compileGeologyColumn(missingMarkerStyle), /marker facts need a declared/u)

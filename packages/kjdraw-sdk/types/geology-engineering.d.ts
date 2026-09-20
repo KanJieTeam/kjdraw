@@ -35,6 +35,12 @@ export interface KJGeologyStratum {
     description?: string;
     /** Interval text is never merged; a project layer definition may repeat through lenses. */
     descriptionSource?: 'interval' | 'layer-definition';
+    /** Optional source-measured paragraph anchor for this principal stratum.
+     * The boundary role is explicit; the compiler never derives it from layer thickness. */
+    descriptionPlacement?: {
+        boundaryRole: 'top' | 'bottom' | 'midpoint';
+        offsetMm: number;
+    };
 }
 export interface KJGeologyBorehole {
     id: string;
@@ -185,6 +191,13 @@ export interface KJGeologyStratigraphicNotationStyle {
         principal: KJGeologyStratigraphicNotationPlacementSet;
         topBoundary: KJGeologyStratigraphicNotationPlacementSet;
     };
+}
+/** Source-backed paragraph placement enabled only for descriptions carrying
+ * an explicit major-group boundary role and offset. */
+export interface KJGeologyDescriptionTextStyle {
+    fieldRole: 'description';
+    anchor: 'declared-major-group-boundary';
+    height: number;
 }
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
