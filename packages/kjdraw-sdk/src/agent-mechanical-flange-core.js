@@ -763,6 +763,7 @@ function validate(document, source) {
             'height',
             'rotation',
             'width',
+            'attachmentPoint',
             'styleKey',
             'entityStyleKey'
         ], `input.sheet.notes[${index}]`);
@@ -777,7 +778,9 @@ function validate(document, source) {
         const height = finite(note.height, `input.sheet.notes[${index}].height`, 0.1, Math.min(...sheetSize) / 4);
         const rotation = note.rotation == null ? 0 : finite(note.rotation, `input.sheet.notes[${index}].rotation`, -Math.PI * 2, Math.PI * 2);
         const width = note.width == null ? undefined : finite(note.width, `input.sheet.notes[${index}].width`, 0.1, sheetSize[0]);
+        const attachmentPoint = note.attachmentPoint == null ? undefined : finite(note.attachmentPoint, 'input.sheet.notes[' + index + '].attachmentPoint', 1, 9);
         if (note.kind === 'single-line' && width != null) throw new KJValidationError(`input.sheet.notes[${index}].width is only valid for multiline text`);
+        if (attachmentPoint != null && (note.kind !== 'multiline' || !Number.isInteger(attachmentPoint))) throw new KJValidationError('input.sheet.notes[' + index + '].attachmentPoint is only valid as an integer for multiline text');
         const styleKey = annotationStyleKey(note.styleKey, textStyleKeys, `input.sheet.notes[${index}].styleKey`);
         const noteEntityStyleKey = entityStyleKey(note.entityStyleKey, `input.sheet.notes[${index}].entityStyleKey`);
         return {
@@ -788,6 +791,9 @@ function validate(document, source) {
             rotation,
             ...width == null ? {} : {
                 width
+            },
+            ...attachmentPoint == null ? {} : {
+                attachmentPoint
             },
             ...styleKey == null ? {} : {
                 styleKey
@@ -2494,6 +2500,9 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             rotation: note.rotation,
             ...note.width == null ? {} : {
                 width: note.width
+            },
+            ...note.attachmentPoint == null ? {} : {
+                attachmentPoint: note.attachmentPoint
             },
             ...style == null ? {} : {
                 styleId: style.id

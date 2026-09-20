@@ -33,7 +33,7 @@ const input = expectedRevision => ({
       diagonalHeader: { width: 20, drop: 6 } },
     notes: [
       { kind: 'single-line', text: 'PART ID', position: [250, 25], height: 3 },
-      { kind: 'multiline', text: 'REMOVE BURRS\nBREAK SHARP EDGES', position: [20, 40], height: 2.5, width: 80 },
+      { kind: 'multiline', text: 'REMOVE BURRS\nBREAK SHARP EDGES', position: [20, 40], height: 2.5, width: 80, attachmentPoint: 8 },
     ],
   },
 })
@@ -63,6 +63,15 @@ test('flange knowledge pack and compiler are source-neutral and deterministic', 
   assert.equal(a.evidence.parameters.leaderCount, 1)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'TEXT').length, 1)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'MTEXT').length, 1)
+  assert.equal(a.commandArgs.entities.find(e => e.type === 'MTEXT').payload.attachmentPoint, 8)
+})
+
+test('sheet-note attachment points are bounded to multiline MTEXT', () => {
+  const document = createKJDrawSDK().createDocument({ units: 'millimeter' })
+  const base = input(document.revision)
+  const note = { text: 'ALIGN', position: [20, 40], height: 2.5 }
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...base, sheet: { ...base.sheet, notes: [{ ...note, kind: 'single-line', attachmentPoint: 5 }] } }), /attachmentPoint is only valid/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...base, sheet: { ...base.sheet, notes: [{ ...note, kind: 'multiline', attachmentPoint: 5.5 }] } }), /attachmentPoint is only valid/u)
 })
 
 test('all ring, hole, projection-axis and grid positions respond to parameters', async t => {

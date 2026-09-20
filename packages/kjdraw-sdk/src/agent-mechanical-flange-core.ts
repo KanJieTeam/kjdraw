@@ -157,6 +157,7 @@ export interface KJFlangeSheetNote {
   height: number
   rotation?: number
   width?: number
+  attachmentPoint?: number
   styleKey?: string
   entityStyleKey?: string
 }
@@ -617,7 +618,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   let noteCharacters = 0
   const notes: KJFlangeSheetNote[] = ((sheet.notes ?? []) as unknown[]).map((value, index) => {
     const note = plain(value, `input.sheet.notes[${index}]`)
-    exact(note, ['kind', 'text', 'position', 'height', 'rotation', 'width', 'styleKey', 'entityStyleKey'], `input.sheet.notes[${index}]`)
+    exact(note, ['kind', 'text', 'position', 'height', 'rotation', 'width', 'attachmentPoint', 'styleKey', 'entityStyleKey'], `input.sheet.notes[${index}]`)
     if (note.kind !== 'single-line' && note.kind !== 'multiline') throw new KJValidationError(`input.sheet.notes[${index}].kind is invalid`)
     if (typeof note.text !== 'string' || !note.text || note.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(note.text)) throw new KJValidationError(`input.sheet.notes[${index}].text must be bounded visible text`)
     if (note.kind === 'single-line' && /[\r\n]/u.test(note.text)) throw new KJValidationError(`input.sheet.notes[${index}].text must stay on one line`)
@@ -629,10 +630,12 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const height = finite(note.height, `input.sheet.notes[${index}].height`, 0.1, Math.min(...sheetSize) / 4)
     const rotation = note.rotation == null ? 0 : finite(note.rotation, `input.sheet.notes[${index}].rotation`, -Math.PI * 2, Math.PI * 2)
     const width = note.width == null ? undefined : finite(note.width, `input.sheet.notes[${index}].width`, 0.1, sheetSize[0])
+    const attachmentPoint = note.attachmentPoint == null ? undefined : finite(note.attachmentPoint, 'input.sheet.notes[' + index + '].attachmentPoint', 1, 9)
     if (note.kind === 'single-line' && width != null) throw new KJValidationError(`input.sheet.notes[${index}].width is only valid for multiline text`)
+    if (attachmentPoint != null && (note.kind !== 'multiline' || !Number.isInteger(attachmentPoint))) throw new KJValidationError('input.sheet.notes[' + index + '].attachmentPoint is only valid as an integer for multiline text')
     const styleKey = annotationStyleKey(note.styleKey, textStyleKeys, `input.sheet.notes[${index}].styleKey`)
     const noteEntityStyleKey = entityStyleKey(note.entityStyleKey, `input.sheet.notes[${index}].entityStyleKey`)
-    return { kind: note.kind, text, position, height, rotation, ...(width == null ? {} : { width }), ...(styleKey == null ? {} : { styleKey }), ...(noteEntityStyleKey == null ? {} : { entityStyleKey: noteEntityStyleKey }) }
+    return { kind: note.kind, text, position, height, rotation, ...(width == null ? {} : { width }), ...(attachmentPoint == null ? {} : { attachmentPoint }), ...(styleKey == null ? {} : { styleKey }), ...(noteEntityStyleKey == null ? {} : { entityStyleKey: noteEntityStyleKey }) }
   })
   if (input.dimensions != null && !Array.isArray(input.dimensions)) throw new KJValidationError('input.dimensions must be an array')
   if ((input.dimensions as unknown[] | undefined)?.length && (input.dimensions as unknown[]).length > 128) throw new KJValidationError('input.dimensions exceed their budget')
@@ -1144,7 +1147,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   }
   for (const note of input.notes) { const style = note.styleKey == null ? null : textStyleByKey.get(note.styleKey)!, entityStyle = styled(note.entityStyleKey, 'notes'); emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
     position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,
-    ...(note.width == null ? {} : { width: note.width }), ...(style == null ? {} : { styleId: style.id }), layerId: entityStyle.layerId,
+    ...(note.width == null ? {} : { width: note.width }), ...(note.attachmentPoint == null ? {} : { attachmentPoint: note.attachmentPoint }), ...(style == null ? {} : { styleId: style.id }), layerId: entityStyle.layerId,
   }, entityStyle.name) }
   for (const dimension of input.dimensions) { const style = dimension.styleKey == null ? null : dimensionStyleByKey.get(dimension.styleKey)!; emit('DIMENSION', {
     dimensionType: dimension.kind.toUpperCase(), definitionPoints: dimension.definitionPoints.map(([x, y]) => p3(x, y)),
