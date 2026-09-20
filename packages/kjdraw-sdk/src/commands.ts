@@ -1866,7 +1866,7 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
   for (const [index, block] of blocks.entries()) {
     fields(block, ['id', 'name', 'basePoint', 'entities']); validateIdentity(block, blockNames)
     vec3(block.basePoint, `CREATEBATCH resources.blocks[${index}].basePoint`)
-    if (!Array.isArray(block.entities) || !block.entities.length || block.entities.length > 128) throw new KJValidationError('CREATEBATCH blocks require 1 to 128 definition entities')
+    if (!Array.isArray(block.entities) || block.entities.length > 128) throw new KJValidationError('CREATEBATCH blocks require at most 128 definition entities')
     for (const [memberIndex, spec] of block.entities.entries()) {
       fields(spec, ['type', 'payload', 'options'])
       if (typeof spec.type !== 'string' || !spec.type.trim()) throw new KJValidationError('CREATEBATCH block entity type is required')

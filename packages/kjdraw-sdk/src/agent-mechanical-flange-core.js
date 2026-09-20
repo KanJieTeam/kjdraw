@@ -1278,10 +1278,8 @@ function validate(document, source) {
             role: frame.role
         };
     });
-    if (input.auxiliaryHatches != null && !Array.isArray(input.auxiliaryHatches)) throw new KJValidationError('input.auxiliaryHatches must be an array');
-    if (input.auxiliaryHatches?.length && input.auxiliaryHatches.length > 64) throw new KJValidationError('input.auxiliaryHatches exceed their budget');
-    const auxiliaryHatches = (input.auxiliaryHatches ?? []).map((value, hatchIndex)=>{
-        const label = `input.auxiliaryHatches[${hatchIndex}]`, hatch = plain(value, label);
+    const validateAbsoluteHatch = (value, label)=>{
+        const hatch = plain(value, label);
         exact(hatch, [
             'edges',
             'boundaryLoops',
@@ -1486,7 +1484,10 @@ function validate(document, source) {
                 styleKey
             }
         };
-    });
+    };
+    if (input.auxiliaryHatches != null && !Array.isArray(input.auxiliaryHatches)) throw new KJValidationError('input.auxiliaryHatches must be an array');
+    if (input.auxiliaryHatches?.length && input.auxiliaryHatches.length > 64) throw new KJValidationError('input.auxiliaryHatches exceed their budget');
+    const auxiliaryHatches = (input.auxiliaryHatches ?? []).map((value, hatchIndex)=>validateAbsoluteHatch(value, `input.auxiliaryHatches[${hatchIndex}]`));
     let pointDisplay = null;
     if (input.pointDisplay != null) {
         const display = plain(input.pointDisplay, 'input.pointDisplay');
@@ -1868,7 +1869,7 @@ function validate(document, source) {
         if (typeof definition.key !== 'string' || !definition.key.trim() || definition.key !== definition.key.trim() || definition.key.length > 96 || /[\u0000-\u001f\u007f]/u.test(definition.key)) throw new KJValidationError(`${label}.key must be bounded printable text`);
         if (symbolKeys.has(definition.key)) throw new KJValidationError(`${label}.key must be unique`);
         symbolKeys.add(definition.key);
-        if (!Array.isArray(definition.members) || !definition.members.length || definition.members.length > 128) throw new KJValidationError(`${label}.members must contain 1 to 128 items`);
+        if (!Array.isArray(definition.members) || definition.members.length > 128) throw new KJValidationError(`${label}.members must contain at most 128 items`);
         symbolMemberCount += definition.members.length;
         if (symbolMemberCount > 512) throw new KJValidationError('input.symbols exceed the member budget');
         const members = definition.members.map((memberValue, memberIndex)=>{
@@ -1933,6 +1934,123 @@ function validate(document, source) {
                     startAngle,
                     endAngle,
                     clockwise: member.clockwise === true,
+                    role,
+                    ...entityStyleKeyValue == null ? {} : {
+                        entityStyleKey: entityStyleKeyValue
+                    }
+                };
+            }
+            if (member.kind === 'single-line-text') {
+                exact(member, [
+                    'kind',
+                    'text',
+                    'position',
+                    'alignmentPoint',
+                    'height',
+                    'rotation',
+                    'widthFactor',
+                    'obliqueAngle',
+                    'horizontalAlignment',
+                    'verticalAlignment',
+                    'generationFlags',
+                    'styleKey',
+                    'role',
+                    'entityStyleKey'
+                ], memberLabel);
+                if (typeof member.text !== 'string' || !member.text || member.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(member.text)) throw new KJValidationError(`${memberLabel}.text must be bounded visible text`);
+                symbolTextCharacters += member.text.length;
+                if (symbolTextCharacters > 8_192) throw new KJValidationError('input.symbols exceed the text budget');
+                const integer = (value, field, min, max)=>{
+                    if (value == null) return undefined;
+                    const result = finite(value, `${memberLabel}.${field}`, min, max);
+                    if (!Number.isInteger(result)) throw new KJValidationError(`${memberLabel}.${field} must be an integer`);
+                    return result;
+                };
+                const styleKey = annotationStyleKey(member.styleKey, textStyleKeys, `${memberLabel}.styleKey`);
+                const horizontalAlignment = integer(member.horizontalAlignment, 'horizontalAlignment', 0, 5), verticalAlignment = integer(member.verticalAlignment, 'verticalAlignment', 0, 4);
+                const generationFlags = integer(member.generationFlags, 'generationFlags', 0, 65535);
+                return {
+                    kind: 'single-line-text',
+                    text: member.text,
+                    position: point(member.position, `${memberLabel}.position`),
+                    ...member.alignmentPoint == null ? {} : {
+                        alignmentPoint: point(member.alignmentPoint, `${memberLabel}.alignmentPoint`)
+                    },
+                    height: finite(member.height, `${memberLabel}.height`, 0.000_001, 100_000),
+                    rotation: member.rotation == null ? 0 : finite(member.rotation, `${memberLabel}.rotation`, -Math.PI * 4, Math.PI * 4),
+                    ...member.widthFactor == null ? {} : {
+                        widthFactor: finite(member.widthFactor, `${memberLabel}.widthFactor`, 0.000_001, 1_000_000)
+                    },
+                    ...member.obliqueAngle == null ? {} : {
+                        obliqueAngle: finite(member.obliqueAngle, `${memberLabel}.obliqueAngle`, -Math.PI * 2, Math.PI * 2)
+                    },
+                    ...horizontalAlignment == null ? {} : {
+                        horizontalAlignment
+                    },
+                    ...verticalAlignment == null ? {} : {
+                        verticalAlignment
+                    },
+                    ...generationFlags == null ? {} : {
+                        generationFlags
+                    },
+                    ...styleKey == null ? {} : {
+                        styleKey
+                    },
+                    role,
+                    ...entityStyleKeyValue == null ? {} : {
+                        entityStyleKey: entityStyleKeyValue
+                    }
+                };
+            }
+            if (member.kind === 'hatch') {
+                exact(member, [
+                    'kind',
+                    'edges',
+                    'boundaryLoops',
+                    'solid',
+                    'patternName',
+                    'lineAngle',
+                    'lineSpacing',
+                    'patternOrigin',
+                    'patternLines',
+                    'role',
+                    'entityStyleKey'
+                ], memberLabel);
+                const { kind: _kind, role: _role, entityStyleKey: _entityStyleKey, ...hatchSource } = member;
+                const { styleKey: _styleKey, ...hatch } = validateAbsoluteHatch(hatchSource, memberLabel);
+                return {
+                    kind: 'hatch',
+                    ...hatch,
+                    role,
+                    ...entityStyleKeyValue == null ? {} : {
+                        entityStyleKey: entityStyleKeyValue
+                    }
+                };
+            }
+            if (member.kind === 'solid') {
+                exact(member, [
+                    'kind',
+                    'vertices',
+                    'role',
+                    'entityStyleKey'
+                ], memberLabel);
+                if (!Array.isArray(member.vertices) || member.vertices.length < 3 || member.vertices.length > 4) throw new KJValidationError(`${memberLabel}.vertices must contain 3 or 4 points`);
+                const vertices = member.vertices.map((value, vertexIndex)=>point(value, `${memberLabel}.vertices[${vertexIndex}]`));
+                let nondegenerate = false;
+                for(let a = 0; a < vertices.length; a++)for(let b = a + 1; b < vertices.length; b++)for(let c = b + 1; c < vertices.length; c++){
+                    const ab = [
+                        vertices[b][0] - vertices[a][0],
+                        vertices[b][1] - vertices[a][1]
+                    ], ac = [
+                        vertices[c][0] - vertices[a][0],
+                        vertices[c][1] - vertices[a][1]
+                    ];
+                    if (Math.abs(ab[0] * ac[1] - ab[1] * ac[0]) > 1e-12) nondegenerate = true;
+                }
+                if (!nondegenerate) throw new KJValidationError(`${memberLabel}.vertices must span a nonzero area`);
+                return {
+                    kind: 'solid',
+                    vertices,
                     role,
                     ...entityStyleKeyValue == null ? {} : {
                         entityStyleKey: entityStyleKeyValue
@@ -2998,6 +3116,95 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                     startAngle: member.startAngle,
                     endAngle: member.endAngle,
                     clockwise: member.clockwise === true,
+                    layerId: entityStyle.layerId
+                };
+            } else if (member.kind === 'single-line-text') {
+                const style = member.styleKey == null ? null : textStyleByKey.get(member.styleKey);
+                type = 'TEXT';
+                payload = {
+                    position: p3(...member.position),
+                    ...member.alignmentPoint == null ? {} : {
+                        alignmentPoint: p3(...member.alignmentPoint)
+                    },
+                    text: member.text,
+                    height: member.height,
+                    rotation: member.rotation ?? 0,
+                    ...member.widthFactor == null ? {} : {
+                        widthFactor: member.widthFactor
+                    },
+                    ...member.obliqueAngle == null ? {} : {
+                        obliqueAngle: member.obliqueAngle
+                    },
+                    ...member.horizontalAlignment == null ? {} : {
+                        horizontalAlignment: member.horizontalAlignment
+                    },
+                    ...member.verticalAlignment == null ? {} : {
+                        verticalAlignment: member.verticalAlignment
+                    },
+                    ...member.generationFlags == null ? {} : {
+                        generationFlags: member.generationFlags
+                    },
+                    ...style == null ? {} : {
+                        styleId: style.id
+                    },
+                    layerId: entityStyle.layerId
+                };
+            } else if (member.kind === 'hatch') {
+                const boundaryLoops = member.boundaryLoops.map((loop)=>({
+                        external: loop.external === true,
+                        flags: loop.flags ?? 0,
+                        edges: loop.edges.map((edge)=>edge.kind === 'line' ? {
+                                type: 'LINE',
+                                start: p3(...edge.start),
+                                end: p3(...edge.end)
+                            } : edge.kind === 'arc' ? {
+                                type: 'ARC',
+                                center: p3(...edge.center),
+                                radius: edge.radius,
+                                startAngle: edge.startAngle,
+                                endAngle: edge.endAngle,
+                                counterClockwise: edge.counterClockwise !== false
+                            } : {
+                                type: 'SPLINE',
+                                degree: edge.degree,
+                                controlPoints: edge.controlPoints.map((value)=>p3(...value)),
+                                knots: [
+                                    ...edge.knots ?? []
+                                ],
+                                weights: [
+                                    ...edge.weights ?? []
+                                ],
+                                fitPoints: (edge.fitPoints ?? []).map((value)=>p3(...value)),
+                                periodic: edge.periodic === true,
+                                ...edge.startTangent == null ? {} : {
+                                    startTangent: p3(...edge.startTangent)
+                                },
+                                ...edge.endTangent == null ? {} : {
+                                    endTangent: p3(...edge.endTangent)
+                                }
+                            })
+                    }));
+                type = 'HATCH';
+                payload = {
+                    boundaryLoops,
+                    patternName: member.patternName,
+                    solid: member.solid,
+                    associative: false,
+                    patternAngle: 0,
+                    patternScale: 1,
+                    patternLines: member.patternLines,
+                    patternDefinitionAngle: 0,
+                    patternDefinitionScale: 1,
+                    layerId: entityStyle.layerId
+                };
+            } else if (member.kind === 'solid') {
+                const vertices = member.vertices.map((value)=>p3(...value));
+                type = 'SOLID';
+                payload = {
+                    vertices: vertices.length === 3 ? [
+                        ...vertices,
+                        vertices[2]
+                    ] : vertices,
                     layerId: entityStyle.layerId
                 };
             } else if (member.kind === 'multiline-text') {

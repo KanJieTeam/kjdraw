@@ -361,6 +361,21 @@ export type KJFlangeSymbolMember = {
     role: KJFlangeAuxiliaryLine['role'];
     entityStyleKey?: string;
 } | {
+    kind: 'single-line-text';
+    text: string;
+    position: Point2;
+    alignmentPoint?: Point2;
+    height: number;
+    rotation?: number;
+    widthFactor?: number;
+    obliqueAngle?: number;
+    horizontalAlignment?: number;
+    verticalAlignment?: number;
+    generationFlags?: number;
+    styleKey?: string;
+    role: KJFlangeAuxiliaryLine['role'];
+    entityStyleKey?: string;
+} | {
     kind: 'multiline-text';
     text: string;
     position: Point2;
@@ -369,6 +384,15 @@ export type KJFlangeSymbolMember = {
     width?: number;
     attachmentPoint?: number;
     styleKey?: string;
+    role: KJFlangeAuxiliaryLine['role'];
+    entityStyleKey?: string;
+} | ({
+    kind: 'hatch';
+    role: KJFlangeAuxiliaryLine['role'];
+    entityStyleKey?: string;
+} & Omit<KJFlangeAuxiliaryHatch, 'styleKey'>) | {
+    kind: 'solid';
+    vertices: Point2[];
     role: KJFlangeAuxiliaryLine['role'];
     entityStyleKey?: string;
 } | ({
@@ -646,7 +670,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
                 name: string;
                 basePoint: Point3;
                 entities: {
-                    type: "ARC" | "ATTDEF" | "CIRCLE" | "INSERT" | "LINE" | "MTEXT";
+                    type: "ARC" | "ATTDEF" | "CIRCLE" | "HATCH" | "INSERT" | "LINE" | "MTEXT" | "SOLID" | "TEXT";
                     payload: Record<string, unknown>;
                     options: {
                         id: string;

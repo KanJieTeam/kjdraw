@@ -667,6 +667,80 @@ test('generic local symbols compile as editable native blocks without source blo
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...symbolInput, expectedRevision: document.revision, symbols: { definitions: symbols.definitions, instances: [{ ...symbols.instances[0], symbolKey: 'missing' }] } }), /reference a definition/u)
 })
 
+test('local symbol TEXT, HATCH and SOLID members remain native through KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const outer = [[0, 0], [12, 0], [12, 8], [0, 8]]
+  const hatch = { kind: 'hatch', solid: true, patternName: 'SOLID', boundaryLoops: [
+    { external: true, edges: outer.map((start, index) => ({ kind: 'line', start, end: outer[(index + 1) % outer.length] })) },
+    { edges: [{ kind: 'arc', center: [6, 4], radius: 2, startAngle: 0, endAngle: Math.PI * 2 }] },
+  ], role: 'geometry' }
+  const members = [
+    { kind: 'single-line-text', text: 'PUBLIC LABEL', position: [1, 10], alignmentPoint: [1, 10], height: 2, rotation: .1, widthFactor: .8, obliqueAngle: .05, horizontalAlignment: 1, verticalAlignment: 2, generationFlags: 0, role: 'notes' },
+    hatch,
+    { kind: 'solid', vertices: [[0, -1], [3, -1], [1.5, -4]], role: 'geometry' },
+  ]
+  const symbols = { definitions: [{ key: 'native-members', basePoint: [0, 0], members }], instances: [{ symbolKey: 'native-members', position: [40, 50], role: 'geometry' }] }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols })
+  const block = proposal.commandArgs.resources.blocks[0]
+  assert.deepEqual(block.entities.map(entity => entity.type), ['TEXT', 'HATCH', 'SOLID'])
+  assert.equal(block.entities[0].payload.text, 'PUBLIC LABEL')
+  assert.equal(block.entities[1].payload.boundaryLoops.length, 2)
+  assert.equal(block.entities[1].payload.boundaryLoops[0].edges.length, 4)
+  assert.equal(block.entities[2].payload.vertices.length, 4)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  assert.deepEqual(kjd.listEntities().filter(entity => entity.ownerId === block.id).map(entity => entity.type), ['TEXT', 'HATCH', 'SOLID'])
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
+  const dxfBlock = dxf.getTable('blockRecords').records.find(record => record.name?.startsWith('KJ_FLANGE_SYMBOL_'))
+  assert.deepEqual(dxf.listEntities().filter(entity => entity.ownerId === dxfBlock.id).map(entity => entity.type), ['TEXT', 'HATCH', 'SOLID'])
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); types=[e.dxftype() for b in d.blocks if b.name.startswith("KJ_FLANGE_SYMBOL_") for e in b]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"text":types.count("TEXT"),"hatch":types.count("HATCH"),"solid":types.count("SOLID")}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else { assert.equal(independent.status, 0, independent.stderr); assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, text: 1, hatch: 1, solid: 1 }) }
+
+  const source = input(document.revision), withMember = member => ({ ...source, symbols: { definitions: [{ key: 'bounded', basePoint: [0, 0], members: [member] }], instances: [] } })
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, withMember({ ...members[0], text: 'X'.repeat(513) })), /bounded visible text/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, withMember({ ...members[0], rawTags: [] })), /unsupported field/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, withMember({ ...hatch, boundaryLoops: Array.from({ length: 33 }, () => hatch.boundaryLoops[0]) })), /1 to 32 loops/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, withMember({ ...hatch, boundaryLoops: [{ edges: Array.from({ length: 129 }, (_, index) => ({ kind: 'line', start: [index, 0], end: [index + 1, 0] })) }] })), /1 to 128 edges/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, withMember({ ...hatch, rawTags: [] })), /unsupported field/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, withMember({ kind: 'solid', vertices: [[0, 0], [1, 0]], role: 'geometry' })), /3 or 4 points/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, withMember({ kind: 'solid', vertices: [[0, 0], [1, 0], [2, 0]], role: 'geometry' })), /nonzero area/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, withMember({ ...members[2], rawTags: [] })), /unsupported field/u)
+})
+
+test('empty local symbol definitions remain bounded and native through KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const symbols = { definitions: [{ key: 'empty-reference', basePoint: [0, 0], members: [] }],
+    instances: [{ symbolKey: 'empty-reference', position: [18, 24], role: 'geometry' }] }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols })
+  assert.equal(proposal.commandArgs.resources.blocks.length, 1)
+  assert.equal(proposal.commandArgs.resources.blocks[0].entities.length, 0)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  const kjdBlock = kjd.getTable('blockRecords').records.find(record => record.name?.startsWith('KJ_FLANGE_SYMBOL_'))
+  assert.ok(kjdBlock)
+  assert.equal(kjd.listEntities().filter(entity => entity.ownerId === kjdBlock.id).length, 0)
+  assert.equal(kjd.listEntities({ type: 'INSERT' }).filter(entity => entity.payload.blockRecordId === kjdBlock.id).length, 1)
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
+  const dxfBlock = dxf.getTable('blockRecords').records.find(record => record.name?.startsWith('KJ_FLANGE_SYMBOL_'))
+  assert.ok(dxfBlock)
+  assert.equal(dxf.listEntities().filter(entity => entity.ownerId === dxfBlock.id).length, 0)
+  assert.equal(dxf.listEntities({ type: 'INSERT' }).filter(entity => entity.payload.blockRecordId === dxfBlock.id).length, 1)
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); blocks=[b for b in d.blocks if b.name.startswith("KJ_FLANGE_SYMBOL_")]; inserts=[e for e in d.modelspace().query("INSERT") if e.dxf.name.startswith("KJ_FLANGE_SYMBOL_")]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"blocks":len(blocks),"members":sum(len(b) for b in blocks),"inserts":len(inserts)}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else { assert.equal(independent.status, 0, independent.stderr); assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, blocks: 1, members: 0, inserts: 1 }) }
+  const tooMany = Array.from({ length: 129 }, (_, index) => ({ kind: 'line', start: [index, 0], end: [index + 1, 0], role: 'geometry' }))
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols: { definitions: [{ key: 'bounded', basePoint: [0, 0], members: tooMany }], instances: [] } }), /at most 128 items/u)
+})
 test('symbol instances retain bounded Z translations through KJD and DXF', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const symbols = { definitions: [{ key: 'planar-symbol', basePoint: [0, 0], members: [

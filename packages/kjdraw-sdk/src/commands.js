@@ -3289,7 +3289,7 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
         ]);
         validateIdentity(block, blockNames);
         vec3(block.basePoint, `CREATEBATCH resources.blocks[${index}].basePoint`);
-        if (!Array.isArray(block.entities) || !block.entities.length || block.entities.length > 128) throw new KJValidationError('CREATEBATCH blocks require 1 to 128 definition entities');
+        if (!Array.isArray(block.entities) || block.entities.length > 128) throw new KJValidationError('CREATEBATCH blocks require at most 128 definition entities');
         for (const [memberIndex, spec] of block.entities.entries()){
             fields(spec, [
                 'type',
