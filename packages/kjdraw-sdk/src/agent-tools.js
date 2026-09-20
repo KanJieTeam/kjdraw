@@ -1782,6 +1782,31 @@ const geologySectionSchema = objectWithOptional({
     'title',
     'documentFacts'
 ]);
+const geologyPlanBoreholeLabelLayoutSchema = objectWithOptional({
+    idPosition: numericTuple(2),
+    collarElevationPosition: numericTuple(2),
+    depthPosition: numericTuple(2),
+    textHeight: {
+        type: 'number',
+        minimum: 0.01,
+        maximum: 1_000
+    },
+    rotationDegrees: {
+        type: 'number',
+        minimum: -360,
+        maximum: 360
+    },
+    precision: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 6
+    }
+}, [
+    'depthPosition',
+    'textHeight',
+    'rotationDegrees',
+    'precision'
+]);
 const geologyPlanBoreholeSchema = objectWithOptional({
     id: {
         ...text,
@@ -1797,10 +1822,12 @@ const geologyPlanBoreholeSchema = objectWithOptional({
             'test-pit',
             'in-situ-test'
         ]
-    }
+    },
+    labelLayout: geologyPlanBoreholeLabelLayoutSchema
 }, [
     'depth',
-    'kind'
+    'kind',
+    'labelLayout'
 ]);
 const geologyPlanSectionLineSchema = objectWithOptional({
     id: {
@@ -2212,7 +2239,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_plan',
         effect: 'propose',
-        description: 'Compile one editable ISO A3 engineering investigation-point location plan from exact supplied metre coordinates. The request must include a simple site boundary, 2–128 identified investigation points with supplied collar elevations and optional depths, one or more explicit section-line routes referencing existing point IDs in order, a standard drawing scale, and exactly one explicit coordinate expression: a grid origin/spacing or point-coordinate callouts with complete leader and text positions. Engineering coordinate labels use X=northing and Y=easting; KJDraw never swaps axes, invents coordinates, elevations, depths, section correlations, boundaries or project provenance. Optional aligned dimensions require all three native definition points, an optional in-view text position, a positive numeric display value, precision and only a bounded metre suffix; arbitrary dimension text and inferred measurements are forbidden. Version 1.0.0 draws native coordinate graphics, editable point symbols/facts, paired visible section references, optional explicitly supplied aligned dimensions, closed building footprints and continuous road line/arc paths, a north arrow and an A3 landscape viewport at the declared scale. Road widths and centerlines are never inferred; unsupplied roads, terrain, landscaping and other base-map context remain external source-backed dependencies. Non-fitting sheets, unknown or duplicate references, unsafe geometry, stale revisions and nonblank drawings fail closed. Requires a blank metre drawing. Returns a bounded native CREATEBATCH proposal without modifying the drawing; only a trusted host can approve one undoable transaction. This generic compiler and its tests are not certification that a private source drawing matches 1:1.',
+        description: 'Compile one editable ISO A3 engineering investigation-point location plan from exact supplied metre coordinates. The request must include a simple site boundary, 2–128 identified investigation points with supplied collar elevations and optional depths, one or more explicit section-line routes referencing existing point IDs in order, a standard drawing scale, and exactly one explicit coordinate expression: a grid origin/spacing or point-coordinate callouts with complete leader and text positions. Each point may supply labelLayout with independent source-backed positions for its identifier, collar elevation and, when depth is present, depth label, plus bounded text height, degree rotation and numeric precision; when omitted, the established combined-facts layout is preserved. Engineering coordinate labels use X=northing and Y=easting; KJDraw never swaps axes, invents coordinates, elevations, depths, section correlations, boundaries or project provenance. Optional aligned dimensions require all three native definition points, an optional in-view text position, a positive numeric display value, precision and only a bounded metre suffix; arbitrary dimension text and inferred measurements are forbidden. Version 1.0.0 draws native coordinate graphics, editable point symbols/facts, paired visible section references, optional explicitly supplied aligned dimensions, closed building footprints and continuous road line/arc paths, a north arrow and an A3 landscape viewport at the declared scale. Road widths and centerlines are never inferred; unsupplied roads, terrain, landscaping and other base-map context remain external source-backed dependencies. Non-fitting sheets, unknown or duplicate references, unsafe geometry, stale revisions and nonblank drawings fail closed. Requires a blank metre drawing. Returns a bounded native CREATEBATCH proposal without modifying the drawing; only a trusted host can approve one undoable transaction. This generic compiler and its tests are not certification that a private source drawing matches 1:1.',
         inputSchema: geologyPlanSchema
     },
     {

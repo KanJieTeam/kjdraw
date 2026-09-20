@@ -38,6 +38,23 @@ function intent(patch = {}) {
   }
 }
 
+function intentWithLabelLayout(patch = {}, labelPatch = {}) {
+  const source = intent(patch)
+  source.boreholes[0] = {
+    ...source.boreholes[0],
+    labelLayout: {
+      idPosition: [385015.25, 3452025.75],
+      collarElevationPosition: [385015.5, 3452018.25],
+      depthPosition: [385015.5, 3452015.75],
+      textHeight: 1.35,
+      rotationDegrees: 30,
+      precision: 3,
+      ...labelPatch,
+    },
+  }
+  return source
+}
+
 test('geology plan tool is metre-only proposal schema and host approval is one undoable transaction', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'meter' }), session = new KJAgentToolSession(sdk, document)
   const definition = session.definitions.find(tool => tool.name === 'cad_propose_geology_plan')
@@ -45,6 +62,14 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
   assert.deepEqual(definition.inputSchema.properties.units.enum, ['meter'])
   assert.deepEqual(definition.inputSchema.properties.scale.enum, [50, 100, 200, 500, 1000, 2000])
   assert.equal(definition.inputSchema.properties.boreholes.maxItems, 128)
+  const boreholeSchema = definition.inputSchema.properties.boreholes.items
+  assert.ok(!boreholeSchema.required.includes('labelLayout'))
+  const labelSchema = boreholeSchema.properties.labelLayout
+  assert.equal(labelSchema.additionalProperties, false)
+  assert.deepEqual(labelSchema.required, ['idPosition', 'collarElevationPosition'])
+  assert.deepEqual([labelSchema.properties.depthPosition.minItems, labelSchema.properties.depthPosition.maxItems], [2, 2])
+  assert.deepEqual([labelSchema.properties.rotationDegrees.minimum, labelSchema.properties.rotationDegrees.maximum], [-360, 360])
+  assert.deepEqual([labelSchema.properties.precision.minimum, labelSchema.properties.precision.maximum], [0, 6])
   assert.equal(definition.inputSchema.properties.sectionLines.items.properties.holeIds.minItems, 2)
   assert.deepEqual(definition.inputSchema.properties.sectionLines.items.required, ['id', 'holeIds', 'label'])
   assert.equal(definition.inputSchema.properties.sectionLines.items.properties.endpointLabels.minItems, 2)
@@ -71,7 +96,7 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
   const millimeterSdk = createKJDrawSDK(), millimeterDocument = millimeterSdk.createDocument({ units: 'millimeter' })
   assert.equal(new KJAgentToolSession(millimeterSdk, millimeterDocument).definitions.some(tool => tool.name === 'cad_propose_geology_plan'), false)
 
-  const before = document.serialize(), proposal = accepted(await session.call('cad_propose_geology_plan', intent()))
+  const before = document.serialize(), proposal = accepted(await session.call('cad_propose_geology_plan', intentWithLabelLayout()))
   assert.equal(proposal.status, 'awaiting-host-approval')
   assert.equal(proposal.command, 'CREATEBATCH')
   assert.equal(proposal.engineeringEvidence.skillId, 'geology-plan')
@@ -97,6 +122,11 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
   assert.equal(document.listEntities().length, proposal.engineeringEvidence.entityCount)
   assert.equal(document.listEntities().filter(entity => entity.payload.semanticRole === 'building-footprint').length, 1)
   assert.equal(document.listEntities().filter(entity => entity.payload.semanticRole === 'road-path-segment').length, 2)
+  assert.deepEqual(document.listEntities({ type: 'TEXT' }).filter(entity => entity.payload.sourceId === 'ZK01').map(entity => [entity.payload.semanticRole, entity.payload.text, entity.payload.position, entity.payload.height, entity.payload.rotation]), [
+    ['investigation-point-label', 'ZK01', [385015.25, 3452025.75, 0], 1.35, Math.PI / 6],
+    ['investigation-point-collar-elevation', '421.350', [385015.5, 3452018.25, 0], 1.35, Math.PI / 6],
+    ['investigation-point-depth', '30.000', [385015.5, 3452015.75, 0], 1.35, Math.PI / 6],
+  ])
   assert.equal(document.listEntities().filter(entity => entity.payload.semanticRole === 'coordinate-callout-leader').length, 2)
   assert.deepEqual(document.listEntities().filter(entity => entity.payload.semanticRole === 'coordinate-callout-label').map(entity => entity.payload.text), ['X=3452000.000', 'Y=385000.000'])
   assert.deepEqual(document.listEntities().filter(entity => entity.payload.semanticRole === 'site-dimension').map(entity => entity.payload.textOverride), ['30.00M'])
@@ -115,10 +145,10 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
     try {
       const dxfPath = join(root, 'plan.dxf'), auditPath = join(root, 'audit.py')
       await writeFile(dxfPath, dxf)
-      await writeFile(auditPath, 'import ezdxf,json,sys\nd=ezdxf.readfile(sys.argv[1]);a=d.audit();m=d.modelspace();print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"arcs":len(m.query("ARC")),"closed":sum(1 for e in m.query("LWPOLYLINE") if e.closed),"dimensions":len(m.query("DIMENSION")),"dimensionText":[e.dxf.text for e in m.query("DIMENSION")],"coordinateLeaders":sum(1 for e in m.query("LINE") if e.dxf.layer=="COORDINATES"),"coordinateLabels":sum(1 for e in m.query("TEXT") if e.dxf.text.startswith(("X=","Y="))),"viewports":len(d.query("VIEWPORT"))}))\n')
+      await writeFile(auditPath, 'import ezdxf,json,sys\nd=ezdxf.readfile(sys.argv[1]);a=d.audit();m=d.modelspace();print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"arcs":len(m.query("ARC")),"closed":sum(1 for e in m.query("LWPOLYLINE") if e.closed),"dimensions":len(m.query("DIMENSION")),"dimensionText":[e.dxf.text for e in m.query("DIMENSION")],"coordinateLeaders":sum(1 for e in m.query("LINE") if e.dxf.layer=="COORDINATES"),"coordinateLabels":sum(1 for e in m.query("TEXT") if e.dxf.text.startswith(("X=","Y="))),"boreholeLabels":sum(1 for e in m.query("TEXT") if e.dxf.text in {"ZK01","421.350","30.000"}),"viewports":len(d.query("VIEWPORT"))}))\n')
       const result = spawnSync(python, [auditPath, dxfPath], { encoding: 'utf8', env: { ...process.env, PYTHONPATH: pythonPath } })
       assert.equal(result.status, 0, result.stderr)
-      assert.deepEqual(JSON.parse(result.stdout), { errors: 0, fixes: 0, circles: 3, arcs: 1, closed: 3, dimensions: 1, dimensionText: ['30.00M'], coordinateLeaders: 2, coordinateLabels: 2, viewports: 1 })
+      assert.deepEqual(JSON.parse(result.stdout), { errors: 0, fixes: 0, circles: 3, arcs: 1, closed: 3, dimensions: 1, dimensionText: ['30.00M'], coordinateLeaders: 2, coordinateLabels: 2, boreholeLabels: 3, viewports: 1 })
     } finally { await rm(root, { recursive: true, force: true }) }
   }
 })
@@ -135,6 +165,7 @@ test('geology plan tool fails closed before a plan on stale, broken or nonblank 
     intent({ roadPaths: [{ id: 'bad-road', start: [385010, 3452050], segments: [{ kind: 'arc', center: [385020, 3452050], end: [385020, 3452070] }] }] }),
     intent({ coordinateGrid: { origin: [385000, 3452000], spacing: 20 } }),
     intent({ dimensions: [{ id: 'bad-dimension', dimensionLinePoint: [385020, 3452010], firstExtensionOrigin: [385010, 3452010], secondExtensionOrigin: [385030, 3452010], textPosition: [385020, 3452010], displayValue: 20 }] }),
+    intentWithLabelLayout({}, { surprise: true }),
     { ...intent(), surprise: true },
   ]) {
     const result = await session.call('cad_propose_geology_plan', invalid)
@@ -158,7 +189,7 @@ test('MCP exposes geology plan as proposal-only, writes one private ledger and n
   const requests = [
     { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25' } },
     { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
-    { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'cad_propose_geology_plan', arguments: intent() } },
+    { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'cad_propose_geology_plan', arguments: intentWithLabelLayout() } },
     { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'cad_approve', arguments: { planId: 'forbidden' } } },
   ]
   const mcp = fileURLToPath(new URL('../bin/kjdraw-mcp.mjs', import.meta.url))
@@ -181,5 +212,10 @@ test('MCP exposes geology plan as proposal-only, writes one private ledger and n
   assert.equal(ledger.proposals[0].tool, 'cad_propose_geology_plan')
   assert.equal(ledger.proposals[0].result.planId, proposal.planId)
   assert.equal(ledger.proposals[0].result.arguments.entities.length, proposal.nativeGeometry.entityCount)
+  assert.deepEqual(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'TEXT' && entity.payload.sourceId === 'ZK01').map(entity => [entity.payload.semanticRole, entity.payload.text, entity.payload.position, entity.payload.height, entity.payload.rotation]), [
+    ['investigation-point-label', 'ZK01', [385015.25, 3452025.75, 0], 1.35, Math.PI / 6],
+    ['investigation-point-collar-elevation', '421.350', [385015.5, 3452018.25, 0], 1.35, Math.PI / 6],
+    ['investigation-point-depth', '30.000', [385015.5, 3452015.75, 0], 1.35, Math.PI / 6],
+  ])
   assert.equal(sha(await readFile(join(root, 'blank.kjd'))), beforeSha)
 })
