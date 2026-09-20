@@ -946,7 +946,9 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       if ((row.datumReferences as unknown[] | undefined)?.length && (row.datumReferences as unknown[]).length > 4) throw new KJValidationError(`${rowLabel}.datumReferences exceed their budget`)
       const datumReferences: KJFlangeDatumReference[] = ((row.datumReferences ?? []) as unknown[]).map((datumValue, datumIndex) => {
         const datumLabel = `${rowLabel}.datumReferences[${datumIndex}]`, datum = plain(datumValue, datumLabel); exact(datum, ['label', 'materialCondition', 'slot'], datumLabel)
-        if (typeof datum.label !== 'string' || !/^[A-Z0-9]{1,8}$/u.test(datum.label)) throw new KJValidationError(`${datumLabel}.label must be 1 to 8 uppercase letters or digits`)
+        if (typeof datum.label !== 'string' || datum.label.length < 1 || datum.label.length > 8 || !/^[A-Z0-9]+(?:-[A-Z0-9]+)*$/u.test(datum.label)) {
+          throw new KJValidationError(`${datumLabel}.label must be a 1 to 8 character common-datum token using uppercase letters or digits with single ASCII hyphen separators`)
+        }
         const slot = datum.slot
         if (slot != null && (typeof slot !== 'number' || !Number.isInteger(slot) || slot < 0 || slot > 3)) throw new KJValidationError(`${datumLabel}.slot must be an integer from 0 to 3`)
         const condition = materialCondition(datum.materialCondition, `${datumLabel}.materialCondition`)
