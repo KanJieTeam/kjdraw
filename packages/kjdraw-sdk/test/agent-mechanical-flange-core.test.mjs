@@ -140,7 +140,7 @@ test('verified mirrored profiles stay symmetric while asymmetric source lines re
   assert.equal(emitted.has(lineKey([205, 127], [230, 124])), false)
   assert.equal(proposal.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1)
-  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.28.0')
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.29.0')
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /geometry and effective visual style both mirror/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /unpaired or asymmetric source segment remains an auxiliary line/u)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
@@ -313,7 +313,7 @@ test('flange compiler rejects unsupported source injection and impossible geomet
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), auxiliaryLines: [{ start: [1, 1], end: [2, 2], role: 'unknown' }] }), /role is invalid/u)
 })
 
-test('source-relative cut faces compile multi-loop LINE, ARC and SPLINE native hatches', async t => {
+test('source-relative cut faces compile multi-loop LINE, ARC, ELLIPSE and SPLINE native hatches', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const face = { lineAngle: Math.PI / 4, lineSpacing: 3.175, edges: [
     { kind: 'line', start: { station: 200, offset: 10 }, end: { station: 220, offset: 10 } },
@@ -340,6 +340,9 @@ test('source-relative cut faces compile multi-loop LINE, ARC and SPLINE native h
   const auxiliarySpline = { kind: 'spline', degree: 2, knots, weights, controlPoints: [
     [62, 75], [62, 77], [60, 77], [58, 77], [58, 75], [58, 73], [60, 73], [62, 73], [62, 75],
   ] }
+  const sectionEllipse = { kind: 'ellipse', center: { station: 276, offset: 5 }, majorAxis: [2, 0], ratio: .5,
+    startAngle: 0, endAngle: Math.PI * 2, counterClockwise: true }
+  const auxiliaryEllipse = { kind: 'ellipse', center: [60, 75], majorAxis: [2, 0], ratio: .5, startAngle: 0, endAngle: Math.PI * 2, counterClockwise: false }
   const solidFace = { solid: true, edges: rectangle(230, 240) }
   const doubleFace = { patternName: 'ANSI32', patternLines: [
     { angle: Math.PI / 4, base: [0, 0], offset: [-6.73519431372059, 6.73519431372059] },
@@ -348,11 +351,13 @@ test('source-relative cut faces compile multi-loop LINE, ARC and SPLINE native h
   const multiLoopFace = { solid: true, boundaryLoops: [
     { external: true, flags: 1, edges: rectangle(272, 280) },
     { external: false, flags: 0, edges: [sectionSpline] },
+    { external: false, flags: 0, edges: [sectionEllipse] },
   ] }
   const absoluteFace = { solid: true, edges: absoluteRectangle(20, 30, 70, 80) }
   const auxiliaryMultiLoop = { solid: true, boundaryLoops: [
     { external: true, flags: 1, edges: absoluteRectangle(55, 65, 70, 80) },
     { external: false, flags: 0, edges: [auxiliarySpline] },
+    { external: false, flags: 0, edges: [auxiliaryEllipse] },
   ] }
   const source = { ...input(document.revision), auxiliaryHatches: [absoluteFace, auxiliaryMultiLoop],
     sideViewAxis: { ...input(document.revision).sideViewAxis, sectionHatches: [face, solidFace, doubleFace, multiLoopFace] } }
@@ -365,12 +370,16 @@ test('source-relative cut faces compile multi-loop LINE, ARC and SPLINE native h
   assert.ok(Math.abs(hatches[0].payload.patternLines[0].offset[0] + 3.175 / Math.sqrt(2)) < 1e-12)
   assert.deepEqual([hatches[1].payload.patternName, hatches[1].payload.solid, hatches[1].payload.patternLines], ['SOLID', true, []])
   assert.deepEqual([hatches[2].payload.patternName, hatches[2].payload.solid, hatches[2].payload.patternLines.length], ['ANSI32', false, 2])
-  assert.deepEqual(hatches[3].payload.boundaryLoops.map(loop => [loop.external, loop.flags, loop.edges.length]), [[true, 1, 4], [false, 0, 1]])
+  assert.deepEqual(hatches[3].payload.boundaryLoops.map(loop => [loop.external, loop.flags, loop.edges.length]), [[true, 1, 4], [false, 0, 1], [false, 0, 1]])
   assert.equal(hatches[3].payload.boundaryLoops[1].edges[0].type, 'SPLINE')
   assert.deepEqual(hatches[3].payload.boundaryLoops[1].edges[0].controlPoints[0], [278, 155, 0])
+  assert.deepEqual(hatches[3].payload.boundaryLoops[2].edges[0], { type: 'ELLIPSE', center: [276, 155, 0], majorAxis: [2, 0, 0],
+    ratio: .5, startAngle: 0, endAngle: Math.PI * 2, counterClockwise: true })
   assert.deepEqual(hatches[4].payload.boundaryLoops[0].edges[0], { type: 'LINE', start: [20, 80, 0], end: [30, 80, 0] })
   assert.equal(hatches[5].payload.boundaryLoops[1].edges[0].type, 'SPLINE')
   assert.deepEqual(hatches[5].payload.boundaryLoops[1].edges[0].controlPoints[0], [62, 75, 0])
+  assert.deepEqual(hatches[5].payload.boundaryLoops[2].edges[0], { type: 'ELLIPSE', center: [60, 75, 0], majorAxis: [2, 0, 0],
+    ratio: .5, startAngle: 0, endAngle: Math.PI * 2, counterClockwise: false })
   assert.equal(JSON.stringify(hatches).includes('rawTags'), false)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
   const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
@@ -383,11 +392,11 @@ test('source-relative cut faces compile multi-loop LINE, ARC and SPLINE native h
   assert.deepEqual(facts(kjd), facts(document))
   assert.deepEqual(facts(dxf).map(item => [item.patternName, item.solid, item.patternLines.length, item.loops]), [
     ['ANSI31', false, 1, [['LINE', 'ARC', 'LINE', 'LINE']]], ['SOLID', true, 0, [['LINE', 'LINE', 'LINE', 'LINE']]],
-    ['ANSI32', false, 2, [['LINE', 'LINE', 'LINE', 'LINE']]], ['SOLID', true, 0, [['LINE', 'LINE', 'LINE', 'LINE'], ['SPLINE']]],
-    ['SOLID', true, 0, [['LINE', 'LINE', 'LINE', 'LINE']]], ['SOLID', true, 0, [['LINE', 'LINE', 'LINE', 'LINE'], ['SPLINE']]],
+    ['ANSI32', false, 2, [['LINE', 'LINE', 'LINE', 'LINE']]], ['SOLID', true, 0, [['LINE', 'LINE', 'LINE', 'LINE'], ['SPLINE'], ['ELLIPSE']]],
+    ['SOLID', true, 0, [['LINE', 'LINE', 'LINE', 'LINE']]], ['SOLID', true, 0, [['LINE', 'LINE', 'LINE', 'LINE'], ['SPLINE'], ['ELLIPSE']]],
   ])
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
-    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); h=list(d.modelspace().query("HATCH")); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"hatches":len(h),"paths":[len(x.paths) for x in h],"splines":[sum(1 for p in x.paths for e in getattr(p,"edges",[]) if e.__class__.__name__=="SplineEdge") for x in h]}))'],
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); h=list(d.modelspace().query("HATCH")); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"hatches":len(h),"paths":[len(x.paths) for x in h],"splines":[sum(1 for p in x.paths for e in getattr(p,"edges",[]) if e.__class__.__name__=="SplineEdge") for x in h],"ellipses":[sum(1 for p in x.paths for e in getattr(p,"edges",[]) if e.__class__.__name__=="EllipseEdge") for x in h]}))'],
   dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
     PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
   if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
@@ -395,7 +404,7 @@ test('source-relative cut faces compile multi-loop LINE, ARC and SPLINE native h
     t.diagnostic('official ezdxf unavailable; independent check skipped')
   } else {
     assert.equal(independent.status, 0, independent.stderr)
-    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, hatches: 6, paths: [1, 1, 1, 2, 1, 2], splines: [0, 0, 0, 1, 0, 1] })
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, hatches: 6, paths: [1, 1, 1, 3, 1, 3], splines: [0, 0, 0, 1, 0, 1], ellipses: [0, 0, 0, 1, 0, 1] })
   }
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
     sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...face, rawTags: [] }] } }), /unsupported field/u)
@@ -409,6 +418,20 @@ test('source-relative cut faces compile multi-loop LINE, ARC and SPLINE native h
     sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...doubleFace, lineSpacing: 1 }] } }), /cannot be combined/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
     sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...doubleFace, patternLines: [{ angle: 0, base: [0, 0], offset: [0, 0] }] }] } }), /offset must not be zero/u)
+  const withEllipse = edge => ({ ...source, expectedRevision: document.revision,
+    sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ solid: true, edges: [edge] }] } })
+  const before = document.serialize()
+  for (const [edge, pattern] of [
+    [{ ...sectionEllipse, majorAxis: [0, 0] }, /majorAxis must not be zero/u],
+    [{ ...sectionEllipse, ratio: 0 }, /ratio must be finite/u],
+    [{ ...sectionEllipse, ratio: 1.1 }, /ratio must be finite/u],
+    [{ ...sectionEllipse, endAngle: 0 }, /ellipse sweep must not be zero/u],
+    [{ ...sectionEllipse, counterClockwise: 'yes' }, /counterClockwise must be boolean/u],
+    [{ ...sectionEllipse, sourceHandle: 'private' }, /unsupported field/u],
+  ]) {
+    assert.throws(() => buildAgentMechanicalFlangeCore(document, withEllipse(edge)), pattern)
+    assert.equal(document.serialize(), before)
+  }
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
     auxiliaryHatches: Array.from({ length: 65 }, () => absoluteFace) }), /exceed their budget/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
@@ -1397,7 +1420,7 @@ test('generic orthographic geometry remains native when the circular end view is
     symbols,
     dimensions,
   })
-  assert.equal(proposal.evidence.knowledgePackVersion, '2.28.0')
+  assert.equal(proposal.evidence.knowledgePackVersion, '2.29.0')
   assert.equal(proposal.evidence.parameters.endViewPresent, false)
   assert.equal(proposal.evidence.parameters.ringCount, 0)
   assert.equal(proposal.commandArgs.entities.some(entity => entity.type === 'CIRCLE'), false)

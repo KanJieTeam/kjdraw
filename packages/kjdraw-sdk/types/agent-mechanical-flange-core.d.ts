@@ -174,6 +174,17 @@ export type KJFlangeSectionHatchEdge = {
     startAngle: number;
     endAngle: number;
     counterClockwise?: boolean;
+} | {
+    kind: 'ellipse';
+    center: {
+        station: number;
+        offset: number;
+    };
+    majorAxis: Point2;
+    ratio: number;
+    startAngle: number;
+    endAngle: number;
+    counterClockwise?: boolean;
 } | KJFlangeSectionHatchSplineEdge;
 export interface KJFlangeSectionHatchBoundaryLoop {
     edges: KJFlangeSectionHatchEdge[];
@@ -219,6 +230,14 @@ export type KJFlangeAuxiliaryHatchEdge = {
     kind: 'arc';
     center: Point2;
     radius: number;
+    startAngle: number;
+    endAngle: number;
+    counterClockwise?: boolean;
+} | {
+    kind: 'ellipse';
+    center: Point2;
+    majorAxis: Point2;
+    ratio: number;
     startAngle: number;
     endAngle: number;
     counterClockwise?: boolean;
