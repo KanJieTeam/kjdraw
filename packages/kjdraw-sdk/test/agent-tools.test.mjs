@@ -43,7 +43,7 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
         : tool.name === 'cad_propose_site_plan'
           ? ['locale', 'northAngleDegrees']
         : tool.name === 'cad_propose_geology_plan'
-          ? ['locale', 'title', 'revision', 'northAngleDegrees']
+          ? ['locale', 'title', 'revision', 'buildingFootprints', 'northAngleDegrees']
         : tool.name === 'cad_propose_cartesian_chart'
           ? ['origin', 'width', 'height', 'textHeight', 'xLabel', 'yLabel', 'showValues', 'yAxis']
         : tool.name === 'cad_propose_geology_column'
