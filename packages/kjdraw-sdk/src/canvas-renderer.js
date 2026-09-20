@@ -1981,10 +1981,24 @@ export class KJCanvasRenderer {
                 context.textBaseline = 'bottom';
                 context.fillText(String(text), screen[0], screen[1]);
             }
+        } else if (entity.type === 'WIPEOUT') {
+            const values = points(payload.vertices);
+            drawn = values.length >= 3;
+            if (drawn) {
+                context.beginPath();
+                values.forEach((value, index)=>{
+                    const screen = this.worldToScreen(value);
+                    if (index === 0) context.moveTo(...screen);
+                    else context.lineTo(...screen);
+                });
+                context.closePath();
+                context.globalAlpha = 1;
+                context.fillStyle = this.#paperSheetState ? '#fffefb' : this.#background ?? (this.#theme === 'dark' ? '#081016' : '#f8fafc');
+                context.fill();
+            }
         } else if ([
             'SOLID',
             'TRACE',
-            'WIPEOUT',
             'REVISION_CLOUD'
         ].includes(entity.type)) {
             const values = points(payload.vertices);

@@ -103,7 +103,16 @@ const GEOMETRY = {
     },
     LWPOLYLINE: polyline,
     POLYLINE: polyline,
-    WIPEOUT: polyline,
+    WIPEOUT: {
+        ...polyline,
+        position: point,
+        uVector: point,
+        vVector: point,
+        clipBoundary: [
+            point
+        ],
+        boundaryType: scalar
+    },
     REVISION_CLOUD: polyline,
     ELLIPSE: {
         center: point,

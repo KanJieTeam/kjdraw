@@ -63,6 +63,7 @@ function validate(document, source) {
         'auxiliaryPoints',
         'pointDisplay',
         'auxiliarySolids',
+        'auxiliaryWipeouts',
         'auxiliaryCurves',
         'auxiliaryHatches',
         'symbols',
@@ -1603,6 +1604,53 @@ function validate(document, source) {
             }
         };
     });
+    if (input.auxiliaryWipeouts != null && !Array.isArray(input.auxiliaryWipeouts)) throw new KJValidationError('input.auxiliaryWipeouts must be an array');
+    if (input.auxiliaryWipeouts?.length && input.auxiliaryWipeouts.length > 64) throw new KJValidationError('input.auxiliaryWipeouts exceed their 64-wipeout budget');
+    const auxiliaryWipeouts = (input.auxiliaryWipeouts ?? []).map((value, index)=>{
+        const label = `input.auxiliaryWipeouts[${index}]`, wipeout = plain(value, label);
+        exact(wipeout, [
+            'position',
+            'uVector',
+            'vVector',
+            'clipBoundary',
+            'boundaryType',
+            'role',
+            'styleKey'
+        ], label);
+        if (![
+            'geometry',
+            'center',
+            'hidden',
+            'notes',
+            'grid',
+            'frame'
+        ].includes(wipeout.role)) throw new KJValidationError(`${label}.role is invalid`);
+        const position = point(wipeout.position, `${label}.position`), uVector = point(wipeout.uVector, `${label}.uVector`), vVector = point(wipeout.vVector, `${label}.vVector`);
+        if (Math.abs(uVector[0] * vVector[1] - uVector[1] * vVector[0]) <= 1e-12) throw new KJValidationError(`${label}.uVector and vVector must span a nonzero plane`);
+        if (!Array.isArray(wipeout.clipBoundary) || wipeout.clipBoundary.length < 2 || wipeout.clipBoundary.length > 128) throw new KJValidationError(`${label}.clipBoundary must contain 2 to 128 points`);
+        const clipBoundary = wipeout.clipBoundary.map((value, pointIndex)=>point(value, `${label}.clipBoundary[${pointIndex}]`));
+        const boundaryType = finite(wipeout.boundaryType, `${label}.boundaryType`, 1, 2);
+        if (!Number.isInteger(boundaryType)) throw new KJValidationError(`${label}.boundaryType must be 1 or 2`);
+        if (boundaryType === 1 && clipBoundary.length !== 2) throw new KJValidationError(`${label} rectangular clipBoundary must contain exactly 2 points`);
+        if (boundaryType === 2 && clipBoundary.length < 3) throw new KJValidationError(`${label} polygonal clipBoundary must contain at least 3 points`);
+        const area = boundaryType === 1 ? Math.abs((clipBoundary[1][0] - clipBoundary[0][0]) * (clipBoundary[1][1] - clipBoundary[0][1])) : Math.abs(clipBoundary.reduce((sum, value, pointIndex)=>{
+            const next = clipBoundary[(pointIndex + 1) % clipBoundary.length];
+            return sum + value[0] * next[1] - next[0] * value[1];
+        }, 0));
+        if (area <= 1e-12) throw new KJValidationError(`${label}.clipBoundary must span a nonzero area`);
+        const styleKey = entityStyleKey(wipeout.styleKey, `${label}.styleKey`);
+        return {
+            position,
+            uVector,
+            vVector,
+            clipBoundary,
+            boundaryType: boundaryType,
+            role: wipeout.role,
+            ...styleKey == null ? {} : {
+                styleKey
+            }
+        };
+    });
     if (input.auxiliaryCurves != null && !Array.isArray(input.auxiliaryCurves)) throw new KJValidationError('input.auxiliaryCurves must be an array');
     if (input.auxiliaryCurves?.length && input.auxiliaryCurves.length > 256) throw new KJValidationError('input.auxiliaryCurves exceed their 256-curve budget');
     const auxiliaryCurves = (input.auxiliaryCurves ?? []).map((value, index)=>{
@@ -2296,6 +2344,7 @@ function validate(document, source) {
         auxiliaryPoints,
         pointDisplay,
         auxiliarySolids,
+        auxiliaryWipeouts,
         auxiliaryCurves,
         auxiliaryHatches,
         symbolDefinitions,
@@ -2998,6 +3047,23 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             layerId: style.layerId
         }, style.name);
     }
+    for (const wipeout of input.auxiliaryWipeouts){
+        const style = styled(wipeout.styleKey, wipeout.role);
+        emit('WIPEOUT', {
+            position: p3(...wipeout.position),
+            uVector: p3(...wipeout.uVector),
+            vVector: p3(...wipeout.vVector),
+            clipBoundary: wipeout.clipBoundary.map((value)=>p3(...value)),
+            boundaryType: wipeout.boundaryType,
+            flags: 7,
+            clipping: true,
+            brightness: 50,
+            contrast: 50,
+            fade: 0,
+            clipMode: false,
+            layerId: style.layerId
+        }, style.name);
+    }
     for (const curve of input.auxiliaryCurves){
         const style = styled(curve.styleKey, curve.role);
         if (curve.kind === 'arc') emit('ARC', {
@@ -3484,6 +3550,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 auxiliaryPointCount: input.auxiliaryPoints.length,
                 pointDisplay: input.pointDisplay,
                 auxiliarySolidCount: input.auxiliarySolids.length,
+                auxiliaryWipeoutCount: input.auxiliaryWipeouts.length,
                 auxiliaryCurveCount: input.auxiliaryCurves.length,
                 symbolDefinitionCount: input.symbolDefinitions.length,
                 symbolInstanceCount: input.symbolInstances.length,

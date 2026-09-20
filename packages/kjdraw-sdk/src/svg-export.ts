@@ -309,6 +309,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
     if (entity.type === 'ELLIPSE') return `<path d="${ellipsePath(point(p.center), point(p.majorAxis), numeric(p.ratio), numeric(p.startParameter, 0), numeric(p.endParameter, TAU))}"/>`
     if (entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') { if (numeric(p.elevation, 0) || numeric(p.constantWidth, 0) || (numeric(p.dxfFlags,0)&(8|16|64))!==0) fail('polyline elevation/width is unsupported'); return `<path d="${polyPath(p.vertices ?? p.points, p.closed === true)}"/>` }
     if (entity.type === 'SOLID') return `<path d="${polyPath(Array.isArray(p.vertices)&&p.vertices.length===4?[p.vertices[0],p.vertices[1],p.vertices[3],p.vertices[2]]:p.vertices, true)}" fill="currentColor"/>`
+    if (entity.type === 'WIPEOUT') return `<path d="${polyPath(p.vertices, true)}" fill="#fff" stroke="none"/>`
     if (entity.type === 'TEXT' || entity.type === 'ATTRIB' || entity.type === 'ATTDEF') {
       const style = document.getObject(String(p.styleId ?? ''))?.payload ?? {}
       const factor = numeric(p.widthFactor ?? style.widthFactor, 1), flags = numeric(p.generationFlags ?? style.generationFlags, 0), shear = Math.tan(numeric(p.obliqueAngle ?? style.obliqueAngle, 0))

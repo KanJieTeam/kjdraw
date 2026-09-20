@@ -438,6 +438,7 @@ export function exportDrawingSvg(document, options) {
             p.vertices[3],
             p.vertices[2]
         ] : p.vertices, true)}" fill="currentColor"/>`;
+        if (entity.type === 'WIPEOUT') return `<path d="${polyPath(p.vertices, true)}" fill="#fff" stroke="none"/>`;
         if (entity.type === 'TEXT' || entity.type === 'ATTRIB' || entity.type === 'ATTDEF') {
             const style = document.getObject(String(p.styleId ?? ''))?.payload ?? {};
             const factor = numeric(p.widthFactor ?? style.widthFactor, 1), flags = numeric(p.generationFlags ?? style.generationFlags, 0), shear = Math.tan(numeric(p.obliqueAngle ?? style.obliqueAngle, 0));

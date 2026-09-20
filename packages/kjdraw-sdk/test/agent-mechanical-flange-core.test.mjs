@@ -865,6 +865,49 @@ test('feature-control datum slots preserve intentional empty cells', () => {
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ position: [120, 80], role: 'dimensions', rows: [{ characteristic: 'concentricity', tolerance: '0.03', datumReferences: [{ label: 'A', slot: 4 }] }] }] }), /slot must be an integer from 0 to 3/u)
 })
 
+test('bounded native wipeouts preserve explicit local clipping through KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const rectangle = { position: [10, 20], uVector: [20, 0], vVector: [0, 8], clipBoundary: [[-.5, -.5], [.5, .5]], boundaryType: 1, role: 'notes' }
+  const polygon = { position: [50, 40], uVector: [12, 3], vVector: [-2, 9],
+    clipBoundary: Array.from({ length: 128 }, (_, index) => { const angle = Math.PI * 2 * index / 128; return [Math.cos(angle) * .5, Math.sin(angle) * .5] }),
+    boundaryType: 2, role: 'notes' }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryWipeouts: [rectangle, polygon] })
+  const proposed = proposal.commandArgs.entities.filter(entity => entity.type === 'WIPEOUT')
+  assert.equal(proposed.length, 2)
+  assert.equal(proposed[0].payload.clipBoundary.length, 2)
+  assert.equal(proposed[1].payload.clipBoundary.length, 128)
+  assert.equal(JSON.stringify(proposed).includes('rawTags'), false)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  await sdk.executeCommand('CREATE', { type: 'WIPEOUT', payload: { position: [80, 20], uVector: [5, 0], vVector: [0, 4],
+    clipBoundary: [[-.5, -.5], [.5, .5]], boundaryType: 1, flags: 15, clipping: false, brightness: 44, contrast: 55, fade: 6, clipMode: true } }, { document })
+  const current = document.listEntities({ type: 'WIPEOUT' })
+  assert.deepEqual(current.map(entity => entity.payload.vertices.length), [4, 128, 4])
+  assert.deepEqual(current[2].payload, { ...current[2].payload, flags: 15, clipping: false, brightness: 44, contrast: 55, fade: 6, clipMode: true })
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  assert.deepEqual(kjd.listEntities({ type: 'WIPEOUT' }).map(entity => [entity.payload.boundaryType, entity.payload.clipBoundary.length]).sort((a, b) => a[1] - b[1] || a[0] - b[0]), [[1, 2], [1, 2], [2, 128]])
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  assert.match(dxfText, /AcDbWipeout/u)
+  const dxf = await sdk.readDocument(dxfText, { format: 'DXF' }), reopened = dxf.listEntities({ type: 'WIPEOUT' })
+  assert.deepEqual(reopened.map(entity => [entity.payload.boundaryType, entity.payload.clipBoundary.length]).sort((a, b) => a[1] - b[1] || a[0] - b[0]), [[1, 2], [1, 2], [2, 128]])
+  const customDisplay = reopened.find(entity => entity.payload.position[0] === 80).payload
+  assert.deepEqual([customDisplay.flags, customDisplay.clipping, customDisplay.brightness, customDisplay.contrast, customDisplay.fade, customDisplay.clipMode], [15, false, 44, 55, 6, true])
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); w=list(d.modelspace().query("WIPEOUT")); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"count":len(w),"paths":[len(e.boundary_path) for e in w],"handles":[[e.dxf.image_def_handle,e.dxf.image_def_reactor_handle] for e in w],"display":[w[-1].dxf.flags,w[-1].dxf.clipping,w[-1].dxf.brightness,w[-1].dxf.contrast,w[-1].dxf.fade,w[-1].dxf.clip_mode]}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, count: 3, paths: [2, 128, 2], handles: [['0', '0'], ['0', '0'], ['0', '0']], display: [15, 0, 44, 55, 6, 1] })
+  }
+  const source = input(document.revision), withWipeout = wipeout => ({ ...source, auxiliaryWipeouts: [wipeout] })
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, auxiliaryWipeouts: Array.from({ length: 65 }, () => rectangle) }), /64-wipeout budget/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, withWipeout({ ...polygon, clipBoundary: Array.from({ length: 129 }, (_, index) => [index, index % 2]) })), /2 to 128 points/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, withWipeout({ ...rectangle, uVector: [1, 0], vVector: [2, 0] })), /nonzero plane/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, withWipeout({ ...polygon, clipBoundary: [[0, 0], [1, 0], [2, 0]] })), /nonzero area/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, withWipeout({ ...rectangle, rawTags: [] })), /unsupported field/u)
+})
 test('native points, point-display variables and per-side frame styles survive KJD and DXF', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
   const custom = [

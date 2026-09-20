@@ -8,7 +8,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
 type Point2Or3 = Point2 | Point3
-type Entity = { type: 'POINT' | 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'ATTDEF' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT'; payload: Record<string, unknown>; options: { id: string };
+type Entity = { type: 'POINT' | 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'WIPEOUT' | 'LEADER' | 'TEXT' | 'MTEXT' | 'ATTDEF' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT'; payload: Record<string, unknown>; options: { id: string };
   attributeSequence?: { attributes: { id: string; payload: Record<string, unknown> }[]; sequenceEnd: { id: string; dxfOwnerMode: 'insert' | 'space'; layerId?: string } } }
 interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } }; getTable?: (name: string) => { records: { id: string; name?: string; payload?: Record<string, unknown> }[] } | undefined }
 
@@ -193,6 +193,16 @@ export interface KJFlangePointDisplay {
   size: number
 }
 
+/** Bounded native masking areas retain their explicit local DXF clipping frame. */
+export interface KJFlangeAuxiliaryWipeout {
+  position: Point2
+  uVector: Point2
+  vVector: Point2
+  clipBoundary: Point2[]
+  boundaryType: 1 | 2
+  role: KJFlangeAuxiliaryLine['role']
+  styleKey?: string
+}
 /** Bounded source-measured filled planar faces, including native CAD arrowheads. */
 export interface KJFlangeAuxiliarySolid {
   vertices: Point2[]
@@ -384,6 +394,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   auxiliaryPoints?: KJFlangeAuxiliaryPoint[]
   pointDisplay?: KJFlangePointDisplay
   auxiliarySolids?: KJFlangeAuxiliarySolid[]
+  auxiliaryWipeouts?: KJFlangeAuxiliaryWipeout[]
   auxiliaryCurves?: KJFlangeAuxiliaryCurve[]
   auxiliaryHatches?: KJFlangeAuxiliaryHatch[]
   symbols?: { definitions: KJFlangeSymbolDefinition[]; instances: KJFlangeSymbolInstance[] }
@@ -423,7 +434,7 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'entityDrawOrder', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliaryPoints', 'pointDisplay', 'auxiliarySolids', 'auxiliaryCurves', 'auxiliaryHatches', 'symbols', 'styleResources', 'styleProfile', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'entityDrawOrder', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliaryPoints', 'pointDisplay', 'auxiliarySolids', 'auxiliaryWipeouts', 'auxiliaryCurves', 'auxiliaryHatches', 'symbols', 'styleResources', 'styleProfile', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
   if (input.entityDrawOrder != null && (!Array.isArray(input.entityDrawOrder) || input.entityDrawOrder.length > 10_000)) throw new KJValidationError('input.entityDrawOrder must be an array within its item budget')
   const entityDrawOrder = input.entityDrawOrder == null ? null : input.entityDrawOrder.map((value, index) => {
@@ -1061,6 +1072,26 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const styleKey = entityStyleKey(solid.styleKey, `${label}.styleKey`)
     return { vertices, role: solid.role as KJFlangeAuxiliaryLine['role'], ...(styleKey == null ? {} : { styleKey }) }
   })
+  if (input.auxiliaryWipeouts != null && !Array.isArray(input.auxiliaryWipeouts)) throw new KJValidationError('input.auxiliaryWipeouts must be an array')
+  if ((input.auxiliaryWipeouts as unknown[] | undefined)?.length && (input.auxiliaryWipeouts as unknown[]).length > 64) throw new KJValidationError('input.auxiliaryWipeouts exceed their 64-wipeout budget')
+  const auxiliaryWipeouts: KJFlangeAuxiliaryWipeout[] = ((input.auxiliaryWipeouts ?? []) as unknown[]).map((value, index) => {
+    const label = `input.auxiliaryWipeouts[${index}]`, wipeout = plain(value, label); exact(wipeout, ['position', 'uVector', 'vVector', 'clipBoundary', 'boundaryType', 'role', 'styleKey'], label)
+    if (!['geometry', 'center', 'hidden', 'notes', 'grid', 'frame'].includes(wipeout.role as string)) throw new KJValidationError(`${label}.role is invalid`)
+    const position = point(wipeout.position, `${label}.position`), uVector = point(wipeout.uVector, `${label}.uVector`), vVector = point(wipeout.vVector, `${label}.vVector`)
+    if (Math.abs(uVector[0] * vVector[1] - uVector[1] * vVector[0]) <= 1e-12) throw new KJValidationError(`${label}.uVector and vVector must span a nonzero plane`)
+    if (!Array.isArray(wipeout.clipBoundary) || wipeout.clipBoundary.length < 2 || wipeout.clipBoundary.length > 128) throw new KJValidationError(`${label}.clipBoundary must contain 2 to 128 points`)
+    const clipBoundary = wipeout.clipBoundary.map((value, pointIndex) => point(value, `${label}.clipBoundary[${pointIndex}]`))
+    const boundaryType = finite(wipeout.boundaryType, `${label}.boundaryType`, 1, 2)
+    if (!Number.isInteger(boundaryType)) throw new KJValidationError(`${label}.boundaryType must be 1 or 2`)
+    if (boundaryType === 1 && clipBoundary.length !== 2) throw new KJValidationError(`${label} rectangular clipBoundary must contain exactly 2 points`)
+    if (boundaryType === 2 && clipBoundary.length < 3) throw new KJValidationError(`${label} polygonal clipBoundary must contain at least 3 points`)
+    const area = boundaryType === 1
+      ? Math.abs((clipBoundary[1]![0] - clipBoundary[0]![0]) * (clipBoundary[1]![1] - clipBoundary[0]![1]))
+      : Math.abs(clipBoundary.reduce((sum, value, pointIndex) => { const next = clipBoundary[(pointIndex + 1) % clipBoundary.length]!; return sum + value[0] * next[1] - next[0] * value[1] }, 0))
+    if (area <= 1e-12) throw new KJValidationError(`${label}.clipBoundary must span a nonzero area`)
+    const styleKey = entityStyleKey(wipeout.styleKey, `${label}.styleKey`)
+    return { position, uVector, vVector, clipBoundary, boundaryType: boundaryType as 1 | 2, role: wipeout.role as KJFlangeAuxiliaryLine['role'], ...(styleKey == null ? {} : { styleKey }) }
+  })
   if (input.auxiliaryCurves != null && !Array.isArray(input.auxiliaryCurves)) throw new KJValidationError('input.auxiliaryCurves must be an array')
   if ((input.auxiliaryCurves as unknown[] | undefined)?.length && (input.auxiliaryCurves as unknown[]).length > 256) throw new KJValidationError('input.auxiliaryCurves exceed their 256-curve budget')
   const auxiliaryCurves: KJFlangeAuxiliaryCurve[] = ((input.auxiliaryCurves ?? []) as unknown[]).map((value, index) => {
@@ -1280,7 +1311,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source
     return { key: String(key), definition: styleRole(definition, `input.styleProfile.custom[${index}]`) }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, orientation, axisCoordinate, axisVisible, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryPoints, pointDisplay, auxiliarySolids, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSideStyleKeys, insetFrameSideStyleKeys, outerFrameSides, insetFrameSides, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, orientation, axisCoordinate, axisVisible, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryPoints, pointDisplay, auxiliarySolids, auxiliaryWipeouts, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSideStyleKeys, insetFrameSideStyleKeys, outerFrameSides, insetFrameSides, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -1480,6 +1511,12 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   for (const auxiliary of input.auxiliaryPoints) { const style = styled(auxiliary.styleKey, auxiliary.role); emit('POINT', { position: p3(...auxiliary.position), layerId: style.layerId }, style.name) }
   for (const auxiliary of input.auxiliaryLines) { const style = styled(auxiliary.styleKey, auxiliary.role); line(auxiliary.start, auxiliary.end, style.layerId, style.name) }
   for (const solid of input.auxiliarySolids) { const style = styled(solid.styleKey, solid.role), vertices = solid.vertices.map(value => p3(...value)); emit('SOLID', { vertices: vertices.length === 3 ? [...vertices, vertices[2]!] : vertices, layerId: style.layerId }, style.name) }
+  for (const wipeout of input.auxiliaryWipeouts) {
+    const style = styled(wipeout.styleKey, wipeout.role)
+    emit('WIPEOUT', { position: p3(...wipeout.position), uVector: p3(...wipeout.uVector), vVector: p3(...wipeout.vVector),
+      clipBoundary: wipeout.clipBoundary.map(value => p3(...value)), boundaryType: wipeout.boundaryType,
+      flags: 7, clipping: true, brightness: 50, contrast: 50, fade: 0, clipMode: false, layerId: style.layerId }, style.name)
+  }
   for (const curve of input.auxiliaryCurves) {
     const style = styled(curve.styleKey, curve.role)
     if (curve.kind === 'arc') emit('ARC', { center: p3(...curve.center), radius: curve.radius, startAngle: curve.startAngle, endAngle: curve.endAngle, clockwise: curve.clockwise === true, layerId: style.layerId }, style.name)
@@ -1601,7 +1638,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1), holeCount: input.holePatterns.reduce((sum, pattern) => sum + pattern.count, input.pitch == null ? 0 : 4), titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null, sideViewOrientation: input.orientation, sideViewAxisVisible: input.axisVisible,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
-        sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryPointCount: input.auxiliaryPoints.length, pointDisplay: input.pointDisplay, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
+        sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryPointCount: input.auxiliaryPoints.length, pointDisplay: input.pointDisplay, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryWipeoutCount: input.auxiliaryWipeouts.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
         symbolDefinitionCount: input.symbolDefinitions.length, symbolInstanceCount: input.symbolInstances.length, symbolAttributeCount: input.symbolAttributeCount, featureControlFrameCount: input.featureControlFrames.length,
         entityStyleCount: input.customStyles.length, textStyleCount: input.textStyles.length, dimensionStyleCount: input.dimensionStyles.length,
         noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
