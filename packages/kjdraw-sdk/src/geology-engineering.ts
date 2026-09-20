@@ -590,7 +590,7 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
       if (layer.stratigraphicNotation.subscript != null) bounded(layer.stratigraphicNotation.subscript, 'stratigraphic notation subscript', 12)
       if (layer.stratigraphicNotation.superscript != null) bounded(layer.stratigraphicNotation.superscript, 'stratigraphic notation superscript', 12)
     }
-    if (layer.description != null) bounded(layer.description, 'stratum description', 96)
+    if (layer.description != null) bounded(layer.description, 'stratum description', 512)
     if (layer.descriptionSource != null && (!layer.description || !['interval', 'layer-definition'].includes(layer.descriptionSource))) throw new KJValidationError('Geology: description source requires exact interval or layer-definition provenance')
     const top = numeric(layer.top, 'stratum top'), bottom = numeric(layer.bottom, 'stratum bottom')
     if (Math.abs(top - previous) > 1e-6 || bottom <= top || bottom > hole.depth + 1e-6) throw new KJValidationError(`Geology: gap, overlap or invalid depth at ${code}`)

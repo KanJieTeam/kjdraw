@@ -492,7 +492,8 @@ test('long unspaced Chinese geology descriptions remain native bounded MTEXT thr
     rules: { 'geology-column-layout': { paperWidth: 260, paperHeight: 340, left: 5, right: 255,
       columns: [20, 40, 60, 82, 100, 145], observationColumns: [205, 228], footerReserve: 30 } } })
   const source = hole('CJK-1', 0, 1111.04, [6.8, 15.4, 60])
-  const paragraph = '黄褐色中密细砂含少量云母碎片'.repeat(5)
+  const paragraph = '黄褐色中密细砂含少量云母碎片'.repeat(8)
+  assert.ok([...paragraph].length > 96)
   source.strata[1].description = paragraph
   const compiled = compileGeologyColumn({ hole: source, verticalScaleDenominator: 250, expectedRevision: 0, columnStylePack: style })
   const text = compiled.commandArgs.entities.find(entity => entity.type === 'MTEXT' && entity.payload.text === paragraph)
@@ -502,8 +503,14 @@ test('long unspaced Chinese geology descriptions remain native bounded MTEXT thr
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
   const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const kjd = await sdk.writeDocument(document, { format: 'KJD', version: '1' })
   const reopened = await sdk.readDocument(dxf, { format: 'DXF', version: '2018' })
-  assert.ok(reopened.listEntities({ type: 'MTEXT' }).some(entity => entity.payload.text === paragraph && entity.payload.width === 56))
+  const reopenedKjd = await sdk.readDocument(kjd, { format: 'KJD', version: '1' })
+  for (const copy of [reopened, reopenedKjd])
+    assert.ok(copy.listEntities({ type: 'MTEXT' }).some(entity => entity.payload.text === paragraph && entity.payload.width === 56))
+  const overlong = structuredClone(source); overlong.strata[1].description = '土'.repeat(513)
+  assert.throws(() => compileGeologyColumn({ hole: overlong, verticalScaleDenominator: 250, expectedRevision: 0,
+    columnStylePack: style }), /invalid stratum description/u)
 })
 
 test('a versioned fourteen-field grid charts direct sample measurements without per-project drawing code', async () => {

@@ -736,7 +736,7 @@ function checkHole(hole) {
             if (layer.stratigraphicNotation.subscript != null) bounded(layer.stratigraphicNotation.subscript, 'stratigraphic notation subscript', 12);
             if (layer.stratigraphicNotation.superscript != null) bounded(layer.stratigraphicNotation.superscript, 'stratigraphic notation superscript', 12);
         }
-        if (layer.description != null) bounded(layer.description, 'stratum description', 96);
+        if (layer.description != null) bounded(layer.description, 'stratum description', 512);
         if (layer.descriptionSource != null && (!layer.description || ![
             'interval',
             'layer-definition'
