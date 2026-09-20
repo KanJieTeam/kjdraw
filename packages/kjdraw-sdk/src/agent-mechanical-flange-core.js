@@ -1,6 +1,7 @@
 // Generated from agent-mechanical-flange-core.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
 import { projectDimension } from './geometry/annotation.js';
+import { normalizeHatchSplineEdge } from './geometry/hatch-boundary.js';
 import { KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK } from './knowledge-packs/mechanical-flange-core.js';
 import { stableHash } from './utils.js';
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0';
@@ -87,7 +88,7 @@ function validate(document, source) {
         'textStyles',
         'dimensionStyles'
     ], 'input.styleResources');
-    if (!Array.isArray(resourceSource.textStyles) || resourceSource.textStyles.length > 16 || !Array.isArray(resourceSource.dimensionStyles) || resourceSource.dimensionStyles.length > 16) throw new KJValidationError('input.styleResources allow at most 16 records per table');
+    if (!Array.isArray(resourceSource.textStyles) || resourceSource.textStyles.length > 64 || !Array.isArray(resourceSource.dimensionStyles) || resourceSource.dimensionStyles.length > 64) throw new KJValidationError('input.styleResources allow at most 64 records per table');
     const resourceKey = (value, label)=>{
         if (typeof value !== 'string' || !value.trim() || value !== value.trim() || value.length > 96 || /[\u0000-\u001f\u007f]/u.test(value)) throw new KJValidationError(`${label} must be bounded printable text`);
         return value;
@@ -201,7 +202,7 @@ function validate(document, source) {
         'hidden',
         'custom'
     ], 'input.styleProfile');
-    if (styleProfile.custom != null && (!Array.isArray(styleProfile.custom) || styleProfile.custom.length > 16)) throw new KJValidationError('input.styleProfile.custom must contain at most 16 items');
+    if (styleProfile.custom != null && (!Array.isArray(styleProfile.custom) || styleProfile.custom.length > 64)) throw new KJValidationError('input.styleProfile.custom must contain at most 64 items');
     const customStyleSource = styleProfile.custom ?? [];
     const entityStyleKeys = new Set();
     for (const [index, value] of customStyleSource.entries()){
@@ -586,6 +587,7 @@ function validate(document, source) {
         const label = `input.sideViewAxis.sectionHatches[${hatchIndex}]`, hatch = plain(value, label);
         exact(hatch, [
             'edges',
+            'boundaryLoops',
             'solid',
             'patternName',
             'lineAngle',
@@ -594,7 +596,16 @@ function validate(document, source) {
             'patternLines',
             'styleKey'
         ], label);
-        if (!Array.isArray(hatch.edges) || hatch.edges.length < 3 || hatch.edges.length > 128) throw new KJValidationError(`${label}.edges must contain 3 to 128 edges`);
+        const hasEdges = hatch.edges != null, hasBoundaryLoops = hatch.boundaryLoops != null;
+        if (hasEdges === hasBoundaryLoops) throw new KJValidationError(`${label} requires exactly one of edges or boundaryLoops`);
+        const loopSource = hasEdges ? [
+            {
+                edges: hatch.edges,
+                external: false,
+                flags: 0
+            }
+        ] : hatch.boundaryLoops;
+        if (!Array.isArray(loopSource) || loopSource.length < 1 || loopSource.length > 32) throw new KJValidationError(`${label}.boundaryLoops must contain 1 to 32 loops`);
         const localPoint = (value, label)=>{
             const coordinate = plain(value, label);
             exact(coordinate, [
@@ -606,46 +617,140 @@ function validate(document, source) {
                 offset: finite(coordinate.offset, `${label}.offset`, -100_000, 100_000)
             };
         };
-        const edges = hatch.edges.map((value, edgeIndex)=>{
-            const labelEdge = `${label}.edges[${edgeIndex}]`, edge = plain(value, labelEdge);
-            if (edge.kind === 'line') {
-                exact(edge, [
-                    'kind',
-                    'start',
-                    'end'
-                ], labelEdge);
-                const start = localPoint(edge.start, `${labelEdge}.start`), end = localPoint(edge.end, `${labelEdge}.end`);
-                if (start.station === end.station && start.offset === end.offset) throw new KJValidationError(`${labelEdge} must not have zero length`);
-                return {
-                    kind: 'line',
-                    start,
-                    end
-                };
-            }
-            if (edge.kind === 'arc') {
-                exact(edge, [
-                    'kind',
-                    'center',
-                    'radius',
-                    'startAngle',
-                    'endAngle',
-                    'counterClockwise'
-                ], labelEdge);
-                if (edge.counterClockwise != null && typeof edge.counterClockwise !== 'boolean') throw new KJValidationError(`${labelEdge}.counterClockwise must be boolean`);
-                const startAngle = finite(edge.startAngle, `${labelEdge}.startAngle`, -Math.PI * 4, Math.PI * 4);
-                const endAngle = finite(edge.endAngle, `${labelEdge}.endAngle`, -Math.PI * 4, Math.PI * 4);
-                if (startAngle === endAngle) throw new KJValidationError(`${labelEdge} arc sweep must not be zero`);
-                return {
-                    kind: 'arc',
-                    center: localPoint(edge.center, `${labelEdge}.center`),
-                    radius: finite(edge.radius, `${labelEdge}.radius`, 0.1, 100_000),
-                    startAngle,
-                    endAngle,
-                    counterClockwise: edge.counterClockwise !== false
-                };
-            }
-            throw new KJValidationError(`${labelEdge}.kind is invalid`);
+        let totalEdges = 0, splinePoints = 0;
+        const boundaryLoops = loopSource.map((value, loopIndex)=>{
+            const loopLabel = `${label}.boundaryLoops[${loopIndex}]`, loop = plain(value, loopLabel);
+            exact(loop, [
+                'edges',
+                'external',
+                'flags'
+            ], loopLabel);
+            if (loop.external != null && typeof loop.external !== 'boolean') throw new KJValidationError(`${loopLabel}.external must be boolean`);
+            const flags = loop.flags == null ? 0 : finite(loop.flags, `${loopLabel}.flags`, 0, 65535);
+            if (!Number.isInteger(flags)) throw new KJValidationError(`${loopLabel}.flags must be an integer`);
+            if (!Array.isArray(loop.edges) || loop.edges.length < 1 || loop.edges.length > 128) throw new KJValidationError(`${loopLabel}.edges must contain 1 to 128 edges`);
+            totalEdges += loop.edges.length;
+            const edges = loop.edges.map((value, edgeIndex)=>{
+                const edgeLabel = `${loopLabel}.edges[${edgeIndex}]`, edge = plain(value, edgeLabel);
+                if (edge.kind === 'line') {
+                    exact(edge, [
+                        'kind',
+                        'start',
+                        'end'
+                    ], edgeLabel);
+                    const start = localPoint(edge.start, `${edgeLabel}.start`), end = localPoint(edge.end, `${edgeLabel}.end`);
+                    if (start.station === end.station && start.offset === end.offset) throw new KJValidationError(`${edgeLabel} must not have zero length`);
+                    return {
+                        kind: 'line',
+                        start,
+                        end
+                    };
+                }
+                if (edge.kind === 'arc') {
+                    exact(edge, [
+                        'kind',
+                        'center',
+                        'radius',
+                        'startAngle',
+                        'endAngle',
+                        'counterClockwise'
+                    ], edgeLabel);
+                    if (edge.counterClockwise != null && typeof edge.counterClockwise !== 'boolean') throw new KJValidationError(`${edgeLabel}.counterClockwise must be boolean`);
+                    const startAngle = finite(edge.startAngle, `${edgeLabel}.startAngle`, -Math.PI * 4, Math.PI * 4);
+                    const endAngle = finite(edge.endAngle, `${edgeLabel}.endAngle`, -Math.PI * 4, Math.PI * 4);
+                    if (startAngle === endAngle) throw new KJValidationError(`${edgeLabel} arc sweep must not be zero`);
+                    return {
+                        kind: 'arc',
+                        center: localPoint(edge.center, `${edgeLabel}.center`),
+                        radius: finite(edge.radius, `${edgeLabel}.radius`, 0.1, 100_000),
+                        startAngle,
+                        endAngle,
+                        counterClockwise: edge.counterClockwise !== false
+                    };
+                }
+                if (edge.kind === 'spline') {
+                    exact(edge, [
+                        'kind',
+                        'degree',
+                        'controlPoints',
+                        'knots',
+                        'weights',
+                        'fitPoints',
+                        'periodic',
+                        'startTangent',
+                        'endTangent'
+                    ], edgeLabel);
+                    if (!Array.isArray(edge.controlPoints)) throw new KJValidationError(`${edgeLabel}.controlPoints must be an array`);
+                    if (edge.knots != null && !Array.isArray(edge.knots)) throw new KJValidationError(`${edgeLabel}.knots must be an array`);
+                    if (edge.weights != null && !Array.isArray(edge.weights)) throw new KJValidationError(`${edgeLabel}.weights must be an array`);
+                    if (edge.fitPoints != null && !Array.isArray(edge.fitPoints)) throw new KJValidationError(`${edgeLabel}.fitPoints must be an array`);
+                    if (edge.periodic != null && typeof edge.periodic !== 'boolean') throw new KJValidationError(`${edgeLabel}.periodic must be boolean`);
+                    const controlPoints = edge.controlPoints.map((pointValue, pointIndex)=>localPoint(pointValue, `${edgeLabel}.controlPoints[${pointIndex}]`));
+                    const fitPoints = (edge.fitPoints ?? []).map((pointValue, pointIndex)=>localPoint(pointValue, `${edgeLabel}.fitPoints[${pointIndex}]`));
+                    const startTangent = edge.startTangent == null ? undefined : point(edge.startTangent, `${edgeLabel}.startTangent`);
+                    const endTangent = edge.endTangent == null ? undefined : point(edge.endTangent, `${edgeLabel}.endTangent`);
+                    const degree = finite(edge.degree, `${edgeLabel}.degree`, 1, 10);
+                    if (!Number.isInteger(degree)) throw new KJValidationError(`${edgeLabel}.degree must be an integer`);
+                    const normalized = normalizeHatchSplineEdge({
+                        type: 'SPLINE',
+                        degree,
+                        controlPoints: controlPoints.map((point)=>[
+                                point.station,
+                                point.offset,
+                                0
+                            ]),
+                        knots: edge.knots,
+                        weights: edge.weights,
+                        fitPoints: fitPoints.map((point)=>[
+                                point.station,
+                                point.offset,
+                                0
+                            ]),
+                        periodic: edge.periodic === true,
+                        ...startTangent == null ? {} : {
+                            startTangent: [
+                                ...startTangent,
+                                0
+                            ]
+                        },
+                        ...endTangent == null ? {} : {
+                            endTangent: [
+                                ...endTangent,
+                                0
+                            ]
+                        }
+                    }, edgeLabel);
+                    splinePoints += normalized.controlPoints.length + normalized.fitPoints.length;
+                    return {
+                        kind: 'spline',
+                        degree: normalized.degree,
+                        controlPoints,
+                        knots: [
+                            ...normalized.knots
+                        ],
+                        weights: [
+                            ...normalized.weights
+                        ],
+                        fitPoints,
+                        periodic: normalized.periodic,
+                        ...startTangent == null ? {} : {
+                            startTangent
+                        },
+                        ...endTangent == null ? {} : {
+                            endTangent
+                        }
+                    };
+                }
+                throw new KJValidationError(`${edgeLabel}.kind is invalid`);
+            });
+            return {
+                external: loop.external === true,
+                flags,
+                edges
+            };
         });
+        if (totalEdges > 256) throw new KJValidationError(`${label}.boundaryLoops exceed the 256-edge budget`);
+        if (splinePoints > 4096) throw new KJValidationError(`${label}.boundaryLoops exceed the 4096-spline-point budget`);
         if (hatch.solid != null && typeof hatch.solid !== 'boolean') throw new KJValidationError(`${label}.solid must be boolean`);
         const solid = hatch.solid === true;
         const patternName = hatch.patternName == null ? solid ? 'SOLID' : 'ANSI31' : resourceKey(hatch.patternName, `${label}.patternName`);
@@ -693,7 +798,7 @@ function validate(document, source) {
         });
         const styleKey = entityStyleKey(hatch.styleKey, `${label}.styleKey`);
         return {
-            edges,
+            boundaryLoops,
             solid,
             patternName,
             patternLines,
@@ -1151,6 +1256,7 @@ function validate(document, source) {
         const label = `input.auxiliaryHatches[${hatchIndex}]`, hatch = plain(value, label);
         exact(hatch, [
             'edges',
+            'boundaryLoops',
             'solid',
             'patternName',
             'lineAngle',
@@ -1159,46 +1265,147 @@ function validate(document, source) {
             'patternLines',
             'styleKey'
         ], label);
-        if (!Array.isArray(hatch.edges) || hatch.edges.length < 3 || hatch.edges.length > 128) throw new KJValidationError(`${label}.edges must contain 3 to 128 edges`);
-        const edges = hatch.edges.map((value, edgeIndex)=>{
-            const edgeLabel = `${label}.edges[${edgeIndex}]`, edge = plain(value, edgeLabel);
-            if (edge.kind === 'line') {
-                exact(edge, [
-                    'kind',
-                    'start',
-                    'end'
-                ], edgeLabel);
-                const start = point(edge.start, `${edgeLabel}.start`), end = point(edge.end, `${edgeLabel}.end`);
-                if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${edgeLabel} must not have zero length`);
-                return {
-                    kind: 'line',
-                    start,
-                    end
-                };
+        const hasEdges = hatch.edges != null, hasBoundaryLoops = hatch.boundaryLoops != null;
+        if (hasEdges === hasBoundaryLoops) throw new KJValidationError(`${label} requires exactly one of edges or boundaryLoops`);
+        const loopSource = hasEdges ? [
+            {
+                edges: hatch.edges,
+                external: false,
+                flags: 0
             }
-            if (edge.kind === 'arc') {
-                exact(edge, [
-                    'kind',
-                    'center',
-                    'radius',
-                    'startAngle',
-                    'endAngle',
-                    'counterClockwise'
-                ], edgeLabel);
-                if (edge.counterClockwise != null && typeof edge.counterClockwise !== 'boolean') throw new KJValidationError(`${edgeLabel}.counterClockwise must be boolean`);
-                const startAngle = finite(edge.startAngle, `${edgeLabel}.startAngle`, -Math.PI * 4, Math.PI * 4), endAngle = finite(edge.endAngle, `${edgeLabel}.endAngle`, -Math.PI * 4, Math.PI * 4);
-                if (startAngle === endAngle) throw new KJValidationError(`${edgeLabel} arc sweep must not be zero`);
-                return {
-                    kind: 'arc',
-                    center: point(edge.center, `${edgeLabel}.center`),
-                    radius: finite(edge.radius, `${edgeLabel}.radius`, 0.1, 100_000),
-                    startAngle,
-                    endAngle,
-                    counterClockwise: edge.counterClockwise !== false
-                };
-            }
-            throw new KJValidationError(`${edgeLabel}.kind is invalid`);
+        ] : hatch.boundaryLoops;
+        if (!Array.isArray(loopSource) || loopSource.length < 1 || loopSource.length > 32) throw new KJValidationError(`${label}.boundaryLoops must contain 1 to 32 loops`);
+        let totalEdges = 0, splinePoints = 0;
+        const boundaryLoops = loopSource.map((value, loopIndex)=>{
+            const loopLabel = `${label}.boundaryLoops[${loopIndex}]`, loop = plain(value, loopLabel);
+            exact(loop, [
+                'edges',
+                'external',
+                'flags'
+            ], loopLabel);
+            if (loop.external != null && typeof loop.external !== 'boolean') throw new KJValidationError(`${loopLabel}.external must be boolean`);
+            const flags = loop.flags == null ? 0 : finite(loop.flags, `${loopLabel}.flags`, 0, 65535);
+            if (!Number.isInteger(flags)) throw new KJValidationError(`${loopLabel}.flags must be an integer`);
+            if (!Array.isArray(loop.edges) || loop.edges.length < 1 || loop.edges.length > 128) throw new KJValidationError(`${loopLabel}.edges must contain 1 to 128 edges`);
+            totalEdges += loop.edges.length;
+            const edges = loop.edges.map((value, edgeIndex)=>{
+                const edgeLabel = `${loopLabel}.edges[${edgeIndex}]`, edge = plain(value, edgeLabel);
+                if (edge.kind === 'line') {
+                    exact(edge, [
+                        'kind',
+                        'start',
+                        'end'
+                    ], edgeLabel);
+                    const start = point(edge.start, `${edgeLabel}.start`), end = point(edge.end, `${edgeLabel}.end`);
+                    if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${edgeLabel} must not have zero length`);
+                    return {
+                        kind: 'line',
+                        start,
+                        end
+                    };
+                }
+                if (edge.kind === 'arc') {
+                    exact(edge, [
+                        'kind',
+                        'center',
+                        'radius',
+                        'startAngle',
+                        'endAngle',
+                        'counterClockwise'
+                    ], edgeLabel);
+                    if (edge.counterClockwise != null && typeof edge.counterClockwise !== 'boolean') throw new KJValidationError(`${edgeLabel}.counterClockwise must be boolean`);
+                    const startAngle = finite(edge.startAngle, `${edgeLabel}.startAngle`, -Math.PI * 4, Math.PI * 4), endAngle = finite(edge.endAngle, `${edgeLabel}.endAngle`, -Math.PI * 4, Math.PI * 4);
+                    if (startAngle === endAngle) throw new KJValidationError(`${edgeLabel} arc sweep must not be zero`);
+                    return {
+                        kind: 'arc',
+                        center: point(edge.center, `${edgeLabel}.center`),
+                        radius: finite(edge.radius, `${edgeLabel}.radius`, 0.1, 100_000),
+                        startAngle,
+                        endAngle,
+                        counterClockwise: edge.counterClockwise !== false
+                    };
+                }
+                if (edge.kind === 'spline') {
+                    exact(edge, [
+                        'kind',
+                        'degree',
+                        'controlPoints',
+                        'knots',
+                        'weights',
+                        'fitPoints',
+                        'periodic',
+                        'startTangent',
+                        'endTangent'
+                    ], edgeLabel);
+                    if (!Array.isArray(edge.controlPoints)) throw new KJValidationError(`${edgeLabel}.controlPoints must be an array`);
+                    if (edge.knots != null && !Array.isArray(edge.knots)) throw new KJValidationError(`${edgeLabel}.knots must be an array`);
+                    if (edge.weights != null && !Array.isArray(edge.weights)) throw new KJValidationError(`${edgeLabel}.weights must be an array`);
+                    if (edge.fitPoints != null && !Array.isArray(edge.fitPoints)) throw new KJValidationError(`${edgeLabel}.fitPoints must be an array`);
+                    if (edge.periodic != null && typeof edge.periodic !== 'boolean') throw new KJValidationError(`${edgeLabel}.periodic must be boolean`);
+                    const controlPoints = edge.controlPoints.map((pointValue, pointIndex)=>point(pointValue, `${edgeLabel}.controlPoints[${pointIndex}]`));
+                    const fitPoints = (edge.fitPoints ?? []).map((pointValue, pointIndex)=>point(pointValue, `${edgeLabel}.fitPoints[${pointIndex}]`));
+                    const startTangent = edge.startTangent == null ? undefined : point(edge.startTangent, `${edgeLabel}.startTangent`);
+                    const endTangent = edge.endTangent == null ? undefined : point(edge.endTangent, `${edgeLabel}.endTangent`);
+                    const degree = finite(edge.degree, `${edgeLabel}.degree`, 1, 10);
+                    if (!Number.isInteger(degree)) throw new KJValidationError(`${edgeLabel}.degree must be an integer`);
+                    const normalized = normalizeHatchSplineEdge({
+                        type: 'SPLINE',
+                        degree,
+                        controlPoints: controlPoints.map((value)=>[
+                                ...value,
+                                0
+                            ]),
+                        knots: edge.knots,
+                        weights: edge.weights,
+                        fitPoints: fitPoints.map((value)=>[
+                                ...value,
+                                0
+                            ]),
+                        periodic: edge.periodic === true,
+                        ...startTangent == null ? {} : {
+                            startTangent: [
+                                ...startTangent,
+                                0
+                            ]
+                        },
+                        ...endTangent == null ? {} : {
+                            endTangent: [
+                                ...endTangent,
+                                0
+                            ]
+                        }
+                    }, edgeLabel);
+                    splinePoints += normalized.controlPoints.length + normalized.fitPoints.length;
+                    return {
+                        kind: 'spline',
+                        degree: normalized.degree,
+                        controlPoints,
+                        knots: [
+                            ...normalized.knots
+                        ],
+                        weights: [
+                            ...normalized.weights
+                        ],
+                        fitPoints,
+                        periodic: normalized.periodic,
+                        ...startTangent == null ? {} : {
+                            startTangent
+                        },
+                        ...endTangent == null ? {} : {
+                            endTangent
+                        }
+                    };
+                }
+                throw new KJValidationError(`${edgeLabel}.kind is invalid`);
+            });
+            return {
+                external: loop.external === true,
+                flags,
+                edges
+            };
         });
+        if (totalEdges > 256) throw new KJValidationError(`${label}.boundaryLoops exceed the 256-edge budget`);
+        if (splinePoints > 4096) throw new KJValidationError(`${label}.boundaryLoops exceed the 4096-spline-point budget`);
         if (hatch.solid != null && typeof hatch.solid !== 'boolean') throw new KJValidationError(`${label}.solid must be boolean`);
         const solid = hatch.solid === true;
         const patternName = hatch.patternName == null ? solid ? 'SOLID' : 'ANSI31' : resourceKey(hatch.patternName, `${label}.patternName`);
@@ -1243,7 +1450,7 @@ function validate(document, source) {
         });
         const styleKey = entityStyleKey(hatch.styleKey, `${label}.styleKey`);
         return {
-            edges,
+            boundaryLoops,
             solid,
             patternName,
             patternLines,
@@ -2406,6 +2613,13 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             station,
             input.axisCoordinate + offset
         ];
+    const projectSideVector = (station, offset)=>input.orientation === 'vertical' ? [
+            offset,
+            station
+        ] : [
+            station,
+            offset
+        ];
     if (input.xRange && input.axisVisible) {
         const style = styled(input.axisStyleKey, 'center'), [start, end] = input.axisDirection === 'reverse' ? [
             input.xRange[1],
@@ -2467,25 +2681,42 @@ export function buildAgentMechanicalFlangeCore(document, source) {
     }
     for (const hatch of input.sectionHatches){
         const style = styled(hatch.styleKey, 'hatch');
+        const boundaryLoops = hatch.boundaryLoops.map((loop)=>({
+                external: loop.external === true,
+                flags: loop.flags ?? 0,
+                edges: loop.edges.map((edge)=>edge.kind === 'line' ? {
+                        type: 'LINE',
+                        start: p3(...projectSidePoint(edge.start.station, edge.start.offset)),
+                        end: p3(...projectSidePoint(edge.end.station, edge.end.offset))
+                    } : edge.kind === 'arc' ? {
+                        type: 'ARC',
+                        center: p3(...projectSidePoint(edge.center.station, edge.center.offset)),
+                        radius: edge.radius,
+                        startAngle: edge.startAngle,
+                        endAngle: edge.endAngle,
+                        counterClockwise: edge.counterClockwise !== false
+                    } : {
+                        type: 'SPLINE',
+                        degree: edge.degree,
+                        controlPoints: edge.controlPoints.map((value)=>p3(...projectSidePoint(value.station, value.offset))),
+                        knots: [
+                            ...edge.knots ?? []
+                        ],
+                        weights: [
+                            ...edge.weights ?? []
+                        ],
+                        fitPoints: (edge.fitPoints ?? []).map((value)=>p3(...projectSidePoint(value.station, value.offset))),
+                        periodic: edge.periodic === true,
+                        ...edge.startTangent == null ? {} : {
+                            startTangent: p3(...projectSideVector(...edge.startTangent))
+                        },
+                        ...edge.endTangent == null ? {} : {
+                            endTangent: p3(...projectSideVector(...edge.endTangent))
+                        }
+                    })
+            }));
         emit('HATCH', {
-            boundaryLoops: [
-                {
-                    external: false,
-                    flags: 0,
-                    edges: hatch.edges.map((edge)=>edge.kind === 'line' ? {
-                            type: 'LINE',
-                            start: p3(...projectSidePoint(edge.start.station, edge.start.offset)),
-                            end: p3(...projectSidePoint(edge.end.station, edge.end.offset))
-                        } : {
-                            type: 'ARC',
-                            center: p3(...projectSidePoint(edge.center.station, edge.center.offset)),
-                            radius: edge.radius,
-                            startAngle: edge.startAngle,
-                            endAngle: edge.endAngle,
-                            counterClockwise: edge.counterClockwise !== false
-                        })
-                }
-            ],
+            boundaryLoops,
             patternName: hatch.patternName,
             solid: hatch.solid,
             associative: false,
@@ -2499,25 +2730,42 @@ export function buildAgentMechanicalFlangeCore(document, source) {
     }
     for (const hatch of input.auxiliaryHatches){
         const style = styled(hatch.styleKey, 'hatch');
+        const boundaryLoops = hatch.boundaryLoops.map((loop)=>({
+                external: loop.external === true,
+                flags: loop.flags ?? 0,
+                edges: loop.edges.map((edge)=>edge.kind === 'line' ? {
+                        type: 'LINE',
+                        start: p3(...edge.start),
+                        end: p3(...edge.end)
+                    } : edge.kind === 'arc' ? {
+                        type: 'ARC',
+                        center: p3(...edge.center),
+                        radius: edge.radius,
+                        startAngle: edge.startAngle,
+                        endAngle: edge.endAngle,
+                        counterClockwise: edge.counterClockwise !== false
+                    } : {
+                        type: 'SPLINE',
+                        degree: edge.degree,
+                        controlPoints: edge.controlPoints.map((value)=>p3(...value)),
+                        knots: [
+                            ...edge.knots ?? []
+                        ],
+                        weights: [
+                            ...edge.weights ?? []
+                        ],
+                        fitPoints: (edge.fitPoints ?? []).map((value)=>p3(...value)),
+                        periodic: edge.periodic === true,
+                        ...edge.startTangent == null ? {} : {
+                            startTangent: p3(...edge.startTangent)
+                        },
+                        ...edge.endTangent == null ? {} : {
+                            endTangent: p3(...edge.endTangent)
+                        }
+                    })
+            }));
         emit('HATCH', {
-            boundaryLoops: [
-                {
-                    external: false,
-                    flags: 0,
-                    edges: hatch.edges.map((edge)=>edge.kind === 'line' ? {
-                            type: 'LINE',
-                            start: p3(...edge.start),
-                            end: p3(...edge.end)
-                        } : {
-                            type: 'ARC',
-                            center: p3(...edge.center),
-                            radius: edge.radius,
-                            startAngle: edge.startAngle,
-                            endAngle: edge.endAngle,
-                            counterClockwise: edge.counterClockwise !== false
-                        })
-                }
-            ],
+            boundaryLoops,
             patternName: hatch.patternName,
             solid: hatch.solid,
             associative: false,

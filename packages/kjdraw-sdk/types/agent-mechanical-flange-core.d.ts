@@ -137,31 +137,57 @@ export interface KJFlangeHatchPatternLine {
     offset: Point2;
     dashes?: number[];
 }
+export interface KJFlangeSectionHatchSplineEdge {
+    kind: 'spline';
+    degree: number;
+    controlPoints: {
+        station: number;
+        offset: number;
+    }[];
+    knots?: number[];
+    weights?: number[];
+    fitPoints?: {
+        station: number;
+        offset: number;
+    }[];
+    periodic?: boolean;
+    startTangent?: Point2;
+    endTangent?: Point2;
+}
+export type KJFlangeSectionHatchEdge = {
+    kind: 'line';
+    start: {
+        station: number;
+        offset: number;
+    };
+    end: {
+        station: number;
+        offset: number;
+    };
+} | {
+    kind: 'arc';
+    center: {
+        station: number;
+        offset: number;
+    };
+    radius: number;
+    startAngle: number;
+    endAngle: number;
+    counterClockwise?: boolean;
+} | KJFlangeSectionHatchSplineEdge;
+export interface KJFlangeSectionHatchBoundaryLoop {
+    edges: KJFlangeSectionHatchEdge[];
+    external?: boolean;
+    flags?: number;
+}
 /** A source-measured cut face in the side view. Boundary coordinates are
  *  relative to the projection axis. Pattern geometry is represented as
  *  bounded semantic line families, never as raw DXF tags. */
 export interface KJFlangeSectionHatch {
-    edges: ({
-        kind: 'line';
-        start: {
-            station: number;
-            offset: number;
-        };
-        end: {
-            station: number;
-            offset: number;
-        };
-    } | {
-        kind: 'arc';
-        center: {
-            station: number;
-            offset: number;
-        };
-        radius: number;
-        startAngle: number;
-        endAngle: number;
-        counterClockwise?: boolean;
-    })[];
+    /** Legacy single-loop shorthand. Exactly one of edges or boundaryLoops is required. */
+    edges?: KJFlangeSectionHatchEdge[];
+    /** Explicit bounded topology, including inner loops and spline edges. */
+    boundaryLoops?: KJFlangeSectionHatchBoundaryLoop[];
     /** Solid fills do not accept pattern-line fields. */
     solid?: boolean;
     /** Defaults to SOLID for solid fills and ANSI31 for patterned fills. */
@@ -174,22 +200,42 @@ export interface KJFlangeSectionHatch {
     patternLines?: KJFlangeHatchPatternLine[];
     styleKey?: string;
 }
+export interface KJFlangeAuxiliaryHatchSplineEdge {
+    kind: 'spline';
+    degree: number;
+    controlPoints: Point2[];
+    knots?: number[];
+    weights?: number[];
+    fitPoints?: Point2[];
+    periodic?: boolean;
+    startTangent?: Point2;
+    endTangent?: Point2;
+}
+export type KJFlangeAuxiliaryHatchEdge = {
+    kind: 'line';
+    start: Point2;
+    end: Point2;
+} | {
+    kind: 'arc';
+    center: Point2;
+    radius: number;
+    startAngle: number;
+    endAngle: number;
+    counterClockwise?: boolean;
+} | KJFlangeAuxiliaryHatchSplineEdge;
+export interface KJFlangeAuxiliaryHatchBoundaryLoop {
+    edges: KJFlangeAuxiliaryHatchEdge[];
+    external?: boolean;
+    flags?: number;
+}
 /** An independent source-measured hatch in absolute drawing coordinates.
  *  Use this for detached sections, auxiliary views and sheet marks that do
  *  not share the side-view projection axis. */
 export interface KJFlangeAuxiliaryHatch {
-    edges: ({
-        kind: 'line';
-        start: Point2;
-        end: Point2;
-    } | {
-        kind: 'arc';
-        center: Point2;
-        radius: number;
-        startAngle: number;
-        endAngle: number;
-        counterClockwise?: boolean;
-    })[];
+    /** Legacy single-loop shorthand. Exactly one of edges or boundaryLoops is required. */
+    edges?: KJFlangeAuxiliaryHatchEdge[];
+    /** Explicit bounded topology, including inner loops and spline edges. */
+    boundaryLoops?: KJFlangeAuxiliaryHatchBoundaryLoop[];
     solid?: boolean;
     patternName?: string;
     lineAngle?: number;
