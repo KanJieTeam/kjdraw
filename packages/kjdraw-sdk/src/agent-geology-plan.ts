@@ -35,6 +35,17 @@ export interface KJGeologyPlanBuildingFootprint {
   outline: Point2[]
 }
 
+export type KJGeologyPlanRoadSegment =
+  | { kind: 'line'; end: Point2 }
+  | { kind: 'arc'; center: Point2; end: Point2; clockwise?: boolean }
+
+export interface KJGeologyPlanRoadPath {
+  id: string
+  start: Point2
+  segments: KJGeologyPlanRoadSegment[]
+  closed?: boolean
+}
+
 export interface KJAgentGeologyPlanInput {
   version: typeof KJDRAW_GEOLOGY_PLAN_VERSION
   expectedRevision: number
@@ -49,6 +60,7 @@ export interface KJAgentGeologyPlanInput {
   sectionLines: KJGeologyPlanSectionLine[]
   coordinateGrid: KJGeologyPlanCoordinateGrid
   buildingFootprints?: KJGeologyPlanBuildingFootprint[]
+  roadPaths?: KJGeologyPlanRoadPath[]
   northAngleDegrees?: number
 }
 
@@ -60,11 +72,14 @@ interface GeologyPlanDocument {
 
 type EntitySpec = { type: string; payload: Record<string, unknown>; options: { id: string } }
 
-const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'buildingFootprints', 'northAngleDegrees']
+const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'buildingFootprints', 'roadPaths', 'northAngleDegrees']
 const BOREHOLE_KEYS = ['id', 'position', 'collarElevation', 'depth', 'kind']
 const SECTION_KEYS = ['id', 'holeIds', 'label', 'endpointLabels', 'markerClearance', 'endpointTailLengths', 'endpointLabelPositions']
 const GRID_KEYS = ['origin', 'spacing']
 const BUILDING_KEYS = ['id', 'outline']
+const ROAD_PATH_KEYS = ['id', 'start', 'segments', 'closed']
+const ROAD_LINE_KEYS = ['kind', 'end']
+const ROAD_ARC_KEYS = ['kind', 'center', 'end', 'clockwise']
 const SCALES = new Set<ScaleDenominator>([50, 100, 200, 500, 1000, 2000])
 const KINDS = new Set(['borehole', 'test-pit', 'in-situ-test'])
 const EPSILON = 1e-9
@@ -164,6 +179,11 @@ function format(value: number, decimals = 2): string {
   return value.toFixed(decimals).replace(/\.0+$/u, '').replace(/(\.\d*?)0+$/u, '$1')
 }
 
+function normalizedAngle(value: number): number {
+  const result = value % (Math.PI * 2)
+  return result < 0 ? result + Math.PI * 2 : result
+}
+
 function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlanInput) {
   if (!document || typeof document.id !== 'string' || !Number.isInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Geology plan compiler requires a KJDraw document')
   const input = plain(source, 'input'); exactKeys(input, INPUT_KEYS, 'input')
@@ -176,6 +196,12 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
   if (!SCALES.has(scale)) throw new KJValidationError('input.scale must be one of 50, 100, 200, 500, 1000 or 2000')
   if (!Array.isArray(input.boundary) || input.boundary.length < 3 || input.boundary.length > 128) throw new KJValidationError('input.boundary must contain 3-128 points')
   const boundary = input.boundary.map((value, index) => point(value, `input.boundary[${index}]`)); validatePolygon(boundary)
+  const boundaryMinimum: Point2 = [Math.min(...boundary.map(value => value[0])), Math.min(...boundary.map(value => value[1]))]
+  const boundaryMaximum: Point2 = [Math.max(...boundary.map(value => value[0])), Math.max(...boundary.map(value => value[1]))]
+  const roadViewportCenter: Point2 = [(boundaryMinimum[0] + boundaryMaximum[0]) / 2, (boundaryMinimum[1] + boundaryMaximum[1]) / 2]
+  const roadViewportWidth = 390 * scale / 1000, roadViewportHeight = 250 * scale / 1000
+  const insideRoadViewport = (value: Point2) => value[0] >= roadViewportCenter[0] - roadViewportWidth / 2 - EPSILON && value[0] <= roadViewportCenter[0] + roadViewportWidth / 2 + EPSILON
+    && value[1] >= roadViewportCenter[1] - roadViewportHeight / 2 - EPSILON && value[1] <= roadViewportCenter[1] + roadViewportHeight / 2 + EPSILON
   if (!Array.isArray(input.boreholes) || input.boreholes.length < 2 || input.boreholes.length > 128) throw new KJValidationError('input.boreholes must contain 2-128 points')
   const boreholes = input.boreholes.map((raw, index) => {
     const value = plain(raw, `input.boreholes[${index}]`); exactKeys(value, BOREHOLE_KEYS, `input.boreholes[${index}]`)
@@ -245,10 +271,68 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
     if (!outline.every(outlinePoint => inside(outlinePoint, boundary))) throw new KJValidationError(`input.buildingFootprints[${index}].outline must lie inside the boundary`)
     return { id, outline }
   })
+  if (input.roadPaths !== undefined && (!Array.isArray(input.roadPaths) || input.roadPaths.length > 128))
+    throw new KJValidationError('input.roadPaths must contain at most 128 supplied paths')
+  const roadIds = new Set<string>()
+  let roadSegmentCount = 0
+  const roadPaths = (input.roadPaths ?? []).map((raw, pathIndex) => {
+    const value = plain(raw, `input.roadPaths[${pathIndex}]`); exactKeys(value, ROAD_PATH_KEYS, `input.roadPaths[${pathIndex}]`)
+    const id = text(value.id, `input.roadPaths[${pathIndex}].id`, 40)
+    if (roadIds.has(id)) throw new KJValidationError(`input.roadPaths contains duplicate id ${id}`)
+    roadIds.add(id)
+    const start = point(value.start, `input.roadPaths[${pathIndex}].start`)
+    if (!insideRoadViewport(start)) throw new KJValidationError(`input.roadPaths[${pathIndex}].start must lie inside the declared model viewport`)
+    if (!Array.isArray(value.segments) || value.segments.length < 1 || value.segments.length > 64)
+      throw new KJValidationError(`input.roadPaths[${pathIndex}].segments must contain 1-64 continuous segments`)
+    const closed = value.closed == null ? false : value.closed
+    if (typeof closed !== 'boolean') throw new KJValidationError(`input.roadPaths[${pathIndex}].closed must be boolean`)
+    let current = start
+    const segments = value.segments.map((rawSegment, segmentIndex) => {
+      const label = `input.roadPaths[${pathIndex}].segments[${segmentIndex}]`
+      const segment = plain(rawSegment, label)
+      if (segment.kind !== 'line' && segment.kind !== 'arc') throw new KJValidationError(`${label}.kind must be line or arc`)
+      exactKeys(segment, segment.kind === 'line' ? ROAD_LINE_KEYS : ROAD_ARC_KEYS, label)
+      const end = point(segment.end, `${label}.end`)
+      if (!insideRoadViewport(end)) throw new KJValidationError(`${label}.end must lie inside the declared model viewport`)
+      const segmentStart = current
+      current = end
+      roadSegmentCount += 1
+      if (segment.kind === 'line') {
+        if (Math.hypot(end[0] - segmentStart[0], end[1] - segmentStart[1]) <= EPSILON) throw new KJValidationError(`${label} must have positive length`)
+        for (let sample = 1; sample < 10; sample += 1) {
+          const ratio = sample / 10
+          if (!insideRoadViewport([segmentStart[0] + (end[0] - segmentStart[0]) * ratio, segmentStart[1] + (end[1] - segmentStart[1]) * ratio]))
+            throw new KJValidationError(`${label} must remain inside the declared model viewport`)
+        }
+        return { kind: 'line' as const, end }
+      }
+      const center = point(segment.center, `${label}.center`)
+      const clockwise = segment.clockwise == null ? false : segment.clockwise
+      if (typeof clockwise !== 'boolean') throw new KJValidationError(`${label}.clockwise must be boolean`)
+      const startRadius = Math.hypot(segmentStart[0] - center[0], segmentStart[1] - center[1])
+      const endRadius = Math.hypot(end[0] - center[0], end[1] - center[1])
+      if (startRadius <= EPSILON || Math.abs(startRadius - endRadius) > Math.max(1e-6, startRadius * 1e-6)) throw new KJValidationError(`${label} start and end must share one positive radius`)
+      const startAngle = normalizedAngle(Math.atan2(segmentStart[1] - center[1], segmentStart[0] - center[0]))
+      const endAngle = normalizedAngle(Math.atan2(end[1] - center[1], end[0] - center[0]))
+      const sweep = normalizedAngle(clockwise ? startAngle - endAngle : endAngle - startAngle)
+      if (sweep <= 1e-9) throw new KJValidationError(`${label} must have a nonzero partial sweep`)
+      const sampleCount = Math.max(2, Math.ceil(sweep / (Math.PI / 18)))
+      for (let sample = 1; sample < sampleCount; sample += 1) {
+        const angle = startAngle + (clockwise ? -1 : 1) * sweep * sample / sampleCount
+        if (!insideRoadViewport([center[0] + Math.cos(angle) * startRadius, center[1] + Math.sin(angle) * startRadius]))
+          throw new KJValidationError(`${label} must remain inside the declared model viewport`)
+      }
+      return { kind: 'arc' as const, center, end, clockwise, radius: startRadius, startAngle, endAngle }
+    })
+    const closes = Math.hypot(current[0] - start[0], current[1] - start[1]) <= 1e-6
+    if (closed !== closes) throw new KJValidationError(`input.roadPaths[${pathIndex}] closed flag must match its final endpoint`)
+    return { id, start, segments, closed }
+  })
+  if (roadSegmentCount > 256) throw new KJValidationError('input.roadPaths expands to more than 256 road segments')
   const northAngleDegrees = finite(input.northAngleDegrees ?? 0, 'input.northAngleDegrees', -360, 360)
   const locale = input.locale == null ? [...boreholes.map(value => value.id), ...sectionLines.map(value => value.label), input.title].some(value => /[\u3400-\u9fff]/u.test(String(value ?? ''))) ? 'zh-CN' as const : 'en' as const
     : input.locale === 'zh-CN' || input.locale === 'en' ? input.locale : (() => { throw new KJValidationError('input.locale must be zh-CN or en') })()
-  return { expectedRevision, scale, boundary, boreholes, holesById, sectionLines, coordinateGrid, buildingFootprints, northAngleDegrees, locale,
+  return { expectedRevision, scale, boundary, boreholes, holesById, sectionLines, coordinateGrid, buildingFootprints, roadPaths, roadSegmentCount, northAngleDegrees, locale,
     drawingId: text(input.drawingId, 'input.drawingId', 64), title: input.title == null ? undefined : text(input.title, 'input.title', 96), revision: input.revision == null ? undefined : text(input.revision, 'input.revision', 32) }
 }
 
@@ -275,6 +359,7 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
   const layers = {
     BOUNDARY: { id: `${prefix}-layer-boundary`, color: 7, linetypeId: linetypes.continuous, lineweight: 50 },
     BUILDINGS: { id: `${prefix}-layer-buildings`, color: 8, linetypeId: linetypes.continuous, lineweight: 25 },
+    ROADS: { id: `${prefix}-layer-roads`, color: 3, linetypeId: linetypes.continuous, lineweight: 25 },
     GRID: { id: `${prefix}-layer-grid`, color: 8, linetypeId: linetypes.grid, lineweight: 13 },
     POINTS: { id: `${prefix}-layer-points`, color: 1, linetypeId: linetypes.continuous, lineweight: 35 },
     SECTIONS: { id: `${prefix}-layer-sections`, color: 2, linetypeId: linetypes.section, lineweight: 35 },
@@ -288,6 +373,14 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
   add('LWPOLYLINE', 'BOUNDARY', { vertices: input.boundary.map(p3), closed: true, semanticRole: 'survey-boundary' })
   for (const footprint of input.buildingFootprints)
     add('LWPOLYLINE', 'BUILDINGS', { vertices: footprint.outline.map(p3), closed: true, semanticRole: 'building-footprint', sourceId: footprint.id, sourceBacked: true })
+  for (const path of input.roadPaths) {
+    let current = path.start
+    path.segments.forEach((segment, segmentIndex) => {
+      if (segment.kind === 'line') add('LINE', 'ROADS', { start: p3(current), end: p3(segment.end), semanticRole: 'road-path-segment', segmentKind: 'line', segmentIndex, sourceId: path.id, sourceBacked: true })
+      else add('ARC', 'ROADS', { center: p3(segment.center), radius: segment.radius, startAngle: segment.startAngle, endAngle: segment.endAngle, clockwise: segment.clockwise, semanticRole: 'road-path-segment', segmentKind: 'arc', segmentIndex, sourceId: path.id, sourceBacked: true })
+      current = segment.end
+    })
+  }
   for (const x of gridXs) {
     add('LINE', 'GRID', { start: [x, minimum[1], 0], end: [x, maximum[1], 0], semanticRole: 'coordinate-grid-easting', coordinate: x })
     addText([x, minimum[1] - textHeight * 1.4], `E ${format(x, 3)}`, textHeight * 0.72)
@@ -386,10 +479,10 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     outputConfig: { layoutName, paper: { standard: 'ISO A3', orientation: 'landscape', widthMm: 420, heightMm: 297 }, scaleNumerator: 1, scaleDenominator: input.scale, modelUnits: 'meter' as const,
       viewport: { center, width: groundWidth, height: groundHeight } },
     evidence: { drawingId: input.drawingId, skillId: 'geology-plan', skillVersion: KJDRAW_GEOLOGY_PLAN_VERSION, expectedRevision: input.expectedRevision, units: 'meter' as const,
-      modelEntityCount: entities.length, entityCount: entities.length + 1, boreholeCount: input.boreholes.length, sectionLineCount: input.sectionLines.length, buildingFootprintCount: input.buildingFootprints.length,
+      modelEntityCount: entities.length, entityCount: entities.length + 1, boreholeCount: input.boreholes.length, sectionLineCount: input.sectionLines.length, buildingFootprintCount: input.buildingFootprints.length, roadPathCount: input.roadPaths.length, roadSegmentCount: input.roadSegmentCount,
       sectionReferences: input.sectionLines.map(value => ({ id: value.id, label: value.label, holeIds: [...value.holeIds], endpointLabels: value.endpointLabels ? [...value.endpointLabels] : [value.label, value.label], markerClearance: value.markerClearance ? [...value.markerClearance] : undefined, endpointTailLengths: value.endpointTailLengths ? [...value.endpointTailLengths] : undefined, endpointLabelPositions: value.endpointLabelPositions ? value.endpointLabelPositions.map(position => [...position]) : undefined, segmentCount: sectionSegmentCounts.get(value.id) })), gridLineCount: gridXs.length + gridYs.length,
       coordinateBounds: { minimum, maximum }, scaleDenominator: input.scale, northAngleDegrees: input.northAngleDegrees,
-      externalBaseMapDependencies: ['roads', 'terrain', 'landscaping', 'other-context'],
-      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Roads, terrain, landscaping and other base-map context remain external source-backed dependencies and are never inferred'] },
+      externalBaseMapDependencies: input.roadPaths.length ? ['terrain', 'landscaping', 'other-context'] : ['roads', 'terrain', 'landscaping', 'other-context'],
+      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred', 'Unsupplied roads, terrain, landscaping and other base-map context remain external source-backed dependencies and are never inferred'] },
   }
 }

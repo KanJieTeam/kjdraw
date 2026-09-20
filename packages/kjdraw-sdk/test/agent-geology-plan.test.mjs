@@ -81,6 +81,29 @@ test('geology plan compiles only explicitly supplied closed building footprints 
   assert.deepEqual(compiled.evidence.externalBaseMapDependencies, ['roads', 'terrain', 'landscaping', 'other-context'])
   assert.ok(compiled.evidence.limitations.some(value => value.includes('never inferred')))
 })
+test('geology plan compiles only explicit continuous source-backed road line and arc facts', () => {
+  const document = KJDocument.create({ documentId: 'geology-plan-roads', units: 'meter' })
+  const compiled = buildAgentGeologyPlan(document, intent({
+    roadPaths: [{
+      id: 'road-edge-a', start: [385010, 3452050],
+      segments: [
+        { kind: 'line', end: [385030, 3452050] },
+        { kind: 'arc', center: [385030, 3452060], end: [385040, 3452060], clockwise: false },
+      ],
+    }],
+  }))
+  const roads = compiled.commandArgs.entities.filter(entity => entity.payload.semanticRole === 'road-path-segment')
+  assert.deepEqual(roads.map(entity => [entity.type, entity.payload.segmentKind, entity.payload.segmentIndex, entity.payload.sourceBacked]), [
+    ['LINE', 'line', 0, true], ['ARC', 'arc', 1, true],
+  ])
+  assert.deepEqual([roads[0].payload.start, roads[0].payload.end], [[385010, 3452050, 0], [385030, 3452050, 0]])
+  assert.deepEqual([roads[1].payload.center, roads[1].payload.radius, roads[1].payload.clockwise], [[385030, 3452060, 0], 10, false])
+  assert.ok(Math.abs(roads[1].payload.startAngle - Math.PI * 1.5) <= 1e-12)
+  assert.ok(Math.abs(roads[1].payload.endAngle) <= 1e-12)
+  assert.equal(compiled.evidence.roadPathCount, 1)
+  assert.equal(compiled.evidence.roadSegmentCount, 2)
+  assert.deepEqual(compiled.evidence.externalBaseMapDependencies, ['terrain', 'landscaping', 'other-context'])
+})
 test('geology plan clips section lines to supplied marker envelopes and preserves supplied tails and label positions', () => {
   const document = KJDocument.create({ documentId: 'geology-plan-section-envelope', units: 'meter' })
   const compiled = buildAgentGeologyPlan(document, intent({
@@ -173,6 +196,9 @@ test('geology plan fails closed on stale revisions, unsafe coordinates and broke
   rejects({ buildingFootprints: [{ id: 'bad', outline: [[385010, 3452010], [385030, 3452030], [385010, 3452030], [385030, 3452010]] }] }, /self-intersect|positive area/)
   rejects({ buildingFootprints: [{ id: 'outside', outline: [[384990, 3452010], [385010, 3452010], [385010, 3452030], [384990, 3452030]] }] }, /inside the boundary/)
   rejects({ buildingFootprints: [{ id: 'same', outline: [[385010, 3452010], [385030, 3452010], [385030, 3452030], [385010, 3452030]] }, { id: 'same', outline: [[385040, 3452040], [385060, 3452040], [385060, 3452060], [385040, 3452060]] }] }, /duplicate id/)
+  rejects({ roadPaths: [{ id: 'bad-radius', start: [385010, 3452050], segments: [{ kind: 'arc', center: [385020, 3452050], end: [385020, 3452070] }] }] }, /share one positive radius/)
+  rejects({ roadPaths: [{ id: 'zero', start: [385010, 3452050], segments: [{ kind: 'line', end: [385010, 3452050] }] }] }, /positive length/)
+  rejects({ roadPaths: [{ id: 'closure', start: [385010, 3452050], segments: [{ kind: 'line', end: [385030, 3452050] }], closed: true }] }, /closed flag/)
   rejects({ coordinateGrid: { origin: [385000, 3452000], spacing: 1 } }, /more than 80 grid lines/)
   rejects({ boundary: [[385000, 3452000], [385300, 3452000], [385300, 3452200], [385000, 3452200]] }, /does not fit ISO A3/)
   assert.throws(() => buildAgentGeologyPlan(KJDocument.create({ units: 'millimeter' }), intent()), /meter units/)
