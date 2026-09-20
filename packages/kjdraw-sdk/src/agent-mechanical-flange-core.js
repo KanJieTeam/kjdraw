@@ -5,6 +5,7 @@ import { normalizeHatchSplineEdge } from './geometry/hatch-boundary.js';
 import { KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK } from './knowledge-packs/mechanical-flange-core.js';
 import { stableHash } from './utils.js';
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0';
+const MAX_AUXILIARY_LINES = 1024;
 const finite = (value, label, min, max)=>{
     if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw new KJValidationError(`${label} must be finite from ${min} to ${max}`);
     return value;
@@ -1535,7 +1536,7 @@ function validate(document, source) {
         };
     });
     if (input.auxiliaryLines != null && !Array.isArray(input.auxiliaryLines)) throw new KJValidationError('input.auxiliaryLines must be an array');
-    if (input.auxiliaryLines?.length && input.auxiliaryLines.length > 256) throw new KJValidationError('input.auxiliaryLines exceed their budget');
+    if (input.auxiliaryLines?.length && input.auxiliaryLines.length > MAX_AUXILIARY_LINES) throw new KJValidationError(`input.auxiliaryLines exceed their ${MAX_AUXILIARY_LINES}-line budget`);
     const auxiliaryLines = (input.auxiliaryLines ?? []).map((value, index)=>{
         const label = `input.auxiliaryLines[${index}]`, line = plain(value, label);
         exact(line, [
@@ -3547,6 +3548,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 sectionHatchCount: input.sectionHatches.length,
                 auxiliaryHatchCount: input.auxiliaryHatches.length,
                 auxiliaryLineCount: input.auxiliaryLines.length,
+                auxiliaryLineBudget: MAX_AUXILIARY_LINES,
                 auxiliaryPointCount: input.auxiliaryPoints.length,
                 pointDisplay: input.pointDisplay,
                 auxiliarySolidCount: input.auxiliarySolids.length,
