@@ -35,7 +35,7 @@ const SKILL_TARGETS = Object.freeze([
 ])
 
 function usage() {
-  return `Usage: kjdraw-connect --all --workspace <directory> [--scope project|user] (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--candidate-dir .kjdraw/results] [--previous-mcp-script <absolute-installed-file>]... [--replace-existing] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. --candidate-dir is an explicit host policy that materializes exact proposals as new candidate files without overwriting the input drawing. Each --previous-mcp-script authorizes one exact KJDraw-managed entry migration from an earlier regular file. --replace-existing is an explicit host instruction to replace a conflicting kjdraw entry while preserving the rest of each client configuration.`
+  return `Usage: kjdraw-connect --all --workspace <directory> [--scope project|user] (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--candidate-dir .kjdraw/results] [--mcp-script <absolute-installed-launcher>] [--previous-mcp-script <absolute-installed-file>]... [--replace-existing] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. --candidate-dir is an explicit host policy that materializes exact proposals as new candidate files without overwriting the input drawing. --mcp-script is restricted to user scope and lets the official installer persist one stable launcher across upgrades. Each --previous-mcp-script authorizes one exact KJDraw-managed entry migration from an earlier regular file. --replace-existing is an explicit host instruction to replace a conflicting kjdraw entry while preserving the rest of each client configuration.`
 }
 
 function parseArgs(argv) {
@@ -55,8 +55,8 @@ function parseArgs(argv) {
       ;(options.previousMcpScripts ??= []).push(argv[++i])
       continue
     }
-    if (!['--workspace', '--scope', '--input', '--blank', '--units', '--proposal-dir', '--candidate-dir', '--previous-mcp-script', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
-    options[key === '--proposal-dir' ? 'proposalDir' : key === '--candidate-dir' ? 'candidateDir' : key === '--previous-mcp-script' ? 'previousMcpScript' : key.slice(2)] = argv[++i]
+    if (!['--workspace', '--scope', '--input', '--blank', '--units', '--proposal-dir', '--candidate-dir', '--mcp-script', '--previous-mcp-script', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
+    options[key === '--proposal-dir' ? 'proposalDir' : key === '--candidate-dir' ? 'candidateDir' : key === '--mcp-script' ? 'mcpScript' : key === '--previous-mcp-script' ? 'previousMcpScript' : key.slice(2)] = argv[++i]
   }
   if (!options.all || !options.workspace) throw new Error('--all and --workspace are required')
   if (!['project', 'user'].includes(options.scope)) throw new Error('--scope must be project or user')
@@ -317,7 +317,8 @@ export async function connectWorkspace(options, hooks = {}) {
   // entries. On macOS, realpath('/var/...') is '/private/var/...'; rewriting the
   // user-visible path on every install makes an otherwise identical entry look
   // different to clients and to the next installer run.
-  const mcpPath = fileURLToPath(new URL('./kjdraw-mcp.mjs', import.meta.url))
+  if (options.mcpScript && (scope !== 'user' || !isAbsolute(options.mcpScript))) throw new Error('--mcp-script requires user scope and an absolute path')
+  const mcpPath = options.mcpScript ? resolve(options.mcpScript) : fileURLToPath(new URL('./kjdraw-mcp.mjs', import.meta.url))
   if (/[\\/]_npx[\\/]/iu.test(mcpPath) && options.apply) throw new Error('Refusing an ephemeral npm npx cache as a persistent MCP target; install the package locally or globally first')
   const mcpInfo = await inspected('Installed MCP script', () => item(mcpPath))
   if (!mcpInfo?.isFile() || mcpInfo.isSymbolicLink()) throw new Error('KJDraw MCP script is not a regular installed file')

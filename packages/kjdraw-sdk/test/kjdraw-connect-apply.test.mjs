@@ -232,6 +232,22 @@ test('user installer can migrate one exact prior KJDraw script path without weak
   await assert.rejects(connectWorkspace({ ...options(root), scope: 'user', previousMcpScript }), /conflicts; refusing to overwrite/u)
 })
 
+test('official user installer can persist one stable MCP launcher across source upgrades', async t => {
+  const root = await fixture(t)
+  const stableMcpScript = join(root, 'appdata', 'KJDraw', 'bin', 'kjdraw-mcp.mjs')
+  await mkdir(dirname(stableMcpScript), { recursive: true })
+  await writeFile(stableMcpScript, 'fixture stable installed KJDraw launcher\n')
+  await assert.rejects(connectWorkspace({ ...options(root), mcpScript: stableMcpScript }), /requires user scope and an absolute path/u)
+  const installed = await connectWorkspace({ ...options(root), scope: 'user', mcpScript: stableMcpScript })
+  assert.ok(installed.clients.every(client => client.client === 'TraeCode' || client.action === 'added'))
+  for (const relative of userConfigPaths) {
+    const value = JSON.parse(await readFile(join(root, relative), 'utf8'))
+    const entry = relative.startsWith('.zcode/') ? value.mcp.servers.kjdraw : value.mcpServers.kjdraw
+    assert.equal(entry.args[0], stableMcpScript)
+  }
+  const repeated = await connectWorkspace({ ...options(root), scope: 'user', mcpScript: stableMcpScript })
+  assert.ok(repeated.clients.every(client => client.client === 'TraeCode' || client.action === 'unchanged'))
+})
 test('user installer accepts the configured second path when two known historical KJDraw installs coexist', async t => {
   const root = await fixture(t)
   await connectWorkspace({ ...options(root), scope: 'user' })
