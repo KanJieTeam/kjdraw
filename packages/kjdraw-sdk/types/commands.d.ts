@@ -138,6 +138,10 @@ export interface KJBlockAttributeDefinitionInput {
 export interface KJCommandArguments extends Record<string, unknown> {
     resources?: KJEntityBatchResources;
     layout?: KJEntityBatchLayout;
+    systemVariables?: {
+        readonly PDMODE?: number;
+        readonly PDSIZE?: number;
+    };
     id?: string;
     ids?: readonly string[];
     firstId?: string;

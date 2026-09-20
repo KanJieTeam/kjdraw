@@ -3,7 +3,7 @@ type Point2 = [number, number];
 type Point3 = [number, number, number];
 type Point2Or3 = Point2 | Point3;
 type Entity = {
-    type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'ATTDEF' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT';
+    type: 'POINT' | 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'ATTDEF' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT';
     payload: Record<string, unknown>;
     options: {
         id: string;
@@ -277,6 +277,18 @@ export interface KJFlangeAuxiliaryLine {
     end: Point2;
     role: 'geometry' | 'center' | 'hidden' | 'notes' | 'grid' | 'frame';
     styleKey?: string;
+}
+/** Native CAD points retain their semantic role and the drawing-level point display mode. */
+export interface KJFlangeAuxiliaryPoint {
+    position: Point2;
+    role: KJFlangeAuxiliaryLine['role'];
+    styleKey?: string;
+}
+export interface KJFlangePointDisplay {
+    /** Legal DXF PDMODE base modes 0..4, optionally combined with circle/square flags 32 and 64. */
+    mode: number;
+    /** DXF PDSIZE: zero is 5% of the viewport, positive is drawing units, negative is viewport percent. */
+    size: number;
 }
 /** Bounded source-measured filled planar faces, including native CAD arrowheads. */
 export interface KJFlangeAuxiliarySolid {
@@ -569,6 +581,8 @@ export interface KJAgentMechanicalFlangeCoreInput {
     leaders?: KJFlangeLeader[];
     featureControlFrames?: KJFlangeFeatureControlFrame[];
     auxiliaryLines?: KJFlangeAuxiliaryLine[];
+    auxiliaryPoints?: KJFlangeAuxiliaryPoint[];
+    pointDisplay?: KJFlangePointDisplay;
     auxiliarySolids?: KJFlangeAuxiliarySolid[];
     auxiliaryCurves?: KJFlangeAuxiliaryCurve[];
     auxiliaryHatches?: KJFlangeAuxiliaryHatch[];
@@ -588,6 +602,8 @@ export interface KJAgentMechanicalFlangeCoreInput {
         outerFrameOffset?: Point2;
         outerFrameStyleKey?: string;
         insetFrameStyleKey?: string;
+        outerFrameSideStyleKeys?: Partial<Record<KJFlangeFrameSide, string>>;
+        insetFrameSideStyleKeys?: Partial<Record<KJFlangeFrameSide, string>>;
         outerFrameSides?: KJFlangeFrameSide[];
         insetFrameSides?: KJFlangeFrameSide[];
         titleGrid?: KJFlangeTitleGrid;
@@ -598,6 +614,10 @@ export interface KJAgentMechanicalFlangeCoreInput {
 export declare function buildAgentMechanicalFlangeCore(document: Document, source: KJAgentMechanicalFlangeCoreInput): {
     commandArgs: {
         entities: Entity[];
+        systemVariables?: {
+            PDMODE: number;
+            PDSIZE: number;
+        };
         resources: {
             linetypes: {
                 id: string;
@@ -657,6 +677,8 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             sectionHatchCount: number;
             auxiliaryHatchCount: number;
             auxiliaryLineCount: number;
+            auxiliaryPointCount: number;
+            pointDisplay: KJFlangePointDisplay | null;
             auxiliarySolidCount: number;
             auxiliaryCurveCount: number;
             symbolDefinitionCount: number;

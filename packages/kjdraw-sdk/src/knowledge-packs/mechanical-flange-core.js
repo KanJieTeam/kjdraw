@@ -4,7 +4,7 @@ import { stableHash } from '../utils.js';
 export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePack({
     schema: 'kjdraw.knowledge-pack.v1',
     id: 'mechanical-flange-core',
-    version: '2.12.0',
+    version: '2.13.0',
     title: 'Parameterized flange orthographic-view and sheet-grid rules',
     domain: 'mechanical-manufacturing',
     license: {
@@ -17,7 +17,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
             id: 'kjdraw-authored-flange-rules-v1',
             title: 'KJDraw authored flange geometry and layout rules',
             license: 'MIT',
-            contentHash: stableHash('flange-views:concentric-rings:polar-hole-arrays:legacy-square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:multi-boundary-loop-hatch:spline-hatch-edges:parameterized-ansi31:caller-supplied-style-roles:caller-supplied-entity-style-overrides:caller-supplied-annotation-style-resources:semantic-auxiliary-lines:semantic-native-curves:generic-local-symbols:nested-local-symbols:attributed-local-symbols:complete-attribute-sequences:semantic-feature-control-frames:auxiliary-circles:native-leaders:native-derived-dimensions:entity-local-dimension-overrides:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:bounded-64-style-catalogs:v2.12')
+            contentHash: stableHash('flange-views:concentric-rings:polar-hole-arrays:legacy-square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:multi-boundary-loop-hatch:spline-hatch-edges:parameterized-ansi31:caller-supplied-style-roles:caller-supplied-entity-style-overrides:caller-supplied-annotation-style-resources:semantic-auxiliary-lines:semantic-auxiliary-points:standard-point-display:semantic-native-curves:generic-local-symbols:nested-local-symbols:attributed-local-symbols:complete-attribute-sequences:semantic-feature-control-frames:auxiliary-circles:native-leaders:native-derived-dimensions:entity-local-dimension-overrides:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:per-side-frame-styles:bounded-64-style-catalogs:v2.13')
         }
     ],
     ontology: {
@@ -42,6 +42,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
             'attribute-definition',
             'attached-attribute',
             'sheet-frame',
+            'native-point',
             'title-grid',
             'sheet-note'
         ],
@@ -61,15 +62,17 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
         entityStyles: 'bounded caller-supplied style keys preserve visible layer, color, lineweight and linetype facts for individual native entities while keeping source application metadata out of the reusable rules',
         annotationStyles: 'up to 64 caller-supplied text styles and 64 dimension styles are atomically created and referenced by semantic keys; the reusable rules retain no private style names or values',
         auxiliaryLines: 'bounded source-measured line segments carry only a semantic role and are emitted as native LINE entities; arbitrary private object data is rejected',
+        auxiliaryPoints: 'bounded source-measured locations carry only a semantic role and are emitted as native POINT entities under a strictly validated drawing-level PDMODE and PDSIZE',
         auxiliaryCurves: 'bounded source-measured arc, ellipse, lightweight-polyline and spline facts carry only geometry and a semantic style role; handles, raw tags and application metadata are rejected',
         auxiliarySolids: 'bounded source-measured three- or four-point native filled faces preserve editable arrowheads and markers; handles, raw tags and application metadata are rejected',
         symbols: 'bounded local geometry, multiline text, nested instances and attribute definitions compile into generic native block definitions; instance attribute values compile as complete editable ATTRIB and SEQEND ownership sequences while caller block names, handles and application metadata are never retained',
         featureControlFrames: 'geometric characteristic, tolerance-zone and datum semantics compile into editable native TOLERANCE entities; opaque source tags and application-specific object data are rejected',
-        sheet: 'outer frame, optional positive-width inset frame and optional bounded semantic title-grid with full or locally segmented rules',
+        sheet: 'outer frame and optional positive-width inset frame accept per-side style keys with a backward-compatible single-style fallback, plus an optional bounded semantic title-grid with full or locally segmented rules',
         notes: 'bounded source-supplied sheet labels and technical notes; visible content is never embedded in this pack',
         dimensions: 'native dimensions derive measurements from bounded definition points, preserve bounded entity-local text-height and arrow-size overrides, and never trust supplied measurement values',
         leaders: 'native source-measured leaders retain bounded vertices and drafting flags without private annotation handles',
         nativeEntities: [
+            'POINT',
             'CIRCLE',
             'LINE',
             'ARC',

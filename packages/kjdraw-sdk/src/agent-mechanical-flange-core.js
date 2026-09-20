@@ -60,6 +60,8 @@ function validate(document, source) {
         'leaders',
         'featureControlFrames',
         'auxiliaryLines',
+        'auxiliaryPoints',
+        'pointDisplay',
         'auxiliarySolids',
         'auxiliaryCurves',
         'auxiliaryHatches',
@@ -815,6 +817,8 @@ function validate(document, source) {
         'outerFrameOffset',
         'outerFrameStyleKey',
         'insetFrameStyleKey',
+        'outerFrameSideStyleKeys',
+        'insetFrameSideStyleKeys',
         'outerFrameSides',
         'insetFrameSides',
         'titleGrid',
@@ -829,6 +833,30 @@ function validate(document, source) {
     ] : point(sheet.outerFrameOffset, 'input.sheet.outerFrameOffset');
     if (outerFrameOffset.some((value)=>Math.abs(value) > 1)) throw new KJValidationError('input.sheet.outerFrameOffset must stay within one drawing unit');
     const outerFrameStyleKey = entityStyleKey(sheet.outerFrameStyleKey, 'input.sheet.outerFrameStyleKey'), insetFrameStyleKey = entityStyleKey(sheet.insetFrameStyleKey, 'input.sheet.insetFrameStyleKey');
+    const frameSideStyleKeys = (value, label)=>{
+        if (value == null) return {};
+        const source = plain(value, label);
+        exact(source, [
+            'bottom',
+            'right',
+            'top',
+            'left'
+        ], label);
+        const result = {};
+        for (const side of [
+            'bottom',
+            'right',
+            'top',
+            'left'
+        ])if (Object.hasOwn(source, side)) {
+            const styleKey = entityStyleKey(source[side], `${label}.${side}`);
+            if (styleKey == null) throw new KJValidationError(`${label}.${side} must be a style key`);
+            result[side] = styleKey;
+        }
+        return result;
+    };
+    const outerFrameSideStyleKeys = frameSideStyleKeys(sheet.outerFrameSideStyleKeys, 'input.sheet.outerFrameSideStyleKeys');
+    const insetFrameSideStyleKeys = frameSideStyleKeys(sheet.insetFrameSideStyleKeys, 'input.sheet.insetFrameSideStyleKeys');
     const frameSides = (value, label)=>{
         if (value == null) return [
             'bottom',
@@ -1454,6 +1482,51 @@ function validate(document, source) {
             solid,
             patternName,
             patternLines,
+            ...styleKey == null ? {} : {
+                styleKey
+            }
+        };
+    });
+    let pointDisplay = null;
+    if (input.pointDisplay != null) {
+        const display = plain(input.pointDisplay, 'input.pointDisplay');
+        exact(display, [
+            'mode',
+            'size'
+        ], 'input.pointDisplay');
+        const mode = finite(display.mode, 'input.pointDisplay.mode', 0, 100);
+        if (!Number.isInteger(mode) || (mode & 31) > 4 || ![
+            0,
+            32,
+            64,
+            96
+        ].includes(mode & ~31)) throw new KJValidationError('input.pointDisplay.mode must be a legal PDMODE combination');
+        pointDisplay = {
+            mode,
+            size: finite(display.size, 'input.pointDisplay.size', -100, 1_000_000)
+        };
+    }
+    if (input.auxiliaryPoints != null && !Array.isArray(input.auxiliaryPoints)) throw new KJValidationError('input.auxiliaryPoints must be an array');
+    if (input.auxiliaryPoints?.length && input.auxiliaryPoints.length > 256) throw new KJValidationError('input.auxiliaryPoints exceed their 256-point budget');
+    const auxiliaryPoints = (input.auxiliaryPoints ?? []).map((value, index)=>{
+        const label = `input.auxiliaryPoints[${index}]`, item = plain(value, label);
+        exact(item, [
+            'position',
+            'role',
+            'styleKey'
+        ], label);
+        if (![
+            'geometry',
+            'center',
+            'hidden',
+            'notes',
+            'grid',
+            'frame'
+        ].includes(item.role)) throw new KJValidationError(`${label}.role is invalid`);
+        const styleKey = entityStyleKey(item.styleKey, `${label}.styleKey`);
+        return {
+            position: point(item.position, `${label}.position`),
+            role: item.role,
             ...styleKey == null ? {} : {
                 styleKey
             }
@@ -2102,6 +2175,8 @@ function validate(document, source) {
         leaders,
         featureControlFrames,
         auxiliaryLines,
+        auxiliaryPoints,
+        pointDisplay,
         auxiliarySolids,
         auxiliaryCurves,
         auxiliaryHatches,
@@ -2118,6 +2193,8 @@ function validate(document, source) {
         outerFrameOffset,
         outerFrameStyleKey,
         insetFrameStyleKey,
+        outerFrameSideStyleKeys,
+        insetFrameSideStyleKeys,
         outerFrameSides,
         insetFrameSides,
         titleGrid,
@@ -2489,48 +2566,53 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             }, arrowStyle.name);
         }
     }
-    const frameRectangle = (origin, size, sides, styleKey)=>{
-        const [x, y] = origin, [w, h] = size, style = styled(styleKey, 'frame');
-        if (sides.includes('bottom')) line([
+    const frameRectangle = (origin, size, sides, fallbackStyleKey, sideStyleKeys)=>{
+        const [x, y] = origin, [w, h] = size;
+        const edge = (side, start, end)=>{
+            if (!sides.includes(side)) return;
+            const style = styled(sideStyleKeys[side] ?? fallbackStyleKey, 'frame');
+            line(start, end, style.layerId, style.name);
+        };
+        edge('bottom', [
             x,
             y
         ], [
             x + w,
             y
-        ], style.layerId, style.name);
-        if (sides.includes('right')) line([
+        ]);
+        edge('right', [
             x + w,
             y
         ], [
             x + w,
             y + h
-        ], style.layerId, style.name);
-        if (sides.includes('top')) line([
+        ]);
+        edge('top', [
             x + w,
             y + h
         ], [
             x,
             y + h
-        ], style.layerId, style.name);
-        if (sides.includes('left')) line([
+        ]);
+        edge('left', [
             x,
             y + h
         ], [
             x,
             y
-        ], style.layerId, style.name);
+        ]);
     };
     frameRectangle([
         input.sheetOrigin[0] + input.outerFrameOffset[0],
         input.sheetOrigin[1] + input.outerFrameOffset[1]
-    ], input.sheetSize, input.outerFrameSides, input.outerFrameStyleKey);
+    ], input.sheetSize, input.outerFrameSides, input.outerFrameStyleKey, input.outerFrameSideStyleKeys);
     if (input.inset > 0) frameRectangle([
         input.sheetOrigin[0] + input.inset,
         input.sheetOrigin[1] + input.inset
     ], [
         input.sheetSize[0] - input.inset * 2,
         input.sheetSize[1] - input.inset * 2
-    ], input.insetFrameSides, input.insetFrameStyleKey);
+    ], input.insetFrameSides, input.insetFrameStyleKey, input.insetFrameSideStyleKeys);
     if (input.titleGrid) {
         const grid = input.titleGrid, [x, y] = grid.origin, [w, h] = grid.size;
         const topStyle = styled(grid.topStyleKey, 'grid');
@@ -2774,6 +2856,13 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             patternLines: hatch.patternLines,
             patternDefinitionAngle: 0,
             patternDefinitionScale: 1,
+            layerId: style.layerId
+        }, style.name);
+    }
+    for (const auxiliary of input.auxiliaryPoints){
+        const style = styled(auxiliary.styleKey, auxiliary.role);
+        emit('POINT', {
+            position: p3(...auxiliary.position),
             layerId: style.layerId
         }, style.name);
     }
@@ -3143,6 +3232,12 @@ export function buildAgentMechanicalFlangeCore(document, source) {
     return {
         commandArgs: {
             entities: orderedEntities,
+            ...input.pointDisplay == null ? {} : {
+                systemVariables: {
+                    PDMODE: input.pointDisplay.mode,
+                    PDSIZE: input.pointDisplay.size
+                }
+            },
             resources: {
                 linetypes,
                 layers,
@@ -3179,6 +3274,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 sectionHatchCount: input.sectionHatches.length,
                 auxiliaryHatchCount: input.auxiliaryHatches.length,
                 auxiliaryLineCount: input.auxiliaryLines.length,
+                auxiliaryPointCount: input.auxiliaryPoints.length,
+                pointDisplay: input.pointDisplay,
                 auxiliarySolidCount: input.auxiliarySolids.length,
                 auxiliaryCurveCount: input.auxiliaryCurves.length,
                 symbolDefinitionCount: input.symbolDefinitions.length,

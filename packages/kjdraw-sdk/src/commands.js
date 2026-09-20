@@ -3682,7 +3682,37 @@ function validateBatchAttributeSequences(document, args, specs) {
     }
     return result;
 }
+function validateBatchPointDisplay(value) {
+    if (value === undefined) return undefined;
+    if (!value || typeof value !== 'object' || Array.isArray(value) || ![
+        Object.prototype,
+        null
+    ].includes(Object.getPrototypeOf(value))) throw new KJValidationError('CREATEBATCH systemVariables must be a plain object');
+    const source = value, keys = Object.keys(source);
+    if (!keys.length || keys.some((key)=>![
+            'PDMODE',
+            'PDSIZE'
+        ].includes(key))) throw new KJValidationError('CREATEBATCH systemVariables accept only PDMODE and PDSIZE');
+    const result = {};
+    if (Object.hasOwn(source, 'PDMODE')) {
+        const mode = source.PDMODE;
+        if (typeof mode !== 'number' || !Number.isInteger(mode) || mode < 0 || mode > 100 || (mode & 31) > 4 || ![
+            0,
+            32,
+            64,
+            96
+        ].includes(mode & ~31)) throw new KJValidationError('CREATEBATCH PDMODE must be a legal point-display mode');
+        result.PDMODE = mode;
+    }
+    if (Object.hasOwn(source, 'PDSIZE')) {
+        const size = source.PDSIZE;
+        if (typeof size !== 'number' || !Number.isFinite(size) || size < -100 || size > 1_000_000) throw new KJValidationError('CREATEBATCH PDSIZE must be finite from -100 to 1000000');
+        result.PDSIZE = size;
+    }
+    return result;
+}
 function createEntityBatch({ document, transaction }, args = {}) {
+    const pointDisplay = validateBatchPointDisplay(args.systemVariables);
     const specs = args.entities;
     if (!Array.isArray(specs) || !specs.length) throw new KJValidationError('CREATEBATCH requires at least one entity');
     const blockMemberCount = args.resources?.blocks?.reduce((sum, block)=>sum + (Array.isArray(block.entities) ? block.entities.length : 0), 0) ?? 0;
@@ -3797,6 +3827,8 @@ function createEntityBatch({ document, transaction }, args = {}) {
         });
         created.push(updated, ...attributes, sequenceEnd);
     }
+    if (pointDisplay?.PDMODE !== undefined) transaction.setSystemVariable('PDMODE', pointDisplay.PDMODE);
+    if (pointDisplay?.PDSIZE !== undefined) transaction.setSystemVariable('PDSIZE', pointDisplay.PDSIZE);
     if (batchLayout) created.push(createBatchLayout(transaction, batchLayout));
     return created;
 }
