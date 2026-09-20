@@ -505,6 +505,10 @@ export interface KJFlangeDimension {
     /** Optional entity-local native DIMENSION overrides. */
     textHeight?: number;
     arrowSize?: number;
+    /** References styleProfile.custom for the DIMENSION entity's visual layer,
+     * color, lineweight, linetype and linetype scale. This is independent from
+     * styleKey, which continues to reference only a native DIMSTYLE resource. */
+    entityStyleKey?: string;
     styleKey?: string;
 }
 /** A source-measured native leader without private annotation handles. */

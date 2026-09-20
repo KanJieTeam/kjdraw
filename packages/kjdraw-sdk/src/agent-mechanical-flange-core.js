@@ -1107,6 +1107,7 @@ function validate(document, source) {
             'rotation',
             'textHeight',
             'arrowSize',
+            'entityStyleKey',
             'styleKey'
         ], `input.dimensions[${index}]`);
         if (![
@@ -1164,6 +1165,7 @@ function validate(document, source) {
         };
         if (!projectDimension(payload)) throw new KJValidationError(`input.dimensions[${index}] does not define a projectable native dimension`);
         const styleKey = annotationStyleKey(dimension.styleKey, dimensionStyleKeys, `input.dimensions[${index}].styleKey`);
+        const dimensionEntityStyleKey = entityStyleKey(dimension.entityStyleKey, `input.dimensions[${index}].entityStyleKey`);
         return {
             kind: dimension.kind,
             ...axis == null ? {} : {
@@ -1182,6 +1184,9 @@ function validate(document, source) {
             },
             ...arrowSize == null ? {} : {
                 arrowSize
+            },
+            ...dimensionEntityStyleKey == null ? {} : {
+                entityStyleKey: dimensionEntityStyleKey
             },
             ...styleKey == null ? {} : {
                 styleKey
@@ -3598,7 +3603,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         }, entityStyle.name);
     }
     for (const dimension of input.dimensions){
-        const style = dimension.styleKey == null ? null : dimensionStyleByKey.get(dimension.styleKey);
+        const style = dimension.styleKey == null ? null : dimensionStyleByKey.get(dimension.styleKey), entityStyle = styled(dimension.entityStyleKey, 'dimensions');
         emit('DIMENSION', {
             dimensionType: dimension.kind.toUpperCase(),
             ...dimension.kind === 'ordinate' ? {
@@ -3620,8 +3625,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             ...style == null ? {} : {
                 styleId: style.id
             },
-            layerId: roleIds.dimensions
-        }, 'dimensions');
+            layerId: entityStyle.layerId
+        }, entityStyle.name);
     }
     for (const leader of input.leaders){
         const style = styled(leader.styleKey, 'notes');
