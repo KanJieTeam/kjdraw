@@ -148,7 +148,7 @@ const GEOMETRY: Readonly<Record<string, Shape>> = {
   ARC: { center: point, radius: scalar, startAngle: scalar, endAngle: scalar, clockwise: scalar, normal: point },
   LWPOLYLINE: polyline,
   POLYLINE: polyline,
-  WIPEOUT: polyline,
+  WIPEOUT: { ...polyline as Record<string, Shape>, position: point, uVector: point, vVector: point, clipBoundary: [point], boundaryType: scalar },
   REVISION_CLOUD: polyline,
   ELLIPSE: { center: point, majorAxis: point, ratio: scalar, startParameter: scalar, endParameter: scalar, clockwise: scalar },
   SPLINE: { degree: scalar, controlPoints: [point], fitPoints: [point], weights: [scalar], knots: [scalar], closed: scalar, periodic: scalar },

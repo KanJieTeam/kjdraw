@@ -3,7 +3,7 @@ type Point2 = [number, number];
 type Point3 = [number, number, number];
 type Point2Or3 = Point2 | Point3;
 type Entity = {
-    type: 'POINT' | 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'ATTDEF' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT';
+    type: 'POINT' | 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'WIPEOUT' | 'LEADER' | 'TEXT' | 'MTEXT' | 'ATTDEF' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT';
     payload: Record<string, unknown>;
     options: {
         id: string;
@@ -289,6 +289,16 @@ export interface KJFlangePointDisplay {
     mode: number;
     /** DXF PDSIZE: zero is 5% of the viewport, positive is drawing units, negative is viewport percent. */
     size: number;
+}
+/** Bounded native masking areas retain their explicit local DXF clipping frame. */
+export interface KJFlangeAuxiliaryWipeout {
+    position: Point2;
+    uVector: Point2;
+    vVector: Point2;
+    clipBoundary: Point2[];
+    boundaryType: 1 | 2;
+    role: KJFlangeAuxiliaryLine['role'];
+    styleKey?: string;
 }
 /** Bounded source-measured filled planar faces, including native CAD arrowheads. */
 export interface KJFlangeAuxiliarySolid {
@@ -608,6 +618,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     auxiliaryPoints?: KJFlangeAuxiliaryPoint[];
     pointDisplay?: KJFlangePointDisplay;
     auxiliarySolids?: KJFlangeAuxiliarySolid[];
+    auxiliaryWipeouts?: KJFlangeAuxiliaryWipeout[];
     auxiliaryCurves?: KJFlangeAuxiliaryCurve[];
     auxiliaryHatches?: KJFlangeAuxiliaryHatch[];
     symbols?: {
@@ -704,6 +715,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             auxiliaryPointCount: number;
             pointDisplay: KJFlangePointDisplay | null;
             auxiliarySolidCount: number;
+            auxiliaryWipeoutCount: number;
             auxiliaryCurveCount: number;
             symbolDefinitionCount: number;
             symbolInstanceCount: number;

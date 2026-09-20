@@ -295,6 +295,7 @@ export function getEntityGrips(entity) {
         case 'TABLE':
             add('position', 'move', payload.position);
             break;
+        case 'WIPEOUT':
         case 'IMAGE':
             {
                 const origin = point3(payload.position), u = point3(payload.uVector), v = point3(payload.vVector);
@@ -482,6 +483,7 @@ export function editEntityGrip(entity, gripId, targetPoint) {
         case 'TABLE':
             payload.position = target;
             return payload;
+        case 'WIPEOUT':
         case 'IMAGE':
             {
                 if (gripId === 'position') return moveWhole();

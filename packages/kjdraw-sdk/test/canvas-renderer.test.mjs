@@ -23,7 +23,7 @@ class RecordingContext2D {
   lineTo(...args) { this.#record('lineTo', ...args) }
   closePath() { this.#record('closePath') }
   stroke() { this.#record('stroke', this.lineWidth, this.strokeStyle, this.lineDash) }
-  fill(...args) { this.#record('fill', ...args) }
+  fill(...args) { this.#record('fill', ...args, this.fillStyle, this.globalAlpha) }
   clip(...args) { this.#record('clip', ...args) }
   arc(...args) { this.#record('arc', ...args) }
   ellipse(...args) { this.#record('ellipse', ...args) }
@@ -438,6 +438,27 @@ test('Canvas renderer honors PDMODE composition and viewport-relative PDSIZE', a
   assert.ok(context.calls.some(call => call[0] === 'arc' && call[1] === 320 && call[2] === 180 && call[3] === 18))
   assert.ok(context.calls.some(call => call[0] === 'closePath'))
   assert.equal(renderer.report.rendered, 1)
+  assert.equal(renderer.report.unsupported, 0)
+  renderer.dispose()
+})
+test('WIPEOUT fills with the drawing background without adding a frame stroke', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'canvas-wipeout' })
+  await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [-20, 0], end: [20, 0] } }, { document })
+  await sdk.executeCommand('CREATE', { type: 'WIPEOUT', payload: {
+    position: [0, 0, 0], uVector: [10, 0, 0], vVector: [0, 5, 0],
+    clipBoundary: [[-0.5, -0.5], [0.5, 0.5]], boundaryType: 1,
+  } }, { document })
+  const { canvas, context } = mockCanvas()
+  const renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1, background: '#123456' })
+  Object.assign(renderer.camera, { centerX: 0, centerY: 0, scale: 2 })
+  context.calls.length = 0
+  renderer.render()
+  const fills = context.calls.filter(call => call[0] === 'fill')
+  const strokes = context.calls.filter(call => call[0] === 'stroke')
+  assert.equal(fills.length, 1)
+  assert.deepEqual(fills[0].slice(-2), ['#123456', 1])
+  assert.equal(strokes.length, 1)
+  assert.equal(renderer.report.rendered, 2)
   assert.equal(renderer.report.unsupported, 0)
   renderer.dispose()
 })

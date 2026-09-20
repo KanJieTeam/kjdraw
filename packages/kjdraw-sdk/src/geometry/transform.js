@@ -134,7 +134,6 @@ export function transformEntityPayload(type, source, matrix) {
             });
         case 'LWPOLYLINE':
         case 'POLYLINE':
-        case 'WIPEOUT':
         case 'REVISION_CLOUD':
             return withoutUndefined({
                 ...payload,
@@ -181,6 +180,14 @@ export function transformEntityPayload(type, source, matrix) {
                     mirrored: mirrored ? !payload.mirrored : payload.mirrored
                 });
             }
+        case 'WIPEOUT':
+            return withoutUndefined({
+                ...payload,
+                position: payload.position == null ? undefined : transformPoint3(matrix, payload.position),
+                uVector: payload.uVector == null ? undefined : transformVector3(matrix, payload.uVector),
+                vVector: payload.vVector == null ? undefined : transformVector3(matrix, payload.vVector),
+                vertices: (payload.vertices ?? payload.points ?? []).map((vertex)=>transformVertex(matrix, vertex, mirrored, scale()))
+            });
         case 'IMAGE':
             return withoutUndefined({
                 ...payload,

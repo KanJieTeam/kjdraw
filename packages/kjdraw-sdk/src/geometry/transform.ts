@@ -160,7 +160,6 @@ export function transformEntityPayload(
       })
     case 'LWPOLYLINE':
     case 'POLYLINE':
-    case 'WIPEOUT':
     case 'REVISION_CLOUD':
       return withoutUndefined({
         ...payload,
@@ -214,6 +213,15 @@ export function transformEntityPayload(
         mirrored: mirrored ? !payload.mirrored : payload.mirrored,
       })
     }
+    case 'WIPEOUT':
+      return withoutUndefined({
+        ...payload,
+        position: payload.position == null ? undefined : transformPoint3(matrix, payload.position as Point2Input),
+        uVector: payload.uVector == null ? undefined : transformVector3(matrix, payload.uVector as Point2Input),
+        vVector: payload.vVector == null ? undefined : transformVector3(matrix, payload.vVector as Point2Input),
+        vertices: ((payload.vertices ?? payload.points ?? []) as readonly unknown[])
+          .map(vertex => transformVertex(matrix, vertex, mirrored, scale())),
+      })
     case 'IMAGE':
       return withoutUndefined({
         ...payload,

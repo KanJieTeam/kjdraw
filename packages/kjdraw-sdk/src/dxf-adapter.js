@@ -1315,10 +1315,25 @@ function entityPayload(record, blockIds, resources = {}) {
         case 'WIPEOUT':
             {
                 const position = point(record), u = point(record, 11, 21, 31), v = point(record, 12, 22, 32);
-                const vertices = repeatedPoints(record, 14, 24, 34).map(([x, y])=>[
-                        position[0] + u[0] * x + v[0] * y,
-                        position[1] + u[1] * x + v[1] * y,
-                        position[2] + u[2] * x + v[2] * y
+                const clipBoundary = repeatedPoints(record, 14, 24, 34), boundaryType = number(record, 71, clipBoundary.length === 2 ? 1 : 2);
+                const worldClips = boundaryType === 1 && clipBoundary.length === 2 ? [
+                    clipBoundary[0],
+                    [
+                        clipBoundary[1][0],
+                        clipBoundary[0][1],
+                        0
+                    ],
+                    clipBoundary[1],
+                    [
+                        clipBoundary[0][0],
+                        clipBoundary[1][1],
+                        0
+                    ]
+                ] : clipBoundary;
+                const vertices = worldClips.map(([x, y])=>[
+                        position[0] + u[0] * (x + .5) + v[0] * (.5 - y),
+                        position[1] + u[1] * (x + .5) + v[1] * (.5 - y),
+                        position[2] + u[2] * (x + .5) + v[2] * (.5 - y)
                     ]);
                 return {
                     type: 'WIPEOUT',
@@ -1328,7 +1343,14 @@ function entityPayload(record, blockIds, resources = {}) {
                         position,
                         uVector: u,
                         vVector: v,
-                        rawTags: record.tags
+                        clipBoundary,
+                        boundaryType,
+                        flags: number(record, 70, 7),
+                        clipping: number(record, 280, 1) !== 0,
+                        brightness: number(record, 281, 50),
+                        contrast: number(record, 282, 50),
+                        fade: number(record, 283, 0),
+                        clipMode: number(record, 290, 0) !== 0
                     }
                 };
             }
@@ -2964,10 +2986,6 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emitHatch(output, entity, layerName, ownerHandle, space, context);
         return;
     }
-    if (entity.type === 'WIPEOUT' && p.rawTags?.length) {
-        emitRawEntity(output, entity, layerName, ownerHandle, space, context);
-        return;
-    }
     if (entity.type === 'DIMENSION' && p.rawTags?.length && resources.dimensions?.get(entity.handle)?.preserveRaw) {
         emitRawEntity(output, entity, layerName, ownerHandle, space, context);
         return;
@@ -2994,6 +3012,56 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
     } else if (entity.type === 'POINT') {
         emitSubclass(output, version, 'AcDbPoint');
         emitPoint(output, p.position);
+    } else if (entity.type === 'WIPEOUT') {
+        let position = p.position, uVector = p.uVector, vVector = p.vVector, clipBoundary = p.clipBoundary, boundaryType = p.boundaryType;
+        if (!position || !uVector || !vVector || !Array.isArray(clipBoundary)) {
+            const points = entityVertices.map(vertexPoint), xs = points.map((value)=>value[0]), ys = points.map((value)=>value[1]);
+            const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys), width = maxX - minX, height = maxY - minY;
+            if (!(width > 0) || !(height > 0)) throw new KJValidationError('DXF WIPEOUT boundary must span a nonzero area');
+            position = [
+                minX,
+                minY,
+                0
+            ];
+            uVector = [
+                width,
+                0,
+                0
+            ];
+            vVector = [
+                0,
+                height,
+                0
+            ];
+            clipBoundary = points.map((value)=>[
+                    (value[0] - minX) / width - .5,
+                    .5 - (value[1] - minY) / height,
+                    0
+                ]);
+            boundaryType = points.length === 2 ? 1 : 2;
+        }
+        if (clipBoundary.length < 2 || clipBoundary.length > 128) throw new KJValidationError('DXF WIPEOUT clipBoundary requires 2 to 128 points');
+        emitSubclass(output, version, 'AcDbWipeout');
+        emit(output, 90, 0);
+        emitPoint(output, position);
+        emitPoint(output, uVector, 11);
+        emitPoint(output, vVector, 12);
+        emit(output, 13, 1);
+        emit(output, 23, 1);
+        emit(output, 340, '0');
+        emit(output, 70, p.flags ?? 7);
+        emit(output, 280, p.clipping === false ? 0 : 1);
+        emit(output, 281, p.brightness ?? 50);
+        emit(output, 282, p.contrast ?? 50);
+        emit(output, 283, p.fade ?? 0);
+        emit(output, 360, '0');
+        emit(output, 71, boundaryType ?? (clipBoundary.length === 2 ? 1 : 2));
+        emit(output, 91, clipBoundary.length);
+        for (const value of clipBoundary){
+            emit(output, 14, value[0]);
+            emit(output, 24, value[1]);
+        }
+        if (VERSION_RANK[version] >= VERSION_RANK['2010']) emit(output, 290, p.clipMode === true ? 1 : 0);
     } else if (entity.type === 'CIRCLE') {
         emitSubclass(output, version, 'AcDbCircle');
         emitPoint(output, p.center);

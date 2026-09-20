@@ -1329,7 +1329,17 @@ export class KJCanvasRenderer {
         const text = payload.text ?? payload.textOverride ?? (payload.measurement == null ? '' : finite(payload.measurement).toFixed(2)), style = this.#document?.getObject(String(payload.styleId ?? ''))?.payload
         const height = Math.max(.01, finite(payload.textHeight, 2.5)); context.font = `${height * this.camera.scale}px ${layoutCadText({ position: [0, 0], text: String(text), height }, style).family}`; context.textAlign = 'left'; context.textBaseline = 'bottom'; context.fillText(String(text), screen[0], screen[1])
       }
-    } else if (['SOLID', 'TRACE', 'WIPEOUT', 'REVISION_CLOUD'].includes(entity.type)) {
+    } else if (entity.type === 'WIPEOUT') {
+      const values = points(payload.vertices)
+      drawn = values.length >= 3
+      if (drawn) {
+        context.beginPath()
+        values.forEach((value, index) => { const screen = this.worldToScreen(value); if (index === 0) context.moveTo(...screen); else context.lineTo(...screen) })
+        context.closePath(); context.globalAlpha = 1
+        context.fillStyle = this.#paperSheetState ? '#fffefb' : this.#background ?? (this.#theme === 'dark' ? '#081016' : '#f8fafc')
+        context.fill()
+      }
+    } else if (['SOLID', 'TRACE', 'REVISION_CLOUD'].includes(entity.type)) {
       const values = points(payload.vertices)
       drawn = this.#strokePath(values, true)
       if (drawn) { context.globalAlpha = 0.12; context.fill(); context.globalAlpha = 1 }
