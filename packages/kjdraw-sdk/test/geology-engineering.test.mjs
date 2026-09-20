@@ -239,6 +239,13 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
       { start: 105, valueStart: 125, role: 'initialWaterDepth', label: 'Initial' },
       { start: 145, valueStart: 165, role: 'stableWaterDepth', label: 'Stable' }],
   ]
+  const notationPlacement = (offset, height, horizontalAlignment) => ({ offset, height, textWidthFactor: 1,
+    horizontalAlignment, verticalAlignment: 'middle' })
+  const notationSet = symbolY => ({
+    symbol: notationPlacement([7.5, symbolY], 3, 'center'),
+    superscript: notationPlacement([9, symbolY + 1.2], 1.5, 'left'),
+    subscript: notationPlacement([9, symbolY - 1.2], 1.5, 'left'),
+  })
   const style = validateKnowledgePack({ schema: 'kjdraw.knowledge-pack.v1', id: 'geo-physical-header-test', version: '1.0.0',
     title: 'MIT synthetic unequal header grid', domain: 'geology',
     license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
@@ -255,7 +262,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
         } },
       ] }, legendMode: 'none', textHeights: {
         headerFact: 3, fieldHeader: 3, fieldSubHeader: 2.5, majorValue: 3, intervalDepth: 2.5, observation: 2,
-      }, stratigraphicNotationStyle: { symbolHeight: 3, qualifierHeight: 1.5 },
+      }, stratigraphicNotationStyle: { symbolHeight: 3, qualifierHeight: 1.5, placement: {
+        fieldRole: 'layerName', anchor: 'major-group-midpoint', principal: notationSet(-2), topBoundary: notationSet(-1),
+      } },
       intervalDepthTextStyle: { fieldRole: 'depth',
         principal: { offset: [5, 1.2], height: 2.4, textWidthFactor: 0.85, horizontalAlignment: 'center', verticalAlignment: 'middle' },
         lens: { offset: [5, 0], height: 2, textWidthFactor: 0.9, horizontalAlignment: 'center', verticalAlignment: 'middle' } },
@@ -321,6 +330,13 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     entity.payload.horizontalAlignment == null && entity.payload.alignmentPoint == null), `${value} uses its source-backed field-header placement`)
   for (const [value, height] of [['Q', 3], ['4', 1.5], ['ml', 1.5], ['3', 1.5], ['N', 3], ['al', 1.5]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} notation height ${height}`)
+  for (const [value, x, y, height, horizontalAlignment] of [
+    ['Q', 22.5, 231, 3, 1], ['ml', 24, 232.2, 1.5, 0], ['4', 24, 229.8, 1.5, 0],
+    ['3', 24, 208.8, 1.5, 0], ['N', 22.5, 123, 3, 1], ['al', 24, 124.2, 1.5, 0],
+  ]) assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x &&
+    Math.abs(entity.payload.position[1] - y) < 1e-9 && entity.payload.height === height && entity.payload.widthFactor === 1 &&
+    (entity.payload.horizontalAlignment ?? 0) === horizontalAlignment && entity.payload.verticalAlignment === 2),
+  `${value} uses its semantic notation placement`)
   assert.ok(texts.some(entity => entity.payload.text === '●' && entity.payload.height === 1), 'filled sample marker')
   for (const [value, x, y, height, widthFactor] of [
     ['S1', 148, 186.1, 2, 0.9], ['●', 152, 186.1, 1, 0.95],
@@ -443,6 +459,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const missingNotationStyle = structuredClone(input)
   delete missingNotationStyle.columnStylePack.rules['geology-column-layout'].stratigraphicNotationStyle
   assert.throws(() => compileGeologyColumn(missingNotationStyle), /notation facts need a declared/u)
+  const incompleteNotationPlacement = structuredClone(input)
+  delete incompleteNotationPlacement.columnStylePack.rules['geology-column-layout'].stratigraphicNotationStyle.placement.topBoundary.symbol
+  assert.throws(() => compileGeologyColumn(incompleteNotationPlacement), /exact symbol and qualifier placements/u)
   const malformedNotation = structuredClone(input)
   malformedNotation.hole.strata[0].stratigraphicNotation.extra = 'invented'
   assert.throws(() => compileGeologyColumn(malformedNotation), /exact symbol\/qualifier schema/u)

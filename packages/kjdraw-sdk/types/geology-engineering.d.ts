@@ -162,6 +162,25 @@ export interface KJGeologyIntervalDepthTextStyle {
     principal: KJGeologyFieldHeaderTextPlacement;
     lens: KJGeologyFieldHeaderTextPlacement;
 }
+/** Exact placements for the symbol and optional qualifiers of one
+ * stratigraphic notation, relative to a major group's geometric midpoint. */
+export interface KJGeologyStratigraphicNotationPlacementSet {
+    symbol: KJGeologyFieldHeaderTextPlacement;
+    superscript: KJGeologyFieldHeaderTextPlacement;
+    subscript: KJGeologyFieldHeaderTextPlacement;
+}
+/** Source-backed stratigraphic notation style. Top-boundary placement is a
+ * geometric role, not an interval index or a thickness heuristic. */
+export interface KJGeologyStratigraphicNotationStyle {
+    symbolHeight: number;
+    qualifierHeight: number;
+    placement?: {
+        fieldRole: 'layerName';
+        anchor: 'major-group-midpoint';
+        principal: KJGeologyStratigraphicNotationPlacementSet;
+        topBoundary: KJGeologyStratigraphicNotationPlacementSet;
+    };
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,
