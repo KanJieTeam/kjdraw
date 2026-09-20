@@ -1856,6 +1856,18 @@ const geologyPlanSectionLineSchema = objectWithOptional({
     'endpointTailLengths',
     'endpointLabelPositions'
 ]);
+const geologyPlanBuildingFootprintSchema = object({
+    id: {
+        ...text,
+        maxLength: 40
+    },
+    outline: {
+        type: 'array',
+        minItems: 3,
+        maxItems: 65,
+        items: numericTuple(2)
+    }
+});
 const geologyPlanSchema = objectWithOptional({
     version: {
         type: 'string',
@@ -1922,6 +1934,12 @@ const geologyPlanSchema = objectWithOptional({
         origin: numericTuple(2),
         spacing: radius
     }),
+    buildingFootprints: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 128,
+        items: geologyPlanBuildingFootprintSchema
+    },
     northAngleDegrees: {
         type: 'number',
         minimum: -360,
@@ -1931,6 +1949,7 @@ const geologyPlanSchema = objectWithOptional({
     'locale',
     'title',
     'revision',
+    'buildingFootprints',
     'northAngleDegrees'
 ]);
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
@@ -2075,7 +2094,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_plan',
         effect: 'propose',
-        description: 'Compile one editable ISO A3 engineering investigation-point location plan from exact supplied metre coordinates. The request must include a simple site boundary, 2–128 identified investigation points with supplied collar elevations and optional depths, one or more explicit section-line routes referencing existing point IDs in order, a true coordinate-grid origin and spacing, a standard drawing scale, and optional north angle. KJDraw never invents point coordinates, elevations, depths, section correlations, boundaries or project provenance. Version 1.0.0 draws native coordinate-grid lines and labels, editable point symbols/facts, paired visible section references, a north arrow and an A3 landscape viewport at the declared scale. Non-fitting sheets, unknown or duplicate references, unsafe geometry, stale revisions and nonblank drawings fail closed. Requires a blank metre drawing. Returns a bounded native CREATEBATCH proposal without modifying the drawing; only a trusted host can approve one undoable transaction. This generic compiler and its tests are not certification that a private source drawing matches 1:1.',
+        description: 'Compile one editable ISO A3 engineering investigation-point location plan from exact supplied metre coordinates. The request must include a simple site boundary, 2–128 identified investigation points with supplied collar elevations and optional depths, one or more explicit section-line routes referencing existing point IDs in order, a true coordinate-grid origin and spacing, a standard drawing scale, and optional north angle. KJDraw never invents point coordinates, elevations, depths, section correlations, boundaries or project provenance. Version 1.0.0 draws native coordinate-grid lines and labels, editable point symbols/facts, paired visible section references, optional explicitly supplied closed building footprints, a north arrow and an A3 landscape viewport at the declared scale. Roads, terrain, landscaping and other base-map context remain external source-backed dependencies and are never inferred. Non-fitting sheets, unknown or duplicate references, unsafe geometry, stale revisions and nonblank drawings fail closed. Requires a blank metre drawing. Returns a bounded native CREATEBATCH proposal without modifying the drawing; only a trusted host can approve one undoable transaction. This generic compiler and its tests are not certification that a private source drawing matches 1:1.',
         inputSchema: geologyPlanSchema
     },
     {

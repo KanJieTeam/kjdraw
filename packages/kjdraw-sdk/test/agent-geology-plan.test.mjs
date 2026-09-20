@@ -64,6 +64,23 @@ test('geology plan compiles true coordinates, investigation points and explicit 
   assert.equal(new Set(entities.map(entity => entity.options.id)).size, entities.length)
 })
 
+test('geology plan compiles only explicitly supplied closed building footprints as source-backed context', () => {
+  const document = KJDocument.create({ documentId: 'geology-plan-buildings', units: 'meter' })
+  const compiled = buildAgentGeologyPlan(document, intent({
+    buildingFootprints: [
+      { id: 'building-a', outline: [[385010, 3452010], [385035, 3452015], [385030, 3452030], [385005, 3452025], [385010, 3452010]] },
+      { id: 'building-b', outline: [[385090, 3452040], [385115, 3452040], [385115, 3452060], [385090, 3452060]] },
+    ],
+  }))
+  const footprints = compiled.commandArgs.entities.filter(entity => entity.payload.semanticRole === 'building-footprint')
+  assert.deepEqual(footprints.map(entity => [entity.payload.sourceId, entity.payload.closed, entity.payload.sourceBacked]), [
+    ['building-a', true, true], ['building-b', true, true],
+  ])
+  assert.deepEqual(footprints[0].payload.vertices, [[385010, 3452010, 0], [385035, 3452015, 0], [385030, 3452030, 0], [385005, 3452025, 0]])
+  assert.equal(compiled.evidence.buildingFootprintCount, 2)
+  assert.deepEqual(compiled.evidence.externalBaseMapDependencies, ['roads', 'terrain', 'landscaping', 'other-context'])
+  assert.ok(compiled.evidence.limitations.some(value => value.includes('never inferred')))
+})
 test('geology plan clips section lines to supplied marker envelopes and preserves supplied tails and label positions', () => {
   const document = KJDocument.create({ documentId: 'geology-plan-section-envelope', units: 'meter' })
   const compiled = buildAgentGeologyPlan(document, intent({
@@ -153,6 +170,9 @@ test('geology plan fails closed on stale revisions, unsafe coordinates and broke
   rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', endpointTailLengths: [-1, 2] }] }, /finite number from 0/)
   rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', endpointLabelPositions: [[385010, 3452010]] }] }, /exactly 2 points/)
   rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', endpointLabelPositions: [[0, 0], [385050, 3452040]] }] }, /declared model viewport/)
+  rejects({ buildingFootprints: [{ id: 'bad', outline: [[385010, 3452010], [385030, 3452030], [385010, 3452030], [385030, 3452010]] }] }, /self-intersect|positive area/)
+  rejects({ buildingFootprints: [{ id: 'outside', outline: [[384990, 3452010], [385010, 3452010], [385010, 3452030], [384990, 3452030]] }] }, /inside the boundary/)
+  rejects({ buildingFootprints: [{ id: 'same', outline: [[385010, 3452010], [385030, 3452010], [385030, 3452030], [385010, 3452030]] }, { id: 'same', outline: [[385040, 3452040], [385060, 3452040], [385060, 3452060], [385040, 3452060]] }] }, /duplicate id/)
   rejects({ coordinateGrid: { origin: [385000, 3452000], spacing: 1 } }, /more than 80 grid lines/)
   rejects({ boundary: [[385000, 3452000], [385300, 3452000], [385300, 3452200], [385000, 3452200]] }, /does not fit ISO A3/)
   assert.throws(() => buildAgentGeologyPlan(KJDocument.create({ units: 'millimeter' }), intent()), /meter units/)

@@ -22,6 +22,10 @@ export interface KJGeologyPlanCoordinateGrid {
     origin: Point2;
     spacing: number;
 }
+export interface KJGeologyPlanBuildingFootprint {
+    id: string;
+    outline: Point2[];
+}
 export interface KJAgentGeologyPlanInput {
     version: typeof KJDRAW_GEOLOGY_PLAN_VERSION;
     expectedRevision: number;
@@ -35,6 +39,7 @@ export interface KJAgentGeologyPlanInput {
     boreholes: KJGeologyPlanBorehole[];
     sectionLines: KJGeologyPlanSectionLine[];
     coordinateGrid: KJGeologyPlanCoordinateGrid;
+    buildingFootprints?: KJGeologyPlanBuildingFootprint[];
     northAngleDegrees?: number;
 }
 interface GeologyPlanDocument {
@@ -68,6 +73,12 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
                 color: 7;
                 linetypeId: string;
                 lineweight: 50;
+                name: string;
+            } | {
+                id: `${string}-layer-buildings`;
+                color: 8;
+                linetypeId: string;
+                lineweight: 25;
                 name: string;
             } | {
                 id: `${string}-layer-grid`;
@@ -155,6 +166,7 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
         entityCount: number;
         boreholeCount: number;
         sectionLineCount: number;
+        buildingFootprintCount: number;
         sectionReferences: {
             id: string;
             label: string;
@@ -172,6 +184,7 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
         };
         scaleDenominator: ScaleDenominator;
         northAngleDegrees: number;
+        externalBaseMapDependencies: string[];
         limitations: string[];
     };
 };

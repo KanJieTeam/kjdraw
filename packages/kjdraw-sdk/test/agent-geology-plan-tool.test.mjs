@@ -26,7 +26,9 @@ function intent(patch = {}) {
       { id: 'section-1', holeIds: ['ZK01', 'ZK02', 'ZK03'], label: "1—1′", endpointLabels: ['1', "1′"], markerClearance: [4, 3], endpointTailLengths: [3, 3], endpointLabelPositions: [[385010, 3452010], [385125, 3452080]] },
       { id: 'section-2', holeIds: ['ZK01', 'ZK03'], label: "2—2′", endpointLabels: ['2', "2′"] },
     ],
-    coordinateGrid: { origin: [385000, 3452000], spacing: 20 }, northAngleDegrees: -6,
+    coordinateGrid: { origin: [385000, 3452000], spacing: 20 },
+    buildingFootprints: [{ id: 'building-a', outline: [[385010, 3452010], [385035, 3452015], [385030, 3452030], [385005, 3452025]] }],
+    northAngleDegrees: -6,
     ...patch,
   }
 }
@@ -45,6 +47,10 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
   assert.equal(definition.inputSchema.properties.sectionLines.items.properties.markerClearance.items.exclusiveMinimum, 0)
   assert.equal(definition.inputSchema.properties.sectionLines.items.properties.endpointTailLengths.items.minimum, 0)
   assert.equal(definition.inputSchema.properties.sectionLines.items.properties.endpointLabelPositions.items.minItems, 2)
+  assert.equal(definition.inputSchema.properties.buildingFootprints.maxItems, 128)
+  assert.equal(definition.inputSchema.properties.buildingFootprints.items.properties.outline.minItems, 3)
+  assert.equal(definition.inputSchema.properties.buildingFootprints.items.properties.outline.maxItems, 65)
+  assert.ok(!definition.inputSchema.required.includes('buildingFootprints'))
   const millimeterSdk = createKJDrawSDK(), millimeterDocument = millimeterSdk.createDocument({ units: 'millimeter' })
   assert.equal(new KJAgentToolSession(millimeterSdk, millimeterDocument).definitions.some(tool => tool.name === 'cad_propose_geology_plan'), false)
 
@@ -54,6 +60,8 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
   assert.equal(proposal.engineeringEvidence.skillId, 'geology-plan')
   assert.equal(proposal.engineeringEvidence.boreholeCount, 3)
   assert.equal(proposal.engineeringEvidence.sectionLineCount, 2)
+  assert.equal(proposal.engineeringEvidence.buildingFootprintCount, 1)
+  assert.deepEqual(proposal.engineeringEvidence.externalBaseMapDependencies, ['roads', 'terrain', 'landscaping', 'other-context'])
   assert.deepEqual(proposal.engineeringEvidence.sectionReferences[0].markerClearance, [4, 3])
   assert.deepEqual(proposal.engineeringEvidence.sectionReferences[0].endpointTailLengths, [3, 3])
   assert.deepEqual(proposal.engineeringEvidence.sectionReferences[0].endpointLabelPositions, [[385010, 3452010], [385125, 3452080]])
@@ -64,6 +72,7 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
   assert.equal(receipt.beforeRevision, 0)
   assert.equal(receipt.afterRevision, 1)
   assert.equal(document.listEntities().length, proposal.engineeringEvidence.entityCount)
+  assert.equal(document.listEntities().filter(entity => entity.payload.semanticRole === 'building-footprint').length, 1)
   assert.equal((await session.approve(proposal.planId, 'host-reviewer')).ok, false)
   await document.undo(); assert.equal(document.listEntities().length, 0)
   await document.redo(); assert.equal(document.listEntities().length, proposal.engineeringEvidence.entityCount)
@@ -79,10 +88,10 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
     try {
       const dxfPath = join(root, 'plan.dxf'), auditPath = join(root, 'audit.py')
       await writeFile(dxfPath, dxf)
-      await writeFile(auditPath, 'import ezdxf,json,sys\nd=ezdxf.readfile(sys.argv[1]);a=d.audit();m=d.modelspace();print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"viewports":len(d.query("VIEWPORT"))}))\n')
+      await writeFile(auditPath, 'import ezdxf,json,sys\nd=ezdxf.readfile(sys.argv[1]);a=d.audit();m=d.modelspace();print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"closed":sum(1 for e in m.query("LWPOLYLINE") if e.closed),"viewports":len(d.query("VIEWPORT"))}))\n')
       const result = spawnSync(python, [auditPath, dxfPath], { encoding: 'utf8', env: { ...process.env, PYTHONPATH: pythonPath } })
       assert.equal(result.status, 0, result.stderr)
-      assert.deepEqual(JSON.parse(result.stdout), { errors: 0, fixes: 0, circles: 3, viewports: 1 })
+      assert.deepEqual(JSON.parse(result.stdout), { errors: 0, fixes: 0, circles: 3, closed: 3, viewports: 1 })
     } finally { await rm(root, { recursive: true, force: true }) }
   }
 })
@@ -95,6 +104,7 @@ test('geology plan tool fails closed before a plan on stale, broken or nonblank 
     intent({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'missing'], label: 'X—X′' }] }),
     intent({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', endpointTailLengths: [-1, 2] }] }),
     intent({ scale: 333 }),
+    intent({ buildingFootprints: [{ id: 'bad', outline: [[385010, 3452010], [385030, 3452030], [385010, 3452030], [385030, 3452010]] }] }),
     { ...intent(), surprise: true },
   ]) {
     const result = await session.call('cad_propose_geology_plan', invalid)

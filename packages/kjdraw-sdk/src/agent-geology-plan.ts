@@ -30,6 +30,11 @@ export interface KJGeologyPlanCoordinateGrid {
   spacing: number
 }
 
+export interface KJGeologyPlanBuildingFootprint {
+  id: string
+  outline: Point2[]
+}
+
 export interface KJAgentGeologyPlanInput {
   version: typeof KJDRAW_GEOLOGY_PLAN_VERSION
   expectedRevision: number
@@ -43,6 +48,7 @@ export interface KJAgentGeologyPlanInput {
   boreholes: KJGeologyPlanBorehole[]
   sectionLines: KJGeologyPlanSectionLine[]
   coordinateGrid: KJGeologyPlanCoordinateGrid
+  buildingFootprints?: KJGeologyPlanBuildingFootprint[]
   northAngleDegrees?: number
 }
 
@@ -54,10 +60,11 @@ interface GeologyPlanDocument {
 
 type EntitySpec = { type: string; payload: Record<string, unknown>; options: { id: string } }
 
-const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'northAngleDegrees']
+const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'buildingFootprints', 'northAngleDegrees']
 const BOREHOLE_KEYS = ['id', 'position', 'collarElevation', 'depth', 'kind']
 const SECTION_KEYS = ['id', 'holeIds', 'label', 'endpointLabels', 'markerClearance', 'endpointTailLengths', 'endpointLabelPositions']
 const GRID_KEYS = ['origin', 'spacing']
+const BUILDING_KEYS = ['id', 'outline']
 const SCALES = new Set<ScaleDenominator>([50, 100, 200, 500, 1000, 2000])
 const KINDS = new Set(['borehole', 'test-pit', 'in-situ-test'])
 const EPSILON = 1e-9
@@ -130,15 +137,15 @@ function polygonArea(points: Point2[]): number {
   return Math.abs(twice) / 2
 }
 
-function validatePolygon(points: Point2[]): void {
-  if (polygonArea(points) <= EPSILON) throw new KJValidationError('input.boundary must enclose a positive area')
+function validatePolygon(points: Point2[], label = 'input.boundary'): void {
+  if (polygonArea(points) <= EPSILON) throw new KJValidationError(`${label} must enclose a positive area`)
   for (let index = 0; index < points.length; index += 1) {
     const next = (index + 1) % points.length
-    if (Math.hypot(points[index]![0] - points[next]![0], points[index]![1] - points[next]![1]) <= EPSILON) throw new KJValidationError('input.boundary contains a zero-length edge')
+    if (Math.hypot(points[index]![0] - points[next]![0], points[index]![1] - points[next]![1]) <= EPSILON) throw new KJValidationError(`${label} contains a zero-length edge`)
     for (let other = index + 1; other < points.length; other += 1) {
       const otherNext = (other + 1) % points.length
       if (other === index || other === next || otherNext === index) continue
-      if (intersects(points[index]!, points[next]!, points[other]!, points[otherNext]!)) throw new KJValidationError('input.boundary must not self-intersect')
+      if (intersects(points[index]!, points[next]!, points[other]!, points[otherNext]!)) throw new KJValidationError(`${label} must not self-intersect`)
     }
   }
 }
@@ -219,10 +226,29 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
   })
   const grid = plain(input.coordinateGrid, 'input.coordinateGrid'); exactKeys(grid, GRID_KEYS, 'input.coordinateGrid')
   const coordinateGrid = { origin: point(grid.origin, 'input.coordinateGrid.origin'), spacing: finite(grid.spacing, 'input.coordinateGrid.spacing', 0.1, 1_000_000) }
+  if (input.buildingFootprints !== undefined && (!Array.isArray(input.buildingFootprints) || input.buildingFootprints.length > 128))
+    throw new KJValidationError('input.buildingFootprints must contain at most 128 supplied outlines')
+  const buildingIds = new Set<string>()
+  const buildingFootprints = (input.buildingFootprints ?? []).map((raw, index) => {
+    const value = plain(raw, `input.buildingFootprints[${index}]`); exactKeys(value, BUILDING_KEYS, `input.buildingFootprints[${index}]`)
+    const id = text(value.id, `input.buildingFootprints[${index}].id`, 40)
+    if (buildingIds.has(id)) throw new KJValidationError(`input.buildingFootprints contains duplicate id ${id}`)
+    buildingIds.add(id)
+    if (!Array.isArray(value.outline) || value.outline.length < 3 || value.outline.length > 65)
+      throw new KJValidationError(`input.buildingFootprints[${index}].outline must contain 3-65 supplied points`)
+    const suppliedOutline = value.outline.map((rawPoint, pointIndex) => point(rawPoint, `input.buildingFootprints[${index}].outline[${pointIndex}]`))
+    const firstOutlinePoint = suppliedOutline[0]!, lastOutlinePoint = suppliedOutline.at(-1)!
+    const outline = suppliedOutline.length > 3 && Math.hypot(firstOutlinePoint[0] - lastOutlinePoint[0], firstOutlinePoint[1] - lastOutlinePoint[1]) <= EPSILON
+      ? suppliedOutline.slice(0, -1) : suppliedOutline
+    if (outline.length < 3 || outline.length > 64) throw new KJValidationError(`input.buildingFootprints[${index}].outline must normalize to 3-64 vertices`)
+    validatePolygon(outline, `input.buildingFootprints[${index}].outline`)
+    if (!outline.every(outlinePoint => inside(outlinePoint, boundary))) throw new KJValidationError(`input.buildingFootprints[${index}].outline must lie inside the boundary`)
+    return { id, outline }
+  })
   const northAngleDegrees = finite(input.northAngleDegrees ?? 0, 'input.northAngleDegrees', -360, 360)
   const locale = input.locale == null ? [...boreholes.map(value => value.id), ...sectionLines.map(value => value.label), input.title].some(value => /[\u3400-\u9fff]/u.test(String(value ?? ''))) ? 'zh-CN' as const : 'en' as const
     : input.locale === 'zh-CN' || input.locale === 'en' ? input.locale : (() => { throw new KJValidationError('input.locale must be zh-CN or en') })()
-  return { expectedRevision, scale, boundary, boreholes, holesById, sectionLines, coordinateGrid, northAngleDegrees, locale,
+  return { expectedRevision, scale, boundary, boreholes, holesById, sectionLines, coordinateGrid, buildingFootprints, northAngleDegrees, locale,
     drawingId: text(input.drawingId, 'input.drawingId', 64), title: input.title == null ? undefined : text(input.title, 'input.title', 96), revision: input.revision == null ? undefined : text(input.revision, 'input.revision', 32) }
 }
 
@@ -248,6 +274,7 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
   const linetypes = { continuous: `${prefix}-lt-continuous`, grid: `${prefix}-lt-grid`, section: `${prefix}-lt-section` }
   const layers = {
     BOUNDARY: { id: `${prefix}-layer-boundary`, color: 7, linetypeId: linetypes.continuous, lineweight: 50 },
+    BUILDINGS: { id: `${prefix}-layer-buildings`, color: 8, linetypeId: linetypes.continuous, lineweight: 25 },
     GRID: { id: `${prefix}-layer-grid`, color: 8, linetypeId: linetypes.grid, lineweight: 13 },
     POINTS: { id: `${prefix}-layer-points`, color: 1, linetypeId: linetypes.continuous, lineweight: 35 },
     SECTIONS: { id: `${prefix}-layer-sections`, color: 2, linetypeId: linetypes.section, lineweight: 35 },
@@ -259,6 +286,8 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
   const addText = (position: Point2, value: string, textHeight: number, layer: Layer = 'ANNOTATION', rotation = 0, extra: Record<string, unknown> = {}) => add('TEXT', layer, { position: p3(position), text: value, height: textHeight, rotation, ...extra })
   const textHeight = 2.5 * input.scale / 1000, markerRadius = 2.2 * input.scale / 1000
   add('LWPOLYLINE', 'BOUNDARY', { vertices: input.boundary.map(p3), closed: true, semanticRole: 'survey-boundary' })
+  for (const footprint of input.buildingFootprints)
+    add('LWPOLYLINE', 'BUILDINGS', { vertices: footprint.outline.map(p3), closed: true, semanticRole: 'building-footprint', sourceId: footprint.id, sourceBacked: true })
   for (const x of gridXs) {
     add('LINE', 'GRID', { start: [x, minimum[1], 0], end: [x, maximum[1], 0], semanticRole: 'coordinate-grid-easting', coordinate: x })
     addText([x, minimum[1] - textHeight * 1.4], `E ${format(x, 3)}`, textHeight * 0.72)
@@ -357,9 +386,10 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     outputConfig: { layoutName, paper: { standard: 'ISO A3', orientation: 'landscape', widthMm: 420, heightMm: 297 }, scaleNumerator: 1, scaleDenominator: input.scale, modelUnits: 'meter' as const,
       viewport: { center, width: groundWidth, height: groundHeight } },
     evidence: { drawingId: input.drawingId, skillId: 'geology-plan', skillVersion: KJDRAW_GEOLOGY_PLAN_VERSION, expectedRevision: input.expectedRevision, units: 'meter' as const,
-      modelEntityCount: entities.length, entityCount: entities.length + 1, boreholeCount: input.boreholes.length, sectionLineCount: input.sectionLines.length,
+      modelEntityCount: entities.length, entityCount: entities.length + 1, boreholeCount: input.boreholes.length, sectionLineCount: input.sectionLines.length, buildingFootprintCount: input.buildingFootprints.length,
       sectionReferences: input.sectionLines.map(value => ({ id: value.id, label: value.label, holeIds: [...value.holeIds], endpointLabels: value.endpointLabels ? [...value.endpointLabels] : [value.label, value.label], markerClearance: value.markerClearance ? [...value.markerClearance] : undefined, endpointTailLengths: value.endpointTailLengths ? [...value.endpointTailLengths] : undefined, endpointLabelPositions: value.endpointLabelPositions ? value.endpointLabelPositions.map(position => [...position]) : undefined, segmentCount: sectionSegmentCounts.get(value.id) })), gridLineCount: gridXs.length + gridYs.length,
       coordinateBounds: { minimum, maximum }, scaleDenominator: input.scale, northAngleDegrees: input.northAngleDegrees,
-      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred'] },
+      externalBaseMapDependencies: ['roads', 'terrain', 'landscaping', 'other-context'],
+      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Roads, terrain, landscaping and other base-map context remain external source-backed dependencies and are never inferred'] },
   }
 }
