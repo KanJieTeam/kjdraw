@@ -1802,9 +1802,38 @@ const geologyPlanSectionLineSchema = objectWithOptional({
             ...text,
             maxLength: 24
         }
+    },
+    markerClearance: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 2,
+        items: {
+            type: 'number',
+            exclusiveMinimum: 0,
+            maximum: 1_000_000
+        }
+    },
+    endpointTailLengths: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 2,
+        items: {
+            type: 'number',
+            minimum: 0,
+            maximum: 1_000_000
+        }
+    },
+    endpointLabelPositions: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 2,
+        items: numericTuple(2)
     }
 }, [
-    'endpointLabels'
+    'endpointLabels',
+    'markerClearance',
+    'endpointTailLengths',
+    'endpointLabelPositions'
 ]);
 const geologyPlanSchema = objectWithOptional({
     version: {

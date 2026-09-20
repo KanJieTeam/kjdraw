@@ -20,6 +20,9 @@ export interface KJGeologyPlanSectionLine {
   holeIds: string[]
   label: string
   endpointLabels?: [string, string]
+  markerClearance?: [number, number]
+  endpointTailLengths?: [number, number]
+  endpointLabelPositions?: [Point2, Point2]
 }
 
 export interface KJGeologyPlanCoordinateGrid {
@@ -53,7 +56,7 @@ type EntitySpec = { type: string; payload: Record<string, unknown>; options: { i
 
 const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'northAngleDegrees']
 const BOREHOLE_KEYS = ['id', 'position', 'collarElevation', 'depth', 'kind']
-const SECTION_KEYS = ['id', 'holeIds', 'label', 'endpointLabels']
+const SECTION_KEYS = ['id', 'holeIds', 'label', 'endpointLabels', 'markerClearance', 'endpointTailLengths', 'endpointLabelPositions']
 const GRID_KEYS = ['origin', 'spacing']
 const SCALES = new Set<ScaleDenominator>([50, 100, 200, 500, 1000, 2000])
 const KINDS = new Set(['borehole', 'test-pit', 'in-situ-test'])
@@ -93,6 +96,11 @@ function text(value: unknown, label: string, maximum = 80): string {
 function point(value: unknown, label: string): Point2 {
   if (!Array.isArray(value) || value.length !== 2) throw new KJValidationError(`${label} must contain exactly two coordinates`)
   return [finite(value[0], `${label}[0]`), finite(value[1], `${label}[1]`)]
+}
+
+function pair(value: unknown, label: string, minimum: number, maximum: number): [number, number] {
+  if (!Array.isArray(value) || value.length !== 2) throw new KJValidationError(`${label} must contain exactly two values`)
+  return [finite(value[0], `${label}[0]`, minimum, maximum), finite(value[1], `${label}[1]`, minimum, maximum)]
 }
 
 function cross(a: Point2, b: Point2, c: Point2): number {
@@ -196,7 +204,18 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
         text(value.endpointLabels[1], `input.sectionLines[${index}].endpointLabels[1]`, 24),
       ]
     }
-    return { id, holeIds, label: text(value.label, `input.sectionLines[${index}].label`, 48), endpointLabels }
+    const markerClearance = value.markerClearance === undefined ? undefined : pair(value.markerClearance, `input.sectionLines[${index}].markerClearance`, 0.001, 1_000_000)
+    const endpointTailLengths = value.endpointTailLengths === undefined ? undefined : pair(value.endpointTailLengths, `input.sectionLines[${index}].endpointTailLengths`, 0, 1_000_000)
+    let endpointLabelPositions: [Point2, Point2] | undefined
+    if (value.endpointLabelPositions !== undefined) {
+      if (!Array.isArray(value.endpointLabelPositions) || value.endpointLabelPositions.length !== 2)
+        throw new KJValidationError(`input.sectionLines[${index}].endpointLabelPositions must contain exactly 2 points`)
+      endpointLabelPositions = [
+        point(value.endpointLabelPositions[0], `input.sectionLines[${index}].endpointLabelPositions[0]`),
+        point(value.endpointLabelPositions[1], `input.sectionLines[${index}].endpointLabelPositions[1]`),
+      ]
+    }
+    return { id, holeIds, label: text(value.label, `input.sectionLines[${index}].label`, 48), endpointLabels, markerClearance, endpointTailLengths, endpointLabelPositions }
   })
   const grid = plain(input.coordinateGrid, 'input.coordinateGrid'); exactKeys(grid, GRID_KEYS, 'input.coordinateGrid')
   const coordinateGrid = { origin: point(grid.origin, 'input.coordinateGrid.origin'), spacing: finite(grid.spacing, 'input.coordinateGrid.spacing', 0.1, 1_000_000) }
@@ -213,6 +232,9 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
   const maximum: Point2 = [Math.max(...input.boundary.map(value => value[0])), Math.max(...input.boundary.map(value => value[1]))]
   const width = maximum[0] - minimum[0], height = maximum[1] - minimum[1]
   const groundWidth = 390 * input.scale / 1000, groundHeight = 250 * input.scale / 1000
+  const center: Point2 = [(minimum[0] + maximum[0]) / 2, (minimum[1] + maximum[1]) / 2]
+  const insideViewport = (value: Point2) => value[0] >= center[0] - groundWidth / 2 - EPSILON && value[0] <= center[0] + groundWidth / 2 + EPSILON
+    && value[1] >= center[1] - groundHeight / 2 - EPSILON && value[1] <= center[1] + groundHeight / 2 + EPSILON
   const margin = Math.max(input.coordinateGrid.spacing * 0.12, 4 * input.scale / 1000)
   if (width + margin * 2 > groundWidth + EPSILON || height + margin * 2 > groundHeight + EPSILON) throw new KJValidationError('input.boundary does not fit ISO A3 landscape at the declared scale')
   const firstGridX = input.coordinateGrid.origin[0] + Math.ceil((minimum[0] - input.coordinateGrid.origin[0]) / input.coordinateGrid.spacing) * input.coordinateGrid.spacing
@@ -253,14 +275,60 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     const facts = hole.depth == null ? `H=${format(hole.collarElevation, 2)}` : `H=${format(hole.collarElevation, 2)}  D=${format(hole.depth, 2)}`
     addText([hole.position[0] + markerRadius * 1.25, hole.position[1] - textHeight], facts, textHeight * 0.76, 'ANNOTATION', 0, { semanticRole: 'investigation-point-facts', sourceId: hole.id })
   }
+  const sectionSegmentCounts = new Map<string, number>()
   for (const section of input.sectionLines) {
     const positions = section.holeIds.map(id => input.holesById.get(id)!.position)
-    add('LWPOLYLINE', 'SECTIONS', { vertices: positions.map(p3), closed: false, semanticRole: 'section-line', sourceId: section.id, referencedHoleIds: section.holeIds })
     const start = positions[0]!, end = positions.at(-1)!
     const angle = Math.atan2(end[1] - start[1], end[0] - start[0]) * 180 / Math.PI
+    let sectionSegmentCount = 1
+    if (section.markerClearance || section.endpointTailLengths?.some(value => value > 0)) {
+      sectionSegmentCount = 0
+      const clearance: readonly [number, number] = section.markerClearance ?? [0, 0]
+      const tails: readonly [number, number] = section.endpointTailLengths ?? [0, 0]
+      const directions: Point2[] = [], distances: number[] = []
+      for (let index = 0; index < positions.length - 1; index += 1) {
+        const first = positions[index]!, second = positions[index + 1]!
+        const distance = Math.hypot(second[0] - first[0], second[1] - first[1])
+        if (distance <= EPSILON) throw new KJValidationError(`input.sectionLines ${section.id} contains coincident point positions`)
+        directions.push([(second[0] - first[0]) / distance, (second[1] - first[1]) / distance])
+        distances.push(distance)
+      }
+      const clearanceDistance = (direction: Point2) => section.markerClearance
+        ? Math.min(Math.abs(direction[0]) <= EPSILON ? Infinity : clearance[0] / Math.abs(direction[0]), Math.abs(direction[1]) <= EPSILON ? Infinity : clearance[1] / Math.abs(direction[1]))
+        : 0
+      for (let index = 0; index < directions.length; index += 1) {
+        const direction = directions[index]!, firstDistance = clearanceDistance(direction), secondDistance = clearanceDistance(direction)
+        if (firstDistance + secondDistance >= distances[index]! - EPSILON) throw new KJValidationError(`input.sectionLines ${section.id} markerClearance leaves no visible segment between ${section.holeIds[index]} and ${section.holeIds[index + 1]}`)
+        const first = positions[index]!, second = positions[index + 1]!
+        const vertices: Point2[] = [
+          [first[0] + direction[0] * firstDistance, first[1] + direction[1] * firstDistance],
+          [second[0] - direction[0] * secondDistance, second[1] - direction[1] * secondDistance],
+        ]
+        add('LWPOLYLINE', 'SECTIONS', { vertices: vertices.map(p3), closed: false, semanticRole: 'section-line', segmentRole: 'between-points', segmentIndex: index, sourceId: section.id, referencedHoleIds: [section.holeIds[index], section.holeIds[index + 1]] })
+        sectionSegmentCount += 1
+      }
+      const startDirection = directions[0]!, endDirection = directions.at(-1)!
+      const startClearance = clearanceDistance(startDirection), endClearance = clearanceDistance(endDirection)
+      if (tails[0] > 0) {
+        const vertices: Point2[] = [[start[0] - startDirection[0] * (startClearance + tails[0]), start[1] - startDirection[1] * (startClearance + tails[0])], [start[0] - startDirection[0] * startClearance, start[1] - startDirection[1] * startClearance]]
+        if (!vertices.every(insideViewport)) throw new KJValidationError(`input.sectionLines ${section.id} start tail must lie inside the declared model viewport`)
+        add('LWPOLYLINE', 'SECTIONS', { vertices: vertices.map(p3), closed: false, semanticRole: 'section-line', segmentRole: 'start-tail', sourceId: section.id, referencedHoleIds: [section.holeIds[0]!] })
+        sectionSegmentCount += 1
+      }
+      if (tails[1] > 0) {
+        const vertices: Point2[] = [[end[0] + endDirection[0] * endClearance, end[1] + endDirection[1] * endClearance], [end[0] + endDirection[0] * (endClearance + tails[1]), end[1] + endDirection[1] * (endClearance + tails[1])]]
+        if (!vertices.every(insideViewport)) throw new KJValidationError(`input.sectionLines ${section.id} end tail must lie inside the declared model viewport`)
+        add('LWPOLYLINE', 'SECTIONS', { vertices: vertices.map(p3), closed: false, semanticRole: 'section-line', segmentRole: 'end-tail', sourceId: section.id, referencedHoleIds: [section.holeIds.at(-1)!] })
+        sectionSegmentCount += 1
+      }
+    } else add('LWPOLYLINE', 'SECTIONS', { vertices: positions.map(p3), closed: false, semanticRole: 'section-line', sourceId: section.id, referencedHoleIds: section.holeIds })
+    sectionSegmentCounts.set(section.id, sectionSegmentCount)
     const [startLabel, endLabel] = section.endpointLabels ?? [section.label, section.label]
-    addText([start[0], start[1] + textHeight * 1.35], startLabel, textHeight, 'SECTIONS', angle, { semanticRole: 'section-reference', sourceId: section.id, endpoint: 'start' })
-    addText([end[0], end[1] + textHeight * 1.35], endLabel, textHeight, 'SECTIONS', angle, { semanticRole: 'section-reference', sourceId: section.id, endpoint: 'end' })
+    const defaultLabelPositions: [Point2, Point2] = [[start[0], start[1] + textHeight * 1.35], [end[0], end[1] + textHeight * 1.35]]
+    const [startLabelPosition, endLabelPosition] = section.endpointLabelPositions ?? defaultLabelPositions
+    if (![startLabelPosition, endLabelPosition].every(insideViewport)) throw new KJValidationError(`input.sectionLines ${section.id} endpointLabelPositions must lie inside the declared model viewport`)
+    addText(startLabelPosition, startLabel, textHeight, 'SECTIONS', angle, { semanticRole: 'section-reference', sourceId: section.id, endpoint: 'start' })
+    addText(endLabelPosition, endLabel, textHeight, 'SECTIONS', angle, { semanticRole: 'section-reference', sourceId: section.id, endpoint: 'end' })
   }
   const arrowLength = 12 * input.scale / 1000, angle = (90 + input.northAngleDegrees) * Math.PI / 180
   const arrowBase: Point2 = [maximum[0] - margin * 1.4, maximum[1] - margin * 1.4]
@@ -276,7 +344,6 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     ? `图号 ${input.drawingId}${input.revision ? `  版本 ${input.revision}` : ''}  比例 1:${input.scale}`
     : `DRAWING ${input.drawingId}${input.revision ? `  REV ${input.revision}` : ''}  SCALE 1:${input.scale}`, textHeight * 0.82)
   if (entities.length + 1 > MAX_ENTITIES) throw new KJValidationError(`Geology plan expands to ${entities.length + 1} entities; maximum is ${MAX_ENTITIES}`)
-  const center: Point2 = [(minimum[0] + maximum[0]) / 2, (minimum[1] + maximum[1]) / 2]
   const layoutName = `KJ_GEO_PLAN_${prefix.slice(8, 20).toUpperCase()}_A3`
   const layout = { id: `${prefix}-layout`, blockRecordId: `${prefix}-paper-space`, name: layoutName,
     dxfPlotSettings: { paperWidth: 420, paperHeight: 297, marginLeft: 15, marginBottom: 25, marginRight: 15, marginTop: 12, originX: 0, originY: 0, scaleNumerator: 1, scaleDenominator: 1, flags: 0, paperUnits: 1 as const, rotation: 0 as const, plotType: 5 as const },
@@ -291,7 +358,7 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
       viewport: { center, width: groundWidth, height: groundHeight } },
     evidence: { drawingId: input.drawingId, skillId: 'geology-plan', skillVersion: KJDRAW_GEOLOGY_PLAN_VERSION, expectedRevision: input.expectedRevision, units: 'meter' as const,
       modelEntityCount: entities.length, entityCount: entities.length + 1, boreholeCount: input.boreholes.length, sectionLineCount: input.sectionLines.length,
-      sectionReferences: input.sectionLines.map(value => ({ id: value.id, label: value.label, holeIds: [...value.holeIds], endpointLabels: value.endpointLabels ? [...value.endpointLabels] : [value.label, value.label] })), gridLineCount: gridXs.length + gridYs.length,
+      sectionReferences: input.sectionLines.map(value => ({ id: value.id, label: value.label, holeIds: [...value.holeIds], endpointLabels: value.endpointLabels ? [...value.endpointLabels] : [value.label, value.label], markerClearance: value.markerClearance ? [...value.markerClearance] : undefined, endpointTailLengths: value.endpointTailLengths ? [...value.endpointTailLengths] : undefined, endpointLabelPositions: value.endpointLabelPositions ? value.endpointLabelPositions.map(position => [...position]) : undefined, segmentCount: sectionSegmentCounts.get(value.id) })), gridLineCount: gridXs.length + gridYs.length,
       coordinateBounds: { minimum, maximum }, scaleDenominator: input.scale, northAngleDegrees: input.northAngleDegrees,
       limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred'] },
   }

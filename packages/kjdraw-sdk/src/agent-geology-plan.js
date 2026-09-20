@@ -28,7 +28,10 @@ const SECTION_KEYS = [
     'id',
     'holeIds',
     'label',
-    'endpointLabels'
+    'endpointLabels',
+    'markerClearance',
+    'endpointTailLengths',
+    'endpointLabelPositions'
 ];
 const GRID_KEYS = [
     'origin',
@@ -81,6 +84,13 @@ function point(value, label) {
     return [
         finite(value[0], `${label}[0]`),
         finite(value[1], `${label}[1]`)
+    ];
+}
+function pair(value, label, minimum, maximum) {
+    if (!Array.isArray(value) || value.length !== 2) throw new KJValidationError(`${label} must contain exactly two values`);
+    return [
+        finite(value[0], `${label}[0]`, minimum, maximum),
+        finite(value[1], `${label}[1]`, minimum, maximum)
     ];
 }
 function cross(a, b, c) {
@@ -181,11 +191,24 @@ function validateInput(document, source) {
                 text(value.endpointLabels[1], `input.sectionLines[${index}].endpointLabels[1]`, 24)
             ];
         }
+        const markerClearance = value.markerClearance === undefined ? undefined : pair(value.markerClearance, `input.sectionLines[${index}].markerClearance`, 0.001, 1_000_000);
+        const endpointTailLengths = value.endpointTailLengths === undefined ? undefined : pair(value.endpointTailLengths, `input.sectionLines[${index}].endpointTailLengths`, 0, 1_000_000);
+        let endpointLabelPositions;
+        if (value.endpointLabelPositions !== undefined) {
+            if (!Array.isArray(value.endpointLabelPositions) || value.endpointLabelPositions.length !== 2) throw new KJValidationError(`input.sectionLines[${index}].endpointLabelPositions must contain exactly 2 points`);
+            endpointLabelPositions = [
+                point(value.endpointLabelPositions[0], `input.sectionLines[${index}].endpointLabelPositions[0]`),
+                point(value.endpointLabelPositions[1], `input.sectionLines[${index}].endpointLabelPositions[1]`)
+            ];
+        }
         return {
             id,
             holeIds,
             label: text(value.label, `input.sectionLines[${index}].label`, 48),
-            endpointLabels
+            endpointLabels,
+            markerClearance,
+            endpointTailLengths,
+            endpointLabelPositions
         };
     });
     const grid = plain(input.coordinateGrid, 'input.coordinateGrid');
@@ -229,6 +252,11 @@ export function buildAgentGeologyPlan(document, source) {
     ];
     const width = maximum[0] - minimum[0], height = maximum[1] - minimum[1];
     const groundWidth = 390 * input.scale / 1000, groundHeight = 250 * input.scale / 1000;
+    const center = [
+        (minimum[0] + maximum[0]) / 2,
+        (minimum[1] + maximum[1]) / 2
+    ];
+    const insideViewport = (value)=>value[0] >= center[0] - groundWidth / 2 - EPSILON && value[0] <= center[0] + groundWidth / 2 + EPSILON && value[1] >= center[1] - groundHeight / 2 - EPSILON && value[1] <= center[1] + groundHeight / 2 + EPSILON;
     const margin = Math.max(input.coordinateGrid.spacing * 0.12, 4 * input.scale / 1000);
     if (width + margin * 2 > groundWidth + EPSILON || height + margin * 2 > groundHeight + EPSILON) throw new KJValidationError('input.boundary does not fit ISO A3 landscape at the declared scale');
     const firstGridX = input.coordinateGrid.origin[0] + Math.ceil((minimum[0] - input.coordinateGrid.origin[0]) / input.coordinateGrid.spacing) * input.coordinateGrid.spacing;
@@ -398,33 +426,145 @@ export function buildAgentGeologyPlan(document, source) {
             sourceId: hole.id
         });
     }
+    const sectionSegmentCounts = new Map();
     for (const section of input.sectionLines){
         const positions = section.holeIds.map((id)=>input.holesById.get(id).position);
-        add('LWPOLYLINE', 'SECTIONS', {
+        const start = positions[0], end = positions.at(-1);
+        const angle = Math.atan2(end[1] - start[1], end[0] - start[0]) * 180 / Math.PI;
+        let sectionSegmentCount = 1;
+        if (section.markerClearance || section.endpointTailLengths?.some((value)=>value > 0)) {
+            sectionSegmentCount = 0;
+            const clearance = section.markerClearance ?? [
+                0,
+                0
+            ];
+            const tails = section.endpointTailLengths ?? [
+                0,
+                0
+            ];
+            const directions = [], distances = [];
+            for(let index = 0; index < positions.length - 1; index += 1){
+                const first = positions[index], second = positions[index + 1];
+                const distance = Math.hypot(second[0] - first[0], second[1] - first[1]);
+                if (distance <= EPSILON) throw new KJValidationError(`input.sectionLines ${section.id} contains coincident point positions`);
+                directions.push([
+                    (second[0] - first[0]) / distance,
+                    (second[1] - first[1]) / distance
+                ]);
+                distances.push(distance);
+            }
+            const clearanceDistance = (direction)=>section.markerClearance ? Math.min(Math.abs(direction[0]) <= EPSILON ? Infinity : clearance[0] / Math.abs(direction[0]), Math.abs(direction[1]) <= EPSILON ? Infinity : clearance[1] / Math.abs(direction[1])) : 0;
+            for(let index = 0; index < directions.length; index += 1){
+                const direction = directions[index], firstDistance = clearanceDistance(direction), secondDistance = clearanceDistance(direction);
+                if (firstDistance + secondDistance >= distances[index] - EPSILON) throw new KJValidationError(`input.sectionLines ${section.id} markerClearance leaves no visible segment between ${section.holeIds[index]} and ${section.holeIds[index + 1]}`);
+                const first = positions[index], second = positions[index + 1];
+                const vertices = [
+                    [
+                        first[0] + direction[0] * firstDistance,
+                        first[1] + direction[1] * firstDistance
+                    ],
+                    [
+                        second[0] - direction[0] * secondDistance,
+                        second[1] - direction[1] * secondDistance
+                    ]
+                ];
+                add('LWPOLYLINE', 'SECTIONS', {
+                    vertices: vertices.map(p3),
+                    closed: false,
+                    semanticRole: 'section-line',
+                    segmentRole: 'between-points',
+                    segmentIndex: index,
+                    sourceId: section.id,
+                    referencedHoleIds: [
+                        section.holeIds[index],
+                        section.holeIds[index + 1]
+                    ]
+                });
+                sectionSegmentCount += 1;
+            }
+            const startDirection = directions[0], endDirection = directions.at(-1);
+            const startClearance = clearanceDistance(startDirection), endClearance = clearanceDistance(endDirection);
+            if (tails[0] > 0) {
+                const vertices = [
+                    [
+                        start[0] - startDirection[0] * (startClearance + tails[0]),
+                        start[1] - startDirection[1] * (startClearance + tails[0])
+                    ],
+                    [
+                        start[0] - startDirection[0] * startClearance,
+                        start[1] - startDirection[1] * startClearance
+                    ]
+                ];
+                if (!vertices.every(insideViewport)) throw new KJValidationError(`input.sectionLines ${section.id} start tail must lie inside the declared model viewport`);
+                add('LWPOLYLINE', 'SECTIONS', {
+                    vertices: vertices.map(p3),
+                    closed: false,
+                    semanticRole: 'section-line',
+                    segmentRole: 'start-tail',
+                    sourceId: section.id,
+                    referencedHoleIds: [
+                        section.holeIds[0]
+                    ]
+                });
+                sectionSegmentCount += 1;
+            }
+            if (tails[1] > 0) {
+                const vertices = [
+                    [
+                        end[0] + endDirection[0] * endClearance,
+                        end[1] + endDirection[1] * endClearance
+                    ],
+                    [
+                        end[0] + endDirection[0] * (endClearance + tails[1]),
+                        end[1] + endDirection[1] * (endClearance + tails[1])
+                    ]
+                ];
+                if (!vertices.every(insideViewport)) throw new KJValidationError(`input.sectionLines ${section.id} end tail must lie inside the declared model viewport`);
+                add('LWPOLYLINE', 'SECTIONS', {
+                    vertices: vertices.map(p3),
+                    closed: false,
+                    semanticRole: 'section-line',
+                    segmentRole: 'end-tail',
+                    sourceId: section.id,
+                    referencedHoleIds: [
+                        section.holeIds.at(-1)
+                    ]
+                });
+                sectionSegmentCount += 1;
+            }
+        } else add('LWPOLYLINE', 'SECTIONS', {
             vertices: positions.map(p3),
             closed: false,
             semanticRole: 'section-line',
             sourceId: section.id,
             referencedHoleIds: section.holeIds
         });
-        const start = positions[0], end = positions.at(-1);
-        const angle = Math.atan2(end[1] - start[1], end[0] - start[0]) * 180 / Math.PI;
+        sectionSegmentCounts.set(section.id, sectionSegmentCount);
         const [startLabel, endLabel] = section.endpointLabels ?? [
             section.label,
             section.label
         ];
-        addText([
-            start[0],
-            start[1] + textHeight * 1.35
-        ], startLabel, textHeight, 'SECTIONS', angle, {
+        const defaultLabelPositions = [
+            [
+                start[0],
+                start[1] + textHeight * 1.35
+            ],
+            [
+                end[0],
+                end[1] + textHeight * 1.35
+            ]
+        ];
+        const [startLabelPosition, endLabelPosition] = section.endpointLabelPositions ?? defaultLabelPositions;
+        if (![
+            startLabelPosition,
+            endLabelPosition
+        ].every(insideViewport)) throw new KJValidationError(`input.sectionLines ${section.id} endpointLabelPositions must lie inside the declared model viewport`);
+        addText(startLabelPosition, startLabel, textHeight, 'SECTIONS', angle, {
             semanticRole: 'section-reference',
             sourceId: section.id,
             endpoint: 'start'
         });
-        addText([
-            end[0],
-            end[1] + textHeight * 1.35
-        ], endLabel, textHeight, 'SECTIONS', angle, {
+        addText(endLabelPosition, endLabel, textHeight, 'SECTIONS', angle, {
             semanticRole: 'section-reference',
             sourceId: section.id,
             endpoint: 'end'
@@ -475,10 +615,6 @@ export function buildAgentGeologyPlan(document, source) {
         maximum[1] + textHeight * 0.8
     ], input.locale === 'zh-CN' ? `图号 ${input.drawingId}${input.revision ? `  版本 ${input.revision}` : ''}  比例 1:${input.scale}` : `DRAWING ${input.drawingId}${input.revision ? `  REV ${input.revision}` : ''}  SCALE 1:${input.scale}`, textHeight * 0.82);
     if (entities.length + 1 > MAX_ENTITIES) throw new KJValidationError(`Geology plan expands to ${entities.length + 1} entities; maximum is ${MAX_ENTITIES}`);
-    const center = [
-        (minimum[0] + maximum[0]) / 2,
-        (minimum[1] + maximum[1]) / 2
-    ];
     const layoutName = `KJ_GEO_PLAN_${prefix.slice(8, 20).toUpperCase()}_A3`;
     const layout = {
         id: `${prefix}-layout`,
@@ -593,7 +729,17 @@ export function buildAgentGeologyPlan(document, source) {
                     ] : [
                         value.label,
                         value.label
-                    ]
+                    ],
+                    markerClearance: value.markerClearance ? [
+                        ...value.markerClearance
+                    ] : undefined,
+                    endpointTailLengths: value.endpointTailLengths ? [
+                        ...value.endpointTailLengths
+                    ] : undefined,
+                    endpointLabelPositions: value.endpointLabelPositions ? value.endpointLabelPositions.map((position)=>[
+                            ...position
+                        ]) : undefined,
+                    segmentCount: sectionSegmentCounts.get(value.id)
                 })),
             gridLineCount: gridXs.length + gridYs.length,
             coordinateBounds: {

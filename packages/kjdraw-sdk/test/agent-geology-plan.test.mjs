@@ -64,6 +64,38 @@ test('geology plan compiles true coordinates, investigation points and explicit 
   assert.equal(new Set(entities.map(entity => entity.options.id)).size, entities.length)
 })
 
+test('geology plan clips section lines to supplied marker envelopes and preserves supplied tails and label positions', () => {
+  const document = KJDocument.create({ documentId: 'geology-plan-section-envelope', units: 'meter' })
+  const compiled = buildAgentGeologyPlan(document, intent({
+    boundary: [[0, 0], [100, 0], [100, 80], [0, 80]],
+    boreholes: [
+      { id: 'P1', position: [20, 40], collarElevation: 100, depth: 20 },
+      { id: 'P2', position: [50, 40], collarElevation: 99.5, depth: 22 },
+      { id: 'P3', position: [80, 40], collarElevation: 99, depth: 24 },
+    ],
+    sectionLines: [{
+      id: 'section-explicit', holeIds: ['P1', 'P2', 'P3'], label: "A—A'", endpointLabels: ['A', "A'"],
+      markerClearance: [4, 3], endpointTailLengths: [6, 8], endpointLabelPositions: [[8, 48], [94, 48]],
+    }],
+    coordinateGrid: { origin: [0, 0], spacing: 20 },
+    northAngleDegrees: 0,
+  }))
+  const segments = compiled.commandArgs.entities.filter(entity => entity.payload.sourceId === 'section-explicit' && entity.payload.semanticRole === 'section-line')
+  assert.deepEqual(segments.map(entity => [entity.payload.segmentRole, entity.payload.vertices]), [
+    ['between-points', [[24, 40, 0], [46, 40, 0]]],
+    ['between-points', [[54, 40, 0], [76, 40, 0]]],
+    ['start-tail', [[10, 40, 0], [16, 40, 0]]],
+    ['end-tail', [[84, 40, 0], [92, 40, 0]]],
+  ])
+  const labels = compiled.commandArgs.entities.filter(entity => entity.payload.sourceId === 'section-explicit' && entity.payload.semanticRole === 'section-reference')
+  assert.deepEqual(labels.map(entity => [entity.payload.endpoint, entity.payload.position, entity.payload.text]), [
+    ['start', [8, 48, 0], 'A'], ['end', [94, 48, 0], "A'"],
+  ])
+  assert.deepEqual(compiled.evidence.sectionReferences[0].markerClearance, [4, 3])
+  assert.deepEqual(compiled.evidence.sectionReferences[0].endpointTailLengths, [6, 8])
+  assert.deepEqual(compiled.evidence.sectionReferences[0].endpointLabelPositions, [[8, 48], [94, 48]])
+  assert.equal(compiled.evidence.sectionReferences[0].segmentCount, 4)
+})
 test('geology plan is one atomic CREATEBATCH and survives undo, redo, KJD and DXF reopen', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'geology-plan-roundtrip', units: 'meter' })
   const compiled = buildAgentGeologyPlan(document, intent())
@@ -116,6 +148,11 @@ test('geology plan fails closed on stale revisions, unsafe coordinates and broke
   rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'missing'], label: 'X—X′' }] }, /unknown borehole/)
   rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK01'], label: 'X—X′' }] }, /must not repeat/)
   rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', endpointLabels: ['X'] }] }, /exactly 2 labels/)
+  rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', markerClearance: [4] }] }, /exactly two values/)
+  rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', markerClearance: [30, 30] }] }, /leaves no visible segment/)
+  rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', endpointTailLengths: [-1, 2] }] }, /finite number from 0/)
+  rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', endpointLabelPositions: [[385010, 3452010]] }] }, /exactly 2 points/)
+  rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', endpointLabelPositions: [[0, 0], [385050, 3452040]] }] }, /declared model viewport/)
   rejects({ coordinateGrid: { origin: [385000, 3452000], spacing: 1 } }, /more than 80 grid lines/)
   rejects({ boundary: [[385000, 3452000], [385300, 3452000], [385300, 3452200], [385000, 3452200]] }, /does not fit ISO A3/)
   assert.throws(() => buildAgentGeologyPlan(KJDocument.create({ units: 'millimeter' }), intent()), /meter units/)

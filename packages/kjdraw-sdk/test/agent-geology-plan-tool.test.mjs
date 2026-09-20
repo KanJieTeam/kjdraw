@@ -23,7 +23,7 @@ function intent(patch = {}) {
       { id: 'ZK03', position: [385115, 3452070], collarElevation: 419.96, depth: 32 },
     ],
     sectionLines: [
-      { id: 'section-1', holeIds: ['ZK01', 'ZK02', 'ZK03'], label: "1—1′", endpointLabels: ['1', "1′"] },
+      { id: 'section-1', holeIds: ['ZK01', 'ZK02', 'ZK03'], label: "1—1′", endpointLabels: ['1', "1′"], markerClearance: [4, 3], endpointTailLengths: [3, 3], endpointLabelPositions: [[385010, 3452010], [385125, 3452080]] },
       { id: 'section-2', holeIds: ['ZK01', 'ZK03'], label: "2—2′", endpointLabels: ['2', "2′"] },
     ],
     coordinateGrid: { origin: [385000, 3452000], spacing: 20 }, northAngleDegrees: -6,
@@ -42,6 +42,9 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
   assert.deepEqual(definition.inputSchema.properties.sectionLines.items.required, ['id', 'holeIds', 'label'])
   assert.equal(definition.inputSchema.properties.sectionLines.items.properties.endpointLabels.minItems, 2)
   assert.equal(definition.inputSchema.properties.sectionLines.items.properties.endpointLabels.maxItems, 2)
+  assert.equal(definition.inputSchema.properties.sectionLines.items.properties.markerClearance.items.exclusiveMinimum, 0)
+  assert.equal(definition.inputSchema.properties.sectionLines.items.properties.endpointTailLengths.items.minimum, 0)
+  assert.equal(definition.inputSchema.properties.sectionLines.items.properties.endpointLabelPositions.items.minItems, 2)
   const millimeterSdk = createKJDrawSDK(), millimeterDocument = millimeterSdk.createDocument({ units: 'millimeter' })
   assert.equal(new KJAgentToolSession(millimeterSdk, millimeterDocument).definitions.some(tool => tool.name === 'cad_propose_geology_plan'), false)
 
@@ -51,6 +54,10 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
   assert.equal(proposal.engineeringEvidence.skillId, 'geology-plan')
   assert.equal(proposal.engineeringEvidence.boreholeCount, 3)
   assert.equal(proposal.engineeringEvidence.sectionLineCount, 2)
+  assert.deepEqual(proposal.engineeringEvidence.sectionReferences[0].markerClearance, [4, 3])
+  assert.deepEqual(proposal.engineeringEvidence.sectionReferences[0].endpointTailLengths, [3, 3])
+  assert.deepEqual(proposal.engineeringEvidence.sectionReferences[0].endpointLabelPositions, [[385010, 3452010], [385125, 3452080]])
+  assert.equal(proposal.engineeringEvidence.sectionReferences[0].segmentCount, 4)
   assert.equal(document.serialize(), before)
   assert.equal(document.revision, 0)
   const receipt = accepted(await session.approve(proposal.planId, 'host-reviewer'))
@@ -86,6 +93,7 @@ test('geology plan tool fails closed before a plan on stale, broken or nonblank 
   for (const invalid of [
     intent({ expectedRevision: 1 }),
     intent({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'missing'], label: 'X—X′' }] }),
+    intent({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', endpointTailLengths: [-1, 2] }] }),
     intent({ scale: 333 }),
     { ...intent(), surprise: true },
   ]) {

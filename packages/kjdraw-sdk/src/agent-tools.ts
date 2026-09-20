@@ -392,7 +392,10 @@ const geologyPlanBoreholeSchema = objectWithOptional({
 const geologyPlanSectionLineSchema = objectWithOptional({
   id: { ...text, maxLength: 40 }, holeIds: { type: 'array', minItems: 2, maxItems: 24, items: { ...text, maxLength: 40 } }, label: { ...text, maxLength: 48 },
   endpointLabels: { type: 'array', minItems: 2, maxItems: 2, items: { ...text, maxLength: 24 } },
-}, ['endpointLabels'])
+  markerClearance: { type: 'array', minItems: 2, maxItems: 2, items: { type: 'number', exclusiveMinimum: 0, maximum: 1_000_000 } },
+  endpointTailLengths: { type: 'array', minItems: 2, maxItems: 2, items: { type: 'number', minimum: 0, maximum: 1_000_000 } },
+  endpointLabelPositions: { type: 'array', minItems: 2, maxItems: 2, items: numericTuple(2) },
+}, ['endpointLabels', 'markerClearance', 'endpointTailLengths', 'endpointLabelPositions'])
 const geologyPlanSchema = objectWithOptional({
   version: { type: 'string', enum: ['1.0.0'] }, expectedRevision: revision, units: { type: 'string', enum: ['meter'] },
   locale: { type: 'string', enum: ['zh-CN', 'en'] }, drawingId: { ...text, maxLength: 64 }, title: { ...text, maxLength: 96 }, revision: { ...text, maxLength: 32 },
