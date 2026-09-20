@@ -121,6 +121,41 @@ test('symmetric profile line directions preserve independent dash phases', () =>
   ]) assert.ok(lines.some(value => JSON.stringify(value) === JSON.stringify(expected)), JSON.stringify(expected))
 })
 
+test('independent projection axes support vertical stations and intentionally hidden axes', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), base = input(0)
+  const sideViewAxis = { stationRange: [30, 70], orientation: 'vertical', axisCoordinate: 320, axisDirection: 'reverse', symmetricProfiles: [{
+    vertices: [{ station: 30, radius: 10 }, { station: 40, radius: 12 }], endCaps: 'both',
+  }], outlineSegments: [{ kind: 'line', start: { station: 50, offset: 5 }, end: { station: 60, offset: 6 } }], sectionHatches: [{ solid: true, edges: [
+    { kind: 'line', start: { station: 45, offset: 2 }, end: { station: 45, offset: 6 } },
+    { kind: 'line', start: { station: 45, offset: 6 }, end: { station: 55, offset: 6 } },
+    { kind: 'line', start: { station: 55, offset: 6 }, end: { station: 55, offset: 2 } },
+    { kind: 'line', start: { station: 55, offset: 2 }, end: { station: 45, offset: 2 } },
+  ] }] }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...base, sideViewAxis })
+  const lines = proposal.commandArgs.entities.filter(entity => entity.type === 'LINE')
+  const hasLine = (start, end) => lines.some(entity => JSON.stringify([entity.payload.start, entity.payload.end]) === JSON.stringify([[...start, 0], [...end, 0]]))
+  assert.equal(hasLine([320, 70], [320, 30]), true)
+  assert.equal(hasLine([330, 30], [332, 40]), true)
+  assert.equal(hasLine([310, 30], [308, 40]), true)
+  assert.equal(hasLine([310, 30], [330, 30]), true)
+  assert.equal(hasLine([325, 50], [326, 60]), true)
+  const hatch = proposal.commandArgs.entities.find(entity => entity.type === 'HATCH')
+  assert.deepEqual(hatch.payload.boundaryLoops[0].edges[0], { type: 'LINE', start: [322, 45, 0], end: [326, 45, 0] })
+  assert.equal(proposal.evidence.parameters.sideViewOrientation, 'vertical')
+  assert.equal(proposal.evidence.parameters.sideViewAxisVisible, true)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  const dxf = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  assert.equal(kjd.listEntities({ type: 'HATCH' }).length, 1)
+  assert.equal(dxf.listEntities({ type: 'HATCH' }).length, 1)
+  const hidden = buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...base, sideViewAxis: { ...sideViewAxis, axisVisible: false } })
+  assert.equal(hidden.evidence.parameters.sideViewAxisVisible, false)
+  assert.equal(hidden.commandArgs.entities.filter(entity => entity.type === 'LINE').some(entity => JSON.stringify([entity.payload.start, entity.payload.end]) === JSON.stringify([[320, 70, 0], [320, 30, 0]])), false)
+  assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...base, sideViewAxis: { ...sideViewAxis, xRange: [30, 70] } }), /exactly one/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...base, sideViewAxis: { ...sideViewAxis, stationRange: undefined } }), /exactly one/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...base, sideViewAxis: { ...sideViewAxis, orientation: 'diagonal' } }), /orientation is invalid/u)
+})
+
 test('all ring, hole, projection-axis and grid positions respond to parameters', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const proposal = buildAgentMechanicalFlangeCore(document, input(document.revision))

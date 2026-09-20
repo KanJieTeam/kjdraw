@@ -380,20 +380,34 @@ function validate(document, source) {
     const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis');
     if (side) exact(side, [
         'xRange',
+        'stationRange',
+        'orientation',
+        'axisCoordinate',
+        'axisVisible',
         'axisDirection',
         'axisStyleKey',
         'symmetricProfiles',
         'outlineSegments',
         'sectionHatches'
     ], 'input.sideViewAxis');
-    const xRange = side ? point(side.xRange, 'input.sideViewAxis.xRange') : null;
+    if (side && side.xRange == null === (side.stationRange == null)) throw new KJValidationError('input.sideViewAxis requires exactly one of xRange or stationRange');
+    const rangeKey = side?.stationRange == null ? 'xRange' : 'stationRange';
+    const xRange = side ? point(side[rangeKey], 'input.sideViewAxis.' + rangeKey) : null;
+    const orientation = side?.orientation ?? 'horizontal';
+    if (![
+        'horizontal',
+        'vertical'
+    ].includes(orientation)) throw new KJValidationError('input.sideViewAxis.orientation is invalid');
+    const axisCoordinate = side ? finite(side.axisCoordinate ?? (orientation === 'horizontal' ? center[1] : center[0]), 'input.sideViewAxis.axisCoordinate', -1_000_000, 1_000_000) : null;
+    if (side?.axisVisible != null && typeof side.axisVisible !== 'boolean') throw new KJValidationError('input.sideViewAxis.axisVisible must be boolean');
+    const axisVisible = side != null && side.axisVisible !== false;
     const axisDirection = side?.axisDirection ?? 'forward';
     if (![
         'forward',
         'reverse'
     ].includes(axisDirection)) throw new KJValidationError('input.sideViewAxis.axisDirection is invalid');
     const axisStyleKey = side == null ? undefined : entityStyleKey(side.axisStyleKey, 'input.sideViewAxis.axisStyleKey');
-    if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.xRange must increase');
+    if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.' + rangeKey + ' must increase');
     if (side?.symmetricProfiles != null && !Array.isArray(side.symmetricProfiles)) throw new KJValidationError('input.sideViewAxis.symmetricProfiles must be an array');
     if (side?.symmetricProfiles?.length && side.symmetricProfiles.length > 64) throw new KJValidationError('input.sideViewAxis.symmetricProfiles exceed their budget');
     const symmetricProfiles = (side?.symmetricProfiles ?? []).map((value, profileIndex)=>{
@@ -1801,6 +1815,9 @@ function validate(document, source) {
         cuttingPlaneMarks,
         sideOutlineSegments,
         xRange,
+        orientation,
+        axisCoordinate,
+        axisVisible,
         axisDirection,
         axisStyleKey,
         symmetricProfiles,
@@ -2312,18 +2329,19 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             ], style.layerId, style.name);
         }
     }
-    if (input.xRange) {
-        const style = styled(input.axisStyleKey, 'center'), [startX, endX] = input.axisDirection === 'reverse' ? [
+    const projectSidePoint = (station, offset)=>input.orientation === 'vertical' ? [
+            input.axisCoordinate + offset,
+            station
+        ] : [
+            station,
+            input.axisCoordinate + offset
+        ];
+    if (input.xRange && input.axisVisible) {
+        const style = styled(input.axisStyleKey, 'center'), [start, end] = input.axisDirection === 'reverse' ? [
             input.xRange[1],
             input.xRange[0]
         ] : input.xRange;
-        line([
-            startX,
-            cy
-        ], [
-            endX,
-            cy
-        ], style.layerId, style.name);
+        line(projectSidePoint(start, 0), projectSidePoint(end, 0), style.layerId, style.name);
     }
     const directedProfileLine = (points, direction, layerId, styleName)=>line(direction === 'reverse' ? points[1] : points[0], direction === 'reverse' ? points[0] : points[1], layerId, styleName);
     for (const profile of input.symmetricProfiles){
@@ -2335,24 +2353,12 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 lower: 'forward'
             };
             const upper = [
-                [
-                    previous.station,
-                    cy + previous.radius
-                ],
-                [
-                    current.station,
-                    cy + current.radius
-                ]
+                projectSidePoint(previous.station, previous.radius),
+                projectSidePoint(current.station, current.radius)
             ];
             const lower = [
-                [
-                    previous.station,
-                    cy - previous.radius
-                ],
-                [
-                    current.station,
-                    cy - current.radius
-                ]
+                projectSidePoint(previous.station, -previous.radius),
+                projectSidePoint(current.station, -current.radius)
             ];
             directedProfileLine(upper, directions.upper, style.layerId, style.name);
             directedProfileLine(lower, directions.lower, style.layerId, style.name);
@@ -2360,49 +2366,31 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         const start = profile.vertices[0], end = profile.vertices.at(-1);
         if (profile.endCaps === 'start' || profile.endCaps === 'both') {
             const capStyle = styled(profile.startCapStyleKey ?? profile.styleKey, 'geometry'), points = [
-                [
-                    start.station,
-                    cy - start.radius
-                ],
-                [
-                    start.station,
-                    cy + start.radius
-                ]
+                projectSidePoint(start.station, -start.radius),
+                projectSidePoint(start.station, start.radius)
             ];
             directedProfileLine(points, profile.startCapDirection, capStyle.layerId, capStyle.name);
         }
         if (profile.endCaps === 'end' || profile.endCaps === 'both') {
             const capStyle = styled(profile.endCapStyleKey ?? profile.styleKey, 'geometry'), points = [
-                [
-                    end.station,
-                    cy - end.radius
-                ],
-                [
-                    end.station,
-                    cy + end.radius
-                ]
+                projectSidePoint(end.station, -end.radius),
+                projectSidePoint(end.station, end.radius)
             ];
             directedProfileLine(points, profile.endCapDirection, capStyle.layerId, capStyle.name);
         }
     }
     for (const segment of input.sideOutlineSegments){
         const style = styled(segment.styleKey, 'geometry');
-        if (segment.kind === 'line') line([
-            segment.start.station,
-            cy + segment.start.offset
-        ], [
-            segment.end.station,
-            cy + segment.end.offset
-        ], style.layerId, style.name);
+        if (segment.kind === 'line') line(projectSidePoint(segment.start.station, segment.start.offset), projectSidePoint(segment.end.station, segment.end.offset), style.layerId, style.name);
         else if (segment.kind === 'arc') emit('ARC', {
-            center: p3(segment.center.station, cy + segment.center.offset),
+            center: p3(...projectSidePoint(segment.center.station, segment.center.offset)),
             radius: segment.radius,
             startAngle: segment.startAngle,
             endAngle: segment.endAngle,
             layerId: style.layerId
         }, style.name);
         else emit('CIRCLE', {
-            center: p3(segment.center.station, cy + segment.center.offset),
+            center: p3(...projectSidePoint(segment.center.station, segment.center.offset)),
             radius: segment.radius,
             layerId: style.layerId
         }, style.name);
@@ -2416,11 +2404,11 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                     flags: 0,
                     edges: hatch.edges.map((edge)=>edge.kind === 'line' ? {
                             type: 'LINE',
-                            start: p3(edge.start.station, cy + edge.start.offset),
-                            end: p3(edge.end.station, cy + edge.end.offset)
+                            start: p3(...projectSidePoint(edge.start.station, edge.start.offset)),
+                            end: p3(...projectSidePoint(edge.end.station, edge.end.offset))
                         } : {
                             type: 'ARC',
-                            center: p3(edge.center.station, cy + edge.center.offset),
+                            center: p3(...projectSidePoint(edge.center.station, edge.center.offset)),
                             radius: edge.radius,
                             startAngle: edge.startAngle,
                             endAngle: edge.endAngle,
@@ -2848,6 +2836,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 holeCount: input.holePatterns.reduce((sum, pattern)=>sum + pattern.count, input.pitch == null ? 0 : 4),
                 titleGrid: input.titleGrid != null,
                 sideViewAxis: input.xRange != null,
+                sideViewOrientation: input.orientation,
+                sideViewAxisVisible: input.axisVisible,
                 outlineSegmentCount: input.outlineSegments.length,
                 cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
                 symmetricProfileCount: input.symmetricProfiles.length,
