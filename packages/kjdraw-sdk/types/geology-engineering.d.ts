@@ -11,6 +11,12 @@ export interface KJGeologyStratum {
     groupRole?: 'principal' | 'lens';
     code: string;
     name: string;
+    /** Source-backed geologic notation displayed with the stratum name; qualifiers are never inferred. */
+    stratigraphicNotation?: {
+        symbol: string;
+        subscript?: string;
+        superscript?: string;
+    };
     top: number;
     bottom: number;
     lithology: 'fill' | 'cultivated-soil' | 'clay' | 'silty-clay' | 'silt' | 'sand' | 'gravel' | 'rock' | 'weathered-rock' | 'loess' | 'loess-collapsible' | 'loess-like' | 'paleosol' | 'calcareous-nodule';

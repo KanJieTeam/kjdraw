@@ -16,6 +16,8 @@ export interface KJGeologyStratum {
   groupRole?: 'principal' | 'lens'
   code: string
   name: string
+  /** Source-backed geologic notation displayed with the stratum name; qualifiers are never inferred. */
+  stratigraphicNotation?: { symbol: string; subscript?: string; superscript?: string }
   top: number
   bottom: number
   lithology: 'fill' | 'cultivated-soil' | 'clay' | 'silty-clay' | 'silt' | 'sand' | 'gravel' | 'rock' | 'weathered-rock' | 'loess' | 'loess-collapsible' | 'loess-like' | 'paleosol' | 'calcareous-nodule'
@@ -174,6 +176,7 @@ interface ColumnLayout {
   layerNumberStyle: 'plain' | 'circle'
   textFlow?: { firstGroupBorrowMm: number; firstGroupUnruled: boolean; firstBaselineMm: number; labelPitchMm: number; labelHeightMm: number; paragraphGapMm: number }
   textHeights?: { headerFact: number; fieldHeader: number; fieldSubHeader: number; majorValue: number; intervalDepth: number; observation: number }
+  stratigraphicNotationStyle?: { symbolHeight: number; qualifierHeight: number }
   verticalScaleDenominators: number[]
   sourceTemplate?: { sourceId: string; sourceSha256: string; verticalScaleDenominator: number; innerGridWidthMillimeters: number; fieldRoles: string[]; footerLabels: string[]; gridLineHandles: string[] }
 }
@@ -260,7 +263,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -444,6 +447,18 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: role text heights do not fit the declared rows')
     textHeights = parsedTextHeights
   }
+  let stratigraphicNotationStyle: ColumnLayout['stratigraphicNotationStyle']
+  if (value.stratigraphicNotationStyle != null) {
+    if (!isFieldGrid || !value.stratigraphicNotationStyle || typeof value.stratigraphicNotationStyle !== 'object' || Array.isArray(value.stratigraphicNotationStyle) ||
+      Object.keys(value.stratigraphicNotationStyle).sort().join(',') !== 'qualifierHeight,symbolHeight')
+      throw new KJValidationError('Geology: stratigraphic notation style needs an exact declarative field-grid schema')
+    const rule = value.stratigraphicNotationStyle as Record<string, unknown>
+    const symbolHeight = numeric(rule.symbolHeight, 'stratigraphic notation symbol height')
+    const qualifierHeight = numeric(rule.qualifierHeight, 'stratigraphic notation qualifier height')
+    if (symbolHeight < 1.5 || symbolHeight > 5 || qualifierHeight < 1 || qualifierHeight > symbolHeight)
+      throw new KJValidationError('Geology: stratigraphic notation text heights are unreadable')
+    stratigraphicNotationStyle = { symbolHeight, qualifierHeight }
+  }
   let verticalScaleDenominators = [...defaultColumnVerticalScales]
   if (value.verticalScaleDenominators != null) {
     if (!Array.isArray(value.verticalScaleDenominators) || value.verticalScaleDenominators.length < 1 || value.verticalScaleDenominators.length > 16)
@@ -490,7 +505,8 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   }
   return { paperWidth, paperHeight, left, right, columns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, legendMode, layerNumberStyle, titleHeight, verticalScaleDenominators, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
     ...(observationColumns ? { observationColumns } : {}), labels,
-    ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}), ...(sourceTemplate ? { sourceTemplate } : {}) }
+    ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}),
+    ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sourceTemplate ? { sourceTemplate } : {}) }
 }
 
 function sectionLayout(input: KJGeologySectionInput): SectionLayout {
@@ -554,7 +570,9 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
       }
       if (layer.groupRole === 'principal') {
         const prior = principals.get(groupId)
-        if (prior && (prior.code !== layer.code || prior.name !== layer.name || prior.lithology !== layer.lithology || prior.patternKey !== layer.patternKey)) throw new KJValidationError('Geology: repeated principal intervals disagree on the major group identity')
+        if (prior && (prior.code !== layer.code || prior.name !== layer.name || prior.lithology !== layer.lithology || prior.patternKey !== layer.patternKey ||
+          JSON.stringify(prior.stratigraphicNotation) !== JSON.stringify(layer.stratigraphicNotation)))
+          throw new KJValidationError('Geology: repeated principal intervals disagree on the major group identity')
         principals.set(groupId, layer)
       }
     } else if (layer.groupId != null || layer.groupRole != null) throw new KJValidationError('Geology: incomplete source group hierarchy')
@@ -564,6 +582,14 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
       intervalIds.add(id)
     }
     bounded(layer.name, 'stratum name')
+    if (layer.stratigraphicNotation != null) {
+      if (!layer.stratigraphicNotation || typeof layer.stratigraphicNotation !== 'object' || Array.isArray(layer.stratigraphicNotation) ||
+        !['symbol', 'subscript,symbol', 'superscript,symbol', 'subscript,superscript,symbol'].includes(Object.keys(layer.stratigraphicNotation).sort().join(',')))
+        throw new KJValidationError('Geology: stratigraphic notation needs an exact symbol/qualifier schema')
+      bounded(layer.stratigraphicNotation.symbol, 'stratigraphic notation symbol', 12)
+      if (layer.stratigraphicNotation.subscript != null) bounded(layer.stratigraphicNotation.subscript, 'stratigraphic notation subscript', 12)
+      if (layer.stratigraphicNotation.superscript != null) bounded(layer.stratigraphicNotation.superscript, 'stratigraphic notation superscript', 12)
+    }
     if (layer.description != null) bounded(layer.description, 'stratum description', 96)
     if (layer.descriptionSource != null && (!layer.description || !['interval', 'layer-definition'].includes(layer.descriptionSource))) throw new KJValidationError('Geology: description source requires exact interval or layer-definition provenance')
     const top = numeric(layer.top, 'stratum top'), bottom = numeric(layer.bottom, 'stratum bottom')
@@ -663,7 +689,10 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const { hole } = input, strata = checkHole(hole)
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
-    headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, layerNumberStyle, sourceTemplate } = layout
+    headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights,
+    stratigraphicNotationStyle, layerNumberStyle, sourceTemplate } = layout
+  if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
+    throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style')
   const documentFacts = documentFactRecord(input.documentFacts)
   const declaredDocumentFactKeys = new Set([...(headerGrid?.rows.flat().filter((cell): cell is Extract<HeaderCell, { role: 'documentFact' }> => cell.role === 'documentFact').map(cell => cell.key) ?? []),
     ...(footerGrid?.cells.map(cell => cell.key) ?? [])])
@@ -865,6 +894,40 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       textBoxes.push({ role: item.role, left: x - radius - 0.2, right: x + radius + 0.2,
         bottom: y - radius - 0.2, top: y + radius + 0.2 })
     }
+    const emitLayerName = (item: typeof fieldGrid[number], layer: KJGeologyStratum, yTop: number, yBottom: number,
+      y: number, value: string, height: number): void => {
+      const notation = layer.stratigraphicNotation
+      if (!notation) return emitFieldText(item, y, value, height)
+      const style = stratigraphicNotationStyle!
+      const nameHeight = Math.min(height, yTop - yBottom - style.symbolHeight - 1)
+      if (nameHeight < 1.2) throw new KJValidationError(`Geology: stratigraphic notation for ${layer.code} does not fit its declared band`)
+      emitFieldText(item, yTop - nameHeight - 0.2, value, nameHeight)
+      const factor = item.textWidthFactor ?? 1
+      const symbolWidth = estimatedWidth(notation.symbol, style.symbolHeight) * factor
+      const qualifierWidth = Math.max(...[notation.subscript, notation.superscript].filter((part): part is string => part != null)
+        .map(part => estimatedWidth(part, style.qualifierHeight) * factor), 0)
+      const qualifierGap = qualifierWidth ? 0.3 : 0
+      const width = symbolWidth + qualifierGap + qualifierWidth
+      if (width > fieldWidth(item) - 2.4) throw new KJValidationError(`Geology: stratigraphic notation for ${layer.code} does not fit its declared field`)
+      const start = item.start + (fieldWidth(item) - width) / 2, symbolX = start + symbolWidth / 2
+      const symbolY = yBottom + 0.5
+      g.text(3, symbolX, symbolY, notation.symbol, style.symbolHeight, true, item.textWidthFactor)
+      textBoxes.push({ role: item.role, left: start - 0.25, right: start + symbolWidth + 0.25,
+        bottom: symbolY - 0.25, top: symbolY + style.symbolHeight + 0.25 })
+      const qualifierX = start + symbolWidth + qualifierGap
+      if (notation.subscript) {
+        const qualifierY = symbolY - style.qualifierHeight * 0.3
+        g.text(3, qualifierX, qualifierY, notation.subscript, style.qualifierHeight, false, item.textWidthFactor)
+        textBoxes.push({ role: item.role, left: qualifierX - 0.25, right: qualifierX + qualifierWidth + 0.25,
+          bottom: qualifierY - 0.25, top: qualifierY + style.qualifierHeight + 0.25 })
+      }
+      if (notation.superscript) {
+        const qualifierY = symbolY + style.symbolHeight - style.qualifierHeight
+        g.text(3, qualifierX, qualifierY, notation.superscript, style.qualifierHeight, false, item.textWidthFactor)
+        textBoxes.push({ role: item.role, left: qualifierX - 0.25, right: qualifierX + qualifierWidth + 0.25,
+          bottom: qualifierY - 0.25, top: qualifierY + style.qualifierHeight + 0.25 })
+      }
+    }
     let previousDescriptionBottom: number | undefined, previousLabelY: number | undefined, renderedCoreCount = 0
     const firstGroupBottom = (grouped ? groups[0]!.bottom : strata[0]!.bottom)
     const nextGroupBottom = grouped ? groups[1]?.bottom : strata[1]?.bottom
@@ -929,8 +992,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         ? Math.max(yTop - yBottom, textFlow.firstBaselineMm + textFlow.labelHeightMm + 1)
         : yTop - yBottom
       emitLayerNumber(field('layerNumber'), valueY, values.layerNumber!, numberBandHeight)
-      for (const role of ['layerName', 'baseElevation', 'thickness'] as const)
-        emitFieldText(field(role), valueY, values[role]!, labelHeight)
+      emitLayerName(field('layerName'), principal, yTop, yBottom, valueY, values.layerName!, labelHeight)
+      for (const role of ['baseElevation', 'thickness'] as const) emitFieldText(field(role), valueY, values[role]!, labelHeight)
       if (principal.description && (grouped || principal.descriptionSource !== 'layer-definition' ||
         definitionAnchors.get(`${principal.code}\u0000${principal.description}`) === principal))
         writeGridDescription(principal.description, yTop, yBottom, coreIndex, `major group ${id}`)

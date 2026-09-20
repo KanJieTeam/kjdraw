@@ -260,6 +260,7 @@ function columnLayout(input) {
             'titleHeight',
             'textFlow',
             'textHeights',
+            'stratigraphicNotationStyle',
             'verticalScaleDenominators',
             'sourceTemplate'
         ].includes(key)) || expectedKeys.some((key)=>!keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns');
@@ -531,6 +532,18 @@ function columnLayout(input) {
         if (Object.values(parsedTextHeights).some((height)=>height < 1.2 || height > 5) || parsedTextHeights.headerFact > headerRowHeight - 1 || parsedTextHeights.fieldHeader + parsedTextHeights.fieldSubHeader + 0.8 > fieldHeaderHeight) throw new KJValidationError('Geology: role text heights do not fit the declared rows');
         textHeights = parsedTextHeights;
     }
+    let stratigraphicNotationStyle;
+    if (value.stratigraphicNotationStyle != null) {
+        if (!isFieldGrid || !value.stratigraphicNotationStyle || typeof value.stratigraphicNotationStyle !== 'object' || Array.isArray(value.stratigraphicNotationStyle) || Object.keys(value.stratigraphicNotationStyle).sort().join(',') !== 'qualifierHeight,symbolHeight') throw new KJValidationError('Geology: stratigraphic notation style needs an exact declarative field-grid schema');
+        const rule = value.stratigraphicNotationStyle;
+        const symbolHeight = numeric(rule.symbolHeight, 'stratigraphic notation symbol height');
+        const qualifierHeight = numeric(rule.qualifierHeight, 'stratigraphic notation qualifier height');
+        if (symbolHeight < 1.5 || symbolHeight > 5 || qualifierHeight < 1 || qualifierHeight > symbolHeight) throw new KJValidationError('Geology: stratigraphic notation text heights are unreadable');
+        stratigraphicNotationStyle = {
+            symbolHeight,
+            qualifierHeight
+        };
+    }
     let verticalScaleDenominators = [
         ...defaultColumnVerticalScales
     ];
@@ -610,6 +623,9 @@ function columnLayout(input) {
         } : {},
         ...textHeights ? {
             textHeights
+        } : {},
+        ...stratigraphicNotationStyle ? {
+            stratigraphicNotationStyle
         } : {},
         ...sourceTemplate ? {
             sourceTemplate
@@ -699,7 +715,7 @@ function checkHole(hole) {
             }
             if (layer.groupRole === 'principal') {
                 const prior = principals.get(groupId);
-                if (prior && (prior.code !== layer.code || prior.name !== layer.name || prior.lithology !== layer.lithology || prior.patternKey !== layer.patternKey)) throw new KJValidationError('Geology: repeated principal intervals disagree on the major group identity');
+                if (prior && (prior.code !== layer.code || prior.name !== layer.name || prior.lithology !== layer.lithology || prior.patternKey !== layer.patternKey || JSON.stringify(prior.stratigraphicNotation) !== JSON.stringify(layer.stratigraphicNotation))) throw new KJValidationError('Geology: repeated principal intervals disagree on the major group identity');
                 principals.set(groupId, layer);
             }
         } else if (layer.groupId != null || layer.groupRole != null) throw new KJValidationError('Geology: incomplete source group hierarchy');
@@ -709,6 +725,17 @@ function checkHole(hole) {
             intervalIds.add(id);
         }
         bounded(layer.name, 'stratum name');
+        if (layer.stratigraphicNotation != null) {
+            if (!layer.stratigraphicNotation || typeof layer.stratigraphicNotation !== 'object' || Array.isArray(layer.stratigraphicNotation) || ![
+                'symbol',
+                'subscript,symbol',
+                'superscript,symbol',
+                'subscript,superscript,symbol'
+            ].includes(Object.keys(layer.stratigraphicNotation).sort().join(','))) throw new KJValidationError('Geology: stratigraphic notation needs an exact symbol/qualifier schema');
+            bounded(layer.stratigraphicNotation.symbol, 'stratigraphic notation symbol', 12);
+            if (layer.stratigraphicNotation.subscript != null) bounded(layer.stratigraphicNotation.subscript, 'stratigraphic notation subscript', 12);
+            if (layer.stratigraphicNotation.superscript != null) bounded(layer.stratigraphicNotation.superscript, 'stratigraphic notation superscript', 12);
+        }
         if (layer.description != null) bounded(layer.description, 'stratum description', 96);
         if (layer.descriptionSource != null && (!layer.description || ![
             'interval',
@@ -965,7 +992,8 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
 export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
-    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, layerNumberStyle, sourceTemplate } = layout;
+    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, stratigraphicNotationStyle, layerNumberStyle, sourceTemplate } = layout;
+    if (strata.some((layer)=>layer.stratigraphicNotation != null) && !stratigraphicNotationStyle) throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style');
     const documentFacts = documentFactRecord(input.documentFacts);
     const declaredDocumentFactKeys = new Set([
         ...headerGrid?.rows.flat().filter((cell)=>cell.role === 'documentFact').map((cell)=>cell.key) ?? [],
@@ -1234,6 +1262,56 @@ export function compileGeologyColumn(input) {
                 top: y + radius + 0.2
             });
         };
+        const emitLayerName = (item, layer, yTop, yBottom, y, value, height)=>{
+            const notation = layer.stratigraphicNotation;
+            if (!notation) return emitFieldText(item, y, value, height);
+            const style = stratigraphicNotationStyle;
+            const nameHeight = Math.min(height, yTop - yBottom - style.symbolHeight - 1);
+            if (nameHeight < 1.2) throw new KJValidationError(`Geology: stratigraphic notation for ${layer.code} does not fit its declared band`);
+            emitFieldText(item, yTop - nameHeight - 0.2, value, nameHeight);
+            const factor = item.textWidthFactor ?? 1;
+            const symbolWidth = estimatedWidth(notation.symbol, style.symbolHeight) * factor;
+            const qualifierWidth = Math.max(...[
+                notation.subscript,
+                notation.superscript
+            ].filter((part)=>part != null).map((part)=>estimatedWidth(part, style.qualifierHeight) * factor), 0);
+            const qualifierGap = qualifierWidth ? 0.3 : 0;
+            const width = symbolWidth + qualifierGap + qualifierWidth;
+            if (width > fieldWidth(item) - 2.4) throw new KJValidationError(`Geology: stratigraphic notation for ${layer.code} does not fit its declared field`);
+            const start = item.start + (fieldWidth(item) - width) / 2, symbolX = start + symbolWidth / 2;
+            const symbolY = yBottom + 0.5;
+            g.text(3, symbolX, symbolY, notation.symbol, style.symbolHeight, true, item.textWidthFactor);
+            textBoxes.push({
+                role: item.role,
+                left: start - 0.25,
+                right: start + symbolWidth + 0.25,
+                bottom: symbolY - 0.25,
+                top: symbolY + style.symbolHeight + 0.25
+            });
+            const qualifierX = start + symbolWidth + qualifierGap;
+            if (notation.subscript) {
+                const qualifierY = symbolY - style.qualifierHeight * 0.3;
+                g.text(3, qualifierX, qualifierY, notation.subscript, style.qualifierHeight, false, item.textWidthFactor);
+                textBoxes.push({
+                    role: item.role,
+                    left: qualifierX - 0.25,
+                    right: qualifierX + qualifierWidth + 0.25,
+                    bottom: qualifierY - 0.25,
+                    top: qualifierY + style.qualifierHeight + 0.25
+                });
+            }
+            if (notation.superscript) {
+                const qualifierY = symbolY + style.symbolHeight - style.qualifierHeight;
+                g.text(3, qualifierX, qualifierY, notation.superscript, style.qualifierHeight, false, item.textWidthFactor);
+                textBoxes.push({
+                    role: item.role,
+                    left: qualifierX - 0.25,
+                    right: qualifierX + qualifierWidth + 0.25,
+                    bottom: qualifierY - 0.25,
+                    top: qualifierY + style.qualifierHeight + 0.25
+                });
+            }
+        };
         let previousDescriptionBottom, previousLabelY, renderedCoreCount = 0;
         const firstGroupBottom = grouped ? groups[0].bottom : strata[0].bottom;
         const nextGroupBottom = grouped ? groups[1]?.bottom : strata[1]?.bottom;
@@ -1306,8 +1384,8 @@ export function compileGeologyColumn(input) {
             const valueY = textFlow && coreIndex < 2 ? labelY : yTop - yBottom < 2 ? labelY : mid;
             const numberBandHeight = textFlow && coreIndex === 0 ? Math.max(yTop - yBottom, textFlow.firstBaselineMm + textFlow.labelHeightMm + 1) : yTop - yBottom;
             emitLayerNumber(field('layerNumber'), valueY, values.layerNumber, numberBandHeight);
+            emitLayerName(field('layerName'), principal, yTop, yBottom, valueY, values.layerName, labelHeight);
             for (const role of [
-                'layerName',
                 'baseElevation',
                 'thickness'
             ])emitFieldText(field(role), valueY, values[role], labelHeight);

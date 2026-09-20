@@ -241,11 +241,14 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
       fieldHeaderHeight: 10, footerReserve: 15, titleHeight: 10, verticalScaleDenominators: [100],
       fieldGrid, headerGrid: { rows: physicalRows }, legendMode: 'none', textHeights: {
         headerFact: 3, fieldHeader: 3, fieldSubHeader: 2.5, majorValue: 3, intervalDepth: 2.5, observation: 2,
-      },
+      }, stratigraphicNotationStyle: { symbolHeight: 3, qualifierHeight: 1.5 },
     } } })
   const source = { ...hole('PHYS-1', 0, 123.45, [0.6, 4, 18]), x: 123456.78, y: 654321.09,
     startDate: '2026-01-02', endDate: '2026-01-03', initialWaterDepth: 2.5, stableWaterDepth: 3 }
   source.strata[0].name = 'Fill'; source.strata[1].name = 'Clay'; source.strata[2].name = 'Sand'
+  source.strata[0].stratigraphicNotation = { symbol: 'Q', subscript: '4', superscript: 'ml' }
+  source.strata[1].stratigraphicNotation = { symbol: 'Q', subscript: '3' }
+  source.strata[2].stratigraphicNotation = { symbol: 'N', superscript: 'al' }
   source.observations = [{ kind: 'sample', id: 'S1', depth: 5 }]
   const input = { hole: source, projectName: 'Project A', documentFacts: { projectCode: 'P-18' },
     verticalScaleDenominator: 100, expectedRevision: 0, columnStylePack: style }
@@ -253,8 +256,10 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const texts = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT')
   for (const [value, x] of [['P-18', 127], ['PHYS-1', 167], ['2.50', 127], ['3.00', 167]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x), `${value} at ${x}`)
-  for (const [value, height] of [['Project', 3], ['Pattern', 3], ['1:100', 2.5], ['Fill', 3], ['0.60', 2.5], ['S1', 2]])
+  for (const [value, height] of [['Project', 3], ['Pattern', 3], ['1:100', 2.5], ['Fill', 2], ['0.60', 2.5], ['S1', 2]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} height ${height}`)
+  for (const [value, height] of [['Q', 3], ['4', 1.5], ['ml', 1.5], ['3', 1.5], ['N', 3], ['al', 1.5]])
+    assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} notation height ${height}`)
   const headerBottom = 245, headerTop = 260
   const vertical = compiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
     entity.payload.start[0] === entity.payload.end[0] && entity.payload.start[1] >= headerBottom && entity.payload.end[1] <= headerTop)
@@ -262,9 +267,13 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
   const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
-  const reopened = await sdk.readDocument(dxf, { format: 'DXF' })
-  assert.equal(reopened.validate().valid, true)
-  assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === '2.50'))
+  const kjd = await sdk.writeDocument(document, { format: 'KJD', version: '1' })
+  const reopened = await sdk.readDocument(dxf, { format: 'DXF' }), reopenedKjd = await sdk.readDocument(kjd, { format: 'KJD' })
+  assert.equal(reopened.validate().valid, true); assert.equal(reopenedKjd.validate().valid, true)
+  for (const value of ['2.50', 'Q', 'ml']) {
+    assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `DXF ${value}`)
+    assert.ok(reopenedKjd.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `KJD ${value}`)
+  }
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
     'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); xs=sorted({round(e.dxf.start.x,6) for e in m.query("LINE") if abs(e.dxf.start.x-e.dxf.end.x)<1e-9 and e.dxf.start.y>=245 and e.dxf.end.y<=260}); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"xs":xs,"texts":[e.dxf.text for e in m.query("TEXT")]},ensure_ascii=False))'],
   dxf, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
@@ -277,7 +286,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     const report = JSON.parse(independent.stdout)
     assert.deepEqual([report.errors, report.fixes], [0, 0])
     for (const x of [25, 55, 75, 105, 125, 145, 165]) assert.ok(report.xs.includes(x), `ezdxf header x=${x}`)
-    for (const value of ['2.50', '3.00']) assert.ok(report.texts.includes(value), `ezdxf ${value}`)
+    for (const value of ['2.50', '3.00', 'Q', 'ml']) assert.ok(report.texts.includes(value), `ezdxf ${value}`)
   }
   const partial = structuredClone(input)
   delete partial.columnStylePack.rules['geology-column-layout'].headerGrid.rows[0][1].valueStart
@@ -291,6 +300,12 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const oversizedText = structuredClone(input)
   oversizedText.columnStylePack.rules['geology-column-layout'].textHeights.headerFact = 5
   assert.throws(() => compileGeologyColumn(oversizedText), /do not fit the declared rows/u)
+  const missingNotationStyle = structuredClone(input)
+  delete missingNotationStyle.columnStylePack.rules['geology-column-layout'].stratigraphicNotationStyle
+  assert.throws(() => compileGeologyColumn(missingNotationStyle), /notation facts need a declared/u)
+  const malformedNotation = structuredClone(input)
+  malformedNotation.hole.strata[0].stratigraphicNotation.extra = 'invented'
+  assert.throws(() => compileGeologyColumn(malformedNotation), /exact symbol\/qualifier schema/u)
 })
 
 test('bundled Chinese column header renders the selected physical vertical scale as visible native text', () => {
