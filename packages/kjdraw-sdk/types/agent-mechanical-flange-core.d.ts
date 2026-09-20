@@ -712,6 +712,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             sectionHatchCount: number;
             auxiliaryHatchCount: number;
             auxiliaryLineCount: number;
+            auxiliaryLineBudget: number;
             auxiliaryPointCount: number;
             pointDisplay: KJFlangePointDisplay | null;
             auxiliarySolidCount: number;

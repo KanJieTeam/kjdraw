@@ -5,6 +5,7 @@ import { KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK } from './knowledge-packs/
 import { stableHash } from './utils.js'
 
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
+const MAX_AUXILIARY_LINES = 1024
 type Point2 = [number, number]
 type Point3 = [number, number, number]
 type Point2Or3 = Point2 | Point3
@@ -1047,7 +1048,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     return { position: point(item.position, `${label}.position`), role: item.role as KJFlangeAuxiliaryLine['role'], ...(styleKey == null ? {} : { styleKey }) }
   })
   if (input.auxiliaryLines != null && !Array.isArray(input.auxiliaryLines)) throw new KJValidationError('input.auxiliaryLines must be an array')
-  if ((input.auxiliaryLines as unknown[] | undefined)?.length && (input.auxiliaryLines as unknown[]).length > 256) throw new KJValidationError('input.auxiliaryLines exceed their budget')
+  if ((input.auxiliaryLines as unknown[] | undefined)?.length && (input.auxiliaryLines as unknown[]).length > MAX_AUXILIARY_LINES) throw new KJValidationError(`input.auxiliaryLines exceed their ${MAX_AUXILIARY_LINES}-line budget`)
   const auxiliaryLines: KJFlangeAuxiliaryLine[] = ((input.auxiliaryLines ?? []) as unknown[]).map((value, index) => {
     const label = `input.auxiliaryLines[${index}]`, line = plain(value, label); exact(line, ['start', 'end', 'role', 'styleKey'], label)
     if (!['geometry', 'center', 'hidden', 'notes', 'grid', 'frame'].includes(line.role as string)) throw new KJValidationError(`${label}.role is invalid`)
@@ -1638,7 +1639,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1), holeCount: input.holePatterns.reduce((sum, pattern) => sum + pattern.count, input.pitch == null ? 0 : 4), titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null, sideViewOrientation: input.orientation, sideViewAxisVisible: input.axisVisible,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
-        sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryPointCount: input.auxiliaryPoints.length, pointDisplay: input.pointDisplay, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryWipeoutCount: input.auxiliaryWipeouts.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
+        sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryLineBudget: MAX_AUXILIARY_LINES, auxiliaryPointCount: input.auxiliaryPoints.length, pointDisplay: input.pointDisplay, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryWipeoutCount: input.auxiliaryWipeouts.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
         symbolDefinitionCount: input.symbolDefinitions.length, symbolInstanceCount: input.symbolInstances.length, symbolAttributeCount: input.symbolAttributeCount, featureControlFrameCount: input.featureControlFrames.length,
         entityStyleCount: input.customStyles.length, textStyleCount: input.textStyles.length, dimensionStyleCount: input.dimensionStyles.length,
         noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },

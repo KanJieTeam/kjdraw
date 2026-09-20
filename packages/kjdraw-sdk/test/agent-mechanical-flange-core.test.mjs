@@ -549,6 +549,23 @@ test('bounded semantic auxiliary lines compile as native LINE entities', async (
   assert.ok(dxf.listEntities({ type: 'LINE' }).some(line => JSON.stringify(line.payload.start) === '[10,12,0]' && JSON.stringify(line.payload.end) === '[34,12,0]'))
 })
 
+test('auxiliary line budget accepts 1024 and atomically rejects 1025', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const makeLines = count => Array.from({ length: count }, (_, index) => ({ start: [index, 5000], end: [index, 5001], role: 'geometry' }))
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryLines: makeLines(1024) })
+  assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1024)
+  assert.equal(proposal.evidence.parameters.auxiliaryLineBudget, 1024)
+  assert.equal(proposal.commandArgs.entities.filter(entity => entity.type === 'LINE' && entity.payload.start[1] === 5000 && entity.payload.end[1] === 5001).length, 1024)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const [kjd, dxf] = await Promise.all([
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' }),
+  ])
+  for (const reopened of [kjd, dxf]) assert.equal(reopened.listEntities({ type: 'LINE' }).filter(entity => entity.payload.start[1] === 5000 && entity.payload.end[1] === 5001).length, 1024)
+  const before = document.serialize()
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryLines: makeLines(1025) }), /1024-line budget/u)
+  assert.equal(document.serialize(), before)
+})
 test('bounded semantic auxiliary curves compile as native editable CAD entities', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves: [
