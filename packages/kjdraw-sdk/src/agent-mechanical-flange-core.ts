@@ -425,7 +425,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   const end = plain(input.endView, 'input.endView'); exact(end, ['center', 'ringRadii', 'ringStyleKeys', 'squareHoles', 'holePatterns', 'outlineSegments', 'cuttingPlaneMarks'], 'input.endView')
   const center = point(end.center, 'input.endView.center')
   const ringRadii = increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000)
-  if (ringRadii.length < 2) throw new KJValidationError('input.endView.ringRadii requires at least two radii')
+  if (ringRadii.length < 1) throw new KJValidationError('input.endView.ringRadii requires at least one radius')
   if (end.ringStyleKeys != null && (!Array.isArray(end.ringStyleKeys) || end.ringStyleKeys.length !== ringRadii.length)) throw new KJValidationError('input.endView.ringStyleKeys must match ringRadii')
   const ringStyleKeys = end.ringStyleKeys == null ? ringRadii.map(() => undefined) : end.ringStyleKeys.map((value, index) => entityStyleKey(value, `input.endView.ringStyleKeys[${index}]`))
   let pitch: number | undefined, radius: number | undefined

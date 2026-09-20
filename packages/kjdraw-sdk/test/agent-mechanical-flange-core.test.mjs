@@ -207,6 +207,34 @@ test('end-view hole patterns support arbitrary bounded polar arrays without a le
   assert.throws(()=>buildAgentMechanicalFlangeCore(document,{...source,endView:{...source.endView,squareHoles:undefined,holePatterns:[{count:4,pitchRadius:2,holeRadius:2}]}}),/must exceed/u)
 })
 
+test('single-ring end views remain native and bounded across KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...source, endView: { ...source.endView, ringRadii: [40] } })
+  assert.equal(proposal.evidence.parameters.ringCount, 1)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const centeredRings = drawing => drawing.listEntities({ type: 'CIRCLE' }).filter(entity =>
+    Math.abs(entity.payload.center[0] - 90) < 1e-9 && Math.abs(entity.payload.center[1] - 150) < 1e-9)
+  assert.equal(centeredRings(document).length, 1)
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
+  assert.equal(centeredRings(kjd).length, 1)
+  assert.equal(centeredRings(dxf).length, 1)
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); c=[e for e in m.query("CIRCLE") if abs(e.dxf.center.x-90)<1e-9 and abs(e.dxf.center.y-150)<1e-9]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"centeredRings":len(c)}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+    PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, centeredRings: 1 })
+  }
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
+    endView: { ...source.endView, ringRadii: [] } }), /requires at least one radius/u)
+})
+
 test('flange compiler rejects unsupported source injection and impossible geometry', () => {
   const document = createKJDrawSDK().createDocument({ units: 'millimeter' })
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), rawDrawing: 'private' }), /unsupported field/u)
