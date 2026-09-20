@@ -183,9 +183,8 @@ export interface KJGeologySampleAnnotationStyle {
     label: KJGeologyFieldHeaderTextPlacement;
     marker: KJGeologyFieldHeaderTextPlacement;
 }
-/** Source-backed interval depth placements selected by semantic layer role.
- * Offsets are millimetres from the depth field's lower-left at the measured
- * interval bottom; ordinary layouts retain collision-safe defaults. */
+/** Source-backed depth-lane placements relative to each real interval's
+ * bottom boundary. Lens placement is explicit and never inferred by thickness. */
 export interface KJGeologyIntervalDepthTextStyle {
     fieldRole: 'depth';
     principal: KJGeologyFieldHeaderTextPlacement;
