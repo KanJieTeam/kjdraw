@@ -904,6 +904,17 @@ function dxfHeaderNumber(tags: readonly DxfTag[], name: string, fallback: number
   return result
 }
 
+function dxfHeaderReal(tags: readonly DxfTag[], name: string, fallback: number): number {
+  const header = section(tags, 'HEADER')
+  const index = header.findIndex(tag => tag.code === 9 && normalizeName(tag.value) === name)
+  if (index < 0) return fallback
+  const value = header[index + 1]
+  if (!value || value.code !== 40 || !String(value.value).trim()) throw new KJValidationError(`Invalid DXF ${name} header value`)
+  const result = Number(value.value)
+  if (!Number.isFinite(result)) throw new KJValidationError(`Invalid DXF ${name} header value`)
+  return result
+}
+
 function dxfHeaderText(tags: readonly DxfTag[], name: string): string | undefined {
   const header = section(tags, 'HEADER')
   const index = header.findIndex(tag => tag.code === 9 && normalizeName(tag.value) === name)
@@ -967,7 +978,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
   if (!section(tags, 'ENTITIES').length && !tags.some(tag => tag.code === 0 && normalizeName(tag.value) === 'SECTION')) throw new KJValidationError('DXF has no valid SECTION structure')
   const version = dxfVersion(tags)
   const currentTextStyleName = dxfHeaderText(tags, '$TEXTSTYLE')
-  const document = KJDocument.create({ sourceFormat: 'DXF', sourceVersion: version, codePage: dxfCodePage(tags), ...dxfDrawingUnits(tags), systemVariables: { LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1) }, title: 'Imported DXF' })
+  const document = KJDocument.create({ sourceFormat: 'DXF', sourceVersion: version, codePage: dxfCodePage(tags), ...dxfDrawingUnits(tags), systemVariables: { LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1), PDMODE: dxfHeaderInteger(tags, '$PDMODE') ?? 0, PDSIZE: dxfHeaderReal(tags, '$PDSIZE', 0) }, title: 'Imported DXF' })
   await document.transact('Import ASCII DXF', async transaction => {
     const tableRecords = records(section(tags, 'TABLES'))
     const resources = importResourceTables(transaction, tableRecords, document)
@@ -2105,6 +2116,12 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   const linetypeScale = Number(state.header.systemVariables.LTSCALE ?? 1)
   if (!Number.isFinite(linetypeScale) || linetypeScale <= 0) throw new KJValidationError('Cannot export invalid LTSCALE')
   emit(output, 9, '$LTSCALE'); emit(output, 40, linetypeScale)
+  const pointDisplayMode = Number(state.header.systemVariables.PDMODE ?? 0)
+  if (!Number.isInteger(pointDisplayMode) || pointDisplayMode < 0 || pointDisplayMode > 100 || (pointDisplayMode & 31) > 4 || ![0, 32, 64, 96].includes(pointDisplayMode & ~31)) throw new KJValidationError('Cannot export invalid PDMODE')
+  emit(output, 9, '$PDMODE'); emit(output, 70, pointDisplayMode)
+  const pointDisplaySize = Number(state.header.systemVariables.PDSIZE ?? 0)
+  if (!Number.isFinite(pointDisplaySize) || pointDisplaySize < -100 || pointDisplaySize > 1_000_000) throw new KJValidationError('Cannot export invalid PDSIZE')
+  emit(output, 9, '$PDSIZE'); emit(output, 40, pointDisplaySize)
   const currentTextStyleId = state.tables.textStyles.currentId
   const currentTextStyle = currentTextStyleId ? state.objects[currentTextStyleId] : undefined
   if (!currentTextStyle || !state.tables.textStyles.recordIds.includes(currentTextStyle.id)) throw new KJValidationError('Cannot export an unresolved current text style')

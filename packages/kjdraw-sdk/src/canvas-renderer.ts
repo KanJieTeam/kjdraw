@@ -864,7 +864,7 @@ export class KJCanvasRenderer {
   }
 
   #detailVisible(entity: KJReadonlyObjectRecord): boolean {
-    // POINT and infinite construction geometry use a fixed screen-space mark.
+    // POINT display modes remain visible independently of entity bounds; construction geometry uses fixed screen-space extent.
     if (entity.type === 'POINT' || entity.type === 'RAY' || entity.type === 'XLINE') return true
     const bounds = this.#boundsCache.get(entity as object)
     if (!bounds) return true
@@ -1139,9 +1139,23 @@ export class KJCanvasRenderer {
       const value = point2(payload.position)
       if (!value) drawn = false
       else {
-        const screen = this.worldToScreen(value)
-        context.beginPath(); context.moveTo(screen[0] - 4, screen[1]); context.lineTo(screen[0] + 4, screen[1])
-        context.moveTo(screen[0], screen[1] - 4); context.lineTo(screen[0], screen[1] + 4); context.stroke()
+        const variables = this.#document?.snapshot().header.systemVariables ?? {}
+        const rawMode = Number(variables.PDMODE ?? 0), rawSize = Number(variables.PDSIZE ?? 0)
+        const mode = Number.isInteger(rawMode) && rawMode >= 0 && rawMode <= 100 && (rawMode & 31) <= 4 && [0, 32, 64, 96].includes(rawMode & ~31) ? rawMode : 0
+        const size = Number.isFinite(rawSize) && rawSize >= -100 && rawSize <= 1_000_000 ? rawSize : 0
+        const screen = this.worldToScreen(value), base = mode & 31, flags = mode & ~31
+        const pixels = Math.max(1, Math.min(1_000_000, size > 0 ? size * this.camera.scale * (transformScale ?? 1) : this.#height * (size < 0 ? Math.abs(size) / 100 : .05)))
+        const half = pixels / 2
+        if (base === 0) context.fillRect(screen[0] - 1, screen[1] - 1, 2, 2)
+        if (base !== 1 || flags !== 0) {
+          context.beginPath()
+          if (base === 2) { context.moveTo(screen[0] - half, screen[1]); context.lineTo(screen[0] + half, screen[1]); context.moveTo(screen[0], screen[1] - half); context.lineTo(screen[0], screen[1] + half) }
+          else if (base === 3) { context.moveTo(screen[0] - half, screen[1] - half); context.lineTo(screen[0] + half, screen[1] + half); context.moveTo(screen[0] - half, screen[1] + half); context.lineTo(screen[0] + half, screen[1] - half) }
+          else if (base === 4) { context.moveTo(screen[0], screen[1] - half); context.lineTo(screen[0], screen[1] + half) }
+          if ((flags & 32) !== 0) context.arc(screen[0], screen[1], half, 0, Math.PI * 2)
+          if ((flags & 64) !== 0) { context.moveTo(screen[0] - half, screen[1] - half); context.lineTo(screen[0] + half, screen[1] - half); context.lineTo(screen[0] + half, screen[1] + half); context.lineTo(screen[0] - half, screen[1] + half); context.closePath() }
+          context.stroke()
+        }
       }
     } else if (['LWPOLYLINE', 'POLYLINE'].includes(entity.type)) drawn = this.#strokePath(polylineSamples(payload), payload.closed === true)
     else if (entity.type === 'ELLIPSE') {

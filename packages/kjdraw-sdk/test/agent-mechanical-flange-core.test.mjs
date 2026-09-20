@@ -790,3 +790,65 @@ test('feature-control datum slots preserve intentional empty cells', () => {
   assert.equal(tolerance.payload.text, String.raw`{\Fgdt;r}%%v0.03%%v%%vA%%vB%%v%%v^J`)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ position: [120, 80], role: 'dimensions', rows: [{ characteristic: 'concentricity', tolerance: '0.03', datumReferences: [{ label: 'A', slot: 4 }] }] }] }), /slot must be an integer from 0 to 3/u)
 })
+
+test('native points, point-display variables and per-side frame styles survive KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
+  const custom = [
+    { key: 'frame-default', layerName: 'PUBLIC_FRAME_DEFAULT', color: 7, lineweight: 25 },
+    { key: 'frame-top', layerName: 'PUBLIC_FRAME_TOP', color: 1, lineweight: 35 },
+    { key: 'frame-right', layerName: 'PUBLIC_FRAME_RIGHT', color: 3, lineweight: 50 },
+    { key: 'point-mark', layerName: 'PUBLIC_POINT_MARK', color: 5, lineweight: 18 },
+  ]
+  const auxiliaryPoints = ['geometry', 'center', 'hidden', 'notes', 'grid', 'frame'].map((role, index) => ({ position: [20 + index * 5, 70], role, ...(index === 0 ? { styleKey: 'point-mark' } : {}) }))
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...source, styleProfile: { custom }, auxiliaryPoints, pointDisplay: { mode: 98, size: -12.5 },
+    sheet: { ...source.sheet, outerFrameStyleKey: 'frame-default', insetFrameStyleKey: 'frame-default', outerFrameSideStyleKeys: { top: 'frame-top', right: 'frame-right' }, insetFrameSideStyleKeys: { left: 'frame-top' } } })
+  assert.deepEqual(proposal.commandArgs.systemVariables, { PDMODE: 98, PDSIZE: -12.5 })
+  assert.equal(proposal.evidence.parameters.auxiliaryPointCount, 6)
+  assert.deepEqual(proposal.evidence.parameters.pointDisplay, { mode: 98, size: -12.5 })
+  const points = proposal.commandArgs.entities.filter(entity => entity.type === 'POINT')
+  assert.equal(points.length, 6)
+  const layers = new Map(proposal.commandArgs.resources.layers.map(layer => [layer.name, layer.id]))
+  assert.equal(points[0].payload.layerId, layers.get('PUBLIC_POINT_MARK'))
+  const lineAt = (start, end) => proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === JSON.stringify([...start, 0]) && JSON.stringify(entity.payload.end) === JSON.stringify([...end, 0]))
+  assert.equal(lineAt([400, 300], [0, 300]).payload.layerId, layers.get('PUBLIC_FRAME_TOP'))
+  assert.equal(lineAt([400, 0], [400, 300]).payload.layerId, layers.get('PUBLIC_FRAME_RIGHT'))
+  assert.equal(lineAt([0, 0], [400, 0]).payload.layerId, layers.get('PUBLIC_FRAME_DEFAULT'))
+  assert.equal(lineAt([8, 292], [8, 8]).payload.layerId, layers.get('PUBLIC_FRAME_TOP'))
+  assert.equal(lineAt([8, 8], [392, 8]).payload.layerId, layers.get('PUBLIC_FRAME_DEFAULT'))
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  assert.equal(document.snapshot().header.systemVariables.PDMODE, 98)
+  assert.equal(document.snapshot().header.systemVariables.PDSIZE, -12.5)
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  assert.equal(kjd.snapshot().header.systemVariables.PDMODE, 98)
+  assert.equal(kjd.snapshot().header.systemVariables.PDSIZE, -12.5)
+  assert.equal(kjd.listEntities({ type: 'POINT' }).length, 6)
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
+  assert.equal(dxf.snapshot().header.systemVariables.PDMODE, 98)
+  assert.equal(dxf.snapshot().header.systemVariables.PDSIZE, -12.5)
+  assert.equal(dxf.listEntities({ type: 'POINT' }).length, 6)
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"points":len(m.query("POINT")),"pdmode":d.header["$PDMODE"],"pdsize":d.header["$PDSIZE"]}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || independent.status !== 0 && /No module named ['"]ezdxf/u.test(independent.stderr ?? '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(`Official ezdxf dependency unavailable: ${independent.stderr ?? independent.error?.message ?? 'unknown'}`)
+    t.skip('official ezdxf is not installed'); return
+  }
+  assert.equal(independent.status, 0, independent.stderr)
+  assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, points: 6, pdmode: 98, pdsize: -12.5 })
+
+  const legacy = buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), input(0))
+  assert.equal(Object.hasOwn(legacy.commandArgs, 'systemVariables'), false)
+  for (const mode of [-1, 5, 31, 101, 2.5]) assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...input(0), pointDisplay: { mode, size: 0 } }), /pointDisplay.mode/u)
+  for (const size of [-100.01, 1_000_001, Number.POSITIVE_INFINITY]) assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...input(0), pointDisplay: { mode: 2, size } }), /pointDisplay.size/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...input(0), auxiliaryPoints: Array.from({ length: 257 }, (_, index) => ({ position: [index, 1], role: 'geometry' })) }), /256-point budget/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...input(0), auxiliaryPoints: [{ position: [1, 1], role: 'unknown' }] }), /role is invalid/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...input(0), auxiliaryPoints: [{ position: [1, 1], role: 'geometry', rawTag: 1 }] }), /unsupported field/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...input(0), sheet: { ...input(0).sheet, outerFrameSideStyleKeys: { diagonal: 'frame-default' } } }), /unsupported field/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...input(0), sheet: { ...input(0).sheet, outerFrameSideStyleKeys: { top: 'missing' } } }), /must reference input.styleProfile.custom/u)
+  const invalid = sdk.createDocument({ units: 'millimeter' }), revision = invalid.revision
+  await assert.rejects(sdk.executeCommand('CREATEBATCH', { entities: [{ type: 'POINT', payload: { position: [1, 1, 0] } }], systemVariables: { PDMODE: 5, PDSIZE: 0 } }, { document: invalid }), /PDMODE/u)
+  await assert.rejects(sdk.executeCommand('CREATEBATCH', { entities: [{ type: 'POINT', payload: { position: [1, 1, 0] } }], systemVariables: { PDMODE: 2, PDSIZE: 1_000_001 } }, { document: invalid }), /PDSIZE/u)
+  assert.equal(invalid.revision, revision)
+  assert.equal(invalid.listEntities().length, 0)
+})

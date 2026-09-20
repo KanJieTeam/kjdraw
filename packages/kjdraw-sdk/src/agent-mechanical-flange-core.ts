@@ -8,7 +8,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
 type Point2Or3 = Point2 | Point3
-type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'ATTDEF' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT'; payload: Record<string, unknown>; options: { id: string };
+type Entity = { type: 'POINT' | 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'ATTDEF' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT'; payload: Record<string, unknown>; options: { id: string };
   attributeSequence?: { attributes: { id: string; payload: Record<string, unknown> }[]; sequenceEnd: { id: string; dxfOwnerMode: 'insert' | 'space'; layerId?: string } } }
 interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } }; getTable?: (name: string) => { records: { id: string; name?: string; payload?: Record<string, unknown> }[] } | undefined }
 
@@ -177,6 +177,20 @@ export interface KJFlangeAuxiliaryLine {
   end: Point2
   role: 'geometry' | 'center' | 'hidden' | 'notes' | 'grid' | 'frame'
   styleKey?: string
+}
+
+/** Native CAD points retain their semantic role and the drawing-level point display mode. */
+export interface KJFlangeAuxiliaryPoint {
+  position: Point2
+  role: KJFlangeAuxiliaryLine['role']
+  styleKey?: string
+}
+
+export interface KJFlangePointDisplay {
+  /** Legal DXF PDMODE base modes 0..4, optionally combined with circle/square flags 32 and 64. */
+  mode: number
+  /** DXF PDSIZE: zero is 5% of the viewport, positive is drawing units, negative is viewport percent. */
+  size: number
 }
 
 /** Bounded source-measured filled planar faces, including native CAD arrowheads. */
@@ -364,13 +378,15 @@ export interface KJAgentMechanicalFlangeCoreInput {
   leaders?: KJFlangeLeader[]
   featureControlFrames?: KJFlangeFeatureControlFrame[]
   auxiliaryLines?: KJFlangeAuxiliaryLine[]
+  auxiliaryPoints?: KJFlangeAuxiliaryPoint[]
+  pointDisplay?: KJFlangePointDisplay
   auxiliarySolids?: KJFlangeAuxiliarySolid[]
   auxiliaryCurves?: KJFlangeAuxiliaryCurve[]
   auxiliaryHatches?: KJFlangeAuxiliaryHatch[]
   symbols?: { definitions: KJFlangeSymbolDefinition[]; instances: KJFlangeSymbolInstance[] }
   styleResources?: { textStyles: KJFlangeTextStyleDefinition[]; dimensionStyles: KJFlangeDimensionStyleDefinition[] }
   styleProfile?: KJFlangeStyleProfile
-  sheet: { origin: Point2; size: Point2; inset: number; outerFrameOffset?: Point2; outerFrameStyleKey?: string; insetFrameStyleKey?: string; outerFrameSides?: KJFlangeFrameSide[]; insetFrameSides?: KJFlangeFrameSide[]; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
+  sheet: { origin: Point2; size: Point2; inset: number; outerFrameOffset?: Point2; outerFrameStyleKey?: string; insetFrameStyleKey?: string; outerFrameSideStyleKeys?: Partial<Record<KJFlangeFrameSide, string>>; insetFrameSideStyleKeys?: Partial<Record<KJFlangeFrameSide, string>>; outerFrameSides?: KJFlangeFrameSide[]; insetFrameSides?: KJFlangeFrameSide[]; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
 }
 
 const finite = (value: unknown, label: string, min: number, max: number): number => {
@@ -404,7 +420,7 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'entityDrawOrder', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliarySolids', 'auxiliaryCurves', 'auxiliaryHatches', 'symbols', 'styleResources', 'styleProfile', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'entityDrawOrder', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliaryPoints', 'pointDisplay', 'auxiliarySolids', 'auxiliaryCurves', 'auxiliaryHatches', 'symbols', 'styleResources', 'styleProfile', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
   if (input.entityDrawOrder != null && (!Array.isArray(input.entityDrawOrder) || input.entityDrawOrder.length > 10_000)) throw new KJValidationError('input.entityDrawOrder must be an array within its item budget')
   const entityDrawOrder = input.entityDrawOrder == null ? null : input.entityDrawOrder.map((value, index) => {
@@ -728,13 +744,26 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const styleKey = entityStyleKey(hatch.styleKey, `${label}.styleKey`)
     return { boundaryLoops, solid, patternName, patternLines, ...(styleKey == null ? {} : { styleKey }) }
   })
-  const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'outerFrameOffset', 'outerFrameStyleKey', 'insetFrameStyleKey', 'outerFrameSides', 'insetFrameSides', 'titleGrid', 'notes'], 'input.sheet')
+  const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'outerFrameOffset', 'outerFrameStyleKey', 'insetFrameStyleKey', 'outerFrameSideStyleKeys', 'insetFrameSideStyleKeys', 'outerFrameSides', 'insetFrameSides', 'titleGrid', 'notes'], 'input.sheet')
   const sheetOrigin = point(sheet.origin, 'input.sheet.origin'), sheetSize = point(sheet.size, 'input.sheet.size')
   if (sheetSize[0] < 100 || sheetSize[1] < 100) throw new KJValidationError('input.sheet.size is too small')
   const inset = finite(sheet.inset, 'input.sheet.inset', 0, Math.min(...sheetSize) / 2 - 1)
   const outerFrameOffset = sheet.outerFrameOffset == null ? [0, 0] as Point2 : point(sheet.outerFrameOffset, 'input.sheet.outerFrameOffset')
   if (outerFrameOffset.some(value => Math.abs(value) > 1)) throw new KJValidationError('input.sheet.outerFrameOffset must stay within one drawing unit')
   const outerFrameStyleKey = entityStyleKey(sheet.outerFrameStyleKey, 'input.sheet.outerFrameStyleKey'), insetFrameStyleKey = entityStyleKey(sheet.insetFrameStyleKey, 'input.sheet.insetFrameStyleKey')
+  const frameSideStyleKeys = (value: unknown, label: string): Partial<Record<KJFlangeFrameSide, string>> => {
+    if (value == null) return {}
+    const source = plain(value, label); exact(source, ['bottom', 'right', 'top', 'left'], label)
+    const result: Partial<Record<KJFlangeFrameSide, string>> = {}
+    for (const side of ['bottom', 'right', 'top', 'left'] as const) if (Object.hasOwn(source, side)) {
+      const styleKey = entityStyleKey(source[side], `${label}.${side}`)
+      if (styleKey == null) throw new KJValidationError(`${label}.${side} must be a style key`)
+      result[side] = styleKey
+    }
+    return result
+  }
+  const outerFrameSideStyleKeys = frameSideStyleKeys(sheet.outerFrameSideStyleKeys, 'input.sheet.outerFrameSideStyleKeys')
+  const insetFrameSideStyleKeys = frameSideStyleKeys(sheet.insetFrameSideStyleKeys, 'input.sheet.insetFrameSideStyleKeys')
   const frameSides = (value: unknown, label: string): KJFlangeFrameSide[] => {
     if (value == null) return ['bottom', 'right', 'top', 'left']
     if (!Array.isArray(value) || value.length > 4 || value.some(side => !['bottom', 'right', 'top', 'left'].includes(side as string)) || new Set(value).size !== value.length) throw new KJValidationError(`${label} must contain unique frame sides`)
@@ -987,6 +1016,21 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const styleKey = entityStyleKey(hatch.styleKey, `${label}.styleKey`)
     return { boundaryLoops, solid, patternName, patternLines, ...(styleKey == null ? {} : { styleKey }) }
   })
+  let pointDisplay: KJFlangePointDisplay | null = null
+  if (input.pointDisplay != null) {
+    const display = plain(input.pointDisplay, 'input.pointDisplay'); exact(display, ['mode', 'size'], 'input.pointDisplay')
+    const mode = finite(display.mode, 'input.pointDisplay.mode', 0, 100)
+    if (!Number.isInteger(mode) || (mode & 31) > 4 || ![0, 32, 64, 96].includes(mode & ~31)) throw new KJValidationError('input.pointDisplay.mode must be a legal PDMODE combination')
+    pointDisplay = { mode, size: finite(display.size, 'input.pointDisplay.size', -100, 1_000_000) }
+  }
+  if (input.auxiliaryPoints != null && !Array.isArray(input.auxiliaryPoints)) throw new KJValidationError('input.auxiliaryPoints must be an array')
+  if ((input.auxiliaryPoints as unknown[] | undefined)?.length && (input.auxiliaryPoints as unknown[]).length > 256) throw new KJValidationError('input.auxiliaryPoints exceed their 256-point budget')
+  const auxiliaryPoints: KJFlangeAuxiliaryPoint[] = ((input.auxiliaryPoints ?? []) as unknown[]).map((value, index) => {
+    const label = `input.auxiliaryPoints[${index}]`, item = plain(value, label); exact(item, ['position', 'role', 'styleKey'], label)
+    if (!['geometry', 'center', 'hidden', 'notes', 'grid', 'frame'].includes(item.role as string)) throw new KJValidationError(`${label}.role is invalid`)
+    const styleKey = entityStyleKey(item.styleKey, `${label}.styleKey`)
+    return { position: point(item.position, `${label}.position`), role: item.role as KJFlangeAuxiliaryLine['role'], ...(styleKey == null ? {} : { styleKey }) }
+  })
   if (input.auxiliaryLines != null && !Array.isArray(input.auxiliaryLines)) throw new KJValidationError('input.auxiliaryLines must be an array')
   if ((input.auxiliaryLines as unknown[] | undefined)?.length && (input.auxiliaryLines as unknown[]).length > 256) throw new KJValidationError('input.auxiliaryLines exceed their budget')
   const auxiliaryLines: KJFlangeAuxiliaryLine[] = ((input.auxiliaryLines ?? []) as unknown[]).map((value, index) => {
@@ -1192,7 +1236,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source
     return { key: String(key), definition: styleRole(definition, `input.styleProfile.custom[${index}]`) }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, orientation, axisCoordinate, axisVisible, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliarySolids, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, orientation, axisCoordinate, axisVisible, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryPoints, pointDisplay, auxiliarySolids, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSideStyleKeys, insetFrameSideStyleKeys, outerFrameSides, insetFrameSides, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -1314,15 +1358,18 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       emit('SOLID', { vertices: [p3(...tip), p3(...a), p3(...b), p3(...b)], layerId: arrowStyle.layerId }, arrowStyle.name)
     }
   }
-  const frameRectangle = (origin: Point2, size: Point2, sides: KJFlangeFrameSide[], styleKey?: string) => {
-    const [x, y] = origin, [w, h] = size, style = styled(styleKey, 'frame')
-    if (sides.includes('bottom')) line([x, y], [x + w, y], style.layerId, style.name)
-    if (sides.includes('right')) line([x + w, y], [x + w, y + h], style.layerId, style.name)
-    if (sides.includes('top')) line([x + w, y + h], [x, y + h], style.layerId, style.name)
-    if (sides.includes('left')) line([x, y + h], [x, y], style.layerId, style.name)
+  const frameRectangle = (origin: Point2, size: Point2, sides: KJFlangeFrameSide[], fallbackStyleKey: string | undefined, sideStyleKeys: Partial<Record<KJFlangeFrameSide, string>>) => {
+    const [x, y] = origin, [w, h] = size
+    const edge = (side: KJFlangeFrameSide, start: Point2, end: Point2) => {
+      if (!sides.includes(side)) return
+      const style = styled(sideStyleKeys[side] ?? fallbackStyleKey, 'frame')
+      line(start, end, style.layerId, style.name)
+    }
+    edge('bottom', [x, y], [x + w, y]); edge('right', [x + w, y], [x + w, y + h])
+    edge('top', [x + w, y + h], [x, y + h]); edge('left', [x, y + h], [x, y])
   }
-  frameRectangle([input.sheetOrigin[0] + input.outerFrameOffset[0], input.sheetOrigin[1] + input.outerFrameOffset[1]], input.sheetSize, input.outerFrameSides, input.outerFrameStyleKey)
-  if (input.inset > 0) frameRectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2], input.insetFrameSides, input.insetFrameStyleKey)
+  frameRectangle([input.sheetOrigin[0] + input.outerFrameOffset[0], input.sheetOrigin[1] + input.outerFrameOffset[1]], input.sheetSize, input.outerFrameSides, input.outerFrameStyleKey, input.outerFrameSideStyleKeys)
+  if (input.inset > 0) frameRectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2], input.insetFrameSides, input.insetFrameStyleKey, input.insetFrameSideStyleKeys)
   if (input.titleGrid) {
     const grid = input.titleGrid, [x, y] = grid.origin, [w, h] = grid.size
     const topStyle = styled(grid.topStyleKey, 'grid'); line([x, y + h], [x + w, y + h], topStyle.layerId, topStyle.name)
@@ -1386,6 +1433,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     emit('HATCH', { boundaryLoops, patternName: hatch.patternName, solid: hatch.solid, associative: false, patternAngle: 0, patternScale: 1, patternLines: hatch.patternLines,
       patternDefinitionAngle: 0, patternDefinitionScale: 1, layerId: style.layerId }, style.name)
   }
+  for (const auxiliary of input.auxiliaryPoints) { const style = styled(auxiliary.styleKey, auxiliary.role); emit('POINT', { position: p3(...auxiliary.position), layerId: style.layerId }, style.name) }
   for (const auxiliary of input.auxiliaryLines) { const style = styled(auxiliary.styleKey, auxiliary.role); line(auxiliary.start, auxiliary.end, style.layerId, style.name) }
   for (const solid of input.auxiliarySolids) { const style = styled(solid.styleKey, solid.role), vertices = solid.vertices.map(value => p3(...value)); emit('SOLID', { vertices: vertices.length === 3 ? [...vertices, vertices[2]!] : vertices, layerId: style.layerId }, style.name) }
   for (const curve of input.auxiliaryCurves) {
@@ -1480,7 +1528,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     } } : {}) } as Entity
   })
   return {
-    commandArgs: { entities: orderedEntities, resources: {
+    commandArgs: { entities: orderedEntities, ...(input.pointDisplay == null ? {} : { systemVariables: { PDMODE: input.pointDisplay.mode, PDSIZE: input.pointDisplay.size } }), resources: {
       linetypes,
       layers,
       ...(textStyleResources.length ? { textStyles: textStyleResources } : {}),
@@ -1493,7 +1541,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1), holeCount: input.holePatterns.reduce((sum, pattern) => sum + pattern.count, input.pitch == null ? 0 : 4), titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null, sideViewOrientation: input.orientation, sideViewAxisVisible: input.axisVisible,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
-        sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
+        sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryPointCount: input.auxiliaryPoints.length, pointDisplay: input.pointDisplay, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
         symbolDefinitionCount: input.symbolDefinitions.length, symbolInstanceCount: input.symbolInstances.length, symbolAttributeCount: input.symbolAttributeCount, featureControlFrameCount: input.featureControlFrames.length,
         entityStyleCount: input.customStyles.length, textStyleCount: input.textStyles.length, dimensionStyleCount: input.dimensionStyles.length,
         noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },

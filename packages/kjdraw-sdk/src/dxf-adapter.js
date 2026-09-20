@@ -1457,6 +1457,16 @@ function dxfHeaderNumber(tags, name, fallback) {
     if (!Number.isFinite(result) || result <= 0) throw new KJValidationError(`Invalid DXF ${name} header value`);
     return result;
 }
+function dxfHeaderReal(tags, name, fallback) {
+    const header = section(tags, 'HEADER');
+    const index = header.findIndex((tag)=>tag.code === 9 && normalizeName(tag.value) === name);
+    if (index < 0) return fallback;
+    const value = header[index + 1];
+    if (!value || value.code !== 40 || !String(value.value).trim()) throw new KJValidationError(`Invalid DXF ${name} header value`);
+    const result = Number(value.value);
+    if (!Number.isFinite(result)) throw new KJValidationError(`Invalid DXF ${name} header value`);
+    return result;
+}
 function dxfHeaderText(tags, name) {
     const header = section(tags, 'HEADER');
     const index = header.findIndex((tag)=>tag.code === 9 && normalizeName(tag.value) === name);
@@ -1608,7 +1618,9 @@ async function readDXF(source, options = {}) {
         codePage: dxfCodePage(tags),
         ...dxfDrawingUnits(tags),
         systemVariables: {
-            LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1)
+            LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1),
+            PDMODE: dxfHeaderInteger(tags, '$PDMODE') ?? 0,
+            PDSIZE: dxfHeaderReal(tags, '$PDSIZE', 0)
         },
         title: 'Imported DXF'
     });
@@ -3529,6 +3541,19 @@ function writeDXF(document, options = {}) {
     if (!Number.isFinite(linetypeScale) || linetypeScale <= 0) throw new KJValidationError('Cannot export invalid LTSCALE');
     emit(output, 9, '$LTSCALE');
     emit(output, 40, linetypeScale);
+    const pointDisplayMode = Number(state.header.systemVariables.PDMODE ?? 0);
+    if (!Number.isInteger(pointDisplayMode) || pointDisplayMode < 0 || pointDisplayMode > 100 || (pointDisplayMode & 31) > 4 || ![
+        0,
+        32,
+        64,
+        96
+    ].includes(pointDisplayMode & ~31)) throw new KJValidationError('Cannot export invalid PDMODE');
+    emit(output, 9, '$PDMODE');
+    emit(output, 70, pointDisplayMode);
+    const pointDisplaySize = Number(state.header.systemVariables.PDSIZE ?? 0);
+    if (!Number.isFinite(pointDisplaySize) || pointDisplaySize < -100 || pointDisplaySize > 1_000_000) throw new KJValidationError('Cannot export invalid PDSIZE');
+    emit(output, 9, '$PDSIZE');
+    emit(output, 40, pointDisplaySize);
     const currentTextStyleId = state.tables.textStyles.currentId;
     const currentTextStyle = currentTextStyleId ? state.objects[currentTextStyleId] : undefined;
     if (!currentTextStyle || !state.tables.textStyles.recordIds.includes(currentTextStyle.id)) throw new KJValidationError('Cannot export an unresolved current text style');
