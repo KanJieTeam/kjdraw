@@ -81,6 +81,19 @@ export interface KJGeologySampleRangeBaselineStyle {
     continuity: 'collision-safe' | 'continuous';
     insetMm: number;
 }
+/** Source-backed layout for a measured groundwater annotation. The optional
+ * guide is emitted only when a licensed source template declares it. */
+export interface KJGeologyGroundwaterAnnotationStyle {
+    fieldRole: 'pattern';
+    textHeight: number;
+    markerHeight: number;
+    textWidthFactor: number;
+    gap: number;
+    valueOffset: number;
+    markerOffset: number;
+    dateOffset: number;
+    guide?: 'field-top-to-reading';
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,

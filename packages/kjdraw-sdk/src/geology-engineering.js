@@ -583,9 +583,14 @@ function columnLayout(input) {
     }
     let groundwaterAnnotationStyle;
     if (value.groundwaterAnnotationStyle != null) {
-        if (!isFieldGrid || !value.groundwaterAnnotationStyle || typeof value.groundwaterAnnotationStyle !== 'object' || Array.isArray(value.groundwaterAnnotationStyle) || Object.keys(value.groundwaterAnnotationStyle).sort().join(',') !== 'dateOffset,fieldRole,gap,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset') throw new KJValidationError('Geology: groundwater annotation style needs an exact declarative field-grid schema');
+        const groundwaterStyleKeys = Object.keys(value.groundwaterAnnotationStyle).sort().join(',');
+        if (!isFieldGrid || !value.groundwaterAnnotationStyle || typeof value.groundwaterAnnotationStyle !== 'object' || Array.isArray(value.groundwaterAnnotationStyle) || ![
+            'dateOffset,fieldRole,gap,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset',
+            'dateOffset,fieldRole,gap,guide,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset'
+        ].includes(groundwaterStyleKeys)) throw new KJValidationError('Geology: groundwater annotation style needs an exact declarative field-grid schema');
         const rule = value.groundwaterAnnotationStyle;
         if (rule.fieldRole !== 'pattern') throw new KJValidationError('Geology: groundwater annotations need a declared pattern field');
+        if (rule.guide != null && rule.guide !== 'field-top-to-reading') throw new KJValidationError('Geology: unsupported groundwater annotation guide');
         const textHeight = numeric(rule.textHeight, 'groundwater annotation text height');
         const markerHeight = numeric(rule.markerHeight, 'groundwater annotation marker height');
         const textWidthFactor = numeric(rule.textWidthFactor, 'groundwater annotation text width factor');
@@ -606,7 +611,10 @@ function columnLayout(input) {
             gap,
             valueOffset,
             markerOffset,
-            dateOffset
+            dateOffset,
+            ...rule.guide === 'field-top-to-reading' ? {
+                guide: rule.guide
+            } : {}
         };
     }
     let patternLabelStyle;
@@ -1636,6 +1644,20 @@ export function compileGeologyColumn(input) {
                 }
             ];
             if (boxes.some((box)=>box.bottom < bottom + 0.4 || box.top > top - 0.2) || boxes.some((box)=>textBoxes.some((prior)=>prior.role === item.role && box.left < prior.right && box.right > prior.left && box.bottom < prior.top && box.top > prior.bottom))) throw new KJValidationError('Geology: groundwater annotation collides with its source lane or body boundary');
+            if (style.guide === 'field-top-to-reading') g.poly(1, [
+                [
+                    item.start,
+                    top
+                ],
+                [
+                    item.start,
+                    y
+                ],
+                [
+                    gridEnd(item),
+                    y
+                ]
+            ], false);
             g.text(3, depthX, valueY, depthText, style.textHeight, true, style.textWidthFactor);
             g.text(3, elevationX, valueY, elevationText, style.textHeight, true, style.textWidthFactor);
             g.text(3, center, markerY, marker, style.markerHeight, true, style.textWidthFactor);

@@ -247,7 +247,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
       }, stratigraphicNotationStyle: { symbolHeight: 3, qualifierHeight: 1.5 },
       sampleMarkerStyle: { height: 1, gap: 0.5, baselineOffset: 0.5 },
       groundwaterAnnotationStyle: { fieldRole: 'pattern', textHeight: 2, markerHeight: 2.5,
-        textWidthFactor: 0.8, gap: 0.6, valueOffset: 3, markerOffset: 0, dateOffset: -3 },
+        textWidthFactor: 0.8, gap: 0.6, valueOffset: 3, markerOffset: 0, dateOffset: -3, guide: 'field-top-to-reading' },
       patternLabelStyle: { height: 1.5, textWidthFactor: 1, minimumBandHeight: 2 },
       frameStyle: { topMargin: 5, bottomMargin: 5, constantWidth: 0.5 },
       formTopology: { containers: 'outer-frame-separators', headerDividers: 'merge-adjacent-collinear', patternCells: 'closed-outline' },
@@ -287,6 +287,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     entity.payload.position[1] === 280 && entity.payload.height === 3 && entity.payload.widthFactor === 0.8 &&
     entity.payload.horizontalAlignment === 2 && entity.payload.rotation === 0), 'declared title-margin document fact')
   const polylines = compiled.commandArgs.entities.filter(entity => entity.type === 'LWPOLYLINE')
+  assert.ok(polylines.some(entity => entity.payload.closed !== true && entity.payload.vertices.length === 3 &&
+    JSON.stringify(entity.payload.vertices) === JSON.stringify([[65, 235, 0], [65, 202.5, 0], [85, 202.5, 0]])),
+  'declared groundwater guide connects the field top to the exact reading depth')
   assert.ok(polylines.some(entity => entity.payload.closed === true && entity.payload.constantWidth === 0.5 &&
     entity.payload.vertices[0][0] === 5 && entity.payload.vertices[0][1] === 5 && entity.payload.vertices[2][1] === 285), 'source-backed wide outer frame')
   assert.equal(polylines.filter(entity => entity.payload.closed !== true && entity.payload.vertices.length === 6).length, 3,
@@ -371,6 +374,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const overlappingGroundwaterStyle = structuredClone(input)
   overlappingGroundwaterStyle.columnStylePack.rules['geology-column-layout'].groundwaterAnnotationStyle.valueOffset = 2
   assert.throws(() => compileGeologyColumn(overlappingGroundwaterStyle), /groundwater annotation style is unreadable/u)
+  const invalidGroundwaterGuide = structuredClone(input)
+  invalidGroundwaterGuide.columnStylePack.rules['geology-column-layout'].groundwaterAnnotationStyle.guide = 'diagonal'
+  assert.throws(() => compileGeologyColumn(invalidGroundwaterGuide), /unsupported groundwater annotation guide/u)
   const mismatchedGroundwaterElevation = structuredClone(input)
   mismatchedGroundwaterElevation.hole.groundwaterObservations[0].elevation = 120.5
   assert.throws(() => compileGeologyColumn(mismatchedGroundwaterElevation), /depth and elevation disagree/u)
