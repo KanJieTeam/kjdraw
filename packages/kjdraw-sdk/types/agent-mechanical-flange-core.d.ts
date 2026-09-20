@@ -732,6 +732,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             symbolAttributeCount: number;
             featureControlFrameCount: number;
             entityStyleCount: number;
+            linetypePatternSegmentBudget: number;
             textStyleCount: number;
             dimensionStyleCount: number;
             noteCount: number;
