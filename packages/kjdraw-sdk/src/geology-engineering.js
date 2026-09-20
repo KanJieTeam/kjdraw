@@ -344,70 +344,88 @@ function columnLayout(input) {
     let headerGrid;
     if (value.headerGrid != null) {
         const supplied = value.headerGrid;
-        if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied) || Object.keys(supplied).join(',') !== 'rows') throw new KJValidationError('Geology: header grid must declare rows only');
+        if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied) || ![
+            'rows',
+            'continuousDividers,rows'
+        ].includes(Object.keys(supplied).sort().join(','))) throw new KJValidationError('Geology: header grid must declare rows and optional continuous dividers');
         const rows = supplied.rows;
         if (!Array.isArray(rows) || rows.length < 2 || rows.length > 4 || headerRowHeight * rows.length + fieldHeaderHeight + 10 > headerDepth) throw new KJValidationError('Geology: header grid rows do not fit the declared sheet');
         const seen = new Set(), documentKeys = new Set();
-        headerGrid = {
-            rows: rows.map((row, rowIndex)=>{
-                if (!Array.isArray(row) || row.length < 1 || row.length > 4 || (right - left) / row.length < 45) throw new KJValidationError(`Geology: header grid row ${rowIndex + 1} is unreadable`);
-                const physical = row.some((raw)=>raw && typeof raw === 'object' && !Array.isArray(raw) && ('start' in raw || 'valueStart' in raw));
-                const parsed = row.map((raw, cellIndex)=>{
-                    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a role and label`);
-                    const cell = raw;
-                    const optional = cell.optional == null ? undefined : cell.optional;
-                    if (optional != null && typeof optional !== 'boolean') throw new KJValidationError('Geology: header fact optional flag must be boolean');
-                    const hasGeometry = cell.start != null || cell.valueStart != null;
-                    if (physical !== hasGeometry || hasGeometry && (cell.start == null || cell.valueStart == null)) throw new KJValidationError('Geology: a physical header row must declare start and valueStart for every cell');
-                    const geometry = !physical ? {} : {
-                        start: numeric(cell.start, `header grid start ${rowIndex + 1}/${cellIndex + 1}`),
-                        valueStart: numeric(cell.valueStart, `header grid value start ${rowIndex + 1}/${cellIndex + 1}`)
-                    };
-                    const geometryKeys = physical ? ',start,valueStart' : '';
-                    if (cell.role === 'documentFact') {
-                        if (![
-                            ...[
-                                'key,label,role',
-                                'key,label,optional,role'
-                            ].map((schema)=>`${schema}${geometryKeys}`)
-                        ].includes(Object.keys(cell).sort().join(','))) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a document fact key, role and label`);
-                        const key = stableDocumentFactKey(cell.key), canonical = key.toLowerCase();
-                        if (documentKeys.has(canonical)) throw new KJValidationError('Geology: duplicate document fact key');
-                        documentKeys.add(canonical);
-                        return {
-                            role: 'documentFact',
-                            key,
-                            label: bounded(cell.label, 'header fact label', 24),
-                            ...optional == null ? {} : {
-                                optional
-                            },
-                            ...geometry
-                        };
-                    }
+        const parsedRows = rows.map((row, rowIndex)=>{
+            if (!Array.isArray(row) || row.length < 1 || row.length > 4 || (right - left) / row.length < 45) throw new KJValidationError(`Geology: header grid row ${rowIndex + 1} is unreadable`);
+            const physical = row.some((raw)=>raw && typeof raw === 'object' && !Array.isArray(raw) && ('start' in raw || 'valueStart' in raw));
+            const parsed = row.map((raw, cellIndex)=>{
+                if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a role and label`);
+                const cell = raw;
+                const optional = cell.optional == null ? undefined : cell.optional;
+                if (optional != null && typeof optional !== 'boolean') throw new KJValidationError('Geology: header fact optional flag must be boolean');
+                const hasGeometry = cell.start != null || cell.valueStart != null;
+                if (physical !== hasGeometry || hasGeometry && (cell.start == null || cell.valueStart == null)) throw new KJValidationError('Geology: a physical header row must declare start and valueStart for every cell');
+                const geometry = !physical ? {} : {
+                    start: numeric(cell.start, `header grid start ${rowIndex + 1}/${cellIndex + 1}`),
+                    valueStart: numeric(cell.valueStart, `header grid value start ${rowIndex + 1}/${cellIndex + 1}`)
+                };
+                const geometryKeys = physical ? ',start,valueStart' : '';
+                if (cell.role === 'documentFact') {
                     if (![
                         ...[
-                            'label,role',
-                            'label,optional,role'
+                            'key,label,role',
+                            'key,label,optional,role'
                         ].map((schema)=>`${schema}${geometryKeys}`)
-                    ].includes(Object.keys(cell).sort().join(',')) || typeof cell.role !== 'string' || !headerRoles.has(cell.role)) throw new KJValidationError('Geology: undeclared header fact role');
-                    const role = cell.role;
-                    if (seen.has(role)) throw new KJValidationError('Geology: duplicate header fact role');
-                    seen.add(role);
+                    ].includes(Object.keys(cell).sort().join(','))) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a document fact key, role and label`);
+                    const key = stableDocumentFactKey(cell.key), canonical = key.toLowerCase();
+                    if (documentKeys.has(canonical)) throw new KJValidationError('Geology: duplicate document fact key');
+                    documentKeys.add(canonical);
                     return {
-                        role,
+                        role: 'documentFact',
+                        key,
                         label: bounded(cell.label, 'header fact label', 24),
                         ...optional == null ? {} : {
                             optional
                         },
                         ...geometry
                     };
-                });
-                if (physical) for (const [cellIndex, cell] of parsed.entries()){
-                    const end = parsed[cellIndex + 1]?.start ?? right;
-                    if (cell.start < left || cellIndex === 0 && Math.abs(cell.start - left) > 1e-6 || end - cell.start < 30 || cell.valueStart - cell.start < 10 || end - cell.valueStart < 10) throw new KJValidationError(`Geology: physical header cell ${rowIndex + 1}/${cellIndex + 1} is out of bounds or unreadable`);
                 }
-                return parsed;
-            })
+                if (![
+                    ...[
+                        'label,role',
+                        'label,optional,role'
+                    ].map((schema)=>`${schema}${geometryKeys}`)
+                ].includes(Object.keys(cell).sort().join(',')) || typeof cell.role !== 'string' || !headerRoles.has(cell.role)) throw new KJValidationError('Geology: undeclared header fact role');
+                const role = cell.role;
+                if (seen.has(role)) throw new KJValidationError('Geology: duplicate header fact role');
+                seen.add(role);
+                return {
+                    role,
+                    label: bounded(cell.label, 'header fact label', 24),
+                    ...optional == null ? {} : {
+                        optional
+                    },
+                    ...geometry
+                };
+            });
+            if (physical) for (const [cellIndex, cell] of parsed.entries()){
+                const end = parsed[cellIndex + 1]?.start ?? right;
+                if (cell.start < left || cellIndex === 0 && Math.abs(cell.start - left) > 1e-6 || end - cell.start < 30 || cell.valueStart - cell.start < 10 || end - cell.valueStart < 10) throw new KJValidationError(`Geology: physical header cell ${rowIndex + 1}/${cellIndex + 1} is out of bounds or unreadable`);
+            }
+            return parsed;
+        });
+        let continuousDividers;
+        const rawContinuousDividers = supplied.continuousDividers;
+        if (rawContinuousDividers != null) {
+            if (!Array.isArray(rawContinuousDividers) || rawContinuousDividers.length < 1 || rawContinuousDividers.length > 8 || !parsedRows.every((row)=>row.every((cell)=>cell.start != null && cell.valueStart != null))) throw new KJValidationError('Geology: continuous header dividers need 1–8 physical source positions');
+            continuousDividers = rawContinuousDividers.map((raw, index)=>numeric(raw, `continuous header divider ${index + 1}`));
+            if (new Set(continuousDividers).size !== continuousDividers.length) throw new KJValidationError('Geology: continuous header dividers must be unique');
+            for (const divider of continuousDividers){
+                const rowOccurrences = parsedRows.filter((row)=>row.some((cell, index)=>Math.abs(cell.valueStart - divider) < 1e-9 || index > 0 && Math.abs(cell.start - divider) < 1e-9)).length;
+                if (divider <= left || divider >= right || rowOccurrences < 2 || rowOccurrences === parsedRows.length) throw new KJValidationError('Geology: a continuous header divider must bridge an actual source-row gap');
+            }
+        }
+        headerGrid = {
+            rows: parsedRows,
+            ...continuousDividers ? {
+                continuousDividers
+            } : {}
         };
     }
     let fieldGrid;
@@ -1449,8 +1467,10 @@ export function compileGeologyColumn(input) {
                 if (visibleValue) g.text(3, valueX + 2, rowTop - rowHeight * 0.69, visibleValue, headerFactHeight);
             }
         }
+        const continuousDividers = headerGrid.continuousDividers ?? [];
+        const ordinaryHeaderVerticals = headerVerticals.filter((segment)=>!continuousDividers.some((divider)=>Math.abs(divider - segment.x) < 1e-9));
         if (formTopology) {
-            const ordered = headerVerticals.sort((a, b)=>a.x - b.x || a.bottom - b.bottom || a.top - b.top);
+            const ordered = ordinaryHeaderVerticals.sort((a, b)=>a.x - b.x || a.bottom - b.bottom || a.top - b.top);
             let active;
             for (const segment of ordered){
                 if (active && Math.abs(active.x - segment.x) < 1e-9 && segment.bottom <= active.top + 1e-9) active.top = Math.max(active.top, segment.top);
@@ -1462,7 +1482,8 @@ export function compileGeologyColumn(input) {
                 }
             }
             if (active) g.line(0, active.x, active.bottom, active.x, active.top);
-        } else for (const segment of headerVerticals)g.line(0, segment.x, segment.bottom, segment.x, segment.top);
+        } else for (const segment of ordinaryHeaderVerticals)g.line(0, segment.x, segment.bottom, segment.x, segment.top);
+        for (const divider of continuousDividers)g.line(0, divider, headerBottom, divider, headerTop);
     } else {
         g.text(3, pageWidth / 2, pageHeight - 18, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质钻孔柱状图' : 'ENGINEERING BOREHOLE LOG'), 'title'), titleHeight ?? 5, true);
         if (input.projectName) g.text(3, left + 2, pageHeight - 27, `${labels.project} ${bounded(input.projectName, 'project name', 96)}`, 2.5);

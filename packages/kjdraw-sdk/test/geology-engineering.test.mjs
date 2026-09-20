@@ -239,7 +239,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     ontology: { objectKinds: ['borehole-log'], relationKinds: [] }, rules: { 'geology-column-layout': {
       paperWidth: 190, paperHeight: 290, left: 5, right: 185, headerDepth: 45, headerRowHeight: 5,
       fieldHeaderHeight: 10, footerReserve: 15, titleHeight: 10, verticalScaleDenominators: [100],
-      fieldGrid, headerGrid: { rows: physicalRows }, footerGrid: { height: 10, cells: [
+      fieldGrid, headerGrid: { rows: physicalRows, continuousDividers: [145, 165] }, footerGrid: { height: 10, cells: [
         { start: 5, key: 'organization', label: 'Organization' }, { start: 65, key: 'checkedBy', label: 'Checked' },
         { start: 125, key: 'drawingNumber', label: 'Drawing', internalDivider: 145 },
       ] }, legendMode: 'none', textHeights: {
@@ -310,6 +310,8 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   for (const x of [25, 55, 75, 105, 125, 145, 165]) assert.ok(vertical.some(entity => entity.payload.start[0] === x), `header x=${x}`)
   assert.deepEqual(vertical.filter(entity => entity.payload.start[0] === 25).map(entity =>
     [entity.payload.start[1], entity.payload.end[1]]), [[245, 260]], 'adjacent header dividers merge without crossing a gap')
+  for (const x of [145, 165]) assert.deepEqual(vertical.filter(entity => entity.payload.start[0] === x).map(entity =>
+    [entity.payload.start[1], entity.payload.end[1]]), [[245, 260]], `declared continuous header divider x=${x} bridges its exact source-row gap`)
   const fullWidthSeparators = compiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
     entity.payload.start[0] === 5 && entity.payload.end[0] === 185 && entity.payload.start[1] === entity.payload.end[1])
   for (const y of [260, 255, 250, 245, 235, 15]) assert.ok(fullWidthSeparators.some(entity => entity.payload.start[1] === y), `separator y=${y}`)
@@ -358,6 +360,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const partial = structuredClone(input)
   delete partial.columnStylePack.rules['geology-column-layout'].headerGrid.rows[0][1].valueStart
   assert.throws(() => compileGeologyColumn(partial), /must declare start and valueStart/u)
+  const redundantContinuousDivider = structuredClone(input)
+  redundantContinuousDivider.columnStylePack.rules['geology-column-layout'].headerGrid.continuousDividers = [25]
+  assert.throws(() => compileGeologyColumn(redundantContinuousDivider), /must bridge an actual source-row gap/u)
   const outside = structuredClone(input)
   outside.hole.initialWaterDepth = 19
   assert.throws(() => compileGeologyColumn(outside), /initial groundwater depth is outside/u)

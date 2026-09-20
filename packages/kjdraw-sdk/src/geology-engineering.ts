@@ -213,7 +213,7 @@ interface ColumnLayout {
   titleHeight?: number
   labels: Record<string, string>
   displayAliases?: { codes: Record<string, string>; names: Record<string, string> }
-  headerGrid?: { rows: HeaderCell[][] }
+  headerGrid?: { rows: HeaderCell[][]; continuousDividers?: number[] }
   footerGrid?: { height: number; cells: FooterCell[] }
   fieldGrid?: { start: number; role: FieldRole; label: string; subLabel?: string; key?: string; decimals?: number; textWidthFactor?: number }[]
   legendMode?: 'footer' | 'none'
@@ -383,11 +383,13 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   let headerGrid: ColumnLayout['headerGrid']
   if (value.headerGrid != null) {
     const supplied = value.headerGrid
-    if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied) || Object.keys(supplied).join(',') !== 'rows') throw new KJValidationError('Geology: header grid must declare rows only')
+    if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied) ||
+      !['rows', 'continuousDividers,rows'].includes(Object.keys(supplied).sort().join(',')))
+      throw new KJValidationError('Geology: header grid must declare rows and optional continuous dividers')
     const rows = (supplied as Record<string, unknown>).rows
     if (!Array.isArray(rows) || rows.length < 2 || rows.length > 4 || headerRowHeight * rows.length + fieldHeaderHeight + 10 > headerDepth) throw new KJValidationError('Geology: header grid rows do not fit the declared sheet')
     const seen = new Set<HeaderRole>(), documentKeys = new Set<string>()
-    headerGrid = { rows: rows.map((row, rowIndex) => {
+    const parsedRows = rows.map((row, rowIndex) => {
       if (!Array.isArray(row) || row.length < 1 || row.length > 4 || (right - left) / row.length < 45) throw new KJValidationError(`Geology: header grid row ${rowIndex + 1} is unreadable`)
       const physical = row.some(raw => raw && typeof raw === 'object' && !Array.isArray(raw) &&
         ('start' in raw || 'valueStart' in raw))
@@ -424,7 +426,23 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
           throw new KJValidationError(`Geology: physical header cell ${rowIndex + 1}/${cellIndex + 1} is out of bounds or unreadable`)
       }
       return parsed
-    }) }
+    })
+    let continuousDividers: number[] | undefined
+    const rawContinuousDividers = (supplied as Record<string, unknown>).continuousDividers
+    if (rawContinuousDividers != null) {
+      if (!Array.isArray(rawContinuousDividers) || rawContinuousDividers.length < 1 || rawContinuousDividers.length > 8 ||
+        !parsedRows.every(row => row.every(cell => cell.start != null && cell.valueStart != null)))
+        throw new KJValidationError('Geology: continuous header dividers need 1–8 physical source positions')
+      continuousDividers = rawContinuousDividers.map((raw, index) => numeric(raw, `continuous header divider ${index + 1}`))
+      if (new Set(continuousDividers).size !== continuousDividers.length) throw new KJValidationError('Geology: continuous header dividers must be unique')
+      for (const divider of continuousDividers) {
+        const rowOccurrences = parsedRows.filter(row => row.some((cell, index) =>
+          Math.abs(cell.valueStart! - divider) < 1e-9 || index > 0 && Math.abs(cell.start! - divider) < 1e-9)).length
+        if (divider <= left || divider >= right || rowOccurrences < 2 || rowOccurrences === parsedRows.length)
+          throw new KJValidationError('Geology: a continuous header divider must bridge an actual source-row gap')
+      }
+    }
+    headerGrid = { rows: parsedRows, ...(continuousDividers ? { continuousDividers } : {}) }
   }
   let fieldGrid: ColumnLayout['fieldGrid']
   if (isFieldGrid) {
@@ -1105,8 +1123,11 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         if (visibleValue) g.text(3, valueX + 2, rowTop - rowHeight * 0.69, visibleValue, headerFactHeight)
       }
     }
+    const continuousDividers = headerGrid.continuousDividers ?? []
+    const ordinaryHeaderVerticals = headerVerticals.filter(segment =>
+      !continuousDividers.some(divider => Math.abs(divider - segment.x) < 1e-9))
     if (formTopology) {
-      const ordered = headerVerticals.sort((a, b) => a.x - b.x || a.bottom - b.bottom || a.top - b.top)
+      const ordered = ordinaryHeaderVerticals.sort((a, b) => a.x - b.x || a.bottom - b.bottom || a.top - b.top)
       let active: typeof ordered[number] | undefined
       for (const segment of ordered) {
         if (active && Math.abs(active.x - segment.x) < 1e-9 && segment.bottom <= active.top + 1e-9)
@@ -1117,7 +1138,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         }
       }
       if (active) g.line(0, active.x, active.bottom, active.x, active.top)
-    } else for (const segment of headerVerticals) g.line(0, segment.x, segment.bottom, segment.x, segment.top)
+    } else for (const segment of ordinaryHeaderVerticals) g.line(0, segment.x, segment.bottom, segment.x, segment.top)
+    for (const divider of continuousDividers) g.line(0, divider, headerBottom, divider, headerTop)
   } else {
     g.text(3, pageWidth / 2, pageHeight - 18, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质钻孔柱状图' : 'ENGINEERING BOREHOLE LOG'), 'title'), titleHeight ?? 5, true)
     if (input.projectName) g.text(3, left + 2, pageHeight - 27, `${labels.project} ${bounded(input.projectName, 'project name', 96)}`, 2.5)
