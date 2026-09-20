@@ -265,6 +265,8 @@ function columnLayout(input) {
             'groundwaterAnnotationStyle',
             'patternLabelStyle',
             'titleMarginFacts',
+            'frameStyle',
+            'descriptionBoundaryStyle',
             'verticalScaleDenominators',
             'sourceTemplate'
         ].includes(key)) || expectedKeys.some((key)=>!keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns');
@@ -649,6 +651,34 @@ function columnLayout(input) {
             };
         });
     }
+    let frameStyle;
+    if (value.frameStyle != null) {
+        if (!isFieldGrid || !value.frameStyle || typeof value.frameStyle !== 'object' || Array.isArray(value.frameStyle) || Object.keys(value.frameStyle).sort().join(',') !== 'bottomMargin,constantWidth,topMargin') throw new KJValidationError('Geology: frame style needs an exact declarative field-grid schema');
+        const rule = value.frameStyle;
+        const topMargin = numeric(rule.topMargin, 'frame top margin');
+        const bottomMargin = numeric(rule.bottomMargin, 'frame bottom margin');
+        const constantWidth = numeric(rule.constantWidth, 'frame constant width');
+        if (topMargin < 2 || topMargin > 30 || bottomMargin < 2 || bottomMargin > 30 || constantWidth < 0 || constantWidth > 2 || topMargin + bottomMargin > paperHeight - 100) throw new KJValidationError('Geology: frame style is outside the readable sheet');
+        frameStyle = {
+            topMargin,
+            bottomMargin,
+            constantWidth
+        };
+    }
+    let descriptionBoundaryStyle;
+    if (value.descriptionBoundaryStyle != null) {
+        if (!isFieldGrid || !textFlow || !value.descriptionBoundaryStyle || typeof value.descriptionBoundaryStyle !== 'object' || Array.isArray(value.descriptionBoundaryStyle) || Object.keys(value.descriptionBoundaryStyle).sort().join(',') !== 'clearance,inset') throw new KJValidationError('Geology: description boundary style needs text flow and an exact field-grid schema');
+        const rule = value.descriptionBoundaryStyle;
+        const inset = numeric(rule.inset, 'description boundary inset');
+        const clearance = numeric(rule.clearance, 'description boundary clearance');
+        const description = fieldGrid?.find((item)=>item.role === 'description');
+        const descriptionEnd = description == null ? 0 : fieldGrid?.[fieldGrid.indexOf(description) + 1]?.start ?? right;
+        if (!description || inset < 0.5 || inset > 10 || inset * 2 > descriptionEnd - description.start - 4 || clearance < 0.2 || clearance > 5) throw new KJValidationError('Geology: description boundary style is unreadable');
+        descriptionBoundaryStyle = {
+            inset,
+            clearance
+        };
+    }
     let verticalScaleDenominators = [
         ...defaultColumnVerticalScales
     ];
@@ -743,6 +773,12 @@ function columnLayout(input) {
         } : {},
         ...titleMarginFacts ? {
             titleMarginFacts
+        } : {},
+        ...frameStyle ? {
+            frameStyle
+        } : {},
+        ...descriptionBoundaryStyle ? {
+            descriptionBoundaryStyle
         } : {},
         ...sourceTemplate ? {
             sourceTemplate
@@ -1058,15 +1094,18 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
             width,
             attachmentPoint: 1
         });
-    const poly = (layer, points, closed = false)=>add('LWPOLYLINE', layer, {
+    const poly = (layer, points, closed = false, constantWidth)=>add('LWPOLYLINE', layer, {
             vertices: points.map(([x, y])=>[
                     x,
                     y,
                     0
                 ]),
-            closed
+            closed,
+            ...constantWidth == null || constantWidth === 0 ? {} : {
+                constantWidth
+            }
         });
-    const rect = (layer, x1, y1, x2, y2)=>poly(layer, [
+    const rect = (layer, x1, y1, x2, y2, constantWidth)=>poly(layer, [
             [
                 x1,
                 y1
@@ -1083,7 +1122,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
                 x1,
                 y2
             ]
-        ], true);
+        ], true, constantWidth);
     const circle = (layer, x, y, radius)=>add('CIRCLE', layer, {
             center: [
                 x,
@@ -1157,7 +1196,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
 export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
-    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, stratigraphicNotationStyle, sampleMarkerStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, layerNumberStyle, sourceTemplate } = layout;
+    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, stratigraphicNotationStyle, sampleMarkerStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, layerNumberStyle, sourceTemplate } = layout;
     if (strata.some((layer)=>layer.stratigraphicNotation != null) && !stratigraphicNotationStyle) throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style');
     const documentFacts = documentFactRecord(input.documentFacts);
     const declaredDocumentFactKeys = new Set([
@@ -1272,8 +1311,10 @@ export function compileGeologyColumn(input) {
     }
     const locale = geologyLocale(input);
     const formalFrame = Boolean(fieldGrid);
-    const frameTop = formalFrame ? pageHeight - 15 : pageHeight - 5;
-    g.rect(0, formalFrame ? left : 5, 5, formalFrame ? right : pageWidth - 5, frameTop);
+    const frameBottom = frameStyle?.bottomMargin ?? 5;
+    const frameTop = pageHeight - (frameStyle?.topMargin ?? (formalFrame ? 15 : 5));
+    g.rect(0, formalFrame ? left : 5, frameBottom, formalFrame ? right : pageWidth - 5, frameTop, frameStyle?.constantWidth);
+    let titleRegionBottom = pageHeight - headerDepth;
     if (headerGrid) {
         const facts = {
             projectName: input.projectName ? bounded(input.projectName, 'project name', 96) : undefined,
@@ -1291,6 +1332,8 @@ export function compileGeologyColumn(input) {
         const headerBottom = pageHeight - headerDepth;
         const rowHeight = headerRowHeight;
         const headerTop = headerBottom + rowHeight * headerGrid.rows.length;
+        titleRegionBottom = headerTop;
+        if (headerTop + (titleHeight ?? 5) + 1 > frameTop) throw new KJValidationError('Geology: declared title does not fit between the header and drawing frame');
         const titleY = headerTop + (frameTop - headerTop - (titleHeight ?? 5)) / 2;
         g.text(3, pageWidth / 2, titleY, bounded(input.title ?? (locale === 'zh-CN' ? '钻孔柱状图' : 'BOREHOLE LOG'), 'title'), titleHeight ?? 5, true);
         g.rect(0, left, headerBottom, right, headerTop);
@@ -1372,7 +1415,7 @@ export function compileGeologyColumn(input) {
                 bottom: Math.min(...points.map((point)=>point[1])),
                 top: Math.max(...points.map((point)=>point[1]))
             };
-            if (bounds.left < -1e-9 || bounds.right > pageWidth + 1e-9 || bounds.bottom < frameTop + 0.5 || bounds.top > pageHeight + 1e-9) throw new KJValidationError(`Geology: title margin fact ${placement.key} crosses the page or drawing frame`);
+            if (bounds.left < (formalFrame ? left : 5) + 0.5 || bounds.right > (formalFrame ? right : pageWidth - 5) - 0.5 || bounds.bottom < titleRegionBottom + 0.5 || bounds.top > frameTop - 0.5) throw new KJValidationError(`Geology: title margin fact ${placement.key} crosses the title band or drawing frame`);
             if (occupied.some((prior)=>bounds.left < prior.right && bounds.right > prior.left && bounds.bottom < prior.top && bounds.top > prior.bottom)) throw new KJValidationError(`Geology: title margin fact ${placement.key} overlaps another title margin fact`);
             occupied.push(bounds);
             g.placedText(3, x, y, value, placement.height, placement.textWidthFactor, placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2, placement.verticalAlignment === 'baseline' ? 0 : 2, radians);
@@ -1419,7 +1462,7 @@ export function compileGeologyColumn(input) {
     };
     const renderFooterGrid = ()=>{
         if (!footerGrid) return;
-        const bottom = 5, top = bottom + footerGrid.height;
+        const bottom = frameBottom, top = bottom + footerGrid.height;
         g.rect(0, left, bottom, right, top);
         for (const [index, cell] of footerGrid.cells.entries()){
             const end = footerGrid.cells[index + 1]?.start ?? right;
@@ -1445,6 +1488,8 @@ export function compileGeologyColumn(input) {
                 ...value
             ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? height * 0.64 : height), 0);
         const bandLines = [];
+        const majorBoundaries = [];
+        const descriptionTops = new Map();
         const textBoxes = [];
         const emitFieldText = (item, y, value, height = 1.8)=>{
             const width = estimatedWidth(value, height) * (item.textWidthFactor ?? 1);
@@ -1626,6 +1671,7 @@ export function compileGeologyColumn(input) {
                 const lowest = coreIndex === 0 ? Math.max(yBottom - textFlow.firstGroupBorrowMm, nextGroupBottom == null ? yBottom : top - nextGroupBottom * scale + 0.4) : yBottom + 0.4;
                 if (anchorY - occupied >= lowest) {
                     g.mtext(3, descriptionX + 2, anchorY, description.trim(), height, width);
+                    descriptionTops.set(coreIndex, anchorY);
                     previousDescriptionBottom = anchorY - occupied;
                     return;
                 }
@@ -1679,7 +1725,10 @@ export function compileGeologyColumn(input) {
             const yTop = top - layer.top * scale, yBottom = top - layer.bottom * scale;
             if (yTop - yBottom < (grouped ? 0.4 : 1.4)) throw new KJValidationError(`Geology: layer ${layer.code} is too thin for readable geometry at this scale`);
             const major = !grouped || groups.some((group)=>Math.abs(group.bottom - layer.bottom) < 1e-6);
-            if (major && !(textFlow?.firstGroupUnruled && Math.abs(layer.bottom - firstGroupBottom) < 1e-6)) bandLines.push({
+            if (major && descriptionBoundaryStyle) majorBoundaries.push({
+                y: yBottom
+            });
+            else if (major && !(textFlow?.firstGroupUnruled && Math.abs(layer.bottom - firstGroupBottom) < 1e-6)) bandLines.push({
                 x1: left,
                 x2: right,
                 y: yBottom
@@ -1746,6 +1795,40 @@ export function compileGeologyColumn(input) {
             if (!grouped) writeCore(layer.code, layer.top, layer.bottom, layer);
         }
         if (grouped) for (const group of groups)writeCore(group.id, group.top, group.bottom, group.principal);
+        if (descriptionBoundaryStyle) {
+            const descriptionField = field('description'), descriptionEnd = gridEnd(descriptionField);
+            for (const [index, boundary] of majorBoundaries.entries()){
+                const nextDescriptionTop = descriptionTops.get(index + 1);
+                const descriptionY = nextDescriptionTop == null ? boundary.y : Math.min(boundary.y, nextDescriptionTop + descriptionBoundaryStyle.clearance);
+                if (descriptionY < bottom - 1e-9 || descriptionY > boundary.y + 1e-9) throw new KJValidationError('Geology: stepped description boundary exceeds the declared body');
+                g.poly(1, [
+                    [
+                        left,
+                        boundary.y
+                    ],
+                    [
+                        descriptionField.start,
+                        boundary.y
+                    ],
+                    [
+                        descriptionField.start + descriptionBoundaryStyle.inset,
+                        descriptionY
+                    ],
+                    [
+                        descriptionEnd - descriptionBoundaryStyle.inset,
+                        descriptionY
+                    ],
+                    [
+                        descriptionEnd,
+                        boundary.y
+                    ],
+                    [
+                        right,
+                        boundary.y
+                    ]
+                ]);
+            }
+        }
         for (const item of observations){
             const y = top - item.depth * scale;
             if (item.kind === 'spt' && sptDisplayCap != null && item.displayLabel != null) throw new KJValidationError('Geology: SPT display cap cannot coexist with a caller-provided display label');

@@ -907,8 +907,8 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
                     edge: 'top',
                     anchor: 'right',
                     offset: [
-                        -5,
-                        -4
+                        -16,
+                        -18
                     ],
                     height: 2,
                     textWidthFactor: 0.8,
