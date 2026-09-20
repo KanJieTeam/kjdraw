@@ -51,6 +51,8 @@ export interface KJGeologyObservation {
     value?: number;
     /** Short visible text; id remains the exact stable observation identity. */
     displayLabel?: string;
+    /** Source-recorded specimen marker; its visible glyph and spacing remain a versioned layout choice. */
+    sampleMarker?: 'filled-circle' | 'open-circle';
     /** Direct numeric laboratory facts keyed by a host-selected, versioned field grid. */
     measurements?: Record<string, number>;
     /** Exact source-supplied interval for a sampled specimen; never inferred from the point depth. */

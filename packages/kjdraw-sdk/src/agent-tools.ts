@@ -325,17 +325,22 @@ const componentInsertSchemaBase = object({
 })
 const componentInsertSchema: KJAgentToolSchema = { ...componentInsertSchemaBase, required: ['expectedRevision', 'units', 'componentId', 'version', 'parameters', 'position', 'scale', 'rotationDegrees'] }
 
+const stratigraphicNotationSchema = objectWithOptional({
+  symbol: { ...text, maxLength: 12 }, subscript: { ...text, maxLength: 12 }, superscript: { ...text, maxLength: 12 },
+}, ['subscript', 'superscript'])
 const geologyStratumSchema = objectWithOptional({
   intervalId: { ...text, maxLength: 64 }, groupId: { ...text, maxLength: 24 }, groupRole: { type: 'string', enum: ['principal', 'lens'] },
   code: { ...text, maxLength: 24 }, name: { ...text, maxLength: 64 }, top: nonnegative, bottom: radius,
+  stratigraphicNotation: stratigraphicNotationSchema,
   lithology: { type: 'string', enum: ['fill', 'cultivated-soil', 'clay', 'silty-clay', 'silt', 'sand', 'gravel', 'rock', 'weathered-rock', 'loess', 'loess-collapsible', 'loess-like', 'paleosol', 'calcareous-nodule'] },
   patternVisibility: { type: 'string', enum: ['filled', 'boundary-only'] },
-  description: { ...text, maxLength: 96 }, descriptionSource: { type: 'string', enum: ['interval', 'layer-definition'] },
-}, ['intervalId', 'groupId', 'groupRole', 'patternVisibility', 'description', 'descriptionSource'])
+  description: { ...text, maxLength: 512 }, descriptionSource: { type: 'string', enum: ['interval', 'layer-definition'] },
+}, ['intervalId', 'groupId', 'groupRole', 'stratigraphicNotation', 'patternVisibility', 'description', 'descriptionSource'])
 const geologyObservationSchema = objectWithOptional({
   kind: { type: 'string', enum: ['sample', 'spt'] }, id: { ...text, maxLength: 24 }, depth: nonnegative,
   value: nonnegative, displayLabel: { ...text, maxLength: 24 },
-}, ['value', 'displayLabel'])
+  sampleMarker: { type: 'string', enum: ['filled-circle', 'open-circle'] },
+}, ['value', 'displayLabel', 'sampleMarker'])
 const geologyHoleSchema = objectWithOptional({
   id: { ...text, maxLength: 64 }, collarElevation: number, depth: radius,
   x: number, y: number, startDate: { ...text, maxLength: 64 }, endDate: { ...text, maxLength: 64 },

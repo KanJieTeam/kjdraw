@@ -242,6 +242,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
       fieldGrid, headerGrid: { rows: physicalRows }, legendMode: 'none', textHeights: {
         headerFact: 3, fieldHeader: 3, fieldSubHeader: 2.5, majorValue: 3, intervalDepth: 2.5, observation: 2,
       }, stratigraphicNotationStyle: { symbolHeight: 3, qualifierHeight: 1.5 },
+      sampleMarkerStyle: { height: 1, gap: 0.5, baselineOffset: 0.5 },
     } } })
   const source = { ...hole('PHYS-1', 0, 123.45, [0.6, 4, 18]), x: 123456.78, y: 654321.09,
     startDate: '2026-01-02', endDate: '2026-01-03', initialWaterDepth: 2.5, stableWaterDepth: 3 }
@@ -249,7 +250,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   source.strata[0].stratigraphicNotation = { symbol: 'Q', subscript: '4', superscript: 'ml' }
   source.strata[1].stratigraphicNotation = { symbol: 'Q', subscript: '3' }
   source.strata[2].stratigraphicNotation = { symbol: 'N', superscript: 'al' }
-  source.observations = [{ kind: 'sample', id: 'S1', depth: 5 }]
+  source.observations = [{ kind: 'sample', id: 'S1', depth: 5, sampleMarker: 'filled-circle' }]
   const input = { hole: source, projectName: 'Project A', documentFacts: { projectCode: 'P-18' },
     verticalScaleDenominator: 100, expectedRevision: 0, columnStylePack: style }
   const compiled = compileGeologyColumn(input)
@@ -260,6 +261,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} height ${height}`)
   for (const [value, height] of [['Q', 3], ['4', 1.5], ['ml', 1.5], ['3', 1.5], ['N', 3], ['al', 1.5]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} notation height ${height}`)
+  assert.ok(texts.some(entity => entity.payload.text === '●' && entity.payload.height === 1), 'filled sample marker')
   const headerBottom = 245, headerTop = 260
   const vertical = compiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
     entity.payload.start[0] === entity.payload.end[0] && entity.payload.start[1] >= headerBottom && entity.payload.end[1] <= headerTop)
@@ -270,7 +272,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const kjd = await sdk.writeDocument(document, { format: 'KJD', version: '1' })
   const reopened = await sdk.readDocument(dxf, { format: 'DXF' }), reopenedKjd = await sdk.readDocument(kjd, { format: 'KJD' })
   assert.equal(reopened.validate().valid, true); assert.equal(reopenedKjd.validate().valid, true)
-  for (const value of ['2.50', 'Q', 'ml']) {
+  for (const value of ['2.50', 'Q', 'ml', '●']) {
     assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `DXF ${value}`)
     assert.ok(reopenedKjd.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `KJD ${value}`)
   }
@@ -286,7 +288,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     const report = JSON.parse(independent.stdout)
     assert.deepEqual([report.errors, report.fixes], [0, 0])
     for (const x of [25, 55, 75, 105, 125, 145, 165]) assert.ok(report.xs.includes(x), `ezdxf header x=${x}`)
-    for (const value of ['2.50', '3.00', 'Q', 'ml']) assert.ok(report.texts.includes(value), `ezdxf ${value}`)
+    for (const value of ['2.50', '3.00', 'Q', 'ml', '●']) assert.ok(report.texts.includes(value), `ezdxf ${value}`)
   }
   const partial = structuredClone(input)
   delete partial.columnStylePack.rules['geology-column-layout'].headerGrid.rows[0][1].valueStart
@@ -306,6 +308,15 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const malformedNotation = structuredClone(input)
   malformedNotation.hole.strata[0].stratigraphicNotation.extra = 'invented'
   assert.throws(() => compileGeologyColumn(malformedNotation), /exact symbol\/qualifier schema/u)
+  const missingMarkerStyle = structuredClone(input)
+  delete missingMarkerStyle.columnStylePack.rules['geology-column-layout'].sampleMarkerStyle
+  assert.throws(() => compileGeologyColumn(missingMarkerStyle), /marker facts need a declared/u)
+  const invalidMarker = structuredClone(input)
+  invalidMarker.hole.observations[0].sampleMarker = 'triangle'
+  assert.throws(() => compileGeologyColumn(invalidMarker), /must be a declared marker/u)
+  const wrongObservationKind = structuredClone(input)
+  Object.assign(wrongObservationKind.hole.observations[0], { kind: 'spt', value: 8 })
+  assert.throws(() => compileGeologyColumn(wrongObservationKind), /must be a declared marker/u)
 })
 
 test('bundled Chinese column header renders the selected physical vertical scale as visible native text', () => {

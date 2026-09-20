@@ -205,6 +205,8 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack> = vali
       verticalScaleDenominators: [10, 20, 25, 50, 100, 150, 200, 250, 500, 1000, 2000, 5000],
       legendMode: 'none',
       layerNumberStyle: 'circle',
+      stratigraphicNotationStyle: { symbolHeight: 3, qualifierHeight: 1.5 },
+      sampleMarkerStyle: { height: 1, gap: 0.5, baselineOffset: 0.5 },
       textFlow: {
         firstGroupBorrowMm: 8,
         firstGroupUnruled: true,

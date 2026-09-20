@@ -52,6 +52,8 @@ export interface KJGeologyObservation {
   value?: number
   /** Short visible text; id remains the exact stable observation identity. */
   displayLabel?: string
+  /** Source-recorded specimen marker; its visible glyph and spacing remain a versioned layout choice. */
+  sampleMarker?: 'filled-circle' | 'open-circle'
   /** Direct numeric laboratory facts keyed by a host-selected, versioned field grid. */
   measurements?: Record<string, number>
   /** Exact source-supplied interval for a sampled specimen; never inferred from the point depth. */
@@ -177,6 +179,7 @@ interface ColumnLayout {
   textFlow?: { firstGroupBorrowMm: number; firstGroupUnruled: boolean; firstBaselineMm: number; labelPitchMm: number; labelHeightMm: number; paragraphGapMm: number }
   textHeights?: { headerFact: number; fieldHeader: number; fieldSubHeader: number; majorValue: number; intervalDepth: number; observation: number }
   stratigraphicNotationStyle?: { symbolHeight: number; qualifierHeight: number }
+  sampleMarkerStyle?: { height: number; gap: number; baselineOffset: number }
   verticalScaleDenominators: number[]
   sourceTemplate?: { sourceId: string; sourceSha256: string; verticalScaleDenominator: number; innerGridWidthMillimeters: number; fieldRoles: string[]; footerLabels: string[]; gridLineHandles: string[] }
 }
@@ -263,7 +266,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -459,6 +462,18 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: stratigraphic notation text heights are unreadable')
     stratigraphicNotationStyle = { symbolHeight, qualifierHeight }
   }
+  let sampleMarkerStyle: ColumnLayout['sampleMarkerStyle']
+  if (value.sampleMarkerStyle != null) {
+    if (!isFieldGrid || !value.sampleMarkerStyle || typeof value.sampleMarkerStyle !== 'object' || Array.isArray(value.sampleMarkerStyle) ||
+      Object.keys(value.sampleMarkerStyle).sort().join(',') !== 'baselineOffset,gap,height')
+      throw new KJValidationError('Geology: sample marker style needs an exact declarative field-grid schema')
+    const rule = value.sampleMarkerStyle as Record<string, unknown>
+    const height = numeric(rule.height, 'sample marker height'), gap = numeric(rule.gap, 'sample marker gap')
+    const baselineOffset = numeric(rule.baselineOffset, 'sample marker baseline offset')
+    if (height < 0.8 || height > 4 || gap < 0 || gap > 5 || baselineOffset < -3 || baselineOffset > 3)
+      throw new KJValidationError('Geology: sample marker style is unreadable')
+    sampleMarkerStyle = { height, gap, baselineOffset }
+  }
   let verticalScaleDenominators = [...defaultColumnVerticalScales]
   if (value.verticalScaleDenominators != null) {
     if (!Array.isArray(value.verticalScaleDenominators) || value.verticalScaleDenominators.length < 1 || value.verticalScaleDenominators.length > 16)
@@ -506,7 +521,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   return { paperWidth, paperHeight, left, right, columns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, legendMode, layerNumberStyle, titleHeight, verticalScaleDenominators, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
     ...(observationColumns ? { observationColumns } : {}), labels,
     ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}),
-    ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sourceTemplate ? { sourceTemplate } : {}) }
+    ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sampleMarkerStyle ? { sampleMarkerStyle } : {}), ...(sourceTemplate ? { sourceTemplate } : {}) }
 }
 
 function sectionLayout(input: KJGeologySectionInput): SectionLayout {
@@ -609,6 +624,8 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
       if (item.kind !== 'sample' && item.kind !== 'spt') throw new KJValidationError('Geology: unsupported observation kind')
       const id = bounded(item.id, 'observation id', 24), depth = numeric(item.depth, 'observation depth')
       if (item.displayLabel != null) bounded(item.displayLabel, 'observation display label', 24)
+      if (item.sampleMarker != null && (item.kind !== 'sample' || item.sampleMarker !== 'filled-circle' && item.sampleMarker !== 'open-circle'))
+        throw new KJValidationError('Geology: sample marker must be a declared marker on a sampled observation')
       if (item.measurements != null) {
         if (item.kind !== 'sample' || !item.measurements || typeof item.measurements !== 'object' || Array.isArray(item.measurements) || Object.keys(item.measurements).length > 16) throw new KJValidationError('Geology: bounded measurement values belong to sampled observations only')
         for (const [key, value] of Object.entries(item.measurements)) {
@@ -690,7 +707,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
     headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights,
-    stratigraphicNotationStyle, layerNumberStyle, sourceTemplate } = layout
+    stratigraphicNotationStyle, sampleMarkerStyle, layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
     throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style')
   const documentFacts = documentFactRecord(input.documentFacts)
@@ -727,6 +744,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     lithologyCount: new Set(strata.map(layer => layer.patternKey ?? layer.lithology)).size,
   })
   const observations = hole.observations ?? []
+  if (observations.some(item => item.sampleMarker != null) && !sampleMarkerStyle)
+    throw new KJValidationError('Geology: sample marker facts need a declared field-grid marker style')
   if (fieldGrid && observations.some(item => item.kind === 'sample' && !gridField('sample') || item.kind === 'spt' && !gridField('spt')))
     throw new KJValidationError('Geology: field grid has no physical field for supplied observations')
   if (observations.length && strata.some(layer => layer.description) && !observationColumns && !fieldGrid) throw new KJValidationError('Geology: supplied descriptions and depth-aligned observations need separate declared columns')
@@ -881,6 +900,23 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       textBoxes.push({ role: item.role, left: x - (centered ? width / 2 : 0) - 0.25,
         right: x + (centered ? width / 2 : width) + 0.25, bottom: y - 0.25, top: y + height + 0.25 })
     }
+    const emitSampleText = (item: typeof fieldGrid[number], y: number, value: string,
+      marker: NonNullable<KJGeologyObservation['sampleMarker']>, height: number): void => {
+      const style = sampleMarkerStyle!, factor = item.textWidthFactor ?? 1
+      const glyph = marker === 'filled-circle' ? '●' : '○'
+      const labelWidth = estimatedWidth(value, height) * factor
+      const markerWidth = estimatedWidth(glyph, style.height) * factor
+      const width = labelWidth + style.gap + markerWidth
+      if (width > fieldWidth(item) - 2.4) throw new KJValidationError('Geology: sampled marker and label do not fit their declared field')
+      const start = item.start + (fieldWidth(item) - width) / 2
+      const labelX = start + labelWidth / 2, markerX = start + labelWidth + style.gap + markerWidth / 2
+      g.text(3, labelX, y, value, height, true, item.textWidthFactor)
+      g.text(3, markerX, y + style.baselineOffset, glyph, style.height, true, item.textWidthFactor)
+      textBoxes.push({ role: item.role, left: start - 0.25, right: start + labelWidth + 0.25,
+        bottom: y - 0.25, top: y + height + 0.25 },
+      { role: item.role, left: markerX - markerWidth / 2 - 0.25, right: markerX + markerWidth / 2 + 0.25,
+        bottom: y + style.baselineOffset - 0.25, top: y + style.baselineOffset + style.height + 0.25 })
+    }
     const emitLayerNumber = (item: typeof fieldGrid[number], y: number, value: string, bandHeight: number): void => {
       if (layerNumberStyle !== 'circle') return emitFieldText(item, y, value, Math.min(2.1, Math.max(1.4, bandHeight * 0.38)))
       const circled = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'.indexOf(value)
@@ -1034,7 +1070,12 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         }
         if (cell.role === 'measurement' && item.kind === 'sample' && Object.hasOwn(item.measurements ?? {}, cell.key!))
           value = item.measurements![cell.key!]!.toFixed(cell.decimals ?? 2)
-        if (value != null) emitFieldText(cell, y, value, textHeights?.observation ?? 1.5)
+        if (value != null) {
+          const height = textHeights?.observation ?? 1.5
+          if (cell.role === 'sample' && item.kind === 'sample' && item.sampleMarker)
+            emitSampleText(cell, y, value, item.sampleMarker, height)
+          else emitFieldText(cell, y, value, height)
+        }
         if (cell.role === 'sample' && item.kind === 'sample' && item.rangeTop != null && item.rangeBottom != null) {
           const rangeTopY = top - item.rangeTop * scale, rangeBottomY = top - item.rangeBottom * scale
           const rangeTextY = rangeBottomY - 2.2, rangeText = `${metres(item.rangeTop)}–${metres(item.rangeBottom)}`

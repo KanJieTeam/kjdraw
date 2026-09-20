@@ -1398,6 +1398,23 @@ const componentInsertSchema = {
         'rotationDegrees'
     ]
 };
+const stratigraphicNotationSchema = objectWithOptional({
+    symbol: {
+        ...text,
+        maxLength: 12
+    },
+    subscript: {
+        ...text,
+        maxLength: 12
+    },
+    superscript: {
+        ...text,
+        maxLength: 12
+    }
+}, [
+    'subscript',
+    'superscript'
+]);
 const geologyStratumSchema = objectWithOptional({
     intervalId: {
         ...text,
@@ -1424,6 +1441,7 @@ const geologyStratumSchema = objectWithOptional({
     },
     top: nonnegative,
     bottom: radius,
+    stratigraphicNotation: stratigraphicNotationSchema,
     lithology: {
         type: 'string',
         enum: [
@@ -1452,7 +1470,7 @@ const geologyStratumSchema = objectWithOptional({
     },
     description: {
         ...text,
-        maxLength: 96
+        maxLength: 512
     },
     descriptionSource: {
         type: 'string',
@@ -1465,6 +1483,7 @@ const geologyStratumSchema = objectWithOptional({
     'intervalId',
     'groupId',
     'groupRole',
+    'stratigraphicNotation',
     'patternVisibility',
     'description',
     'descriptionSource'
@@ -1486,10 +1505,18 @@ const geologyObservationSchema = objectWithOptional({
     displayLabel: {
         ...text,
         maxLength: 24
+    },
+    sampleMarker: {
+        type: 'string',
+        enum: [
+            'filled-circle',
+            'open-circle'
+        ]
     }
 }, [
     'value',
-    'displayLabel'
+    'displayLabel',
+    'sampleMarker'
 ]);
 const geologyHoleSchema = objectWithOptional({
     id: {

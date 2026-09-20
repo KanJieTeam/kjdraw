@@ -875,6 +875,15 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
             ],
             legendMode: 'none',
             layerNumberStyle: 'circle',
+            stratigraphicNotationStyle: {
+                symbolHeight: 3,
+                qualifierHeight: 1.5
+            },
+            sampleMarkerStyle: {
+                height: 1,
+                gap: 0.5,
+                baselineOffset: 0.5
+            },
             textFlow: {
                 firstGroupBorrowMm: 8,
                 firstGroupUnruled: true,

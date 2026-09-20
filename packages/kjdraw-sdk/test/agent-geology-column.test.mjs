@@ -41,6 +41,9 @@ test('versioned geology facts compile to a host-only CREATEBATCH proposal, then 
   assert.equal(schema.inputSchema.required.includes('verticalScaleDenominator'), false)
   assert.equal(schema.inputSchema.properties.hole.required.includes('initialWaterDepth'), false)
   assert.equal(schema.inputSchema.properties.hole.properties.initialWaterDepth.minimum, 0)
+  assert.deepEqual(schema.inputSchema.properties.hole.properties.observations.items.properties.sampleMarker.enum,
+    ['filled-circle', 'open-circle'])
+  assert.equal(schema.inputSchema.properties.hole.properties.strata.items.properties.description.maxLength, 512)
   assert.equal(session.definitions.some(tool => /approve|save|execute/.test(tool.name)), false)
   const before = document.serialize(), proposal = accepted(await session.call('cad_propose_geology_column', intent()))
   assert.equal(proposal.command, 'CREATEBATCH')
@@ -74,6 +77,25 @@ test('versioned geology facts compile to a host-only CREATEBATCH proposal, then 
     assert.equal(reopened.listEntities().length, proposal.engineeringEvidence.entityCount)
     assert.equal(reopened.listEntities({ type: 'HATCH' }).length, 6)
     assert.equal(reopened.validate().valid, true)
+  }
+})
+
+test('bundled field-grid knowledge carries structured stratigraphic notation and sample markers through Agent KJD/DXF', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const session = new KJAgentToolSession(sdk, document), request = intent()
+  request.locale = 'zh-CN'
+  request.hole.strata[0].stratigraphicNotation = { symbol: 'Q', subscript: '4', superscript: 'ml' }
+  request.hole.observations[0].sampleMarker = 'filled-circle'
+  const proposal = accepted(await session.call('cad_propose_geology_column', request))
+  for (const value of ['Q', '4', 'ml', '●'])
+    assert.ok(proposal.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === value), value)
+  accepted(await session.approve(proposal.planId, 'synthetic-host-reviewer'))
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await createKJDrawSDK().readDocument(bytes, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    assert.equal(reopened.validate().valid, true)
+    for (const value of ['Q', '4', 'ml', '●'])
+      assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `${format} ${value}`)
   }
 })
 
