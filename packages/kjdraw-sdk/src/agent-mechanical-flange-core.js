@@ -2453,7 +2453,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 type,
                 payload: stylePayload(payload, entityStyle.name),
                 options: {
-                    id: `${id}-member-${String(memberIndex + 1).padStart(2, '0')}`
+                    id: `${id}-member-${String(memberIndex + 1).padStart(3, '0')}`
                 }
             };
         });
