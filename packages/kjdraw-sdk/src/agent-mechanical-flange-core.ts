@@ -133,6 +133,13 @@ export interface KJFlangeAuxiliaryLine {
   styleKey?: string
 }
 
+/** Bounded source-measured filled planar faces, including native CAD arrowheads. */
+export interface KJFlangeAuxiliarySolid {
+  vertices: Point2[]
+  role: KJFlangeAuxiliaryLine['role']
+  styleKey?: string
+}
+
 export type KJFlangeAuxiliaryCurve =
   | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise?: boolean; role: KJFlangeAuxiliaryLine['role']; styleKey?: string }
   | { kind: 'ellipse'; center: Point2; majorAxis: Point2; ratio: number; startParameter: number; endParameter: number; role: KJFlangeAuxiliaryLine['role']; styleKey?: string }
@@ -308,6 +315,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   leaders?: KJFlangeLeader[]
   featureControlFrames?: KJFlangeFeatureControlFrame[]
   auxiliaryLines?: KJFlangeAuxiliaryLine[]
+  auxiliarySolids?: KJFlangeAuxiliarySolid[]
   auxiliaryCurves?: KJFlangeAuxiliaryCurve[]
   auxiliaryHatches?: KJFlangeAuxiliaryHatch[]
   symbols?: { definitions: KJFlangeSymbolDefinition[]; instances: KJFlangeSymbolInstance[] }
@@ -347,7 +355,7 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'entityDrawOrder', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliaryCurves', 'auxiliaryHatches', 'symbols', 'styleResources', 'styleProfile', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'entityDrawOrder', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliarySolids', 'auxiliaryCurves', 'auxiliaryHatches', 'symbols', 'styleResources', 'styleProfile', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
   if (input.entityDrawOrder != null && (!Array.isArray(input.entityDrawOrder) || input.entityDrawOrder.length > 10_000)) throw new KJValidationError('input.entityDrawOrder must be an array within its item budget')
   const entityDrawOrder = input.entityDrawOrder == null ? null : input.entityDrawOrder.map((value, index) => {
@@ -863,6 +871,22 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const styleKey = entityStyleKey(line.styleKey, `${label}.styleKey`)
     return { start, end, role: line.role as KJFlangeAuxiliaryLine['role'], ...(styleKey == null ? {} : { styleKey }) }
   })
+  if (input.auxiliarySolids != null && !Array.isArray(input.auxiliarySolids)) throw new KJValidationError('input.auxiliarySolids must be an array')
+  if ((input.auxiliarySolids as unknown[] | undefined)?.length && (input.auxiliarySolids as unknown[]).length > 64) throw new KJValidationError('input.auxiliarySolids exceed their 64-solid budget')
+  const auxiliarySolids: KJFlangeAuxiliarySolid[] = ((input.auxiliarySolids ?? []) as unknown[]).map((value, index) => {
+    const label = `input.auxiliarySolids[${index}]`, solid = plain(value, label); exact(solid, ['vertices', 'role', 'styleKey'], label)
+    if (!['geometry', 'center', 'hidden', 'notes', 'grid', 'frame'].includes(solid.role as string)) throw new KJValidationError(`${label}.role is invalid`)
+    if (!Array.isArray(solid.vertices) || solid.vertices.length < 3 || solid.vertices.length > 4) throw new KJValidationError(`${label}.vertices must contain 3 or 4 points`)
+    const vertices = solid.vertices.map((value, vertexIndex) => point(value, `${label}.vertices[${vertexIndex}]`))
+    let nondegenerate = false
+    for (let a = 0; a < vertices.length; a++) for (let b = a + 1; b < vertices.length; b++) for (let c = b + 1; c < vertices.length; c++) {
+      const ab = [vertices[b]![0] - vertices[a]![0], vertices[b]![1] - vertices[a]![1]], ac = [vertices[c]![0] - vertices[a]![0], vertices[c]![1] - vertices[a]![1]]
+      if (Math.abs(ab[0]! * ac[1]! - ab[1]! * ac[0]!) > 1e-12) nondegenerate = true
+    }
+    if (!nondegenerate) throw new KJValidationError(`${label}.vertices must span a nonzero area`)
+    const styleKey = entityStyleKey(solid.styleKey, `${label}.styleKey`)
+    return { vertices, role: solid.role as KJFlangeAuxiliaryLine['role'], ...(styleKey == null ? {} : { styleKey }) }
+  })
   if (input.auxiliaryCurves != null && !Array.isArray(input.auxiliaryCurves)) throw new KJValidationError('input.auxiliaryCurves must be an array')
   if ((input.auxiliaryCurves as unknown[] | undefined)?.length && (input.auxiliaryCurves as unknown[]).length > 256) throw new KJValidationError('input.auxiliaryCurves exceed their 256-curve budget')
   const auxiliaryCurves: KJFlangeAuxiliaryCurve[] = ((input.auxiliaryCurves ?? []) as unknown[]).map((value, index) => {
@@ -1042,7 +1066,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source
     return { key: String(key), definition: styleRole(definition, `input.styleProfile.custom[${index}]`) }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, orientation, axisCoordinate, axisVisible, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, orientation, axisCoordinate, axisVisible, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliarySolids, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -1223,6 +1247,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     patternName: hatch.patternName, solid: hatch.solid, associative: false, patternAngle: 0, patternScale: 1, patternLines: hatch.patternLines,
     patternDefinitionAngle: 0, patternDefinitionScale: 1, layerId: style.layerId }, style.name) }
   for (const auxiliary of input.auxiliaryLines) { const style = styled(auxiliary.styleKey, auxiliary.role); line(auxiliary.start, auxiliary.end, style.layerId, style.name) }
+  for (const solid of input.auxiliarySolids) { const style = styled(solid.styleKey, solid.role), vertices = solid.vertices.map(value => p3(...value)); emit('SOLID', { vertices: vertices.length === 3 ? [...vertices, vertices[2]!] : vertices, layerId: style.layerId }, style.name) }
   for (const curve of input.auxiliaryCurves) {
     const style = styled(curve.styleKey, curve.role)
     if (curve.kind === 'arc') emit('ARC', { center: p3(...curve.center), radius: curve.radius, startAngle: curve.startAngle, endAngle: curve.endAngle, clockwise: curve.clockwise === true, layerId: style.layerId }, style.name)
@@ -1326,7 +1351,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1), holeCount: input.holePatterns.reduce((sum, pattern) => sum + pattern.count, input.pitch == null ? 0 : 4), titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null, sideViewOrientation: input.orientation, sideViewAxisVisible: input.axisVisible,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
-        sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
+        sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
         symbolDefinitionCount: input.symbolDefinitions.length, symbolInstanceCount: input.symbolInstances.length, symbolAttributeCount: input.symbolAttributeCount, featureControlFrameCount: input.featureControlFrames.length,
         entityStyleCount: input.customStyles.length, textStyleCount: input.textStyles.length, dimensionStyleCount: input.dimensionStyles.length,
         noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },

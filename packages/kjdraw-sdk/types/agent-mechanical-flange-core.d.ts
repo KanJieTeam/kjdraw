@@ -232,6 +232,12 @@ export interface KJFlangeAuxiliaryLine {
     role: 'geometry' | 'center' | 'hidden' | 'notes' | 'grid' | 'frame';
     styleKey?: string;
 }
+/** Bounded source-measured filled planar faces, including native CAD arrowheads. */
+export interface KJFlangeAuxiliarySolid {
+    vertices: Point2[];
+    role: KJFlangeAuxiliaryLine['role'];
+    styleKey?: string;
+}
 export type KJFlangeAuxiliaryCurve = {
     kind: 'arc';
     center: Point2;
@@ -514,6 +520,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     leaders?: KJFlangeLeader[];
     featureControlFrames?: KJFlangeFeatureControlFrame[];
     auxiliaryLines?: KJFlangeAuxiliaryLine[];
+    auxiliarySolids?: KJFlangeAuxiliarySolid[];
     auxiliaryCurves?: KJFlangeAuxiliaryCurve[];
     auxiliaryHatches?: KJFlangeAuxiliaryHatch[];
     symbols?: {
@@ -601,6 +608,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             sectionHatchCount: number;
             auxiliaryHatchCount: number;
             auxiliaryLineCount: number;
+            auxiliarySolidCount: number;
             auxiliaryCurveCount: number;
             symbolDefinitionCount: number;
             symbolInstanceCount: number;

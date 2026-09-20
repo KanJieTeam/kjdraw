@@ -493,6 +493,56 @@ test('bounded semantic auxiliary curves compile as native editable CAD entities'
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves: [{ kind: 'spline', degree: 2, controlPoints: [[0, 0], [1, 1], [2, 0]], knots: [0, 0, 1], role: 'geometry' }] }), /knots length/u)
 })
 
+test('bounded semantic auxiliary solids compile as native editable filled faces', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const auxiliarySolids = [
+    { vertices: [[20, 20], [28, 24], [20, 28]], role: 'geometry' },
+    { vertices: [[40, 20], [48, 24], [40, 28], [40, 28]], role: 'notes' },
+  ]
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliarySolids })
+  assert.equal(proposal.evidence.parameters.auxiliarySolidCount, 2)
+  assert.deepEqual(proposal.commandArgs.entities.filter(entity => entity.type === 'SOLID').slice(-2).map(entity => entity.payload.vertices), [
+    [[20, 20, 0], [28, 24, 0], [20, 28, 0], [20, 28, 0]],
+    [[40, 20, 0], [48, 24, 0], [40, 28, 0], [40, 28, 0]],
+  ])
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const [kjd, dxf] = await Promise.all([
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
+    sdk.readDocument(dxfText, { format: 'DXF' }),
+  ])
+  for (const reopened of [kjd, dxf]) assert.deepEqual(reopened.listEntities({ type: 'SOLID' }).slice(-2).map(entity => entity.payload.vertices), proposal.commandArgs.entities.filter(entity => entity.type === 'SOLID').slice(-2).map(entity => entity.payload.vertices))
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); s=list(d.modelspace().query("SOLID")); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"solids":len(s),"tail":[[[float(v.x),float(v.y),float(v.z)] for v in [e.dxf.vtx0,e.dxf.vtx1,e.dxf.vtx2,e.dxf.vtx3]] for e in s[-2:]]}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+    PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, solids: 3, tail: [
+      [[20, 20, 0], [28, 24, 0], [20, 28, 0], [20, 28, 0]],
+      [[40, 20, 0], [48, 24, 0], [40, 28, 0], [40, 28, 0]],
+    ] })
+  }
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliarySolids: [{ vertices: [[0, 0], [1, 0]], role: 'geometry' }] }), /3 or 4 points/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliarySolids: [{ vertices: [[0, 0], [1, 0], [2, 0]], role: 'geometry' }] }), /nonzero area/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliarySolids: [{ ...auxiliarySolids[0], rawTags: [] }] }), /unsupported field/u)
+})
+
+test('auxiliary solid budget remains bounded and fail-closed', () => {
+  const document = createKJDrawSDK().createDocument({ units: 'millimeter' })
+  const auxiliarySolids = Array.from({ length: 64 }, (_, index) => ({
+    vertices: [[index * 2, 0], [index * 2 + 1, 0], [index * 2, 1]], role: 'geometry',
+  }))
+  const startedAt = performance.now(), proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliarySolids })
+  assert.equal(proposal.evidence.parameters.auxiliarySolidCount, 64)
+  assert.ok(proposal.commandArgs.entities.length < 256)
+  assert.ok(Buffer.byteLength(JSON.stringify(proposal.commandArgs), 'utf8') < 256 * 1_024)
+  assert.ok(performance.now() - startedAt < 5_000)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliarySolids: [...auxiliarySolids, auxiliarySolids[0]] }), /64-solid budget/u)
+})
 test('auxiliary curve budget supports complex public drawings and remains fail-closed', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const auxiliaryCurves = Array.from({ length: 256 }, (_, index) => ({

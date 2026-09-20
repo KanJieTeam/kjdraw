@@ -59,6 +59,7 @@ function validate(document, source) {
         'leaders',
         'featureControlFrames',
         'auxiliaryLines',
+        'auxiliarySolids',
         'auxiliaryCurves',
         'auxiliaryHatches',
         'symbols',
@@ -1265,6 +1266,46 @@ function validate(document, source) {
             }
         };
     });
+    if (input.auxiliarySolids != null && !Array.isArray(input.auxiliarySolids)) throw new KJValidationError('input.auxiliarySolids must be an array');
+    if (input.auxiliarySolids?.length && input.auxiliarySolids.length > 64) throw new KJValidationError('input.auxiliarySolids exceed their 64-solid budget');
+    const auxiliarySolids = (input.auxiliarySolids ?? []).map((value, index)=>{
+        const label = `input.auxiliarySolids[${index}]`, solid = plain(value, label);
+        exact(solid, [
+            'vertices',
+            'role',
+            'styleKey'
+        ], label);
+        if (![
+            'geometry',
+            'center',
+            'hidden',
+            'notes',
+            'grid',
+            'frame'
+        ].includes(solid.role)) throw new KJValidationError(`${label}.role is invalid`);
+        if (!Array.isArray(solid.vertices) || solid.vertices.length < 3 || solid.vertices.length > 4) throw new KJValidationError(`${label}.vertices must contain 3 or 4 points`);
+        const vertices = solid.vertices.map((value, vertexIndex)=>point(value, `${label}.vertices[${vertexIndex}]`));
+        let nondegenerate = false;
+        for(let a = 0; a < vertices.length; a++)for(let b = a + 1; b < vertices.length; b++)for(let c = b + 1; c < vertices.length; c++){
+            const ab = [
+                vertices[b][0] - vertices[a][0],
+                vertices[b][1] - vertices[a][1]
+            ], ac = [
+                vertices[c][0] - vertices[a][0],
+                vertices[c][1] - vertices[a][1]
+            ];
+            if (Math.abs(ab[0] * ac[1] - ab[1] * ac[0]) > 1e-12) nondegenerate = true;
+        }
+        if (!nondegenerate) throw new KJValidationError(`${label}.vertices must span a nonzero area`);
+        const styleKey = entityStyleKey(solid.styleKey, `${label}.styleKey`);
+        return {
+            vertices,
+            role: solid.role,
+            ...styleKey == null ? {} : {
+                styleKey
+            }
+        };
+    });
     if (input.auxiliaryCurves != null && !Array.isArray(input.auxiliaryCurves)) throw new KJValidationError('input.auxiliaryCurves must be an array');
     if (input.auxiliaryCurves?.length && input.auxiliaryCurves.length > 256) throw new KJValidationError('input.auxiliaryCurves exceed their 256-curve budget');
     const auxiliaryCurves = (input.auxiliaryCurves ?? []).map((value, index)=>{
@@ -1838,6 +1879,7 @@ function validate(document, source) {
         leaders,
         featureControlFrames,
         auxiliaryLines,
+        auxiliarySolids,
         auxiliaryCurves,
         auxiliaryHatches,
         symbolDefinitions,
@@ -2475,6 +2517,16 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         const style = styled(auxiliary.styleKey, auxiliary.role);
         line(auxiliary.start, auxiliary.end, style.layerId, style.name);
     }
+    for (const solid of input.auxiliarySolids){
+        const style = styled(solid.styleKey, solid.role), vertices = solid.vertices.map((value)=>p3(...value));
+        emit('SOLID', {
+            vertices: vertices.length === 3 ? [
+                ...vertices,
+                vertices[2]
+            ] : vertices,
+            layerId: style.layerId
+        }, style.name);
+    }
     for (const curve of input.auxiliaryCurves){
         const style = styled(curve.styleKey, curve.role);
         if (curve.kind === 'arc') emit('ARC', {
@@ -2857,6 +2909,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 sectionHatchCount: input.sectionHatches.length,
                 auxiliaryHatchCount: input.auxiliaryHatches.length,
                 auxiliaryLineCount: input.auxiliaryLines.length,
+                auxiliarySolidCount: input.auxiliarySolids.length,
                 auxiliaryCurveCount: input.auxiliaryCurves.length,
                 symbolDefinitionCount: input.symbolDefinitions.length,
                 symbolInstanceCount: input.symbolInstances.length,
