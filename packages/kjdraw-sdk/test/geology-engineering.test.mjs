@@ -239,7 +239,10 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     ontology: { objectKinds: ['borehole-log'], relationKinds: [] }, rules: { 'geology-column-layout': {
       paperWidth: 190, paperHeight: 290, left: 5, right: 185, headerDepth: 45, headerRowHeight: 5,
       fieldHeaderHeight: 10, footerReserve: 15, titleHeight: 10, verticalScaleDenominators: [100],
-      fieldGrid, headerGrid: { rows: physicalRows }, legendMode: 'none', textHeights: {
+      fieldGrid, headerGrid: { rows: physicalRows }, footerGrid: { height: 10, cells: [
+        { start: 5, key: 'organization', label: 'Organization' }, { start: 65, key: 'checkedBy', label: 'Checked' },
+        { start: 125, key: 'drawingNumber', label: 'Drawing' },
+      ] }, legendMode: 'none', textHeights: {
         headerFact: 3, fieldHeader: 3, fieldSubHeader: 2.5, majorValue: 3, intervalDepth: 2.5, observation: 2,
       }, stratigraphicNotationStyle: { symbolHeight: 3, qualifierHeight: 1.5 },
       sampleMarkerStyle: { height: 1, gap: 0.5, baselineOffset: 0.5 },
@@ -247,6 +250,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
         textWidthFactor: 0.8, gap: 0.6, valueOffset: 3, markerOffset: 0, dateOffset: -3 },
       patternLabelStyle: { height: 1.5, textWidthFactor: 1, minimumBandHeight: 2 },
       frameStyle: { topMargin: 5, bottomMargin: 5, constantWidth: 0.5 },
+      formTopology: { containers: 'outer-frame-separators', headerDividers: 'merge-adjacent-collinear', patternCells: 'closed-outline' },
       textFlow: { firstGroupBorrowMm: 8, firstGroupUnruled: true, firstBaselineMm: 3.4,
         labelPitchMm: 5, labelHeightMm: 2, paragraphGapMm: 0.8 },
       descriptionBoundaryStyle: { inset: 2, clearance: 1.5 },
@@ -287,10 +291,21 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     entity.payload.vertices[0][0] === 5 && entity.payload.vertices[0][1] === 5 && entity.payload.vertices[2][1] === 285), 'source-backed wide outer frame')
   assert.equal(polylines.filter(entity => entity.payload.closed !== true && entity.payload.vertices.length === 6).length, 3,
     'each major group boundary is one stepped description-lane polyline')
+  assert.equal(polylines.filter(entity => entity.payload.closed === true && entity.payload.constantWidth == null &&
+    entity.payload.vertices[0][0] === 65 && entity.payload.vertices[1][0] === 85).length, 3,
+  'each filled pattern cell keeps one editable closed outline')
+  assert.equal(polylines.filter(entity => entity.payload.closed === true && entity.payload.constantWidth == null &&
+    entity.payload.vertices.some(vertex => vertex[0] === 5) && entity.payload.vertices.some(vertex => vertex[0] === 185)).length, 0,
+  'form containers rely on the outer frame instead of duplicate closed rectangles')
   const headerBottom = 245, headerTop = 260
   const vertical = compiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
     entity.payload.start[0] === entity.payload.end[0] && entity.payload.start[1] >= headerBottom && entity.payload.end[1] <= headerTop)
   for (const x of [25, 55, 75, 105, 125, 145, 165]) assert.ok(vertical.some(entity => entity.payload.start[0] === x), `header x=${x}`)
+  assert.deepEqual(vertical.filter(entity => entity.payload.start[0] === 25).map(entity =>
+    [entity.payload.start[1], entity.payload.end[1]]), [[245, 260]], 'adjacent header dividers merge without crossing a gap')
+  const fullWidthSeparators = compiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
+    entity.payload.start[0] === 5 && entity.payload.end[0] === 185 && entity.payload.start[1] === entity.payload.end[1])
+  for (const y of [260, 255, 250, 245, 235, 15]) assert.ok(fullWidthSeparators.some(entity => entity.payload.start[1] === y), `separator y=${y}`)
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
   const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
@@ -302,7 +317,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     assert.ok(reopenedKjd.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `KJD ${value}`)
   }
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
-    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); ts=list(m.query("TEXT")); ps=list(m.query("LWPOLYLINE")); xs=sorted({round(e.dxf.start.x,6) for e in m.query("LINE") if abs(e.dxf.start.x-e.dxf.end.x)<1e-9 and e.dxf.start.y>=245 and e.dxf.end.y<=260}); rs=[e for e in ts if e.dxf.text=="Record:18"]; outer=[e for e in ps if e.closed and abs(e.dxf.const_width-.5)<1e-9]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"xs":xs,"texts":[e.dxf.text for e in ts],"record":[[e.dxf.insert.x,e.dxf.insert.y,e.dxf.height,e.dxf.width,e.dxf.halign,e.dxf.valign,e.dxf.rotation] for e in rs],"outer":[[e.dxf.const_width,list(e.get_points())[0][0],list(e.get_points())[0][1],list(e.get_points())[2][1]] for e in outer],"stepped":sum(1 for e in ps if not e.closed and len(e)==6)},ensure_ascii=False))'],
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); ts=list(m.query("TEXT")); ps=list(m.query("LWPOLYLINE")); ls=list(m.query("LINE")); xs=sorted({round(e.dxf.start.x,6) for e in ls if abs(e.dxf.start.x-e.dxf.end.x)<1e-9 and e.dxf.start.y>=245 and e.dxf.end.y<=260}); rs=[e for e in ts if e.dxf.text=="Record:18"]; outer=[e for e in ps if e.closed and abs(e.dxf.const_width-.5)<1e-9]; outlines=[e for e in ps if e.closed and abs(e.dxf.const_width)<1e-9 and abs(list(e.get_points())[0][0]-65)<1e-9 and abs(list(e.get_points())[1][0]-85)<1e-9]; containers=[e for e in ps if e.closed and abs(e.dxf.const_width)<1e-9 and min(p[0] for p in e.get_points())==5 and max(p[0] for p in e.get_points())==185]; merged=[[e.dxf.start.y,e.dxf.end.y] for e in ls if abs(e.dxf.start.x-25)<1e-9 and abs(e.dxf.end.x-25)<1e-9 and e.dxf.start.y>=245 and e.dxf.end.y<=260]; separators=sorted({e.dxf.start.y for e in ls if abs(e.dxf.start.y-e.dxf.end.y)<1e-9 and abs(e.dxf.start.x-5)<1e-9 and abs(e.dxf.end.x-185)<1e-9}); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"xs":xs,"texts":[e.dxf.text for e in ts],"record":[[e.dxf.insert.x,e.dxf.insert.y,e.dxf.height,e.dxf.width,e.dxf.halign,e.dxf.valign,e.dxf.rotation] for e in rs],"outer":[[e.dxf.const_width,list(e.get_points())[0][0],list(e.get_points())[0][1],list(e.get_points())[2][1]] for e in outer],"stepped":sum(1 for e in ps if not e.closed and len(e)==6),"outlines":len(outlines),"containers":len(containers),"merged":merged,"separators":separators},ensure_ascii=False))'],
   dxf, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
     PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
   if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
@@ -318,6 +333,10 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     assert.deepEqual(report.record, [[180, 280, 3, 0.8, 2, 0, 0]])
     assert.deepEqual(report.outer, [[0.5, 5, 5, 285]])
     assert.equal(report.stepped, 3)
+    assert.equal(report.outlines, 3)
+    assert.equal(report.containers, 0)
+    assert.deepEqual(report.merged, [[245, 260]])
+    for (const y of [15, 235, 245, 250, 255, 260]) assert.ok(report.separators.includes(y), `ezdxf separator y=${y}`)
   }
   const partial = structuredClone(input)
   delete partial.columnStylePack.rules['geology-column-layout'].headerGrid.rows[0][1].valueStart
@@ -382,6 +401,12 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const boundaryWithoutFlow = structuredClone(input)
   delete boundaryWithoutFlow.columnStylePack.rules['geology-column-layout'].textFlow
   assert.throws(() => compileGeologyColumn(boundaryWithoutFlow), /description boundary style needs text flow/u)
+  const malformedTopology = structuredClone(input)
+  malformedTopology.columnStylePack.rules['geology-column-layout'].formTopology.patternCells = 'hatch-only'
+  assert.throws(() => compileGeologyColumn(malformedTopology), /unsupported form topology strategy/u)
+  const topologyWithoutFooter = structuredClone(input)
+  delete topologyWithoutFooter.columnStylePack.rules['geology-column-layout'].footerGrid
+  assert.throws(() => compileGeologyColumn(topologyWithoutFooter), /form topology needs field, header and footer grids/u)
 })
 
 test('bundled Chinese column header renders the selected physical vertical scale as visible native text', () => {

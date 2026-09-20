@@ -899,6 +899,11 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
                 textWidthFactor: 1,
                 minimumBandHeight: 2
             },
+            formTopology: {
+                containers: 'outer-frame-separators',
+                headerDividers: 'merge-adjacent-collinear',
+                patternCells: 'closed-outline'
+            },
             titleMarginFacts: [
                 {
                     key: 'recordNumber',

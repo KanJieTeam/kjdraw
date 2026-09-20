@@ -199,6 +199,7 @@ interface ColumnLayout {
   titleMarginFacts?: TitleMarginFactPlacement[]
   frameStyle?: { topMargin: number; bottomMargin: number; constantWidth: number }
   descriptionBoundaryStyle?: { inset: number; clearance: number }
+  formTopology?: { containers: 'outer-frame-separators'; headerDividers: 'merge-adjacent-collinear'; patternCells: 'closed-outline' }
   verticalScaleDenominators: number[]
   sourceTemplate?: { sourceId: string; sourceSha256: string; verticalScaleDenominator: number; innerGridWidthMillimeters: number; fieldRoles: string[]; footerLabels: string[]; gridLineHandles: string[] }
 }
@@ -298,7 +299,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -598,6 +599,17 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: description boundary style is unreadable')
     descriptionBoundaryStyle = { inset, clearance }
   }
+  let formTopology: ColumnLayout['formTopology']
+  if (value.formTopology != null) {
+    if (!isFieldGrid || !headerGrid || !footerGrid || !value.formTopology || typeof value.formTopology !== 'object' ||
+      Array.isArray(value.formTopology) || Object.keys(value.formTopology).sort().join(',') !== 'containers,headerDividers,patternCells')
+      throw new KJValidationError('Geology: form topology needs field, header and footer grids with an exact schema')
+    const rule = value.formTopology as Record<string, unknown>
+    if (rule.containers !== 'outer-frame-separators' || rule.headerDividers !== 'merge-adjacent-collinear' ||
+      rule.patternCells !== 'closed-outline')
+      throw new KJValidationError('Geology: unsupported form topology strategy')
+    formTopology = { containers: rule.containers, headerDividers: rule.headerDividers, patternCells: rule.patternCells }
+  }
   let verticalScaleDenominators = [...defaultColumnVerticalScales]
   if (value.verticalScaleDenominators != null) {
     if (!Array.isArray(value.verticalScaleDenominators) || value.verticalScaleDenominators.length < 1 || value.verticalScaleDenominators.length > 16)
@@ -649,6 +661,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     ...(groundwaterAnnotationStyle ? { groundwaterAnnotationStyle } : {}), ...(patternLabelStyle ? { patternLabelStyle } : {}),
     ...(titleMarginFacts ? { titleMarginFacts } : {}),
     ...(frameStyle ? { frameStyle } : {}), ...(descriptionBoundaryStyle ? { descriptionBoundaryStyle } : {}),
+    ...(formTopology ? { formTopology } : {}),
     ...(sourceTemplate ? { sourceTemplate } : {}) }
 }
 
@@ -865,7 +878,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
     headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights,
-    stratigraphicNotationStyle, sampleMarkerStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle,
+    stratigraphicNotationStyle, sampleMarkerStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology,
     layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
     throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style')
@@ -962,6 +975,13 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const frameBottom = frameStyle?.bottomMargin ?? 5
   const frameTop = pageHeight - (frameStyle?.topMargin ?? (formalFrame ? 15 : 5))
   g.rect(0, formalFrame ? left : 5, frameBottom, formalFrame ? right : pageWidth - 5, frameTop, frameStyle?.constantWidth)
+  const formSeparators = new Set<string>()
+  const formSeparator = (y: number): void => {
+    const key = y.toFixed(9)
+    if (formSeparators.has(key)) return
+    formSeparators.add(key)
+    g.line(0, left, y, right, y)
+  }
   let titleRegionBottom = pageHeight - headerDepth
   if (headerGrid) {
     const facts: Record<HeaderRole, string | undefined> = {
@@ -980,7 +1000,9 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     if (headerTop + (titleHeight ?? 5) + 1 > frameTop) throw new KJValidationError('Geology: declared title does not fit between the header and drawing frame')
     const titleY = headerTop + (frameTop - headerTop - (titleHeight ?? 5)) / 2
     g.text(3, pageWidth / 2, titleY, bounded(input.title ?? (locale === 'zh-CN' ? '钻孔柱状图' : 'BOREHOLE LOG'), 'title'), titleHeight ?? 5, true)
-    g.rect(0, left, headerBottom, right, headerTop)
+    if (formTopology) { formSeparator(headerBottom); formSeparator(headerTop) }
+    else g.rect(0, left, headerBottom, right, headerTop)
+    const headerVerticals: { x: number; bottom: number; top: number }[] = []
     for (const [rowIndex, row] of headerGrid.rows.entries()) {
       const rowTop = headerTop - rowIndex * rowHeight, rowBottom = rowTop - rowHeight
       if (rowIndex) g.line(0, left, rowTop, right, rowTop)
@@ -990,8 +1012,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         const cellRight = row[cellIndex + 1]?.start ?? right
         const width = cellRight - cellLeft
         const valueX = cell.valueStart ?? cellLeft + Math.min(25, width * 0.35)
-        if (cellIndex) g.line(0, cellLeft, rowBottom, cellLeft, rowTop)
-        g.line(0, valueX, rowBottom, valueX, rowTop)
+        if (cellIndex) headerVerticals.push({ x: cellLeft, bottom: rowBottom, top: rowTop })
+        headerVerticals.push({ x: valueX, bottom: rowBottom, top: rowTop })
         const identity = cell.role === 'documentFact' ? cell.key : cell.role
         const value = cell.role === 'documentFact' ? documentFacts[cell.key] : facts[cell.role]
         if (value == null && !cell.optional) throw new KJValidationError(`Geology: declared header fact ${identity} is missing; refusing to invent a value`)
@@ -1005,6 +1027,19 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         if (visibleValue) g.text(3, valueX + 2, rowTop - rowHeight * 0.69, visibleValue, headerFactHeight)
       }
     }
+    if (formTopology) {
+      const ordered = headerVerticals.sort((a, b) => a.x - b.x || a.bottom - b.bottom || a.top - b.top)
+      let active: typeof ordered[number] | undefined
+      for (const segment of ordered) {
+        if (active && Math.abs(active.x - segment.x) < 1e-9 && segment.bottom <= active.top + 1e-9)
+          active.top = Math.max(active.top, segment.top)
+        else {
+          if (active) g.line(0, active.x, active.bottom, active.x, active.top)
+          active = { ...segment }
+        }
+      }
+      if (active) g.line(0, active.x, active.bottom, active.x, active.top)
+    } else for (const segment of headerVerticals) g.line(0, segment.x, segment.bottom, segment.x, segment.top)
   } else {
     g.text(3, pageWidth / 2, pageHeight - 18, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质钻孔柱状图' : 'ENGINEERING BOREHOLE LOG'), 'title'), titleHeight ?? 5, true)
     if (input.projectName) g.text(3, left + 2, pageHeight - 27, `${labels.project} ${bounded(input.projectName, 'project name', 96)}`, 2.5)
@@ -1064,7 +1099,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const renderFooterGrid = (): void => {
     if (!footerGrid) return
     const bottom = frameBottom, top = bottom + footerGrid.height
-    g.rect(0, left, bottom, right, top)
+    if (formTopology) formSeparator(top)
+    else g.rect(0, left, bottom, right, top)
     for (const [index, cell] of footerGrid.cells.entries()) {
       const end = footerGrid.cells[index + 1]?.start ?? right
       if (index) g.line(0, cell.start, bottom, cell.start, top)
@@ -1219,7 +1255,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     // borehole is shallower than that bay.  Strata remain exactly depth-scaled;
     // only the reusable form grid continues to the footer reserve.
     const formBottom = footerReserve
-    g.rect(0, left, formBottom, right, pageHeight - headerDepth)
+    if (formTopology) { formSeparator(formBottom); formSeparator(pageHeight - headerDepth) }
+    else g.rect(0, left, formBottom, right, pageHeight - headerDepth)
     for (const item of fieldGrid) {
       if (item.start !== left) g.line(0, item.start, formBottom, item.start, pageHeight - headerDepth)
       const centerX = item.start + fieldWidth(item) / 2
@@ -1229,7 +1266,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.78, subLabel, textHeights?.fieldSubHeader ?? 1.6, true, item.textWidthFactor)
       } else g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.62, item.label, textHeights?.fieldHeader ?? 1.8, true, item.textWidthFactor)
     }
-    g.line(0, left, top, right, top)
+    if (formTopology) formSeparator(top)
+    else g.line(0, left, top, right, top)
     const patternField = field('pattern'), depthField = field('depth')
     const writeCore = (id: string, groupTop: number, groupBottom: number, principal: KJGeologyStratum): void => {
       const yTop = top - groupTop * scale, yBottom = top - groupBottom * scale
@@ -1280,8 +1318,12 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         const item = field(role)
         bandLines.push({ x1: item.start, x2: gridEnd(item), y: yBottom })
       }
-      if (layer.patternVisibility !== 'boundary-only') g.hatch([[patternField.start, yBottom], [gridEnd(patternField), yBottom],
-        [gridEnd(patternField), yTop], [patternField.start, yTop]], layer)
+      if (layer.patternVisibility !== 'boundary-only') {
+        const patternCell: [number, number][] = [[patternField.start, yBottom], [gridEnd(patternField), yBottom],
+          [gridEnd(patternField), yTop], [patternField.start, yTop]]
+        if (formTopology) g.poly(1, patternCell, true)
+        g.hatch(patternCell, layer)
+      }
       if (layer.patternLabel) {
         const style = patternLabelStyle!, bandHeight = yTop - yBottom
         const width = estimatedWidth(layer.patternLabel, style.height) * style.textWidthFactor
