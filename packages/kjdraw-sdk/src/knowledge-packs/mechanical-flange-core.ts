@@ -5,7 +5,7 @@ import { stableHash } from '../utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePack({
   schema: 'kjdraw.knowledge-pack.v1',
   id: 'mechanical-flange-core',
-  version: '2.10.0',
+  version: '2.11.0',
   title: 'Parameterized flange orthographic-view and sheet-grid rules',
   domain: 'mechanical-manufacturing',
   license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
@@ -13,7 +13,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
     id: 'kjdraw-authored-flange-rules-v1',
     title: 'KJDraw authored flange geometry and layout rules',
     license: 'MIT',
-    contentHash: stableHash('flange-views:concentric-rings:polar-hole-arrays:legacy-square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:parameterized-ansi31:caller-supplied-style-roles:caller-supplied-entity-style-overrides:caller-supplied-annotation-style-resources:semantic-auxiliary-lines:semantic-native-curves:generic-local-symbols:nested-local-symbols:attributed-local-symbols:complete-attribute-sequences:semantic-feature-control-frames:auxiliary-circles:native-leaders:native-derived-dimensions:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:v2.10'),
+    contentHash: stableHash('flange-views:concentric-rings:polar-hole-arrays:legacy-square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:parameterized-ansi31:caller-supplied-style-roles:caller-supplied-entity-style-overrides:caller-supplied-annotation-style-resources:semantic-auxiliary-lines:semantic-native-curves:generic-local-symbols:nested-local-symbols:attributed-local-symbols:complete-attribute-sequences:semantic-feature-control-frames:auxiliary-circles:native-leaders:native-derived-dimensions:entity-local-dimension-overrides:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:v2.11'),
   }],
   ontology: {
     objectKinds: ['flange', 'bore', 'concentric-ring', 'polar-hole-pattern', 'square-hole-pattern', 'end-view-outline', 'cutting-plane-mark', 'side-view-axis', 'symmetric-meridian-profile', 'side-view-outline', 'cut-face', 'native-dimension', 'native-leader', 'feature-control-frame', 'local-symbol', 'attribute-definition', 'attached-attribute', 'sheet-frame', 'title-grid', 'sheet-note'],
@@ -34,7 +34,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
     featureControlFrames: 'geometric characteristic, tolerance-zone and datum semantics compile into editable native TOLERANCE entities; opaque source tags and application-specific object data are rejected',
     sheet: 'outer frame, optional positive-width inset frame and optional bounded semantic title-grid with full or locally segmented rules',
     notes: 'bounded source-supplied sheet labels and technical notes; visible content is never embedded in this pack',
-    dimensions: 'native dimensions derive measurements from bounded definition points and never trust supplied measurement values',
+    dimensions: 'native dimensions derive measurements from bounded definition points, preserve bounded entity-local text-height and arrow-size overrides, and never trust supplied measurement values',
     leaders: 'native source-measured leaders retain bounded vertices and drafting flags without private annotation handles',
     nativeEntities: ['CIRCLE', 'LINE', 'ARC', 'HATCH', 'INSERT', 'ATTDEF', 'ATTRIB'],
   },

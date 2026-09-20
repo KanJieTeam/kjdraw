@@ -21,7 +21,7 @@ const input = expectedRevision => ({
     { kind: 'circle', center: { station: 205, offset: 32 }, radius: 3 },
   ] },
   dimensions: [
-    { kind: 'rotated', definitionPoints: [[90, 92], [50, 110], [130, 110]], textPosition: [90, 92], rotation: 0 },
+    { kind: 'rotated', definitionPoints: [[90, 92], [50, 110], [130, 110]], textPosition: [90, 92], rotation: 0, textHeight: 2.5, arrowSize: 1 },
     { kind: 'diameter', definitionPoints: [[78, 150], [102, 150]], textPosition: [125, 165], textOverride: '4X DIA <>' },
   ],
   leaders: [{ vertices: [[80, 100], [70, 90], [65, 90]], arrowEnabled: true, pathType: 0, annotationType: 3, textHeight: 7, textWidth: 14 }],
@@ -54,6 +54,8 @@ test('flange knowledge pack and compiler are source-neutral and deterministic', 
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'LEADER').length, 1)
   assert.equal(a.commandArgs.entities.find(e => e.type === 'LEADER').payload.textHeight, 7)
   assert.equal(a.commandArgs.entities.find(e => e.type === 'LEADER').payload.textWidth, 14)
+  assert.equal(a.commandArgs.entities.find(e => e.type === 'DIMENSION').payload.textHeight, 2.5)
+  assert.equal(a.commandArgs.entities.find(e => e.type === 'DIMENSION').payload.arrowSize, 1)
   assert.equal(a.evidence.parameters.outlineSegmentCount, 3)
   assert.equal(a.evidence.parameters.cuttingPlaneMarkCount, 1)
   assert.equal(a.evidence.parameters.symmetricProfileCount, 1)
@@ -177,10 +179,14 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
   assert.equal(kjd.listEntities().length, 53)
   assert.equal(dxf.listEntities().filter(e => e.type === 'CIRCLE').length, 9)
   assert.equal(dxf.listEntities().filter(e => e.type === 'DIMENSION').length, 2)
+  assert.equal(kjd.listEntities({ type: 'DIMENSION' })[0].payload.textHeight, 2.5)
+  assert.equal(kjd.listEntities({ type: 'DIMENSION' })[0].payload.arrowSize, 1)
+  assert.equal(dxf.listEntities({ type: 'DIMENSION' })[0].payload.textHeight, 2.5)
+  assert.equal(dxf.listEntities({ type: 'DIMENSION' })[0].payload.arrowSize, 1)
   assert.equal(dxf.listEntities({ type: 'LEADER' })[0].payload.textHeight, 7)
   assert.equal(dxf.listEntities({ type: 'LEADER' })[0].payload.textWidth, 14)
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
-    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"arcs":len(m.query("ARC")),"lines":len(m.query("LINE")),"solids":len(m.query("SOLID")),"leaders":len(m.query("LEADER")),"dimensions":len(m.query("DIMENSION"))}))'],
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); dims=list(m.query("DIMENSION")); o=dims[0].override(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"arcs":len(m.query("ARC")),"lines":len(m.query("LINE")),"solids":len(m.query("SOLID")),"leaders":len(m.query("LEADER")),"dimensions":len(dims),"dimensionTextHeight":o.get("dimtxt"),"dimensionArrowSize":o.get("dimasz")}))'],
   dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
     PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
   if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
@@ -188,7 +194,7 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
     t.diagnostic('official ezdxf unavailable; independent check skipped')
   } else {
     assert.equal(independent.status, 0, independent.stderr)
-    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, circles: 9, arcs: 2, lines: 36, solids: 1, leaders: 1, dimensions: 2 })
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, circles: 9, arcs: 2, lines: 36, solids: 1, leaders: 1, dimensions: 2, dimensionTextHeight: 2.5, dimensionArrowSize: 1 })
   }
 })
 
@@ -254,6 +260,8 @@ test('flange compiler rejects unsupported source injection and impossible geomet
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, notes: [{ kind: 'single-line', text: 'NO WIDTH', position: [20, 20], height: 3, width: 10 }] } }), /only valid for multiline/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), dimensions: [{ kind: 'diameter', definitionPoints: [[1, 1], [2, 2], [3, 3]] }] }), /must contain 2 points/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), dimensions: [{ kind: 'radius', definitionPoints: [[1, 1], [1, 1]] }] }), /projectable native dimension/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), dimensions: [{ ...input(0).dimensions[0], textHeight: 0 }] }), /textHeight/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), dimensions: [{ ...input(0).dimensions[0], arrowSize: -1 }] }), /arrowSize/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, origin: [0, 0] } } }), /inside the inset frame/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, horizontalSegments: [{ offset: 10, start: 20, end: 10 }] } } }), /start must be less than end/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, verticalSegments: [{ offset: 200, start: 0, end: 10 }] } } }), /must be finite/u)

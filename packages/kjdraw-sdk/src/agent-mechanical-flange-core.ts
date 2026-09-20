@@ -214,6 +214,9 @@ export interface KJFlangeDimension {
   textPosition?: Point2
   textOverride?: string
   rotation?: number
+  /** Optional entity-local native DIMENSION overrides. */
+  textHeight?: number
+  arrowSize?: number
   styleKey?: string
 }
 
@@ -740,7 +743,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   if ((input.dimensions as unknown[] | undefined)?.length && (input.dimensions as unknown[]).length > 128) throw new KJValidationError('input.dimensions exceed their budget')
   const dimensions: KJFlangeDimension[] = ((input.dimensions ?? []) as unknown[]).map((value, index) => {
     const dimension = plain(value, `input.dimensions[${index}]`)
-    exact(dimension, ['kind', 'definitionPoints', 'textPosition', 'textOverride', 'rotation', 'styleKey'], `input.dimensions[${index}]`)
+    exact(dimension, ['kind', 'definitionPoints', 'textPosition', 'textOverride', 'rotation', 'textHeight', 'arrowSize', 'styleKey'], `input.dimensions[${index}]`)
     if (!['aligned', 'rotated', 'diameter', 'radius', 'angular'].includes(dimension.kind as string)) throw new KJValidationError(`input.dimensions[${index}].kind is invalid`)
     const requiredPoints = dimension.kind === 'angular' ? 5 : ['diameter', 'radius'].includes(dimension.kind as string) ? 2 : 3
     if (!Array.isArray(dimension.definitionPoints) || dimension.definitionPoints.length !== requiredPoints) throw new KJValidationError(`input.dimensions[${index}].definitionPoints must contain ${requiredPoints} points`)
@@ -749,13 +752,17 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const textOverride = dimension.textOverride == null ? undefined : dimension.textOverride
     if (textOverride != null && (typeof textOverride !== 'string' || textOverride.length > 128 || /[\r\n\u0000-\u001f\u007f]/u.test(textOverride))) throw new KJValidationError(`input.dimensions[${index}].textOverride must be bounded single-line text`)
     const rotation = dimension.rotation == null ? 0 : finite(dimension.rotation, `input.dimensions[${index}].rotation`, -Math.PI * 2, Math.PI * 2)
+    const textHeight = dimension.textHeight == null ? undefined : finite(dimension.textHeight, `input.dimensions[${index}].textHeight`, 1e-12, 1e12)
+    const arrowSize = dimension.arrowSize == null ? undefined : finite(dimension.arrowSize, `input.dimensions[${index}].arrowSize`, 0, 1e12)
     const dimensionType = String(dimension.kind).toUpperCase()
     const payload = { dimensionType, definitionPoints: definitionPoints.map(([x, y]) => [x, y, 0]),
-      ...(textPosition == null ? {} : { textPosition: [...textPosition, 0] }), textOverride: textOverride ?? null, rotation }
+      ...(textPosition == null ? {} : { textPosition: [...textPosition, 0] }), textOverride: textOverride ?? null, rotation,
+      ...(textHeight == null ? {} : { textHeight }), ...(arrowSize == null ? {} : { arrowSize }) }
     if (!projectDimension(payload)) throw new KJValidationError(`input.dimensions[${index}] does not define a projectable native dimension`)
     const styleKey = annotationStyleKey(dimension.styleKey, dimensionStyleKeys, `input.dimensions[${index}].styleKey`)
     return { kind: dimension.kind as KJFlangeDimension['kind'], definitionPoints, ...(textPosition == null ? {} : { textPosition }),
-      ...(textOverride == null ? {} : { textOverride }), rotation, ...(styleKey == null ? {} : { styleKey }) }
+      ...(textOverride == null ? {} : { textOverride }), rotation, ...(textHeight == null ? {} : { textHeight }),
+      ...(arrowSize == null ? {} : { arrowSize }), ...(styleKey == null ? {} : { styleKey }) }
   })
   if (input.leaders != null && !Array.isArray(input.leaders)) throw new KJValidationError('input.leaders must be an array')
   if ((input.leaders as unknown[] | undefined)?.length && (input.leaders as unknown[]).length > 64) throw new KJValidationError('input.leaders exceed their budget')
@@ -1323,7 +1330,9 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   for (const dimension of input.dimensions) { const style = dimension.styleKey == null ? null : dimensionStyleByKey.get(dimension.styleKey)!; emit('DIMENSION', {
     dimensionType: dimension.kind.toUpperCase(), definitionPoints: dimension.definitionPoints.map(([x, y]) => p3(x, y)),
     ...(dimension.textPosition == null ? {} : { textPosition: p3(...dimension.textPosition) }),
-    textOverride: dimension.textOverride ?? null, rotation: dimension.rotation ?? 0, styleName: style?.name ?? 'STANDARD', ...(style == null ? {} : { styleId: style.id }), layerId: roleIds.dimensions,
+    textOverride: dimension.textOverride ?? null, rotation: dimension.rotation ?? 0,
+    ...(dimension.textHeight == null ? {} : { textHeight: dimension.textHeight }), ...(dimension.arrowSize == null ? {} : { arrowSize: dimension.arrowSize }),
+    styleName: style?.name ?? 'STANDARD', ...(style == null ? {} : { styleId: style.id }), layerId: roleIds.dimensions,
   }, 'dimensions') }
   for (const leader of input.leaders) { const style = styled(leader.styleKey, 'notes'); emit('LEADER', { vertices: leader.vertices.map(([x, y]) => p3(x, y)), annotationId: null, ownsAnnotation: false,
     arrowEnabled: leader.arrowEnabled !== false, pathType: leader.pathType ?? 0, annotationType: leader.annotationType ?? 3,

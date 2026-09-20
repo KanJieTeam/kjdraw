@@ -105,6 +105,7 @@ export function projectDimension(payload, style = {}) {
         const third = points[2], fourth = points[3];
         if (!third || !fourth) return null;
         let center, u, v, location, origin1, origin2;
+        let originLine1, originLine2;
         if (type === 'ANGULAR') {
             location = points[4];
             if (!location) return null;
@@ -124,6 +125,14 @@ export function projectDimension(payload, style = {}) {
             center = plus(second, u, t);
             origin1 = length(delta(second, center)) > 1e-12 ? second : third;
             origin2 = length(delta(fourth, center)) > 1e-12 ? fourth : first;
+            originLine1 = [
+                second,
+                third
+            ];
+            originLine2 = [
+                fourth,
+                first
+            ];
         } else {
             center = fourth;
             location = first;
@@ -166,10 +175,15 @@ export function projectDimension(payload, style = {}) {
                         Math.cos(b),
                         Math.sin(b)
                     ];
-                    if (Math.abs(dot(nextU, u)) < 1 - 1e-9) [origin1, origin2] = [
-                        origin2,
-                        origin1
-                    ];
+                    if (Math.abs(dot(nextU, u)) < 1 - 1e-9) {
+                        [origin1, origin2] = [
+                            origin2,
+                            origin1
+                        ];
+                        const previousOriginLine = originLine1;
+                        originLine1 = originLine2;
+                        originLine2 = previousOriginLine;
+                    }
                     startAngle = a;
                     endAngle = b;
                     u = nextU;
@@ -180,8 +194,8 @@ export function projectDimension(payload, style = {}) {
             }
             if (!selected) return null;
             const selectedOrigin = (a, b, direction)=>dot(delta(a, center), direction) >= dot(delta(b, center), direction) ? a : b;
-            origin1 = selectedOrigin(second, third, u);
-            origin2 = selectedOrigin(fourth, first, v);
+            origin1 = selectedOrigin(originLine1[0], originLine1[1], u);
+            origin2 = selectedOrigin(originLine2[0], originLine2[1], v);
         } else {
             const span = positive(endAngle - startAngle), offset = positive(placement - startAngle);
             if (span < 1e-10 || offset < 1e-10 || Math.abs(offset - span) < 1e-10) return null;

@@ -378,6 +378,9 @@ export interface KJFlangeDimension {
     textPosition?: Point2;
     textOverride?: string;
     rotation?: number;
+    /** Optional entity-local native DIMENSION overrides. */
+    textHeight?: number;
+    arrowSize?: number;
     styleKey?: string;
 }
 /** A source-measured native leader without private annotation handles. */

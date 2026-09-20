@@ -77,6 +77,7 @@ export function projectDimension(payload: Readonly<Record<string, unknown>>, sty
     const third = points[2], fourth = points[3]
     if (!third || !fourth) return null
     let center: Point, u: Point, v: Point, location: Point, origin1: Point, origin2: Point
+    let originLine1: readonly [Point, Point] | undefined, originLine2: readonly [Point, Point] | undefined
     if (type === 'ANGULAR') {
       location = points[4]!
       if (!location) return null
@@ -89,6 +90,7 @@ export function projectDimension(payload: Readonly<Record<string, unknown>>, sty
       center = plus(second, u, t)
       origin1 = length(delta(second, center)) > 1e-12 ? second : third
       origin2 = length(delta(fourth, center)) > 1e-12 ? fourth : first
+      originLine1 = [second, third]; originLine2 = [fourth, first]
     } else {
       center = fourth; location = first; origin1 = second; origin2 = third
       const d1 = delta(second, center), d2 = delta(third, center), l1 = length(d1), l2 = length(d2)
@@ -108,7 +110,12 @@ export function projectDimension(payload: Readonly<Record<string, unknown>>, sty
         const a = rays[i]!, b = rays[(i + 1) % rays.length]!, offset = positive(placement - a), span = positive(b - a)
         if (offset > 1e-10 && offset < span - 1e-10) {
           const nextU: Point = [Math.cos(a), Math.sin(a)], nextV: Point = [Math.cos(b), Math.sin(b)]
-          if (Math.abs(dot(nextU, u)) < 1 - 1e-9) [origin1, origin2] = [origin2, origin1]
+          if (Math.abs(dot(nextU, u)) < 1 - 1e-9) {
+            [origin1, origin2] = [origin2, origin1]
+            const previousOriginLine = originLine1
+            originLine1 = originLine2
+            originLine2 = previousOriginLine
+          }
           startAngle = a; endAngle = b; u = nextU; v = nextV; selected = true; break
         }
       }
@@ -118,8 +125,8 @@ export function projectDimension(payload: Readonly<Record<string, unknown>>, sty
       // DXF writers may reverse endpoints to preserve the native CCW measure.
       const selectedOrigin = (a: Point, b: Point, direction: Point): Point =>
         dot(delta(a, center), direction) >= dot(delta(b, center), direction) ? a : b
-      origin1 = selectedOrigin(second, third, u)
-      origin2 = selectedOrigin(fourth, first, v)
+      origin1 = selectedOrigin(originLine1![0], originLine1![1], u)
+      origin2 = selectedOrigin(originLine2![0], originLine2![1], v)
     } else {
       const span = positive(endAngle - startAngle), offset = positive(placement - startAngle)
       if (span < 1e-10 || offset < 1e-10 || Math.abs(offset - span) < 1e-10) return null
