@@ -268,6 +268,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   expectedRevision: number
   units: 'millimeter'
   drawingId: string
+  entityDrawOrder?: number[]
   endView: { center: Point2; ringRadii: number[]; ringStyleKeys?: (string | null)[]; squareHoles?: { pitch: number; radius: number }; holePatterns?: KJFlangePolarHolePattern[]; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
   sideViewAxis?: { xRange: Point2; axisDirection?: 'forward' | 'reverse'; axisStyleKey?: string; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
   dimensions?: KJFlangeDimension[]
@@ -306,8 +307,15 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliaryCurves', 'symbols', 'styleResources', 'styleProfile', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'entityDrawOrder', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliaryCurves', 'symbols', 'styleResources', 'styleProfile', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
+  if (input.entityDrawOrder != null && (!Array.isArray(input.entityDrawOrder) || input.entityDrawOrder.length > 10_000)) throw new KJValidationError('input.entityDrawOrder must be an array within its item budget')
+  const entityDrawOrder = input.entityDrawOrder == null ? null : input.entityDrawOrder.map((value, index) => {
+    const order = finite(value, 'input.entityDrawOrder[' + index + ']', 0, 9_999)
+    if (!Number.isSafeInteger(order)) throw new KJValidationError('input.entityDrawOrder[' + index + '] must be an integer')
+    return order
+  })
+  if (entityDrawOrder != null && new Set(entityDrawOrder).size !== entityDrawOrder.length) throw new KJValidationError('input.entityDrawOrder must contain unique indexes')
   if (input.units !== 'millimeter' || document.snapshot().header?.units !== 'millimeter') throw new KJValidationError('Flange compiler requires millimeter units')
   const expectedRevision = finite(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER)
   if (!Number.isInteger(expectedRevision) || expectedRevision !== document.revision) throw new KJValidationError('input.expectedRevision must match the document revision')
@@ -921,7 +929,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source
     return { key: String(key), definition: styleRole(definition, `input.styleProfile.custom[${index}]`) }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -1177,8 +1185,16 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     arrowEnabled: leader.arrowEnabled !== false, pathType: leader.pathType ?? 0, annotationType: leader.annotationType ?? 3,
     hookLineDirection: leader.hookLineDirection ?? 0, hookLineEnabled: leader.hookLineEnabled === true,
     ...(leader.textHeight == null ? {} : { textHeight: leader.textHeight }), ...(leader.textWidth == null ? {} : { textWidth: leader.textWidth }), layerId: style.layerId }, style.name) }
+  if (input.entityDrawOrder != null && (input.entityDrawOrder.length !== entities.length || input.entityDrawOrder.some(index => index >= entities.length))) throw new KJValidationError('input.entityDrawOrder must be a complete entity permutation')
+  const orderedEntities: Entity[] = (input.entityDrawOrder == null ? entities : input.entityDrawOrder.map(index => entities[index]!)).map((entity, index) => {
+    const id = prefix + '-' + String(index + 1).padStart(4, '0')
+    return { ...entity, options: { ...entity.options, id }, ...(entity.attributeSequence ? { attributeSequence: {
+      attributes: entity.attributeSequence.attributes.map((attribute, attributeIndex) => ({ ...attribute, id: id + '-attribute-' + String(attributeIndex + 1).padStart(2, '0') })),
+      sequenceEnd: { ...entity.attributeSequence.sequenceEnd, id: id + '-sequence-end' },
+    } } : {}) } as Entity
+  })
   return {
-    commandArgs: { entities, resources: {
+    commandArgs: { entities: orderedEntities, resources: {
       linetypes,
       layers,
       ...(textStyleResources.length ? { textStyles: textStyleResources } : {}),
@@ -1187,7 +1203,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     } },
     evidence: { knowledgePackId: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.id,
       knowledgePackVersion: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version,
-      expectedRevision: input.expectedRevision, entityCount: entities.length,
+      expectedRevision: input.expectedRevision, entityCount: orderedEntities.length,
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1), holeCount: input.holePatterns.reduce((sum, pattern) => sum + pattern.count, input.pitch == null ? 0 : 4), titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
