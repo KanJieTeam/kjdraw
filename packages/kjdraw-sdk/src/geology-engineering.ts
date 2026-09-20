@@ -113,6 +113,12 @@ export interface KJGeologyGroundwaterAnnotationStyle {
   markerOffset: number
   dateOffset: number
   guide?: 'field-top-to-reading'
+  placements?: {
+    depth: KJGeologyFieldHeaderTextPlacement
+    elevation: KJGeologyFieldHeaderTextPlacement
+    marker: KJGeologyFieldHeaderTextPlacement
+    observedOn: KJGeologyFieldHeaderTextPlacement
+  }
 }
 /** Optional source-backed linework attached to one title-margin fact. */
 export interface KJGeologyTitleMarginDecoration {
@@ -975,7 +981,9 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     const groundwaterStyleKeys = Object.keys(value.groundwaterAnnotationStyle).sort().join(',')
     if (!isFieldGrid || !value.groundwaterAnnotationStyle || typeof value.groundwaterAnnotationStyle !== 'object' || Array.isArray(value.groundwaterAnnotationStyle) ||
       !['dateOffset,fieldRole,gap,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset',
-        'dateOffset,fieldRole,gap,guide,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset'].includes(groundwaterStyleKeys))
+        'dateOffset,fieldRole,gap,guide,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset',
+        'dateOffset,fieldRole,gap,markerHeight,markerOffset,placements,textHeight,textWidthFactor,valueOffset',
+        'dateOffset,fieldRole,gap,guide,markerHeight,markerOffset,placements,textHeight,textWidthFactor,valueOffset'].includes(groundwaterStyleKeys))
       throw new KJValidationError('Geology: groundwater annotation style needs an exact declarative field-grid schema')
     const rule = value.groundwaterAnnotationStyle as Record<string, unknown>
     if (rule.fieldRole !== 'pattern') throw new KJValidationError('Geology: groundwater annotations need a declared pattern field')
@@ -992,7 +1000,27 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       gap < 0 || gap > 5 || [valueOffset, markerOffset, dateOffset].some(offset => offset < -10 || offset > 10) ||
       dateOffset + textHeight + 0.2 > markerOffset || markerOffset + markerHeight + 0.2 > valueOffset)
       throw new KJValidationError('Geology: groundwater annotation style is unreadable')
+    let placements: KJGeologyGroundwaterAnnotationStyle['placements']
+    if (rule.placements != null) {
+      if (!rule.placements || typeof rule.placements !== 'object' || Array.isArray(rule.placements) ||
+        Object.keys(rule.placements).sort().join(',') !== 'depth,elevation,marker,observedOn')
+        throw new KJValidationError('Geology: groundwater placements need exact depth, elevation, marker and observedOn roles')
+      const supplied = rule.placements as Record<string, unknown>
+      placements = { depth: sourceTextPlacement(supplied.depth, 'groundwater depth'),
+        elevation: sourceTextPlacement(supplied.elevation, 'groundwater elevation'),
+        marker: sourceTextPlacement(supplied.marker, 'groundwater marker', 0.8),
+        observedOn: sourceTextPlacement(supplied.observedOn, 'groundwater observedOn') }
+      const patternIndex = fieldGrid!.findIndex(field => field.role === 'pattern')
+      const patternWidth = patternIndex < 0 ? 0 : (fieldGrid![patternIndex + 1]?.start ?? right) - fieldGrid![patternIndex]!.start
+      if (patternIndex < 0 || Object.values(placements).some(placement => placement.offset[0] < 0 || placement.offset[0] > patternWidth ||
+        placement.offset[1] < -10 || placement.offset[1] > 10))
+        throw new KJValidationError('Geology: groundwater placement is outside its physical lane')
+      if ([placements.depth, placements.elevation, placements.observedOn].some(placement => placement.height !== textHeight ||
+        placement.textWidthFactor !== textWidthFactor) || placements.marker.height !== markerHeight || placements.marker.textWidthFactor !== textWidthFactor)
+        throw new KJValidationError('Geology: groundwater placements must match the declared text metrics')
+    }
     groundwaterAnnotationStyle = { fieldRole: 'pattern', textHeight, markerHeight, textWidthFactor, gap, valueOffset, markerOffset, dateOffset,
+      ...(placements ? { placements } : {}),
       ...(rule.guide === 'field-top-to-reading' ? { guide: rule.guide } : {}) }
   }
   let patternLabelStyle: ColumnLayout['patternLabelStyle']
@@ -1797,10 +1825,20 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       observation: KJGeologyGroundwaterObservation): void => {
       const style = groundwaterAnnotationStyle!
       const depthText = metres(observation.depth), elevationText = metres(observation.elevation)
+      const marker = '▼'
+      if (style.placements) {
+        if (style.guide === 'field-top-to-reading')
+          g.poly(1, [[item.start, top], [item.start, y], [gridEnd(item), y]], false)
+        emitPlacedFieldText(item, y, depthText, style.placements.depth)
+        emitPlacedFieldText(item, y, elevationText, style.placements.elevation)
+        emitPlacedFieldText(item, y, marker, style.placements.marker)
+        emitPlacedFieldText(item, y, observation.observedOn, style.placements.observedOn)
+        return
+      }
       const depthWidth = estimatedWidth(depthText, style.textHeight) * style.textWidthFactor
       const elevationWidth = estimatedWidth(elevationText, style.textHeight) * style.textWidthFactor
       const valuesWidth = depthWidth + style.gap + elevationWidth
-      const marker = '▼', markerWidth = estimatedWidth(marker, style.markerHeight) * style.textWidthFactor
+      const markerWidth = estimatedWidth(marker, style.markerHeight) * style.textWidthFactor
       const dateWidth = estimatedWidth(observation.observedOn, style.textHeight) * style.textWidthFactor
       if (Math.max(valuesWidth, markerWidth, dateWidth) > fieldWidth(item) - 2.4)
         throw new KJValidationError('Geology: groundwater annotation does not fit its declared field')

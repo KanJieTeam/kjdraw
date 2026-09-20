@@ -122,6 +122,12 @@ export interface KJGeologyGroundwaterAnnotationStyle {
     markerOffset: number;
     dateOffset: number;
     guide?: 'field-top-to-reading';
+    placements?: {
+        depth: KJGeologyFieldHeaderTextPlacement;
+        elevation: KJGeologyFieldHeaderTextPlacement;
+        marker: KJGeologyFieldHeaderTextPlacement;
+        observedOn: KJGeologyFieldHeaderTextPlacement;
+    };
 }
 /** Optional source-backed linework attached to one title-margin fact. */
 export interface KJGeologyTitleMarginDecoration {
