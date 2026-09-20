@@ -190,6 +190,22 @@ export interface KJGeologyIntervalDepthTextStyle {
     principal: KJGeologyFieldHeaderTextPlacement;
     lens: KJGeologyFieldHeaderTextPlacement;
 }
+/** Source-backed placement for the four visible values that identify one
+ * major stratum group. Offsets are measured from the group's geometric
+ * midpoint and the lower-left corner of each declared physical field. */
+export interface KJGeologyMajorGroupValueStyle {
+    anchor: 'major-group-midpoint';
+    layerNumber: KJGeologyFieldHeaderTextPlacement;
+    layerName: KJGeologyFieldHeaderTextPlacement;
+    baseElevation: KJGeologyFieldHeaderTextPlacement;
+    thickness: KJGeologyFieldHeaderTextPlacement;
+    /** Optional semantic override for the group touching the body top boundary. */
+    topBoundary?: {
+        layerName: KJGeologyFieldHeaderTextPlacement;
+    };
+    /** Physical radius used only with the explicit circular layer-number style. */
+    layerNumberCircleRadius?: number;
+}
 /** Exact placements for the symbol and optional qualifiers of one
  * stratigraphic notation, relative to a major group's geometric midpoint. */
 export interface KJGeologyStratigraphicNotationPlacementSet {

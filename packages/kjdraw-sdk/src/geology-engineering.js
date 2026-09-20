@@ -286,6 +286,7 @@ function columnLayout(input) {
             'textFlow',
             'textHeights',
             'intervalDepthTextStyle',
+            'majorGroupValueStyle',
             'defaultTextStyle',
             'stratigraphicNotationStyle',
             'descriptionTextStyle',
@@ -720,6 +721,67 @@ function columnLayout(input) {
             fieldRole: 'depth',
             principal,
             lens
+        };
+    }
+    let majorGroupValueStyle;
+    if (value.majorGroupValueStyle != null) {
+        if (!isFieldGrid || !value.majorGroupValueStyle || typeof value.majorGroupValueStyle !== 'object' || Array.isArray(value.majorGroupValueStyle)) throw new KJValidationError('Geology: major group value style needs a declarative field grid');
+        const rule = value.majorGroupValueStyle;
+        const expected = [
+            'anchor',
+            'baseElevation',
+            'layerName',
+            'layerNumber',
+            'thickness',
+            ...rule.layerNumberCircleRadius == null ? [] : [
+                'layerNumberCircleRadius'
+            ],
+            ...rule.topBoundary == null ? [] : [
+                'topBoundary'
+            ]
+        ].sort().join(',');
+        if (Object.keys(rule).sort().join(',') !== expected || rule.anchor !== 'major-group-midpoint') throw new KJValidationError('Geology: major group value style needs an exact source-backed schema');
+        const roles = [
+            'layerNumber',
+            'layerName',
+            'baseElevation',
+            'thickness'
+        ];
+        const placements = Object.fromEntries(roles.map((role)=>[
+                role,
+                sourceTextPlacement(rule[role], `major group ${role}`)
+            ]));
+        for (const role of roles){
+            const fieldIndex = fieldGrid.findIndex((field)=>field.role === role);
+            const width = fieldIndex < 0 ? 0 : (fieldGrid[fieldIndex + 1]?.start ?? right) - fieldGrid[fieldIndex].start;
+            const placement = placements[role];
+            if (fieldIndex < 0 || placement.offset[0] < 0 || placement.offset[0] > width || placement.offset[1] < -50 || placement.offset[1] > 50) throw new KJValidationError(`Geology: major group ${role} placement is outside its physical lane`);
+        }
+        let topBoundary;
+        if (rule.topBoundary != null) {
+            if (!rule.topBoundary || typeof rule.topBoundary !== 'object' || Array.isArray(rule.topBoundary) || Object.keys(rule.topBoundary).sort().join(',') !== 'layerName') throw new KJValidationError('Geology: major group top-boundary style needs an exact layer-name placement');
+            const topRule = rule.topBoundary;
+            const layerName = sourceTextPlacement(topRule.layerName, 'top-boundary major group layerName');
+            const nameIndex = fieldGrid.findIndex((field)=>field.role === 'layerName');
+            const nameWidth = (fieldGrid[nameIndex + 1]?.start ?? right) - fieldGrid[nameIndex].start;
+            if (layerName.offset[0] < 0 || layerName.offset[0] > nameWidth || layerName.offset[1] < -50 || layerName.offset[1] > 50) throw new KJValidationError('Geology: top-boundary major group layerName placement is outside its physical lane');
+            topBoundary = {
+                layerName
+            };
+        }
+        const layerNumberCircleRadius = rule.layerNumberCircleRadius == null ? undefined : numeric(rule.layerNumberCircleRadius, 'major group layer number circle radius');
+        const numberIndex = fieldGrid.findIndex((field)=>field.role === 'layerNumber');
+        const numberWidth = (fieldGrid[numberIndex + 1]?.start ?? right) - fieldGrid[numberIndex].start;
+        if (layerNumberCircleRadius != null && (layerNumberCircleRadius < 1 || layerNumberCircleRadius > 10 || layerNumberCircleRadius > numberWidth / 2 - .2)) throw new KJValidationError('Geology: major group layer number circle radius is outside its physical lane');
+        majorGroupValueStyle = {
+            anchor: 'major-group-midpoint',
+            ...placements,
+            ...topBoundary ? {
+                topBoundary
+            } : {},
+            ...layerNumberCircleRadius == null ? {} : {
+                layerNumberCircleRadius
+            }
         };
     }
     let titleTextStyle;
@@ -1172,6 +1234,9 @@ function columnLayout(input) {
         } : {},
         ...intervalDepthTextStyle ? {
             intervalDepthTextStyle
+        } : {},
+        ...majorGroupValueStyle ? {
+            majorGroupValueStyle
         } : {},
         ...titleTextStyle ? {
             titleTextStyle
@@ -1680,7 +1745,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
 export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
-    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, titleTextStyle, textFlow, textHeights, intervalDepthTextStyle, defaultTextStyle, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, sampleRangeTextFormat, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
+    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, titleTextStyle, textFlow, textHeights, intervalDepthTextStyle, majorGroupValueStyle, defaultTextStyle, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, sampleRangeTextFormat, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
     if (strata.some((layer)=>layer.stratigraphicNotation != null) && !stratigraphicNotationStyle) throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style');
     if (strata.some((layer)=>layer.descriptionPlacement != null) && !descriptionTextStyle) throw new KJValidationError('Geology: description placement facts need a declared field-grid description text style');
     if (strata.some((layer)=>layer.bottomBoundaryLineVisibility != null) && !fieldGrid) throw new KJValidationError('Geology: bottom boundary line visibility needs a declared physical field grid');
@@ -2223,32 +2288,51 @@ export function compileGeologyColumn(input) {
             textBoxes.push(...boxes);
         };
         const emitLayerNumber = (item, y, value, bandHeight)=>{
-            if (layerNumberStyle !== 'circle') return emitFieldText(item, y, value, Math.min(2.1, Math.max(1.4, bandHeight * 0.38)));
+            const placement = majorGroupValueStyle?.layerNumber;
+            if (layerNumberStyle !== 'circle') return placement ? emitPlacedFieldText(item, y, value, placement) : emitFieldText(item, y, value, Math.min(2.1, Math.max(1.4, bandHeight * 0.38)));
             const circled = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'.indexOf(value);
             const visible = circled >= 0 ? String(circled + 1) : /^\d{1,2}$/u.test(value) ? value : undefined;
-            if (!visible) return emitFieldText(item, y, value, Math.min(2.1, Math.max(1.4, bandHeight * 0.38)));
-            const radius = Math.min(1.9, fieldWidth(item) / 2 - 1, bandHeight / 2 - 0.5);
+            if (!visible) return placement ? emitPlacedFieldText(item, y, value, placement) : emitFieldText(item, y, value, Math.min(2.1, Math.max(1.4, bandHeight * 0.38)));
+            const radius = majorGroupValueStyle?.layerNumberCircleRadius ?? Math.min(1.9, fieldWidth(item) / 2 - 1, bandHeight / 2 - 0.5);
             if (radius < 1) throw new KJValidationError('Geology: circled layer number does not fit its declared band');
-            const x = item.start + fieldWidth(item) / 2, height = Math.min(1.8, radius * 0.95);
-            g.circle(0, x, y, radius);
-            g.text(3, x, y - height * 0.34, visible, height, true);
-            textBoxes.push({
-                role: item.role,
-                left: x - radius - 0.2,
-                right: x + radius + 0.2,
-                bottom: y - radius - 0.2,
-                top: y + radius + 0.2
-            });
+            if (placement) {
+                const x = item.start + placement.offset[0], centerY = y + placement.offset[1];
+                if (centerY - radius < bottom || centerY + radius > top) throw new KJValidationError('Geology: circled layer number exceeds the drawing body');
+                g.circle(0, x, centerY, radius);
+                emitPlacedFieldText(item, y, visible, placement);
+                textBoxes.push({
+                    role: item.role,
+                    left: x - radius - .2,
+                    right: x + radius + .2,
+                    bottom: centerY - radius - .2,
+                    top: centerY + radius + .2
+                });
+            } else {
+                const x = item.start + fieldWidth(item) / 2, height = Math.min(1.8, radius * 0.95);
+                g.circle(0, x, y, radius);
+                g.text(3, x, y - height * 0.34, visible, height, true);
+                textBoxes.push({
+                    role: item.role,
+                    left: x - radius - 0.2,
+                    right: x + radius + 0.2,
+                    bottom: y - radius - 0.2,
+                    top: y + radius + 0.2
+                });
+            }
         };
         const emitLayerName = (item, layer, yTop, yBottom, y, value, height)=>{
             const notation = layer.stratigraphicNotation;
-            if (!notation) return emitFieldText(item, y, value, height);
+            const anchorY = (yTop + yBottom) / 2;
+            const exactNamePlacement = Math.abs(yTop - top) < 1e-9 ? majorGroupValueStyle?.topBoundary?.layerName ?? majorGroupValueStyle?.layerName : majorGroupValueStyle?.layerName;
+            if (!notation) return exactNamePlacement ? emitPlacedFieldText(item, anchorY, value, exactNamePlacement) : emitFieldText(item, y, value, height);
             const style = stratigraphicNotationStyle;
-            const nameHeight = Math.min(height, yTop - yBottom - style.symbolHeight - 1);
-            if (nameHeight < 1.2) throw new KJValidationError(`Geology: stratigraphic notation for ${layer.code} does not fit its declared band`);
-            emitFieldText(item, yTop - nameHeight - 0.2, value, nameHeight);
+            if (exactNamePlacement) emitPlacedFieldText(item, anchorY, value, exactNamePlacement);
+            else {
+                const nameHeight = Math.min(height, yTop - yBottom - style.symbolHeight - 1);
+                if (nameHeight < 1.2) throw new KJValidationError(`Geology: stratigraphic notation for ${layer.code} does not fit its declared band`);
+                emitFieldText(item, yTop - nameHeight - 0.2, value, nameHeight);
+            }
             if (style.placement) {
-                const anchorY = (yTop + yBottom) / 2;
                 const placements = Math.abs(yTop - top) < 1e-9 ? style.placement.topBoundary : style.placement.principal;
                 emitPlacedFieldText(item, anchorY, notation.symbol, placements.symbol);
                 if (notation.subscript) emitPlacedFieldText(item, anchorY, notation.subscript, placements.subscript);
@@ -2386,30 +2470,36 @@ export function compileGeologyColumn(input) {
             const yTop = top - groupTop * scale, yBottom = top - groupBottom * scale;
             const coreIndex = renderedCoreCount++;
             const mid = (yTop + yBottom) / 2;
-            let labelY = yTop - Math.max(1.8, (yTop - yBottom) / 2);
+            let labelY = mid;
             let labelHeight = textHeights?.majorValue ?? 2.1;
-            if (textHeights) labelY = Math.min(labelY, yTop - labelHeight - 0.2);
-            if (textFlow && coreIndex < 2) {
-                labelHeight = textFlow.labelHeightMm;
-                labelY = Math.min(yTop - textFlow.firstBaselineMm, previousLabelY == null ? yTop - textFlow.firstBaselineMm : previousLabelY - textFlow.labelPitchMm);
+            if (!majorGroupValueStyle) {
+                labelY = yTop - Math.max(1.8, (yTop - yBottom) / 2);
+                if (textHeights) labelY = Math.min(labelY, yTop - labelHeight - 0.2);
+                if (textFlow && coreIndex < 2) {
+                    labelHeight = textFlow.labelHeightMm;
+                    labelY = Math.min(yTop - textFlow.firstBaselineMm, previousLabelY == null ? yTop - textFlow.firstBaselineMm : previousLabelY - textFlow.labelPitchMm);
+                }
+                const lowest = textFlow && coreIndex === 0 ? Math.max(yBottom - textFlow.firstGroupBorrowMm, nextGroupBottom == null ? yBottom : top - nextGroupBottom * scale + 0.4) : yBottom + 0.4;
+                if (labelY < lowest || labelY + labelHeight > yTop - 0.2 || previousLabelY != null && previousLabelY - labelY < labelHeight + 0.5) throw new KJValidationError(`Geology: group ${id} core labels collide with a boundary or another text lane`);
+                previousLabelY = labelY;
             }
-            const lowest = textFlow && coreIndex === 0 ? Math.max(yBottom - textFlow.firstGroupBorrowMm, nextGroupBottom == null ? yBottom : top - nextGroupBottom * scale + 0.4) : yBottom + 0.4;
-            if (labelY < lowest || labelY + labelHeight > yTop - 0.2 || previousLabelY != null && previousLabelY - labelY < labelHeight + 0.5) throw new KJValidationError(`Geology: group ${id} core labels collide with a boundary or another text lane`);
-            previousLabelY = labelY;
             const values = {
                 layerNumber: displayAliases?.codes[principal.code] ?? id,
                 layerName: displayAliases?.names[principal.name] ?? principal.name,
                 baseElevation: metres(hole.collarElevation - groupBottom),
                 thickness: metres(groupBottom - groupTop)
             };
-            const valueY = textFlow && coreIndex < 2 ? labelY : yTop - yBottom < 2 ? labelY : mid;
+            const valueY = majorGroupValueStyle ? mid : textFlow && coreIndex < 2 ? labelY : yTop - yBottom < 2 ? labelY : mid;
             const numberBandHeight = textFlow && coreIndex === 0 ? Math.max(yTop - yBottom, textFlow.firstBaselineMm + textFlow.labelHeightMm + 1) : yTop - yBottom;
             emitLayerNumber(field('layerNumber'), valueY, values.layerNumber, numberBandHeight);
             emitLayerName(field('layerName'), principal, yTop, yBottom, valueY, values.layerName, labelHeight);
             for (const role of [
                 'baseElevation',
                 'thickness'
-            ])emitFieldText(field(role), valueY, values[role], labelHeight);
+            ]){
+                if (majorGroupValueStyle) emitPlacedFieldText(field(role), mid, values[role], majorGroupValueStyle[role]);
+                else emitFieldText(field(role), valueY, values[role], labelHeight);
+            }
             if (principal.description && (grouped || principal.descriptionSource !== 'layer-definition' || definitionAnchors.get(`${principal.code}\u0000${principal.description}`) === principal)) writeGridDescription(principal.description, yTop, yBottom, coreIndex, `major group ${id}`, principal.descriptionPlacement);
         };
         for (const layer of strata){
