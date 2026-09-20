@@ -62,6 +62,7 @@ test('flange knowledge pack and compiler are source-neutral and deterministic', 
   assert.equal(a.evidence.parameters.sideOutlineSegmentCount, 3)
   assert.equal(a.evidence.parameters.noteCount, 2)
   assert.equal(a.evidence.parameters.dimensionCount, 2)
+  assert.equal(a.evidence.parameters.ordinateDimensionCount, 0)
   assert.equal(a.evidence.parameters.leaderCount, 1)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'TEXT').length, 1)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'MTEXT').length, 1)
@@ -1047,4 +1048,51 @@ test('native points, point-display variables and per-side frame styles survive K
   await assert.rejects(sdk.executeCommand('CREATEBATCH', { entities: [{ type: 'POINT', payload: { position: [1, 1, 0] } }], systemVariables: { PDMODE: 2, PDSIZE: 1_000_001 } }, { document: invalid }), /PDSIZE/u)
   assert.equal(invalid.revision, revision)
   assert.equal(invalid.listEntities().length, 0)
+})
+
+test('native x and y ordinate dimensions preserve axes, rotation, and derived geometry', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const rotation = Math.PI / 6, c = Math.cos(rotation), s = Math.sin(rotation)
+  const origin = [10, 20]
+  const xFeature = [origin[0] + 20 * c, origin[1] + 20 * s]
+  const xEnd = [xFeature[0] - 18 * s, xFeature[1] + 18 * c]
+  const yFeature = [origin[0] - 25 * s, origin[1] + 25 * c]
+  const yEnd = [yFeature[0] + 18 * c, yFeature[1] + 18 * s]
+  const source = input(document.revision)
+  const dimensions = [
+    { kind: 'ordinate', axis: 'x', definitionPoints: [origin, xFeature, xEnd], rotation },
+    { kind: 'ordinate', axis: 'y', definitionPoints: [origin, yFeature, yEnd], rotation },
+  ]
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...source, dimensions })
+  const emitted = proposal.commandArgs.entities.filter(entity => entity.type === 'DIMENSION')
+  assert.deepEqual(emitted.map(entity => [entity.payload.dimensionType, entity.payload.dxfDimensionType]), [['ORDINATE', 70], ['ORDINATE', 6]])
+  assert.deepEqual(emitted.map(entity => entity.payload.rotation), [rotation, rotation])
+  assert.equal(proposal.evidence.parameters.ordinateDimensionCount, 2)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  assert.deepEqual(kjd.listEntities({ type: 'DIMENSION' }).map(entity => [entity.payload.dimensionType, entity.payload.dxfDimensionType, entity.payload.rotation]), [['ORDINATE', 70, rotation], ['ORDINATE', 6, rotation]])
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
+  const reopened = dxf.listEntities({ type: 'DIMENSION' })
+  assert.deepEqual(reopened.map(entity => entity.payload.dimensionType), ['ORDINATE', 'ORDINATE'])
+  assert.deepEqual(reopened.map(entity => Number(entity.payload.dxfDimensionType) & 64), [64, 0])
+  assert.ok(reopened.every(entity => Math.abs(entity.payload.rotation - rotation) < 1e-12))
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); q=list(d.modelspace().query("DIMENSION")); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"types":sorted([int(e.dxf.dimtype) for e in q])}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || independent.status !== 0 && /No module named ['"]ezdxf/u.test(independent.stderr ?? '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr ?? independent.error?.message)
+    t.skip('official ezdxf is not installed'); return
+  }
+  assert.equal(independent.status, 0, independent.stderr)
+  assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, types: [38, 102] })
+
+  const check = dimensions => buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...input(0), dimensions })
+  const zeroBaseline = [origin[0] - 18 * s, origin[1] + 18 * c]
+  assert.equal(check([{ kind: 'ordinate', axis: 'x', definitionPoints: [origin, origin, zeroBaseline], rotation }]).commandArgs.entities.find(entity => entity.type === 'DIMENSION').payload.dxfDimensionType, 70)
+  assert.throws(() => check([{ kind: 'ordinate', definitionPoints: [origin, xFeature, xEnd] }]), /axis must be x or y/u)
+  assert.throws(() => check([{ kind: 'ordinate', axis: 'z', definitionPoints: [origin, xFeature, xEnd] }]), /axis must be x or y/u)
+  assert.throws(() => check([{ kind: 'aligned', axis: 'x', definitionPoints: [origin, xFeature, xEnd] }]), /only valid for ordinate/u)
+  assert.throws(() => check([{ kind: 'ordinate', axis: 'x', definitionPoints: [origin, xFeature] }]), /must contain 3 points/u)
+  assert.throws(() => check([{ kind: 'ordinate', axis: 'x', definitionPoints: [origin, origin, origin] }]), /projectable native dimension/u)
 })

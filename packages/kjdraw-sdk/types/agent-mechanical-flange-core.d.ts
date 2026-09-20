@@ -465,7 +465,9 @@ export interface KJFlangeSheetNote {
 /** A bounded native mechanical dimension supplied as engineering annotation
  *  facts. Measurements are derived from definition points, never accepted. */
 export interface KJFlangeDimension {
-    kind: 'aligned' | 'rotated' | 'diameter' | 'radius' | 'angular';
+    kind: 'aligned' | 'rotated' | 'diameter' | 'radius' | 'angular' | 'ordinate';
+    /** Ordinate measurement axis; required only when kind is ordinate. */
+    axis?: 'x' | 'y';
     definitionPoints: Point2[];
     textPosition?: Point2;
     textOverride?: string;
@@ -733,6 +735,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             dimensionStyleCount: number;
             noteCount: number;
             dimensionCount: number;
+            ordinateDimensionCount: number;
             leaderCount: number;
         };
         limitations: string[];

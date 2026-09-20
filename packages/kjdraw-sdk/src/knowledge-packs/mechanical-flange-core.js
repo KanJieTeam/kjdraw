@@ -4,7 +4,7 @@ import { stableHash } from '../utils.js';
 export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePack({
     schema: 'kjdraw.knowledge-pack.v1',
     id: 'mechanical-flange-core',
-    version: '2.18.0',
+    version: '2.19.0',
     title: 'Parameterized flange orthographic-view and sheet-grid rules',
     domain: 'mechanical-manufacturing',
     license: {
@@ -17,7 +17,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
             id: 'kjdraw-authored-flange-rules-v1',
             title: 'KJDraw authored flange geometry and layout rules',
             license: 'MIT',
-            contentHash: stableHash('flange-views:concentric-rings:polar-hole-arrays:legacy-square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:multi-boundary-loop-hatch:spline-hatch-edges:parameterized-ansi31:caller-supplied-style-roles:caller-supplied-entity-style-overrides:caller-supplied-annotation-style-resources:semantic-auxiliary-lines:semantic-auxiliary-points:standard-point-display:symbol-text-hatch-solid:empty-symbol-blocks:semantic-native-curves:generic-local-symbols:nested-local-symbols:attributed-local-symbols:complete-attribute-sequences:semantic-feature-control-frames:auxiliary-circles:native-leaders:native-derived-dimensions:entity-local-dimension-overrides:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:per-side-frame-styles:bounded-64-style-catalogs:native-structured-wipeout:bounded-1024-auxiliary-lines:bounded-512-auxiliary-curves:bounded-symbol-catalogs:v2.18')
+            contentHash: stableHash('flange-views:concentric-rings:polar-hole-arrays:legacy-square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:multi-boundary-loop-hatch:spline-hatch-edges:parameterized-ansi31:caller-supplied-style-roles:caller-supplied-entity-style-overrides:caller-supplied-annotation-style-resources:semantic-auxiliary-lines:semantic-auxiliary-points:standard-point-display:symbol-text-hatch-solid:empty-symbol-blocks:semantic-native-curves:generic-local-symbols:nested-local-symbols:attributed-local-symbols:complete-attribute-sequences:semantic-feature-control-frames:auxiliary-circles:native-leaders:native-derived-dimensions:entity-local-dimension-overrides:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:per-side-frame-styles:bounded-64-style-catalogs:native-structured-wipeout:bounded-1024-auxiliary-lines:bounded-512-auxiliary-curves:bounded-symbol-catalogs:native-ordinate-dimensions:v2.19')
         }
     ],
     ontology: {
@@ -71,7 +71,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
         featureControlFrames: 'geometric characteristic, tolerance-zone and datum semantics compile into editable native TOLERANCE entities; opaque source tags and application-specific object data are rejected',
         sheet: 'outer frame and optional positive-width inset frame accept per-side style keys with a backward-compatible single-style fallback, plus an optional bounded semantic title-grid with full or locally segmented rules',
         notes: 'bounded source-supplied sheet labels and technical notes; visible content is never embedded in this pack',
-        dimensions: 'native dimensions derive measurements from bounded definition points, preserve bounded entity-local text-height and arrow-size overrides, and never trust supplied measurement values',
+        dimensions: 'aligned, rotated, radius, diameter, angular and x- or y-axis ordinate dimensions derive measurements from bounded definition points, preserve rotation and bounded entity-local overrides, and never trust supplied measurement values',
         leaders: 'native source-measured leaders retain bounded vertices and drafting flags without private annotation handles',
         nativeEntities: [
             'POINT',
