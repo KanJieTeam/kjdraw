@@ -841,18 +841,31 @@ function columnLayout(input) {
     }
     let sampleRangeBaselineStyle;
     if (value.sampleRangeBaselineStyle != null) {
-        if (!isFieldGrid || !value.sampleRangeBaselineStyle || typeof value.sampleRangeBaselineStyle !== 'object' || Array.isArray(value.sampleRangeBaselineStyle) || Object.keys(value.sampleRangeBaselineStyle).sort().join(',') !== 'boundaries,continuity,insetMm') throw new KJValidationError('Geology: sample range baselines need an exact declarative field-grid schema');
+        const baselineKeys = value.sampleRangeBaselineStyle && typeof value.sampleRangeBaselineStyle === 'object' && !Array.isArray(value.sampleRangeBaselineStyle) ? Object.keys(value.sampleRangeBaselineStyle).sort().join(',') : '';
+        if (!isFieldGrid || !value.sampleRangeBaselineStyle || typeof value.sampleRangeBaselineStyle !== 'object' || Array.isArray(value.sampleRangeBaselineStyle) || ![
+            'boundaries,continuity,insetMm',
+            'boundaries,continuity,endInsetMm,fieldRole,startInsetMm'
+        ].includes(baselineKeys)) throw new KJValidationError('Geology: sample range baselines need an exact declarative field-grid schema');
         const rule = value.sampleRangeBaselineStyle;
         if (!Array.isArray(rule.boundaries) || rule.boundaries.length < 1 || rule.boundaries.length > 2 || rule.boundaries.some((boundary)=>boundary !== 'top' && boundary !== 'bottom') || new Set(rule.boundaries).size !== rule.boundaries.length) throw new KJValidationError('Geology: sample range baseline boundaries must contain unique top/bottom roles');
         if (rule.continuity !== 'collision-safe' && rule.continuity !== 'continuous') throw new KJValidationError('Geology: sample range baseline continuity must be collision-safe or continuous');
-        const insetMm = numeric(rule.insetMm, 'sample range baseline inset');
         const sampleIndex = fieldGrid.findIndex((field)=>field.role === 'sample');
         const sampleWidth = sampleIndex < 0 ? 0 : (fieldGrid[sampleIndex + 1]?.start ?? right) - fieldGrid[sampleIndex].start;
-        if (sampleIndex < 0 || insetMm < 0 || sampleWidth - insetMm * 2 < 0.4) throw new KJValidationError('Geology: sample range baseline inset leaves no visible source lane');
+        const asymmetric = baselineKeys.includes('startInsetMm');
+        if (asymmetric && rule.fieldRole !== 'sample') throw new KJValidationError('Geology: asymmetric sample range baseline needs the declared sample field');
+        const startInsetMm = numeric(asymmetric ? rule.startInsetMm : rule.insetMm, 'sample range baseline start inset');
+        const endInsetMm = numeric(asymmetric ? rule.endInsetMm : rule.insetMm, 'sample range baseline end inset');
+        if (sampleIndex < 0 || startInsetMm < 0 || endInsetMm < 0 || sampleWidth - startInsetMm - endInsetMm < 0.4) throw new KJValidationError('Geology: sample range baseline inset leaves no visible source lane');
         sampleRangeBaselineStyle = {
             boundaries: rule.boundaries,
             continuity: rule.continuity,
-            insetMm
+            ...asymmetric ? {
+                fieldRole: 'sample',
+                startInsetMm,
+                endInsetMm
+            } : {
+                insetMm: startInsetMm
+            }
         };
     }
     let groundwaterAnnotationStyle;
@@ -2425,9 +2438,11 @@ export function compileGeologyColumn(input) {
                         top: rangeTopY,
                         bottom: rangeBottomY
                     };
+                    const startInsetMm = 'insetMm' in baselineStyle ? baselineStyle.insetMm : baselineStyle.startInsetMm;
+                    const endInsetMm = 'insetMm' in baselineStyle ? baselineStyle.insetMm : baselineStyle.endInsetMm;
                     for (const boundary of baselineStyle.boundaries)bandLines.push({
-                        x1: cell.start + baselineStyle.insetMm,
-                        x2: gridEnd(cell) - baselineStyle.insetMm,
+                        x1: cell.start + startInsetMm,
+                        x2: gridEnd(cell) - endInsetMm,
                         y: baselineY[boundary],
                         ...baselineStyle.continuity === 'continuous' ? {
                             continuity: 'continuous'

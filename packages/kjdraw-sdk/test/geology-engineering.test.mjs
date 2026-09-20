@@ -837,21 +837,32 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
     [rangedTopY, 340 - 56 - 10 - 2.15 * 4].some(y => Math.abs(entity.payload.start[1] - y) < 1e-6 && Math.abs(entity.payload.end[1] - y) < 1e-6))
   assert.deepEqual(sampleLines.map(entity => [entity.payload.start.slice(0, 2), entity.payload.end.slice(0, 2)]),
     [[[174.5, rangedTopY], [182.5, rangedTopY]]], 'a source-backed rule emits one uninterrupted inset baseline at the declared boundary')
+  const asymmetric = structuredClone(ranged)
+  asymmetric.columnStylePack.rules['geology-column-layout'].sampleRangeBaselineStyle = {
+    fieldRole: 'sample', boundaries: ['top'], continuity: 'continuous', startInsetMm: 3, endInsetMm: 4,
+  }
+  const asymmetricCompiled = compileGeologyColumn(asymmetric)
+  const asymmetricLines = asymmetricCompiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
+    Math.abs(entity.payload.start[1] - rangedTopY) < 1e-6 && Math.abs(entity.payload.end[1] - rangedTopY) < 1e-6 &&
+    entity.payload.start[0] >= 171 && entity.payload.end[0] <= 186)
+  assert.deepEqual(asymmetricLines.map(entity => [entity.payload.start.slice(0, 2), entity.payload.end.slice(0, 2)]),
+    [[[174, rangedTopY], [182, rangedTopY]]], 'a source-backed sample field may preserve independent start and end insets')
   const continuousDocument = sdk.createDocument({ units: 'millimeter' })
-  await sdk.executeCommand('CREATEBATCH', continuousCompiled.commandArgs, { document: continuousDocument })
+  await sdk.executeCommand('CREATEBATCH', asymmetricCompiled.commandArgs, { document: continuousDocument })
   for (const format of ['KJD', 'DXF']) {
     const bytes = await sdk.writeDocument(continuousDocument, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
     const reopened = await sdk.readDocument(bytes, { format })
     const reopenedLines = reopened.listEntities({ type: 'LINE' }).filter(entity =>
-      Math.abs(entity.payload.start[0] - 174.5) < 1e-6 && Math.abs(entity.payload.end[0] - 182.5) < 1e-6 &&
+      Math.abs(entity.payload.start[0] - 174) < 1e-6 && Math.abs(entity.payload.end[0] - 182) < 1e-6 &&
       Math.abs(entity.payload.start[1] - rangedTopY) < 1e-6 && Math.abs(entity.payload.end[1] - rangedTopY) < 1e-6)
-    assert.equal(reopenedLines.length, 1, `${format} preserves the continuous sample baseline`)
+    assert.equal(reopenedLines.length, 1, `${format} preserves the asymmetric continuous sample baseline`)
   }
-  const invalidBaseline = structuredClone(continuous)
-  invalidBaseline.columnStylePack.rules['geology-column-layout'].sampleRangeBaselineStyle.boundaries = ['top', 'top']
-  assert.throws(() => compileGeologyColumn(invalidBaseline), /unique top\/bottom roles/)
-  const hiddenBaseline = structuredClone(continuous)
-  hiddenBaseline.columnStylePack.rules['geology-column-layout'].sampleRangeBaselineStyle.insetMm = 7.4
+  const invalidBaseline = structuredClone(asymmetric)
+  delete invalidBaseline.columnStylePack.rules['geology-column-layout'].sampleRangeBaselineStyle.endInsetMm
+  assert.throws(() => compileGeologyColumn(invalidBaseline), /exact declarative field-grid schema/)
+  const hiddenBaseline = structuredClone(asymmetric)
+  hiddenBaseline.columnStylePack.rules['geology-column-layout'].sampleRangeBaselineStyle.startInsetMm = 7.4
+  hiddenBaseline.columnStylePack.rules['geology-column-layout'].sampleRangeBaselineStyle.endInsetMm = 7.4
   assert.throws(() => compileGeologyColumn(hiddenBaseline), /leaves no visible source lane/)
   const rangedDocument = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', rangedCompiled.commandArgs, { document: rangedDocument })

@@ -82,11 +82,16 @@ export interface KJGeologyObservation {
 /** Source-backed rendering facts for measured sample intervals. The default
  * remains two collision-safe endpoint rules; a style pack may request the
  * exact continuous boundary line present in its licensed source template. */
-export interface KJGeologySampleRangeBaselineStyle {
+export type KJGeologySampleRangeBaselineStyle = {
     boundaries: ('top' | 'bottom')[];
     continuity: 'collision-safe' | 'continuous';
+} & ({
     insetMm: number;
-}
+} | {
+    fieldRole: 'sample';
+    startInsetMm: number;
+    endInsetMm: number;
+});
 /** Source-backed layout for a measured groundwater annotation. The optional
  * guide is emitted only when a licensed source template declares it. */
 export interface KJGeologyGroundwaterAnnotationStyle {

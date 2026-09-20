@@ -81,11 +81,10 @@ export interface KJGeologyObservation {
 /** Source-backed rendering facts for measured sample intervals. The default
  * remains two collision-safe endpoint rules; a style pack may request the
  * exact continuous boundary line present in its licensed source template. */
-export interface KJGeologySampleRangeBaselineStyle {
+export type KJGeologySampleRangeBaselineStyle = {
   boundaries: ('top' | 'bottom')[]
   continuity: 'collision-safe' | 'continuous'
-  insetMm: number
-}
+} & ({ insetMm: number } | { fieldRole: 'sample'; startInsetMm: number; endInsetMm: number })
 /** Source-backed layout for a measured groundwater annotation. The optional
  * guide is emitted only when a licensed source template declares it. */
 export interface KJGeologyGroundwaterAnnotationStyle {
@@ -802,8 +801,10 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   }
   let sampleRangeBaselineStyle: ColumnLayout['sampleRangeBaselineStyle']
   if (value.sampleRangeBaselineStyle != null) {
+    const baselineKeys = value.sampleRangeBaselineStyle && typeof value.sampleRangeBaselineStyle === 'object' && !Array.isArray(value.sampleRangeBaselineStyle)
+      ? Object.keys(value.sampleRangeBaselineStyle).sort().join(',') : ''
     if (!isFieldGrid || !value.sampleRangeBaselineStyle || typeof value.sampleRangeBaselineStyle !== 'object' || Array.isArray(value.sampleRangeBaselineStyle) ||
-      Object.keys(value.sampleRangeBaselineStyle).sort().join(',') !== 'boundaries,continuity,insetMm')
+      !['boundaries,continuity,insetMm', 'boundaries,continuity,endInsetMm,fieldRole,startInsetMm'].includes(baselineKeys))
       throw new KJValidationError('Geology: sample range baselines need an exact declarative field-grid schema')
     const rule = value.sampleRangeBaselineStyle as Record<string, unknown>
     if (!Array.isArray(rule.boundaries) || rule.boundaries.length < 1 || rule.boundaries.length > 2 ||
@@ -811,13 +812,18 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: sample range baseline boundaries must contain unique top/bottom roles')
     if (rule.continuity !== 'collision-safe' && rule.continuity !== 'continuous')
       throw new KJValidationError('Geology: sample range baseline continuity must be collision-safe or continuous')
-    const insetMm = numeric(rule.insetMm, 'sample range baseline inset')
     const sampleIndex = fieldGrid!.findIndex(field => field.role === 'sample')
     const sampleWidth = sampleIndex < 0 ? 0 : (fieldGrid![sampleIndex + 1]?.start ?? right) - fieldGrid![sampleIndex]!.start
-    if (sampleIndex < 0 || insetMm < 0 || sampleWidth - insetMm * 2 < 0.4)
+    const asymmetric = baselineKeys.includes('startInsetMm')
+    if (asymmetric && rule.fieldRole !== 'sample') throw new KJValidationError('Geology: asymmetric sample range baseline needs the declared sample field')
+    const startInsetMm = numeric(asymmetric ? rule.startInsetMm : rule.insetMm, 'sample range baseline start inset')
+    const endInsetMm = numeric(asymmetric ? rule.endInsetMm : rule.insetMm, 'sample range baseline end inset')
+    if (sampleIndex < 0 || startInsetMm < 0 || endInsetMm < 0 || sampleWidth - startInsetMm - endInsetMm < 0.4)
       throw new KJValidationError('Geology: sample range baseline inset leaves no visible source lane')
     sampleRangeBaselineStyle = { boundaries: rule.boundaries as ('top' | 'bottom')[],
-      continuity: rule.continuity, insetMm }
+      continuity: rule.continuity, ...(asymmetric
+        ? { fieldRole: 'sample' as const, startInsetMm, endInsetMm }
+        : { insetMm: startInsetMm }) }
   }
   let groundwaterAnnotationStyle: ColumnLayout['groundwaterAnnotationStyle']
   if (value.groundwaterAnnotationStyle != null) {
@@ -1860,8 +1866,10 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
             boundaries: ['top', 'bottom'] as ('top' | 'bottom')[], continuity: 'collision-safe' as const, insetMm: 0,
           }
           const baselineY = { top: rangeTopY, bottom: rangeBottomY }
+          const startInsetMm = 'insetMm' in baselineStyle ? baselineStyle.insetMm : baselineStyle.startInsetMm
+          const endInsetMm = 'insetMm' in baselineStyle ? baselineStyle.insetMm : baselineStyle.endInsetMm
           for (const boundary of baselineStyle.boundaries) bandLines.push({
-            x1: cell.start + baselineStyle.insetMm, x2: gridEnd(cell) - baselineStyle.insetMm,
+            x1: cell.start + startInsetMm, x2: gridEnd(cell) - endInsetMm,
             y: baselineY[boundary], ...(baselineStyle.continuity === 'continuous' ? { continuity: 'continuous' as const } : {}),
           })
         }
