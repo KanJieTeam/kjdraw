@@ -140,7 +140,7 @@ test('verified mirrored profiles stay symmetric while asymmetric source lines re
   assert.equal(emitted.has(lineKey([205, 127], [230, 124])), false)
   assert.equal(proposal.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1)
-  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.26.0')
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.27.0')
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /geometry and effective visual style both mirror/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /unpaired or asymmetric source segment remains an auxiliary line/u)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
@@ -632,21 +632,21 @@ test('bounded semantic auxiliary lines compile as native LINE entities', async (
   assert.ok(dxf.listEntities({ type: 'LINE' }).some(line => JSON.stringify(line.payload.start) === '[10,12,0]' && JSON.stringify(line.payload.end) === '[34,12,0]'))
 })
 
-test('auxiliary line budget accepts 1024 and atomically rejects 1025', async () => {
+test('auxiliary line budget accepts 2048 and atomically rejects 2049', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const makeLines = count => Array.from({ length: count }, (_, index) => ({ start: [index, 5000], end: [index, 5001], role: 'geometry' }))
-  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryLines: makeLines(1024) })
-  assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1024)
-  assert.equal(proposal.evidence.parameters.auxiliaryLineBudget, 1024)
-  assert.equal(proposal.commandArgs.entities.filter(entity => entity.type === 'LINE' && entity.payload.start[1] === 5000 && entity.payload.end[1] === 5001).length, 1024)
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryLines: makeLines(2048) })
+  assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 2048)
+  assert.equal(proposal.evidence.parameters.auxiliaryLineBudget, 2048)
+  assert.equal(proposal.commandArgs.entities.filter(entity => entity.type === 'LINE' && entity.payload.start[1] === 5000 && entity.payload.end[1] === 5001).length, 2048)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
   const [kjd, dxf] = await Promise.all([
     sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
     sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' }),
   ])
-  for (const reopened of [kjd, dxf]) assert.equal(reopened.listEntities({ type: 'LINE' }).filter(entity => entity.payload.start[1] === 5000 && entity.payload.end[1] === 5001).length, 1024)
+  for (const reopened of [kjd, dxf]) assert.equal(reopened.listEntities({ type: 'LINE' }).filter(entity => entity.payload.start[1] === 5000 && entity.payload.end[1] === 5001).length, 2048)
   const before = document.serialize()
-  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryLines: makeLines(1025) }), /1024-line budget/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryLines: makeLines(2049) }), /2048-line budget/u)
   assert.equal(document.serialize(), before)
 })
 test('bounded semantic auxiliary curves compile as native editable CAD entities', async () => {
@@ -1233,11 +1233,40 @@ test('bounded native wipeouts preserve explicit local clipping through KJD and D
     assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, count: 3, paths: [2, 128, 2], handles: [['0', '0'], ['0', '0'], ['0', '0']], display: [15, 0, 44, 55, 6, 1] })
   }
   const source = input(document.revision), withWipeout = wipeout => ({ ...source, auxiliaryWipeouts: [wipeout] })
-  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, auxiliaryWipeouts: Array.from({ length: 65 }, () => rectangle) }), /64-wipeout budget/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, auxiliaryWipeouts: Array.from({ length: 129 }, () => rectangle) }), /128-wipeout budget/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, withWipeout({ ...polygon, clipBoundary: Array.from({ length: 129 }, (_, index) => [index, index % 2]) })), /2 to 128 points/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, withWipeout({ ...rectangle, uVector: [1, 0], vVector: [2, 0] })), /nonzero plane/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, withWipeout({ ...polygon, clipBoundary: [[0, 0], [1, 0], [2, 0]] })), /nonzero area/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, withWipeout({ ...rectangle, rawTags: [] })), /unsupported field/u)
+})
+test('auxiliary wipeout budget accepts 128 and atomically rejects 129 through KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const rectangle = index => ({ position: [index * 2, 20], uVector: [1, 0], vVector: [0, 1],
+    clipBoundary: [[-.5, -.5], [.5, .5]], boundaryType: 1, role: 'notes' })
+  const source = input(document.revision)
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...source, auxiliaryWipeouts: Array.from({ length: 128 }, (_, index) => rectangle(index)) })
+  assert.deepEqual([proposal.evidence.parameters.auxiliaryWipeoutCount, proposal.evidence.parameters.auxiliaryWipeoutBudget], [128, 128])
+  const before = document.serialize()
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source,
+    auxiliaryWipeouts: Array.from({ length: 129 }, (_, index) => rectangle(index)) }), /128-wipeout budget/u)
+  assert.equal(document.serialize(), before)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const [kjd, dxf] = await Promise.all([
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
+    sdk.readDocument(dxfText, { format: 'DXF' }),
+  ])
+  for (const reopened of [kjd, dxf]) assert.equal(reopened.listEntities({ type: 'WIPEOUT' }).length, 128)
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"count":len(d.modelspace().query("WIPEOUT"))}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, count: 128 })
+  }
 })
 test('native points, point-display variables and per-side frame styles survive KJD and DXF', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
@@ -1368,7 +1397,7 @@ test('generic orthographic geometry remains native when the circular end view is
     symbols,
     dimensions,
   })
-  assert.equal(proposal.evidence.knowledgePackVersion, '2.26.0')
+  assert.equal(proposal.evidence.knowledgePackVersion, '2.27.0')
   assert.equal(proposal.evidence.parameters.endViewPresent, false)
   assert.equal(proposal.evidence.parameters.ringCount, 0)
   assert.equal(proposal.commandArgs.entities.some(entity => entity.type === 'CIRCLE'), false)
