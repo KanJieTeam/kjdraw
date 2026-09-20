@@ -133,6 +133,12 @@ export interface KJGeologyFieldHeaderTextStyle {
   main: KJGeologyFieldHeaderTextPlacement
   sub?: KJGeologyFieldHeaderTextPlacement
 }
+/** Independent source-backed placements for one table-header fact's label and
+ * value. Each offset is measured from its own physical lane's lower-left. */
+export interface KJGeologyHeaderFactTextStyle {
+  label: KJGeologyFieldHeaderTextPlacement
+  value: KJGeologyFieldHeaderTextPlacement
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,
@@ -222,6 +228,24 @@ const positive = (value: unknown, label: string): number => {
   if (result <= 0) throw new KJValidationError(`Geology: ${label} must be positive`)
   return result
 }
+const sourceTextPlacement = (raw: unknown, label: string): KJGeologyFieldHeaderTextPlacement => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+    Object.keys(raw).sort().join(',') !== 'height,horizontalAlignment,offset,textWidthFactor,verticalAlignment')
+    throw new KJValidationError(`Geology: ${label} needs an exact source-backed placement schema`)
+  const rule = raw as Record<string, unknown>
+  if (!Array.isArray(rule.offset) || rule.offset.length !== 2)
+    throw new KJValidationError(`Geology: ${label} offset must contain two millimetre coordinates`)
+  const offset = rule.offset.map((coordinate, index) => numeric(coordinate, `${label} offset ${index + 1}`)) as [number, number]
+  const height = numeric(rule.height, `${label} height`)
+  const textWidthFactor = numeric(rule.textWidthFactor, `${label} width factor`)
+  if (!['left', 'center', 'right'].includes(rule.horizontalAlignment as string) ||
+    !['baseline', 'middle'].includes(rule.verticalAlignment as string) ||
+    height < 1.2 || height > 5 || textWidthFactor < 0.5 || textWidthFactor > 1.5)
+    throw new KJValidationError(`Geology: ${label} placement is unreadable`)
+  return { offset, height, textWidthFactor,
+    horizontalAlignment: rule.horizontalAlignment as KJGeologyFieldHeaderTextPlacement['horizontalAlignment'],
+    verticalAlignment: rule.verticalAlignment as KJGeologyFieldHeaderTextPlacement['verticalAlignment'] }
+}
 const projectCoordinate = (value: unknown, label: string): number => {
   if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1e9) throw new KJValidationError(`Geology: invalid ${label}`)
   return value
@@ -266,7 +290,7 @@ interface ColumnLayout {
 }
 
 type HeaderRole = 'projectName' | 'holeId' | 'collarElevation' | 'depth' | 'x' | 'y' | 'startDate' | 'endDate' | 'initialWaterDepth' | 'stableWaterDepth' | 'verticalScale'
-type HeaderCellGeometry = { start?: number; valueStart?: number }
+type HeaderCellGeometry = { start?: number; valueStart?: number; textStyle?: KJGeologyHeaderFactTextStyle }
 type HeaderCell = ({ role: HeaderRole; label: string; optional?: boolean } | { role: 'documentFact'; key: string; label: string; optional?: boolean }) & HeaderCellGeometry
 type FooterCell = { start: number; key: string; label: string; internalDivider?: number }
 type TitleMarginFactPlacement = {
@@ -433,29 +457,47 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
         const hasGeometry = cell.start != null || cell.valueStart != null
         if (physical !== hasGeometry || hasGeometry && (cell.start == null || cell.valueStart == null))
           throw new KJValidationError('Geology: a physical header row must declare start and valueStart for every cell')
+        if (cell.textStyle != null && !physical) throw new KJValidationError('Geology: header fact text style needs a physical source cell')
         const geometry = !physical ? {} : {
           start: numeric(cell.start, `header grid start ${rowIndex + 1}/${cellIndex + 1}`),
           valueStart: numeric(cell.valueStart, `header grid value start ${rowIndex + 1}/${cellIndex + 1}`),
         }
-        const geometryKeys = physical ? ',start,valueStart' : ''
+        let textStyle: KJGeologyHeaderFactTextStyle | undefined
+        if (cell.textStyle != null) {
+          if (!cell.textStyle || typeof cell.textStyle !== 'object' || Array.isArray(cell.textStyle) ||
+            Object.keys(cell.textStyle).sort().join(',') !== 'label,value')
+            throw new KJValidationError('Geology: header fact text style must declare exact label and value placements')
+          const supplied = cell.textStyle as Record<string, unknown>
+          textStyle = { label: sourceTextPlacement(supplied.label, `header fact ${rowIndex + 1}/${cellIndex + 1} label`),
+            value: sourceTextPlacement(supplied.value, `header fact ${rowIndex + 1}/${cellIndex + 1} value`) }
+        }
+        const commonKeys = ['label', 'role', ...(optional == null ? [] : ['optional']),
+          ...(physical ? ['start', 'valueStart'] : []), ...(textStyle ? ['textStyle'] : [])]
         if (cell.role === 'documentFact') {
-          if (![...['key,label,role', 'key,label,optional,role'].map(schema => `${schema}${geometryKeys}`)].includes(Object.keys(cell).sort().join(','))) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a document fact key, role and label`)
+          if (Object.keys(cell).sort().join(',') !== [...commonKeys, 'key'].sort().join(',')) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a document fact key, role and label`)
           const key = stableDocumentFactKey(cell.key), canonical = key.toLowerCase()
           if (documentKeys.has(canonical)) throw new KJValidationError('Geology: duplicate document fact key')
           documentKeys.add(canonical)
-          return { role: 'documentFact' as const, key, label: bounded(cell.label, 'header fact label', 24), ...(optional == null ? {} : { optional }), ...geometry }
+          return { role: 'documentFact' as const, key, label: bounded(cell.label, 'header fact label', 24), ...(optional == null ? {} : { optional }), ...geometry,
+            ...(textStyle ? { textStyle } : {}) }
         }
-        if (![...['label,role', 'label,optional,role'].map(schema => `${schema}${geometryKeys}`)].includes(Object.keys(cell).sort().join(',')) || typeof cell.role !== 'string' || !headerRoles.has(cell.role as HeaderRole)) throw new KJValidationError('Geology: undeclared header fact role')
+        if (Object.keys(cell).sort().join(',') !== commonKeys.sort().join(',') || typeof cell.role !== 'string' || !headerRoles.has(cell.role as HeaderRole)) throw new KJValidationError('Geology: undeclared header fact role')
         const role = cell.role as HeaderRole
         if (seen.has(role)) throw new KJValidationError('Geology: duplicate header fact role')
         seen.add(role)
-        return { role, label: bounded(cell.label, 'header fact label', 24), ...(optional == null ? {} : { optional }), ...geometry }
+        return { role, label: bounded(cell.label, 'header fact label', 24), ...(optional == null ? {} : { optional }), ...geometry,
+          ...(textStyle ? { textStyle } : {}) }
       })
       if (physical) for (const [cellIndex, cell] of parsed.entries()) {
         const end = parsed[cellIndex + 1]?.start ?? right
         if (cell.start! < left || cellIndex === 0 && Math.abs(cell.start! - left) > 1e-6 || end - cell.start! < 30 ||
           cell.valueStart! - cell.start! < 10 || end - cell.valueStart! < 10)
           throw new KJValidationError(`Geology: physical header cell ${rowIndex + 1}/${cellIndex + 1} is out of bounds or unreadable`)
+        if (cell.textStyle) for (const [placement, laneWidth] of [[cell.textStyle.label, cell.valueStart! - cell.start!],
+          [cell.textStyle.value, end - cell.valueStart!]] as [KJGeologyFieldHeaderTextPlacement, number][]) {
+          if (placement.offset[0] < 0 || placement.offset[0] > laneWidth || placement.offset[1] < 0 || placement.offset[1] > headerRowHeight)
+            throw new KJValidationError(`Geology: physical header cell ${rowIndex + 1}/${cellIndex + 1} text placement is outside its lane`)
+        }
       }
       return parsed
     })
@@ -480,24 +522,6 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   if (isFieldGrid) {
     if (!Array.isArray(value.fieldGrid) || value.fieldGrid.length < 7 || value.fieldGrid.length > 24) throw new KJValidationError('Geology: field grid needs 7–24 declared physical columns')
     const roles = new Set<FieldRole>(), measurementKeys = new Set<string>()
-    const fieldHeaderTextPlacement = (raw: unknown, label: string): KJGeologyFieldHeaderTextPlacement => {
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
-        Object.keys(raw).sort().join(',') !== 'height,horizontalAlignment,offset,textWidthFactor,verticalAlignment')
-        throw new KJValidationError(`Geology: ${label} needs an exact source-backed placement schema`)
-      const rule = raw as Record<string, unknown>
-      if (!Array.isArray(rule.offset) || rule.offset.length !== 2)
-        throw new KJValidationError(`Geology: ${label} offset must contain two millimetre coordinates`)
-      const offset = rule.offset.map((coordinate, index) => numeric(coordinate, `${label} offset ${index + 1}`)) as [number, number]
-      const height = numeric(rule.height, `${label} height`)
-      const textWidthFactor = numeric(rule.textWidthFactor, `${label} width factor`)
-      if (!['left', 'center', 'right'].includes(rule.horizontalAlignment as string) ||
-        !['baseline', 'middle'].includes(rule.verticalAlignment as string) ||
-        height < 1.2 || height > 5 || textWidthFactor < 0.5 || textWidthFactor > 1.5)
-        throw new KJValidationError(`Geology: ${label} placement is unreadable`)
-      return { offset, height, textWidthFactor,
-        horizontalAlignment: rule.horizontalAlignment as KJGeologyFieldHeaderTextPlacement['horizontalAlignment'],
-        verticalAlignment: rule.verticalAlignment as KJGeologyFieldHeaderTextPlacement['verticalAlignment'] }
-    }
     fieldGrid = value.fieldGrid.map((raw, index) => {
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: field grid column must be a declared object')
       const cell = raw as Record<string, unknown>
@@ -518,8 +542,8 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
         const supplied = cell.headerTextStyle as Record<string, unknown>
         if (Object.keys(supplied).sort().join(',') !== (subLabel ? 'main,sub' : 'main'))
           throw new KJValidationError('Geology: field header text style must declare main and exactly match the field sublabel')
-        headerTextStyle = { main: fieldHeaderTextPlacement(supplied.main, `field ${index + 1} main header`),
-          ...(subLabel ? { sub: fieldHeaderTextPlacement(supplied.sub, `field ${index + 1} sub header`) } : {}) }
+        headerTextStyle = { main: sourceTextPlacement(supplied.main, `field ${index + 1} main header`),
+          ...(subLabel ? { sub: sourceTextPlacement(supplied.sub, `field ${index + 1} sub header`) } : {}) }
       }
       if (textWidthFactor != null && (textWidthFactor < 0.5 || textWidthFactor > 1.5)) throw new KJValidationError('Geology: field grid text width factor must be 0.5–1.5')
       if (role !== 'measurement' && roles.has(role)) throw new KJValidationError(`Geology: duplicate field role ${role}`)
@@ -1227,12 +1251,33 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         if (value == null && !cell.optional) throw new KJValidationError(`Geology: declared header fact ${identity} is missing; refusing to invent a value`)
         const visibleValue = value ?? ''
         const headerFactHeight = textHeights?.headerFact ?? 2.2
-        const estimated = (text: string): number => [...text].reduce((sum, character) =>
-          sum + (/^[\x20-\x7e]$/u.test(character) ? headerFactHeight * 0.52 : headerFactHeight * 0.95), 0)
-        if (estimated(cell.label) > valueX - cellLeft - 3 || estimated(visibleValue) > cellLeft + width - valueX - 3)
-          throw new KJValidationError(`Geology: header fact ${identity} does not fit the declared cell`)
-        g.text(3, cellLeft + 2, rowTop - rowHeight * 0.69, cell.label, headerFactHeight)
-        if (visibleValue) g.text(3, valueX + 2, rowTop - rowHeight * 0.69, visibleValue, headerFactHeight)
+        const estimated = (text: string, height: number, widthFactor = 1): number => [...text].reduce((sum, character) =>
+          sum + (/^[\x20-\x7e]$/u.test(character) ? height * 0.52 : height * 0.95) * widthFactor, 0)
+        if (cell.textStyle) {
+          const fitsLane = (text: string, placement: KJGeologyFieldHeaderTextPlacement, laneWidth: number): boolean => {
+            const textWidth = estimated(text, placement.height, placement.textWidthFactor)
+            const leftExtent = placement.horizontalAlignment === 'left' ? placement.offset[0] :
+              placement.horizontalAlignment === 'center' ? placement.offset[0] - textWidth / 2 : placement.offset[0] - textWidth
+            return leftExtent >= -1e-9 && leftExtent + textWidth <= laneWidth + 1e-9
+          }
+          if (!fitsLane(cell.label, cell.textStyle.label, valueX - cellLeft) ||
+            !fitsLane(visibleValue, cell.textStyle.value, cellLeft + width - valueX))
+            throw new KJValidationError(`Geology: header fact ${identity} does not fit its source-backed text lanes`)
+          const emitHeaderFact = (originX: number, text: string, placement: KJGeologyFieldHeaderTextPlacement): void => {
+            const horizontalAlignment = placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2
+            const verticalAlignment = placement.verticalAlignment === 'baseline' ? 0 : 2
+            g.placedText(3, originX + placement.offset[0], rowBottom + placement.offset[1], text, placement.height,
+              placement.textWidthFactor, horizontalAlignment, verticalAlignment, 0)
+          }
+          emitHeaderFact(cellLeft, cell.label, cell.textStyle.label)
+          if (visibleValue) emitHeaderFact(valueX, visibleValue, cell.textStyle.value)
+        } else {
+          if (estimated(cell.label, headerFactHeight) > valueX - cellLeft - 3 ||
+            estimated(visibleValue, headerFactHeight) > cellLeft + width - valueX - 3)
+            throw new KJValidationError(`Geology: header fact ${identity} does not fit the declared cell`)
+          g.text(3, cellLeft + 2, rowTop - rowHeight * 0.69, cell.label, headerFactHeight)
+          if (visibleValue) g.text(3, valueX + 2, rowTop - rowHeight * 0.69, visibleValue, headerFactHeight)
+        }
       }
     }
     const continuousDividers = headerGrid.continuousDividers ?? []

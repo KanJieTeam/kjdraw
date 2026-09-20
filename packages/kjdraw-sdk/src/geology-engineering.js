@@ -34,6 +34,29 @@ const positive = (value, label)=>{
     if (result <= 0) throw new KJValidationError(`Geology: ${label} must be positive`);
     return result;
 };
+const sourceTextPlacement = (raw, label)=>{
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'height,horizontalAlignment,offset,textWidthFactor,verticalAlignment') throw new KJValidationError(`Geology: ${label} needs an exact source-backed placement schema`);
+    const rule = raw;
+    if (!Array.isArray(rule.offset) || rule.offset.length !== 2) throw new KJValidationError(`Geology: ${label} offset must contain two millimetre coordinates`);
+    const offset = rule.offset.map((coordinate, index)=>numeric(coordinate, `${label} offset ${index + 1}`));
+    const height = numeric(rule.height, `${label} height`);
+    const textWidthFactor = numeric(rule.textWidthFactor, `${label} width factor`);
+    if (![
+        'left',
+        'center',
+        'right'
+    ].includes(rule.horizontalAlignment) || ![
+        'baseline',
+        'middle'
+    ].includes(rule.verticalAlignment) || height < 1.2 || height > 5 || textWidthFactor < 0.5 || textWidthFactor > 1.5) throw new KJValidationError(`Geology: ${label} placement is unreadable`);
+    return {
+        offset,
+        height,
+        textWidthFactor,
+        horizontalAlignment: rule.horizontalAlignment,
+        verticalAlignment: rule.verticalAlignment
+    };
+};
 const projectCoordinate = (value, label)=>{
     if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1e9) throw new KJValidationError(`Geology: invalid ${label}`);
     return value;
@@ -362,18 +385,39 @@ function columnLayout(input) {
                 if (optional != null && typeof optional !== 'boolean') throw new KJValidationError('Geology: header fact optional flag must be boolean');
                 const hasGeometry = cell.start != null || cell.valueStart != null;
                 if (physical !== hasGeometry || hasGeometry && (cell.start == null || cell.valueStart == null)) throw new KJValidationError('Geology: a physical header row must declare start and valueStart for every cell');
+                if (cell.textStyle != null && !physical) throw new KJValidationError('Geology: header fact text style needs a physical source cell');
                 const geometry = !physical ? {} : {
                     start: numeric(cell.start, `header grid start ${rowIndex + 1}/${cellIndex + 1}`),
                     valueStart: numeric(cell.valueStart, `header grid value start ${rowIndex + 1}/${cellIndex + 1}`)
                 };
-                const geometryKeys = physical ? ',start,valueStart' : '';
+                let textStyle;
+                if (cell.textStyle != null) {
+                    if (!cell.textStyle || typeof cell.textStyle !== 'object' || Array.isArray(cell.textStyle) || Object.keys(cell.textStyle).sort().join(',') !== 'label,value') throw new KJValidationError('Geology: header fact text style must declare exact label and value placements');
+                    const supplied = cell.textStyle;
+                    textStyle = {
+                        label: sourceTextPlacement(supplied.label, `header fact ${rowIndex + 1}/${cellIndex + 1} label`),
+                        value: sourceTextPlacement(supplied.value, `header fact ${rowIndex + 1}/${cellIndex + 1} value`)
+                    };
+                }
+                const commonKeys = [
+                    'label',
+                    'role',
+                    ...optional == null ? [] : [
+                        'optional'
+                    ],
+                    ...physical ? [
+                        'start',
+                        'valueStart'
+                    ] : [],
+                    ...textStyle ? [
+                        'textStyle'
+                    ] : []
+                ];
                 if (cell.role === 'documentFact') {
-                    if (![
-                        ...[
-                            'key,label,role',
-                            'key,label,optional,role'
-                        ].map((schema)=>`${schema}${geometryKeys}`)
-                    ].includes(Object.keys(cell).sort().join(','))) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a document fact key, role and label`);
+                    if (Object.keys(cell).sort().join(',') !== [
+                        ...commonKeys,
+                        'key'
+                    ].sort().join(',')) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a document fact key, role and label`);
                     const key = stableDocumentFactKey(cell.key), canonical = key.toLowerCase();
                     if (documentKeys.has(canonical)) throw new KJValidationError('Geology: duplicate document fact key');
                     documentKeys.add(canonical);
@@ -384,15 +428,13 @@ function columnLayout(input) {
                         ...optional == null ? {} : {
                             optional
                         },
-                        ...geometry
+                        ...geometry,
+                        ...textStyle ? {
+                            textStyle
+                        } : {}
                     };
                 }
-                if (![
-                    ...[
-                        'label,role',
-                        'label,optional,role'
-                    ].map((schema)=>`${schema}${geometryKeys}`)
-                ].includes(Object.keys(cell).sort().join(',')) || typeof cell.role !== 'string' || !headerRoles.has(cell.role)) throw new KJValidationError('Geology: undeclared header fact role');
+                if (Object.keys(cell).sort().join(',') !== commonKeys.sort().join(',') || typeof cell.role !== 'string' || !headerRoles.has(cell.role)) throw new KJValidationError('Geology: undeclared header fact role');
                 const role = cell.role;
                 if (seen.has(role)) throw new KJValidationError('Geology: duplicate header fact role');
                 seen.add(role);
@@ -402,12 +444,27 @@ function columnLayout(input) {
                     ...optional == null ? {} : {
                         optional
                     },
-                    ...geometry
+                    ...geometry,
+                    ...textStyle ? {
+                        textStyle
+                    } : {}
                 };
             });
             if (physical) for (const [cellIndex, cell] of parsed.entries()){
                 const end = parsed[cellIndex + 1]?.start ?? right;
                 if (cell.start < left || cellIndex === 0 && Math.abs(cell.start - left) > 1e-6 || end - cell.start < 30 || cell.valueStart - cell.start < 10 || end - cell.valueStart < 10) throw new KJValidationError(`Geology: physical header cell ${rowIndex + 1}/${cellIndex + 1} is out of bounds or unreadable`);
+                if (cell.textStyle) for (const [placement, laneWidth] of [
+                    [
+                        cell.textStyle.label,
+                        cell.valueStart - cell.start
+                    ],
+                    [
+                        cell.textStyle.value,
+                        end - cell.valueStart
+                    ]
+                ]){
+                    if (placement.offset[0] < 0 || placement.offset[0] > laneWidth || placement.offset[1] < 0 || placement.offset[1] > headerRowHeight) throw new KJValidationError(`Geology: physical header cell ${rowIndex + 1}/${cellIndex + 1} text placement is outside its lane`);
+                }
             }
             return parsed;
         });
@@ -433,29 +490,6 @@ function columnLayout(input) {
     if (isFieldGrid) {
         if (!Array.isArray(value.fieldGrid) || value.fieldGrid.length < 7 || value.fieldGrid.length > 24) throw new KJValidationError('Geology: field grid needs 7–24 declared physical columns');
         const roles = new Set(), measurementKeys = new Set();
-        const fieldHeaderTextPlacement = (raw, label)=>{
-            if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'height,horizontalAlignment,offset,textWidthFactor,verticalAlignment') throw new KJValidationError(`Geology: ${label} needs an exact source-backed placement schema`);
-            const rule = raw;
-            if (!Array.isArray(rule.offset) || rule.offset.length !== 2) throw new KJValidationError(`Geology: ${label} offset must contain two millimetre coordinates`);
-            const offset = rule.offset.map((coordinate, index)=>numeric(coordinate, `${label} offset ${index + 1}`));
-            const height = numeric(rule.height, `${label} height`);
-            const textWidthFactor = numeric(rule.textWidthFactor, `${label} width factor`);
-            if (![
-                'left',
-                'center',
-                'right'
-            ].includes(rule.horizontalAlignment) || ![
-                'baseline',
-                'middle'
-            ].includes(rule.verticalAlignment) || height < 1.2 || height > 5 || textWidthFactor < 0.5 || textWidthFactor > 1.5) throw new KJValidationError(`Geology: ${label} placement is unreadable`);
-            return {
-                offset,
-                height,
-                textWidthFactor,
-                horizontalAlignment: rule.horizontalAlignment,
-                verticalAlignment: rule.verticalAlignment
-            };
-        };
         fieldGrid = value.fieldGrid.map((raw, index)=>{
             if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: field grid column must be a declared object');
             const cell = raw;
@@ -490,9 +524,9 @@ function columnLayout(input) {
                 const supplied = cell.headerTextStyle;
                 if (Object.keys(supplied).sort().join(',') !== (subLabel ? 'main,sub' : 'main')) throw new KJValidationError('Geology: field header text style must declare main and exactly match the field sublabel');
                 headerTextStyle = {
-                    main: fieldHeaderTextPlacement(supplied.main, `field ${index + 1} main header`),
+                    main: sourceTextPlacement(supplied.main, `field ${index + 1} main header`),
                     ...subLabel ? {
-                        sub: fieldHeaderTextPlacement(supplied.sub, `field ${index + 1} sub header`)
+                        sub: sourceTextPlacement(supplied.sub, `field ${index + 1} sub header`)
                     } : {}
                 };
             }
@@ -1597,12 +1631,28 @@ export function compileGeologyColumn(input) {
                 if (value == null && !cell.optional) throw new KJValidationError(`Geology: declared header fact ${identity} is missing; refusing to invent a value`);
                 const visibleValue = value ?? '';
                 const headerFactHeight = textHeights?.headerFact ?? 2.2;
-                const estimated = (text)=>[
+                const estimated = (text, height, widthFactor = 1)=>[
                         ...text
-                    ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? headerFactHeight * 0.52 : headerFactHeight * 0.95), 0);
-                if (estimated(cell.label) > valueX - cellLeft - 3 || estimated(visibleValue) > cellLeft + width - valueX - 3) throw new KJValidationError(`Geology: header fact ${identity} does not fit the declared cell`);
-                g.text(3, cellLeft + 2, rowTop - rowHeight * 0.69, cell.label, headerFactHeight);
-                if (visibleValue) g.text(3, valueX + 2, rowTop - rowHeight * 0.69, visibleValue, headerFactHeight);
+                    ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? height * 0.52 : height * 0.95) * widthFactor, 0);
+                if (cell.textStyle) {
+                    const fitsLane = (text, placement, laneWidth)=>{
+                        const textWidth = estimated(text, placement.height, placement.textWidthFactor);
+                        const leftExtent = placement.horizontalAlignment === 'left' ? placement.offset[0] : placement.horizontalAlignment === 'center' ? placement.offset[0] - textWidth / 2 : placement.offset[0] - textWidth;
+                        return leftExtent >= -1e-9 && leftExtent + textWidth <= laneWidth + 1e-9;
+                    };
+                    if (!fitsLane(cell.label, cell.textStyle.label, valueX - cellLeft) || !fitsLane(visibleValue, cell.textStyle.value, cellLeft + width - valueX)) throw new KJValidationError(`Geology: header fact ${identity} does not fit its source-backed text lanes`);
+                    const emitHeaderFact = (originX, text, placement)=>{
+                        const horizontalAlignment = placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2;
+                        const verticalAlignment = placement.verticalAlignment === 'baseline' ? 0 : 2;
+                        g.placedText(3, originX + placement.offset[0], rowBottom + placement.offset[1], text, placement.height, placement.textWidthFactor, horizontalAlignment, verticalAlignment, 0);
+                    };
+                    emitHeaderFact(cellLeft, cell.label, cell.textStyle.label);
+                    if (visibleValue) emitHeaderFact(valueX, visibleValue, cell.textStyle.value);
+                } else {
+                    if (estimated(cell.label, headerFactHeight) > valueX - cellLeft - 3 || estimated(visibleValue, headerFactHeight) > cellLeft + width - valueX - 3) throw new KJValidationError(`Geology: header fact ${identity} does not fit the declared cell`);
+                    g.text(3, cellLeft + 2, rowTop - rowHeight * 0.69, cell.label, headerFactHeight);
+                    if (visibleValue) g.text(3, valueX + 2, rowTop - rowHeight * 0.69, visibleValue, headerFactHeight);
+                }
             }
         }
         const continuousDividers = headerGrid.continuousDividers ?? [];

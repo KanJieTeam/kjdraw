@@ -134,6 +134,12 @@ export interface KJGeologyFieldHeaderTextStyle {
     main: KJGeologyFieldHeaderTextPlacement;
     sub?: KJGeologyFieldHeaderTextPlacement;
 }
+/** Independent source-backed placements for one table-header fact's label and
+ * value. Each offset is measured from its own physical lane's lower-left. */
+export interface KJGeologyHeaderFactTextStyle {
+    label: KJGeologyFieldHeaderTextPlacement;
+    value: KJGeologyFieldHeaderTextPlacement;
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,

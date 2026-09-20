@@ -225,7 +225,10 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     { start: 165, role: 'spt', label: 'SPT' },
   ]
   const physicalRows = [
-    [{ start: 5, valueStart: 25, role: 'projectName', label: 'Project' },
+    [{ start: 5, valueStart: 25, role: 'projectName', label: 'Project', textStyle: {
+      label: { offset: [1.3, 1.1], height: 2.8, textWidthFactor: 0.8, horizontalAlignment: 'left', verticalAlignment: 'baseline' },
+      value: { offset: [1.2, 1.1], height: 2.7, textWidthFactor: 0.85, horizontalAlignment: 'left', verticalAlignment: 'baseline' },
+    } },
       { start: 105, valueStart: 125, role: 'documentFact', key: 'projectCode', label: 'Code' },
       { start: 145, valueStart: 165, role: 'holeId', label: 'Hole' }],
     [{ start: 5, valueStart: 25, role: 'x', label: 'X' },
@@ -286,8 +289,13 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     .every(entity => entity.payload.styleId === declaredTextStyle.id), 'all column text uses the declared source style')
   for (const [value, x] of [['P-18', 127], ['PHYS-1', 167], ['2.50', 127], ['3.00', 167]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x), `${value} at ${x}`)
-  for (const [value, height] of [['Project', 3], ['Pattern', 2.75], ['1:100', 2.25], ['Fill', 2], ['0.60', 2.5], ['S1', 2]])
+  for (const [value, height] of [['Project', 2.8], ['Pattern', 2.75], ['1:100', 2.25], ['Fill', 2], ['0.60', 2.5], ['S1', 2]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} height ${height}`)
+  for (const [value, x, y, height, widthFactor] of [
+    ['Project', 6.3, 256.1, 2.8, 0.8], ['Project A', 26.2, 256.1, 2.7, 0.85],
+  ]) assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x &&
+    entity.payload.position[1] === y && entity.payload.height === height && entity.payload.widthFactor === widthFactor &&
+    entity.payload.horizontalAlignment == null && entity.payload.alignmentPoint == null), `${value} uses its source-backed table-header placement`)
   for (const [value, x, y, height, widthFactor] of [
     ['No', 6.25, 239.4, 2.6, 0.85], ['Pattern', 66.5, 242.1, 2.75, 0.8], ['1:100', 67.25, 237.1, 2.25, 0.9],
   ]) assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x &&
@@ -382,6 +390,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const partial = structuredClone(input)
   delete partial.columnStylePack.rules['geology-column-layout'].headerGrid.rows[0][1].valueStart
   assert.throws(() => compileGeologyColumn(partial), /must declare start and valueStart/u)
+  const incompleteHeaderFactPlacement = structuredClone(input)
+  delete incompleteHeaderFactPlacement.columnStylePack.rules['geology-column-layout'].headerGrid.rows[0][0].textStyle.value
+  assert.throws(() => compileGeologyColumn(incompleteHeaderFactPlacement), /exact label and value placements/u)
   const redundantContinuousDivider = structuredClone(input)
   redundantContinuousDivider.columnStylePack.rules['geology-column-layout'].headerGrid.continuousDividers = [25]
   assert.throws(() => compileGeologyColumn(redundantContinuousDivider), /must bridge an actual source-row gap/u)
