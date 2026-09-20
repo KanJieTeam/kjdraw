@@ -227,6 +227,7 @@ export type KJFlangeAuxiliaryCurve =
  * are accepted; source handles, block names and application metadata are not. */
 export type KJFlangeSymbolMember =
   | { kind: 'line'; start: Point2; end: Point2; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
+  | { kind: 'polyline'; vertices: { point: Point2; bulge?: number; startWidth?: number; endWidth?: number }[]; closed?: boolean; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
   | { kind: 'circle'; center: Point2; radius: number; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
   | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise?: boolean; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
   | { kind: 'single-line-text'; text: string; position: Point2; alignmentPoint?: Point2; height: number; rotation?: number; widthFactor?: number; obliqueAngle?: number; horizontalAlignment?: number; verticalAlignment?: number; generationFlags?: number; styleKey?: string; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
@@ -1215,6 +1216,16 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
         if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${memberLabel} must not have zero length`)
         return { kind: 'line', start, end, role, ...(entityStyleKeyValue == null ? {} : { entityStyleKey: entityStyleKeyValue }) }
       }
+      if (member.kind === 'polyline') {
+        exact(member, ['kind', 'vertices', 'closed', 'role', 'entityStyleKey'], memberLabel)
+        if (!Array.isArray(member.vertices) || member.vertices.length < 2 || member.vertices.length > 4096) throw new KJValidationError(`${memberLabel}.vertices must contain 2 to 4096 points`)
+        if (member.closed != null && typeof member.closed !== 'boolean') throw new KJValidationError(`${memberLabel}.closed must be boolean`)
+        const vertices = (member.vertices as unknown[]).map((value, vertexIndex) => {
+          const vertexLabel = `${memberLabel}.vertices[${vertexIndex}]`, vertex = plain(value, vertexLabel); exact(vertex, ['point', 'bulge', 'startWidth', 'endWidth'], vertexLabel)
+          return { point: point(vertex.point, `${vertexLabel}.point`), bulge: finite(vertex.bulge ?? 0, `${vertexLabel}.bulge`, -1e6, 1e6), startWidth: finite(vertex.startWidth ?? 0, `${vertexLabel}.startWidth`, 0, 1e6), endWidth: finite(vertex.endWidth ?? 0, `${vertexLabel}.endWidth`, 0, 1e6) }
+        })
+        return { kind: 'polyline', vertices, closed: member.closed === true, role, ...(entityStyleKeyValue == null ? {} : { entityStyleKey: entityStyleKeyValue }) }
+      }
       if (member.kind === 'circle') {
         exact(member, ['kind', 'center', 'radius', 'role', 'entityStyleKey'], memberLabel)
         return { kind: 'circle', center: point(member.center, `${memberLabel}.center`), radius: finite(member.radius, `${memberLabel}.radius`, 0.000_001, 100_000), role, ...(entityStyleKeyValue == null ? {} : { entityStyleKey: entityStyleKeyValue }) }
@@ -1567,6 +1578,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     const members = definition.members.map((member, memberIndex) => {
       let type: Entity['type'], payload: Record<string, unknown>; const entityStyle = styled(member.entityStyleKey, member.role)
       if (member.kind === 'line') { type = 'LINE'; payload = { start: p3(...member.start), end: p3(...member.end), layerId: entityStyle.layerId } }
+      else if (member.kind === 'polyline') { type = 'LWPOLYLINE'; payload = { vertices: member.vertices.map(vertex => ({ ...vertex, point: p3(...vertex.point) })), closed: member.closed === true, elevation: 0, layerId: entityStyle.layerId } }
       else if (member.kind === 'circle') { type = 'CIRCLE'; payload = { center: p3(...member.center), radius: member.radius, layerId: entityStyle.layerId } }
       else if (member.kind === 'arc') { type = 'ARC'; payload = { center: p3(...member.center), radius: member.radius, startAngle: member.startAngle, endAngle: member.endAngle, clockwise: member.clockwise === true, layerId: entityStyle.layerId } }
       else if (member.kind === 'single-line-text') { const style = member.styleKey == null ? null : textStyleByKey.get(member.styleKey)!; type = 'TEXT'; payload = { position: p3(...member.position),

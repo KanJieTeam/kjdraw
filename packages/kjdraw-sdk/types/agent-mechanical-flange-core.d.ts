@@ -356,6 +356,17 @@ export type KJFlangeSymbolMember = {
     role: KJFlangeAuxiliaryLine['role'];
     entityStyleKey?: string;
 } | {
+    kind: 'polyline';
+    vertices: {
+        point: Point2;
+        bulge?: number;
+        startWidth?: number;
+        endWidth?: number;
+    }[];
+    closed?: boolean;
+    role: KJFlangeAuxiliaryLine['role'];
+    entityStyleKey?: string;
+} | {
     kind: 'circle';
     center: Point2;
     radius: number;
@@ -683,7 +694,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
                 name: string;
                 basePoint: Point3;
                 entities: {
-                    type: "ARC" | "ATTDEF" | "CIRCLE" | "HATCH" | "INSERT" | "LINE" | "MTEXT" | "SOLID" | "TEXT";
+                    type: "ARC" | "ATTDEF" | "CIRCLE" | "HATCH" | "INSERT" | "LINE" | "LWPOLYLINE" | "MTEXT" | "SOLID" | "TEXT";
                     payload: Record<string, unknown>;
                     options: {
                         id: string;

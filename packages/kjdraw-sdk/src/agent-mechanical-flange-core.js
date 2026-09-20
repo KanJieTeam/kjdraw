@@ -1970,6 +1970,41 @@ function validate(document, source) {
                     }
                 };
             }
+            if (member.kind === 'polyline') {
+                exact(member, [
+                    'kind',
+                    'vertices',
+                    'closed',
+                    'role',
+                    'entityStyleKey'
+                ], memberLabel);
+                if (!Array.isArray(member.vertices) || member.vertices.length < 2 || member.vertices.length > 4096) throw new KJValidationError(`${memberLabel}.vertices must contain 2 to 4096 points`);
+                if (member.closed != null && typeof member.closed !== 'boolean') throw new KJValidationError(`${memberLabel}.closed must be boolean`);
+                const vertices = member.vertices.map((value, vertexIndex)=>{
+                    const vertexLabel = `${memberLabel}.vertices[${vertexIndex}]`, vertex = plain(value, vertexLabel);
+                    exact(vertex, [
+                        'point',
+                        'bulge',
+                        'startWidth',
+                        'endWidth'
+                    ], vertexLabel);
+                    return {
+                        point: point(vertex.point, `${vertexLabel}.point`),
+                        bulge: finite(vertex.bulge ?? 0, `${vertexLabel}.bulge`, -1e6, 1e6),
+                        startWidth: finite(vertex.startWidth ?? 0, `${vertexLabel}.startWidth`, 0, 1e6),
+                        endWidth: finite(vertex.endWidth ?? 0, `${vertexLabel}.endWidth`, 0, 1e6)
+                    };
+                });
+                return {
+                    kind: 'polyline',
+                    vertices,
+                    closed: member.closed === true,
+                    role,
+                    ...entityStyleKeyValue == null ? {} : {
+                        entityStyleKey: entityStyleKeyValue
+                    }
+                };
+            }
             if (member.kind === 'circle') {
                 exact(member, [
                     'kind',
@@ -3199,6 +3234,17 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 payload = {
                     start: p3(...member.start),
                     end: p3(...member.end),
+                    layerId: entityStyle.layerId
+                };
+            } else if (member.kind === 'polyline') {
+                type = 'LWPOLYLINE';
+                payload = {
+                    vertices: member.vertices.map((vertex)=>({
+                            ...vertex,
+                            point: p3(...vertex.point)
+                        })),
+                    closed: member.closed === true,
+                    elevation: 0,
                     layerId: entityStyle.layerId
                 };
             } else if (member.kind === 'circle') {
