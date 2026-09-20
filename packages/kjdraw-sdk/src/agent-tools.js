@@ -23,6 +23,7 @@ import { createCatalogComponentInsertIdentity, searchComponentCatalog } from './
 import { buildAgentManufacturingSheet } from './agent-manufacturing-sheet.js';
 import { buildAgentArchitecturePlan } from './agent-architecture-plan.js';
 import { buildAgentSitePlan } from './agent-site-plan.js';
+import { buildAgentGeologyPlan } from './agent-geology-plan.js';
 import { buildAgentCartesianChart } from './agent-cartesian-chart.js';
 import { compileGeologyColumn, compileGeologySection } from './geology-engineering.js';
 import { validateKnowledgePack } from './knowledge-pack.js';
@@ -1728,6 +1729,122 @@ const geologySectionSchema = objectWithOptional({
     'title',
     'documentFacts'
 ]);
+const geologyPlanBoreholeSchema = objectWithOptional({
+    id: {
+        ...text,
+        maxLength: 40
+    },
+    position: numericTuple(2),
+    collarElevation: number,
+    depth: radius,
+    kind: {
+        type: 'string',
+        enum: [
+            'borehole',
+            'test-pit',
+            'in-situ-test'
+        ]
+    }
+}, [
+    'depth',
+    'kind'
+]);
+const geologyPlanSectionLineSchema = object({
+    id: {
+        ...text,
+        maxLength: 40
+    },
+    holeIds: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 24,
+        items: {
+            ...text,
+            maxLength: 40
+        }
+    },
+    label: {
+        ...text,
+        maxLength: 48
+    }
+});
+const geologyPlanSchema = objectWithOptional({
+    version: {
+        type: 'string',
+        enum: [
+            '1.0.0'
+        ]
+    },
+    expectedRevision: revision,
+    units: {
+        type: 'string',
+        enum: [
+            'meter'
+        ]
+    },
+    locale: {
+        type: 'string',
+        enum: [
+            'zh-CN',
+            'en'
+        ]
+    },
+    drawingId: {
+        ...text,
+        maxLength: 64
+    },
+    title: {
+        ...text,
+        maxLength: 96
+    },
+    revision: {
+        ...text,
+        maxLength: 32
+    },
+    scale: {
+        type: 'integer',
+        enum: [
+            50,
+            100,
+            200,
+            500,
+            1000,
+            2000
+        ]
+    },
+    boundary: {
+        type: 'array',
+        minItems: 3,
+        maxItems: 128,
+        items: numericTuple(2)
+    },
+    boreholes: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 128,
+        items: geologyPlanBoreholeSchema
+    },
+    sectionLines: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 32,
+        items: geologyPlanSectionLineSchema
+    },
+    coordinateGrid: object({
+        origin: numericTuple(2),
+        spacing: radius
+    }),
+    northAngleDegrees: {
+        type: 'number',
+        minimum: -360,
+        maximum: 360
+    }
+}, [
+    'locale',
+    'title',
+    'revision',
+    'northAngleDegrees'
+]);
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_text_edit',
@@ -1866,6 +1983,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         effect: 'propose',
         description: 'Compile a complete editable millimeter Cartesian category chart from compact versioned data intent. Version 1.0.0 supports line, grouped bar and mixed line/bar series with deterministic axes, nice automatic scales, grids, legends, labels, data marks and named layers. Supply 2-32 categories and 1-8 series with at most 160 values; KJDraw validates data/range relationships and generates native LINE/LWPOLYLINE/CIRCLE/TEXT geometry locally. Requires a blank drawing. Host approval applies the full reviewed chart as one atomic CREATEBATCH transaction.',
         inputSchema: cartesianChartSchema
+    },
+    {
+        name: 'cad_propose_geology_plan',
+        effect: 'propose',
+        description: 'Compile one editable ISO A3 engineering investigation-point location plan from exact supplied metre coordinates. The request must include a simple site boundary, 2–128 identified investigation points with supplied collar elevations and optional depths, one or more explicit section-line routes referencing existing point IDs in order, a true coordinate-grid origin and spacing, a standard drawing scale, and optional north angle. KJDraw never invents point coordinates, elevations, depths, section correlations, boundaries or project provenance. Version 1.0.0 draws native coordinate-grid lines and labels, editable point symbols/facts, paired visible section references, a north arrow and an A3 landscape viewport at the declared scale. Non-fitting sheets, unknown or duplicate references, unsafe geometry, stale revisions and nonblank drawings fail closed. Requires a blank metre drawing. Returns a bounded native CREATEBATCH proposal without modifying the drawing; only a trusted host can approve one undoable transaction. This generic compiler and its tests are not certification that a private source drawing matches 1:1.',
+        inputSchema: geologyPlanSchema
     },
     {
         name: 'cad_propose_geology_column',
@@ -2593,7 +2716,10 @@ export class KJAgentToolSession {
                 'cad_propose_cartesian_chart',
                 'cad_propose_geology_column',
                 'cad_propose_geology_section'
-            ].includes(tool.name) || units === 'millimeter').filter((tool)=>tool.name !== 'cad_propose_site_plan' || units === 'meter').map((tool)=>{
+            ].includes(tool.name) || units === 'millimeter').filter((tool)=>![
+                'cad_propose_site_plan',
+                'cad_propose_geology_plan'
+            ].includes(tool.name) || units === 'meter').map((tool)=>{
             if (!tool.inputSchema.properties?.units) return tool;
             return {
                 ...tool,
@@ -2880,6 +3006,10 @@ export class KJAgentToolSession {
                             engineeringEvidence = compiled.evidence;
                         } else if (name === 'cad_propose_site_plan') {
                             const compiled = buildAgentSitePlan(document, args);
+                            commandArgs = structuredClone(compiled.commandArgs);
+                            engineeringEvidence = compiled.evidence;
+                        } else if (name === 'cad_propose_geology_plan') {
+                            const compiled = buildAgentGeologyPlan(document, args);
                             commandArgs = structuredClone(compiled.commandArgs);
                             engineeringEvidence = compiled.evidence;
                         } else if (name === 'cad_propose_cartesian_chart') {
@@ -3427,6 +3557,7 @@ export class KJAgentToolSession {
                             'cad_propose_manufacturing_sheet',
                             'cad_propose_architecture_plan',
                             'cad_propose_site_plan',
+                            'cad_propose_geology_plan',
                             'cad_propose_cartesian_chart',
                             'cad_propose_geology_column',
                             'cad_propose_geology_section',
@@ -3479,6 +3610,10 @@ export class KJAgentToolSession {
                             ok: true,
                             value
                         })).length > 1048576) throw new KJValidationError('Road tool proposal exceeds the 1 MiB output limit');
+                        if (name === 'cad_propose_geology_plan' && new TextEncoder().encode(JSON.stringify({
+                            ok: true,
+                            value
+                        })).length > 1048576) throw new KJValidationError('Geology plan proposal exceeds the 1 MiB output limit');
                         if (name === 'cad_propose_geology_column' && new TextEncoder().encode(JSON.stringify({
                             ok: true,
                             value
