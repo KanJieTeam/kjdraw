@@ -869,7 +869,15 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
   asymmetric.columnStylePack.rules['geology-column-layout'].sampleRangeBaselineStyle = {
     fieldRole: 'sample', boundaries: ['top'], continuity: 'continuous', startInsetMm: 3, endInsetMm: 4,
   }
+  asymmetric.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat = {
+    fieldRole: 'sample', prefix: '[', separator: '-', suffix: ']', decimals: 2, trailingZeros: 'preserve',
+    anchor: 'range-midpoint', placement: {
+      offset: [7.5, -3], height: 2, textWidthFactor: 0.9, horizontalAlignment: 'center', verticalAlignment: 'middle',
+    },
+  }
   const asymmetricCompiled = compileGeologyColumn(asymmetric)
+  assert.ok(asymmetricCompiled.commandArgs.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === '[2.00-2.15]'),
+    'a source-backed formatter controls the sample interval text without changing its measured endpoints')
   const asymmetricLines = asymmetricCompiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
     Math.abs(entity.payload.start[1] - rangedTopY) < 1e-6 && Math.abs(entity.payload.end[1] - rangedTopY) < 1e-6 &&
     entity.payload.start[0] >= 171 && entity.payload.end[0] <= 186)
@@ -880,6 +888,8 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
   for (const format of ['KJD', 'DXF']) {
     const bytes = await sdk.writeDocument(continuousDocument, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
     const reopened = await sdk.readDocument(bytes, { format })
+    assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === '[2.00-2.15]'),
+      `${format} preserves the declared sample range text format`)
     const reopenedLines = reopened.listEntities({ type: 'LINE' }).filter(entity =>
       Math.abs(entity.payload.start[0] - 174) < 1e-6 && Math.abs(entity.payload.end[0] - 182) < 1e-6 &&
       Math.abs(entity.payload.start[1] - rangedTopY) < 1e-6 && Math.abs(entity.payload.end[1] - rangedTopY) < 1e-6)
@@ -892,6 +902,27 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
   hiddenBaseline.columnStylePack.rules['geology-column-layout'].sampleRangeBaselineStyle.startInsetMm = 7.4
   hiddenBaseline.columnStylePack.rules['geology-column-layout'].sampleRangeBaselineStyle.endInsetMm = 7.4
   assert.throws(() => compileGeologyColumn(hiddenBaseline), /leaves no visible source lane/)
+  const trimmedRange = structuredClone(ranged)
+  trimmedRange.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat = {
+    fieldRole: 'sample', prefix: '', separator: '/', suffix: '', decimals: 3, trailingZeros: 'trim',
+  }
+  assert.ok(compileGeologyColumn(trimmedRange).commandArgs.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === '2/2.15'),
+    'declared trimming removes only decimal trailing zeros')
+  const incompleteRangeFormat = structuredClone(trimmedRange)
+  delete incompleteRangeFormat.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat.separator
+  assert.throws(() => compileGeologyColumn(incompleteRangeFormat), /exact declarative field-grid schema/)
+  const incompleteRangePlacement = structuredClone(asymmetric)
+  delete incompleteRangePlacement.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat.placement
+  assert.throws(() => compileGeologyColumn(incompleteRangePlacement), /exact declarative field-grid schema/)
+  const outsideRangeTextPlacement = structuredClone(asymmetric)
+  outsideRangeTextPlacement.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat.placement.offset[0] = 16
+  assert.throws(() => compileGeologyColumn(outsideRangeTextPlacement), /outside its physical lane/)
+  const unsafeRangeFormat = structuredClone(trimmedRange)
+  unsafeRangeFormat.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat.prefix = '\n'
+  assert.throws(() => compileGeologyColumn(unsafeRangeFormat), /invalid sample range prefix/)
+  const unreadableRangeFormat = structuredClone(trimmedRange)
+  unreadableRangeFormat.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat.decimals = 5
+  assert.throws(() => compileGeologyColumn(unreadableRangeFormat), /sample range text format is unreadable/)
   const rangedDocument = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', rangedCompiled.commandArgs, { document: rangedDocument })
   const rangedDxf = await sdk.writeDocument(rangedDocument, { format: 'DXF', version: '2018' })

@@ -98,6 +98,18 @@ export type KJGeologySampleRangeBaselineStyle = {
     startInsetMm: number;
     endInsetMm: number;
 });
+/** Source-backed visible formatting for a measured sample interval. The
+ * interval itself still comes only from rangeTop/rangeBottom observation facts. */
+export interface KJGeologySampleRangeTextFormat {
+    fieldRole: 'sample';
+    prefix: string;
+    separator: string;
+    suffix: string;
+    decimals: number;
+    trailingZeros: 'preserve' | 'trim';
+    anchor?: 'range-midpoint';
+    placement?: KJGeologyFieldHeaderTextPlacement;
+}
 /** Source-backed layout for a measured groundwater annotation. The optional
  * guide is emitted only when a licensed source template declares it. */
 export interface KJGeologyGroundwaterAnnotationStyle {

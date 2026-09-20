@@ -291,6 +291,7 @@ function columnLayout(input) {
             'sampleMarkerStyle',
             'sampleAnnotationStyle',
             'sampleRangeBaselineStyle',
+            'sampleRangeTextFormat',
             'groundwaterAnnotationStyle',
             'patternLabelStyle',
             'titleMarginFacts',
@@ -884,6 +885,44 @@ function columnLayout(input) {
             }
         };
     }
+    let sampleRangeTextFormat;
+    if (value.sampleRangeTextFormat != null) {
+        const formatKeys = value.sampleRangeTextFormat && typeof value.sampleRangeTextFormat === 'object' && !Array.isArray(value.sampleRangeTextFormat) ? Object.keys(value.sampleRangeTextFormat).sort().join(',') : '';
+        if (!isFieldGrid || !value.sampleRangeTextFormat || typeof value.sampleRangeTextFormat !== 'object' || Array.isArray(value.sampleRangeTextFormat) || ![
+            'decimals,fieldRole,prefix,separator,suffix,trailingZeros',
+            'anchor,decimals,fieldRole,placement,prefix,separator,suffix,trailingZeros'
+        ].includes(formatKeys)) throw new KJValidationError('Geology: sample range text format needs an exact declarative field-grid schema');
+        const rule = value.sampleRangeTextFormat;
+        const textPart = (raw, label, maximum, allowEmpty)=>{
+            if (typeof raw !== 'string' || !allowEmpty && !raw.length || Array.from(raw).length > maximum || /[\u0000-\u001f\u007f]/u.test(raw)) throw new KJValidationError(`Geology: invalid sample range ${label}`);
+            return raw;
+        };
+        const prefix = textPart(rule.prefix, 'prefix', 12, true);
+        const separator = textPart(rule.separator, 'separator', 4, false);
+        const suffix = textPart(rule.suffix, 'suffix', 12, true);
+        const decimals = numeric(rule.decimals, 'sample range decimals');
+        if (rule.fieldRole !== 'sample' || !Number.isInteger(decimals) || decimals < 0 || decimals > 4 || rule.trailingZeros !== 'preserve' && rule.trailingZeros !== 'trim' || !fieldGrid.some((field)=>field.role === 'sample')) throw new KJValidationError('Geology: sample range text format is unreadable');
+        let placement;
+        if (formatKeys.startsWith('anchor,')) {
+            if (rule.anchor !== 'range-midpoint') throw new KJValidationError('Geology: sample range text anchor must be the measured interval midpoint');
+            placement = sourceTextPlacement(rule.placement, 'sample range text');
+            const sampleIndex = fieldGrid.findIndex((field)=>field.role === 'sample');
+            const sampleWidth = (fieldGrid[sampleIndex + 1]?.start ?? right) - fieldGrid[sampleIndex].start;
+            if (placement.offset[0] < 0 || placement.offset[0] > sampleWidth || placement.offset[1] < -10 || placement.offset[1] > 10) throw new KJValidationError('Geology: sample range text placement is outside its physical lane');
+        }
+        sampleRangeTextFormat = {
+            fieldRole: 'sample',
+            prefix,
+            separator,
+            suffix,
+            decimals,
+            trailingZeros: rule.trailingZeros,
+            ...placement ? {
+                anchor: 'range-midpoint',
+                placement
+            } : {}
+        };
+    }
     let groundwaterAnnotationStyle;
     if (value.groundwaterAnnotationStyle != null) {
         const groundwaterStyleKeys = Object.keys(value.groundwaterAnnotationStyle).sort().join(',');
@@ -1150,6 +1189,9 @@ function columnLayout(input) {
         } : {},
         ...sampleRangeBaselineStyle ? {
             sampleRangeBaselineStyle
+        } : {},
+        ...sampleRangeTextFormat ? {
+            sampleRangeTextFormat
         } : {},
         ...groundwaterAnnotationStyle ? {
             groundwaterAnnotationStyle
@@ -1637,7 +1679,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
 export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
-    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, titleTextStyle, textFlow, textHeights, intervalDepthTextStyle, defaultTextStyle, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
+    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, titleTextStyle, textFlow, textHeights, intervalDepthTextStyle, defaultTextStyle, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, sampleRangeTextFormat, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
     if (strata.some((layer)=>layer.stratigraphicNotation != null) && !stratigraphicNotationStyle) throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style');
     if (strata.some((layer)=>layer.descriptionPlacement != null) && !descriptionTextStyle) throw new KJValidationError('Geology: description placement facts need a declared field-grid description text style');
     if (strata.some((layer)=>layer.bottomBoundaryLineVisibility != null) && !fieldGrid) throw new KJValidationError('Geology: bottom boundary line visibility needs a declared physical field grid');
@@ -2505,9 +2547,20 @@ export function compileGeologyColumn(input) {
                 }
                 if (cell.role === 'sample' && item.kind === 'sample' && item.rangeTop != null && item.rangeBottom != null) {
                     const rangeTopY = top - item.rangeTop * scale, rangeBottomY = top - item.rangeBottom * scale;
-                    const rangeTextY = rangeBottomY - 2.2, rangeText = `${metres(item.rangeTop)}–${metres(item.rangeBottom)}`;
-                    if (rangeTextY < bottom + 0.4 || textBoxes.some((box)=>box.role === 'sample' && rangeTextY - 0.25 <= box.top && rangeTextY + 1.75 >= box.bottom)) throw new KJValidationError(`Geology: sampled range ${item.id} cannot be labelled without colliding in its source lane`);
-                    emitFieldText(cell, rangeTextY, rangeText, textHeights?.observation ?? 1.5);
+                    const rangeEndpoint = (value)=>{
+                        if (!sampleRangeTextFormat) return metres(value);
+                        const fixed = value.toFixed(sampleRangeTextFormat.decimals);
+                        return sampleRangeTextFormat.trailingZeros === 'preserve' ? fixed : fixed.replace(/(\.\d*?[1-9])0+$/u, '$1').replace(/\.0+$/u, '');
+                    };
+                    const rangeText = sampleRangeTextFormat ? `${sampleRangeTextFormat.prefix}${rangeEndpoint(item.rangeTop)}${sampleRangeTextFormat.separator}${rangeEndpoint(item.rangeBottom)}${sampleRangeTextFormat.suffix}` : `${metres(item.rangeTop)}–${metres(item.rangeBottom)}`;
+                    if (sampleRangeTextFormat?.placement) {
+                        const placement = sampleRangeTextFormat.placement, anchorY = (rangeTopY + rangeBottomY) / 2;
+                        emitPlacedFieldText(cell, anchorY, rangeText, placement);
+                    } else {
+                        const rangeTextY = rangeBottomY - 2.2;
+                        if (rangeTextY < bottom + 0.4 || textBoxes.some((box)=>box.role === 'sample' && rangeTextY - 0.25 <= box.top && rangeTextY + 1.75 >= box.bottom)) throw new KJValidationError(`Geology: sampled range ${item.id} cannot be labelled without colliding in its source lane`);
+                        emitFieldText(cell, rangeTextY, rangeText, textHeights?.observation ?? 1.5);
+                    }
                     const baselineStyle = sampleRangeBaselineStyle ?? {
                         boundaries: [
                             'top',
