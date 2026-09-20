@@ -219,15 +219,21 @@ test('source-relative cut faces compile solid, shorthand and multi-family native
     { angle: Math.PI / 4, base: [0, 0], offset: [-6.73519431372059, 6.73519431372059] },
     { angle: Math.PI / 4, base: [4.49012954248039, 0], offset: [-6.73519431372059, 6.73519431372059] },
   ], edges: rectangle(250, 270) }
-  const source = { ...input(document.revision), sideViewAxis: { ...input(document.revision).sideViewAxis, sectionHatches: [face, solidFace, doubleFace] } }
+  const absoluteFace = { solid: true, edges: [
+    { kind: 'line', start: [20, 80], end: [30, 80] }, { kind: 'line', start: [30, 80], end: [30, 70] },
+    { kind: 'line', start: [30, 70], end: [20, 70] }, { kind: 'line', start: [20, 70], end: [20, 80] },
+  ] }
+  const source = { ...input(document.revision), auxiliaryHatches: [absoluteFace], sideViewAxis: { ...input(document.revision).sideViewAxis, sectionHatches: [face, solidFace, doubleFace] } }
   const proposal = buildAgentMechanicalFlangeCore(document, source), hatches = proposal.commandArgs.entities.filter(entity => entity.type === 'HATCH')
   assert.equal(proposal.evidence.parameters.sectionHatchCount, 3)
-  assert.equal(proposal.evidence.entityCount, 56)
+  assert.equal(proposal.evidence.parameters.auxiliaryHatchCount, 1)
+  assert.equal(proposal.evidence.entityCount, 57)
   assert.deepEqual(hatches[0].payload.boundaryLoops[0].edges[0], { type: 'LINE', start: [200, 160, 0], end: [220, 160, 0] })
   assert.deepEqual(hatches[0].payload.boundaryLoops[0].edges[1].center, [220, 155, 0])
   assert.ok(Math.abs(hatches[0].payload.patternLines[0].offset[0] + 3.175 / Math.sqrt(2)) < 1e-12)
   assert.deepEqual([hatches[1].payload.patternName, hatches[1].payload.solid, hatches[1].payload.patternLines], ['SOLID', true, []])
   assert.deepEqual([hatches[2].payload.patternName, hatches[2].payload.solid, hatches[2].payload.patternLines.length], ['ANSI32', false, 2])
+  assert.deepEqual(hatches[3].payload.boundaryLoops[0].edges[0], { type: 'LINE', start: [20, 80, 0], end: [30, 80, 0] })
   assert.equal(JSON.stringify(hatches).includes('rawTags'), false)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
   const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
@@ -239,15 +245,15 @@ test('source-relative cut faces compile solid, shorthand and multi-family native
   }))
   assert.deepEqual(facts(kjd), facts(document))
   assert.deepEqual(facts(dxf).map(item => [item.patternName, item.solid, item.patternLines.length, item.edgeCount]), [
-    ['ANSI31', false, 1, 4], ['SOLID', true, 0, 4], ['ANSI32', false, 2, 4],
+    ['ANSI31', false, 1, 4], ['SOLID', true, 0, 4], ['ANSI32', false, 2, 4], ['SOLID', true, 0, 4],
   ])
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
     'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); h=list(d.modelspace().query("HATCH")); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"hatches":len(h),"names":[x.dxf.pattern_name for x in h],"solid":[x.dxf.solid_fill for x in h],"lines":[len(x.pattern.lines) if x.pattern else 0 for x in h],"edges":[len(x.paths[0].edges) for x in h]}))'],
   dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
     PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
   assert.equal(independent.status, 0, independent.stderr)
-  assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, hatches: 3,
-    names: ['ANSI31', 'SOLID', 'ANSI32'], solid: [0, 1, 0], lines: [1, 0, 2], edges: [4, 4, 4] })
+  assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, hatches: 4,
+    names: ['ANSI31', 'SOLID', 'ANSI32', 'SOLID'], solid: [0, 1, 0, 1], lines: [1, 0, 2, 0], edges: [4, 4, 4, 4] })
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
     sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...face, rawTags: [] }] } }), /unsupported field/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
@@ -256,6 +262,10 @@ test('source-relative cut faces compile solid, shorthand and multi-family native
     sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...doubleFace, lineSpacing: 1 }] } }), /cannot be combined/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
     sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...doubleFace, patternLines: [{ angle: 0, base: [0, 0], offset: [0, 0] }] }] } }), /offset must not be zero/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
+    auxiliaryHatches: Array.from({ length: 65 }, () => absoluteFace) }), /exceed their budget/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
+    auxiliaryHatches: [{ ...absoluteFace, edges: [{ kind: 'line', start: [20, 80], end: [20, 80] }, ...absoluteFace.edges.slice(1)] }] }), /zero length/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
     sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...face, edges: [{ ...face.edges[0], start: { station: 185, offset: 10 } }, ...face.edges.slice(1)] }] } }), /must be finite/u)
 })

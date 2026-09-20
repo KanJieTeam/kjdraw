@@ -79,6 +79,23 @@ export interface KJFlangeSectionHatch {
   styleKey?: string
 }
 
+/** An independent source-measured hatch in absolute drawing coordinates.
+ *  Use this for detached sections, auxiliary views and sheet marks that do
+ *  not share the side-view projection axis. */
+export interface KJFlangeAuxiliaryHatch {
+  edges: (
+    | { kind: 'line'; start: Point2; end: Point2 }
+    | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; counterClockwise?: boolean }
+  )[]
+  solid?: boolean
+  patternName?: string
+  lineAngle?: number
+  lineSpacing?: number
+  patternOrigin?: Point2
+  patternLines?: KJFlangeHatchPatternLine[]
+  styleKey?: string
+}
+
 /** Drawing-style roles are caller-supplied facts. The compiler never embeds
  * a source application's layer or style catalogue; a caller may map its
  * local roles to these generic roles for faithful output. */
@@ -291,6 +308,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   featureControlFrames?: KJFlangeFeatureControlFrame[]
   auxiliaryLines?: KJFlangeAuxiliaryLine[]
   auxiliaryCurves?: KJFlangeAuxiliaryCurve[]
+  auxiliaryHatches?: KJFlangeAuxiliaryHatch[]
   symbols?: { definitions: KJFlangeSymbolDefinition[]; instances: KJFlangeSymbolInstance[] }
   styleResources?: { textStyles: KJFlangeTextStyleDefinition[]; dimensionStyles: KJFlangeDimensionStyleDefinition[] }
   styleProfile?: KJFlangeStyleProfile
@@ -322,7 +340,7 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'entityDrawOrder', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliaryCurves', 'symbols', 'styleResources', 'styleProfile', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'entityDrawOrder', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliaryCurves', 'auxiliaryHatches', 'symbols', 'styleResources', 'styleProfile', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
   if (input.entityDrawOrder != null && (!Array.isArray(input.entityDrawOrder) || input.entityDrawOrder.length > 10_000)) throw new KJValidationError('input.entityDrawOrder must be an array within its item budget')
   const entityDrawOrder = input.entityDrawOrder == null ? null : input.entityDrawOrder.map((value, index) => {
@@ -776,6 +794,51 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const styleKey = annotationStyleKey(frame.styleKey, dimensionStyleKeys, `${label}.styleKey`)
     return { position: point(frame.position, `${label}.position`), rows, xAxisDirection, ...(styleKey == null ? {} : { styleKey }), role: frame.role as KJFlangeFeatureControlFrame['role'] }
   })
+  if (input.auxiliaryHatches != null && !Array.isArray(input.auxiliaryHatches)) throw new KJValidationError('input.auxiliaryHatches must be an array')
+  if ((input.auxiliaryHatches as unknown[] | undefined)?.length && (input.auxiliaryHatches as unknown[]).length > 64) throw new KJValidationError('input.auxiliaryHatches exceed their budget')
+  const auxiliaryHatches: KJFlangeAuxiliaryHatch[] = ((input.auxiliaryHatches ?? []) as unknown[]).map((value, hatchIndex) => {
+    const label = `input.auxiliaryHatches[${hatchIndex}]`, hatch = plain(value, label)
+    exact(hatch, ['edges', 'solid', 'patternName', 'lineAngle', 'lineSpacing', 'patternOrigin', 'patternLines', 'styleKey'], label)
+    if (!Array.isArray(hatch.edges) || hatch.edges.length < 3 || hatch.edges.length > 128) throw new KJValidationError(`${label}.edges must contain 3 to 128 edges`)
+    const edges = hatch.edges.map((value, edgeIndex) => {
+      const edgeLabel = `${label}.edges[${edgeIndex}]`, edge = plain(value, edgeLabel)
+      if (edge.kind === 'line') {
+        exact(edge, ['kind', 'start', 'end'], edgeLabel)
+        const start = point(edge.start, `${edgeLabel}.start`), end = point(edge.end, `${edgeLabel}.end`)
+        if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${edgeLabel} must not have zero length`)
+        return { kind: 'line' as const, start, end }
+      }
+      if (edge.kind === 'arc') {
+        exact(edge, ['kind', 'center', 'radius', 'startAngle', 'endAngle', 'counterClockwise'], edgeLabel)
+        if (edge.counterClockwise != null && typeof edge.counterClockwise !== 'boolean') throw new KJValidationError(`${edgeLabel}.counterClockwise must be boolean`)
+        const startAngle = finite(edge.startAngle, `${edgeLabel}.startAngle`, -Math.PI * 4, Math.PI * 4), endAngle = finite(edge.endAngle, `${edgeLabel}.endAngle`, -Math.PI * 4, Math.PI * 4)
+        if (startAngle === endAngle) throw new KJValidationError(`${edgeLabel} arc sweep must not be zero`)
+        return { kind: 'arc' as const, center: point(edge.center, `${edgeLabel}.center`), radius: finite(edge.radius, `${edgeLabel}.radius`, 0.1, 100_000), startAngle, endAngle, counterClockwise: edge.counterClockwise !== false }
+      }
+      throw new KJValidationError(`${edgeLabel}.kind is invalid`)
+    })
+    if (hatch.solid != null && typeof hatch.solid !== 'boolean') throw new KJValidationError(`${label}.solid must be boolean`)
+    const solid = hatch.solid === true
+    const patternName = hatch.patternName == null ? (solid ? 'SOLID' : 'ANSI31') : resourceKey(hatch.patternName, `${label}.patternName`)
+    if (solid && (hatch.lineAngle != null || hatch.lineSpacing != null || hatch.patternOrigin != null || hatch.patternLines != null)) throw new KJValidationError(`${label} solid fills must not define pattern lines`)
+    if (!solid && hatch.patternLines != null && (hatch.lineAngle != null || hatch.lineSpacing != null || hatch.patternOrigin != null)) throw new KJValidationError(`${label} explicit patternLines cannot be combined with the one-family shorthand`)
+    if (!solid && hatch.patternLines == null && (hatch.lineAngle == null || hatch.lineSpacing == null)) throw new KJValidationError(`${label} patterned fills require patternLines or lineAngle and lineSpacing`)
+    if (hatch.patternLines != null && (!Array.isArray(hatch.patternLines) || hatch.patternLines.length < 1 || hatch.patternLines.length > 16)) throw new KJValidationError(`${label}.patternLines must contain 1 to 16 line families`)
+    const patternLines = solid ? [] : hatch.patternLines == null ? (() => {
+      const lineAngle = finite(hatch.lineAngle, `${label}.lineAngle`, -Math.PI * 2, Math.PI * 2), lineSpacing = finite(hatch.lineSpacing, `${label}.lineSpacing`, 0.01, 100_000)
+      const patternOrigin = hatch.patternOrigin == null ? [0, 0] as Point2 : point(hatch.patternOrigin, `${label}.patternOrigin`)
+      return [{ angle: lineAngle, base: patternOrigin, offset: [-Math.sin(lineAngle) * lineSpacing, Math.cos(lineAngle) * lineSpacing] as Point2, dashes: [] }]
+    })() : (hatch.patternLines as unknown[]).map((value, patternIndex) => {
+      const lineLabel = `${label}.patternLines[${patternIndex}]`, patternLine = plain(value, lineLabel)
+      exact(patternLine, ['angle', 'base', 'offset', 'dashes'], lineLabel)
+      const angle = finite(patternLine.angle, `${lineLabel}.angle`, -Math.PI * 2, Math.PI * 2), base = point(patternLine.base, `${lineLabel}.base`), offset = point(patternLine.offset, `${lineLabel}.offset`)
+      if (offset[0] === 0 && offset[1] === 0) throw new KJValidationError(`${lineLabel}.offset must not be zero`)
+      if (patternLine.dashes != null && (!Array.isArray(patternLine.dashes) || patternLine.dashes.length > 32)) throw new KJValidationError(`${lineLabel}.dashes must be an array with at most 32 items`)
+      return { angle, base, offset, dashes: (patternLine.dashes ?? []).map((dash: unknown, dashIndex: number) => finite(dash, `${lineLabel}.dashes[${dashIndex}]`, -100_000, 100_000)) }
+    })
+    const styleKey = entityStyleKey(hatch.styleKey, `${label}.styleKey`)
+    return { edges, solid, patternName, patternLines, ...(styleKey == null ? {} : { styleKey }) }
+  })
   if (input.auxiliaryLines != null && !Array.isArray(input.auxiliaryLines)) throw new KJValidationError('input.auxiliaryLines must be an array')
   if ((input.auxiliaryLines as unknown[] | undefined)?.length && (input.auxiliaryLines as unknown[]).length > 256) throw new KJValidationError('input.auxiliaryLines exceed their budget')
   const auxiliaryLines: KJFlangeAuxiliaryLine[] = ((input.auxiliaryLines ?? []) as unknown[]).map((value, index) => {
@@ -965,7 +1028,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source
     return { key: String(key), definition: styleRole(definition, `input.styleProfile.custom[${index}]`) }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -1139,6 +1202,11 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     patternName: hatch.patternName, solid: hatch.solid, associative: false, patternAngle: 0, patternScale: 1,
     patternLines: hatch.patternLines,
     patternDefinitionAngle: 0, patternDefinitionScale: 1, layerId: style.layerId }, style.name) }
+  for (const hatch of input.auxiliaryHatches) { const style = styled(hatch.styleKey, 'hatch'); emit('HATCH', { boundaryLoops: [{ external: false, flags: 0, edges: hatch.edges.map(edge => edge.kind === 'line'
+    ? { type: 'LINE', start: p3(...edge.start), end: p3(...edge.end) }
+    : { type: 'ARC', center: p3(...edge.center), radius: edge.radius, startAngle: edge.startAngle, endAngle: edge.endAngle, counterClockwise: edge.counterClockwise !== false }) }],
+    patternName: hatch.patternName, solid: hatch.solid, associative: false, patternAngle: 0, patternScale: 1, patternLines: hatch.patternLines,
+    patternDefinitionAngle: 0, patternDefinitionScale: 1, layerId: style.layerId }, style.name) }
   for (const auxiliary of input.auxiliaryLines) { const style = styled(auxiliary.styleKey, auxiliary.role); line(auxiliary.start, auxiliary.end, style.layerId, style.name) }
   for (const curve of input.auxiliaryCurves) {
     const style = styled(curve.styleKey, curve.role)
@@ -1243,7 +1311,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1), holeCount: input.holePatterns.reduce((sum, pattern) => sum + pattern.count, input.pitch == null ? 0 : 4), titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
-        sectionHatchCount: input.sectionHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
+        sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
         symbolDefinitionCount: input.symbolDefinitions.length, symbolInstanceCount: input.symbolInstances.length, symbolAttributeCount: input.symbolAttributeCount, featureControlFrameCount: input.featureControlFrames.length,
         entityStyleCount: input.customStyles.length, textStyleCount: input.textStyles.length, dimensionStyleCount: input.dimensionStyles.length,
         noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
