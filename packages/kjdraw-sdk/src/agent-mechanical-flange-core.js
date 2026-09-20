@@ -930,6 +930,8 @@ function validate(document, source) {
             'textPosition',
             'textOverride',
             'rotation',
+            'textHeight',
+            'arrowSize',
             'styleKey'
         ], `input.dimensions[${index}]`);
         if (![
@@ -949,6 +951,8 @@ function validate(document, source) {
         const textOverride = dimension.textOverride == null ? undefined : dimension.textOverride;
         if (textOverride != null && (typeof textOverride !== 'string' || textOverride.length > 128 || /[\r\n\u0000-\u001f\u007f]/u.test(textOverride))) throw new KJValidationError(`input.dimensions[${index}].textOverride must be bounded single-line text`);
         const rotation = dimension.rotation == null ? 0 : finite(dimension.rotation, `input.dimensions[${index}].rotation`, -Math.PI * 2, Math.PI * 2);
+        const textHeight = dimension.textHeight == null ? undefined : finite(dimension.textHeight, `input.dimensions[${index}].textHeight`, 1e-12, 1e12);
+        const arrowSize = dimension.arrowSize == null ? undefined : finite(dimension.arrowSize, `input.dimensions[${index}].arrowSize`, 0, 1e12);
         const dimensionType = String(dimension.kind).toUpperCase();
         const payload = {
             dimensionType,
@@ -964,7 +968,13 @@ function validate(document, source) {
                 ]
             },
             textOverride: textOverride ?? null,
-            rotation
+            rotation,
+            ...textHeight == null ? {} : {
+                textHeight
+            },
+            ...arrowSize == null ? {} : {
+                arrowSize
+            }
         };
         if (!projectDimension(payload)) throw new KJValidationError(`input.dimensions[${index}] does not define a projectable native dimension`);
         const styleKey = annotationStyleKey(dimension.styleKey, dimensionStyleKeys, `input.dimensions[${index}].styleKey`);
@@ -978,6 +988,12 @@ function validate(document, source) {
                 textOverride
             },
             rotation,
+            ...textHeight == null ? {} : {
+                textHeight
+            },
+            ...arrowSize == null ? {} : {
+                arrowSize
+            },
             ...styleKey == null ? {} : {
                 styleKey
             }
@@ -2820,6 +2836,12 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             },
             textOverride: dimension.textOverride ?? null,
             rotation: dimension.rotation ?? 0,
+            ...dimension.textHeight == null ? {} : {
+                textHeight: dimension.textHeight
+            },
+            ...dimension.arrowSize == null ? {} : {
+                arrowSize: dimension.arrowSize
+            },
             styleName: style?.name ?? 'STANDARD',
             ...style == null ? {} : {
                 styleId: style.id

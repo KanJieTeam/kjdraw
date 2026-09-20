@@ -37,6 +37,31 @@ test('two-line and three-point angular projection selects the arc placement sect
  for(const p of [definition('ANGULAR',90,0),definition('ANGULAR_3_POINT',90,90),definition('ANGULAR',0),definition('ANGULAR',180),{...definition('ANGULAR'),definitionPoints:definition('ANGULAR').definitionPoints.slice(0,4)},{...definition('ANGULAR_3_POINT'),definitionPoints:[[0,0],[10,0],[0,10],[0,0]]},{...definition('ANGULAR_3_POINT'),normal:[1,0,1]},{...definition('ANGULAR_3_POINT'),angularUnits:3}])assert.equal(projectDimension(p),null)
 })
 
+test('two-line angular endpoint reversal preserves extension geometry through KJD and native DXF reopen',async t=>{
+ const points=[[0,-10,0],[10,0,0],[-10,0,0],[0,10,0],[6,6,0]],payload={dimensionType:'ANGULAR',definitionPoints:points,textPosition:[5,5,0],textHeight:3.175,arrowSize:1,extensionOffset:.625,extensionBeyond:0,precision:2}
+ const direct=projectDimension(payload),reversed=projectDimension({...payload,definitionPoints:[points[3],points[2],points[1],points[0],points[4]]})
+ assert.ok(direct);assert.deepEqual(reversed,direct)
+ const sdk=createKJDrawSDK(),document=sdk.createDocument({units:'millimeter'});await sdk.executeCommand('CREATE',{type:'DIMENSION',payload})
+ const kjd=await sdk.writeDocument(document,{format:'KJD'}),kjdReopened=await createKJDrawSDK().readDocument(kjd,{format:'KJD'}),kjdDimension=kjdReopened.listEntities({type:'DIMENSION'})[0]
+ assert.deepEqual(kjdDimension.payload.definitionPoints,points);assert.deepEqual(projectDimension(kjdDimension.payload),direct)
+ const dxf=await sdk.writeDocument(document,{format:'DXF'}),result=native(t,inspect,dxf);if(!result)return
+ assert.equal(result.errors+result.fixes,0);assert.ok(Math.abs(result.dimensions[0].measurement-90)<1e-9)
+ const dxfReopened=await createKJDrawSDK().readDocument(dxf,{format:'DXF'}),dxfDimension=dxfReopened.listEntities({type:'DIMENSION'})[0]
+ assert.notDeepEqual(dxfDimension.payload.definitionPoints,points);assert.deepEqual(projectDimension(dxfDimension.payload),direct)
+})
+
+test('acute offset two-line angular endpoint reorder preserves the same extension origins through native DXF',async t=>{
+ const points=[[0,10,0],[10,11,0],[10.1,0,0],[0,0,0],[5,5,0]],payload={dimensionType:'ANGULAR',definitionPoints:points,textHeight:1,arrowSize:.3,extensionOffset:.2,extensionBeyond:0,precision:2}
+ const direct=projectDimension(payload),nativeOrder=[points[2],points[0],points[3],points[1],points[4]]
+ const normalized=value=>JSON.parse(JSON.stringify(value,(_,item)=>typeof item==='number'?Math.round(item*1e9)/1e9:item))
+ assert.ok(direct);assert.deepEqual(normalized(projectDimension({...payload,definitionPoints:nativeOrder})),normalized(direct))
+ const sdk=createKJDrawSDK(),document=sdk.createDocument({units:'millimeter'});await sdk.executeCommand('CREATE',{type:'DIMENSION',payload})
+ const dxf=await sdk.writeDocument(document,{format:'DXF'}),result=native(t,inspect,dxf);if(!result)return
+ assert.equal(result.errors+result.fixes,0);assert.ok(Math.abs(result.dimensions[0].measurement-direct.measurement)<1e-9)
+ const reopened=await createKJDrawSDK().readDocument(dxf,{format:'DXF'}),dimension=reopened.listEntities({type:'DIMENSION'})[0]
+ assert.deepEqual(normalized(projectDimension(dimension.payload)),normalized(direct))
+})
+
 test('new angular dimensions export native ARC graphics and styles; 3-point regeneration agrees while the independent 2-line reversal is explicit',async t=>{
  const sdk=createKJDrawSDK(),document=sdk.createDocument({units:'millimeter'})
  for(const type of ['ANGULAR','ANGULAR_3_POINT'])for(const angle of [37,90,270])await sdk.executeCommand('CREATE',{type:'DIMENSION',payload:definition(type,angle)})
