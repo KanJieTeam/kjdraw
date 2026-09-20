@@ -3,6 +3,7 @@ import test from 'node:test'
 import crypto from 'node:crypto'
 import { buildHatchPatternKnowledgePack, compileGeologyColumn, compileGeologySection, createKJDrawSDK, exportDrawingSvg, validateKnowledgePack } from '../src/index.js'
 import { layoutCadMText } from '../src/geometry/text-layout.js'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 const hole = (id, station, collarElevation, depths = [3, 9, 16]) => ({
   id, station, collarElevation, depth: depths.at(-1),
@@ -206,6 +207,76 @@ test('versioned header grid uses only present borehole facts and keeps a deep-lo
   assert.equal((await sdk.readDocument(dxf, { format: 'DXF' })).listEntities().length, compiled.evidence.entityCount)
   const missing = structuredClone(input); delete missing.hole.stableWaterDepth
   assert.throws(() => compileGeologyColumn(missing), /declared header fact stableWaterDepth is missing/)
+})
+
+test('source-backed physical header cells preserve unequal real-form lanes and separate initial from stable water', async t => {
+  const fieldGrid = [
+    { start: 5, role: 'layerNumber', label: 'No' }, { start: 15, role: 'layerName', label: 'Name' },
+    { start: 33, role: 'baseElevation', label: 'Base' }, { start: 45, role: 'thickness', label: 'Thick' },
+    { start: 55, role: 'depth', label: 'Depth' }, { start: 65, role: 'pattern', label: 'Pattern' },
+    { start: 85, role: 'description', label: 'Description' }, { start: 145, role: 'sample', label: 'Sample' },
+    { start: 165, role: 'spt', label: 'SPT' },
+  ]
+  const physicalRows = [
+    [{ start: 5, valueStart: 25, role: 'projectName', label: 'Project' },
+      { start: 105, valueStart: 125, role: 'documentFact', key: 'projectCode', label: 'Code' },
+      { start: 145, valueStart: 165, role: 'holeId', label: 'Hole' }],
+    [{ start: 5, valueStart: 25, role: 'x', label: 'X' },
+      { start: 55, valueStart: 75, role: 'y', label: 'Y' },
+      { start: 105, valueStart: 125, role: 'collarElevation', label: 'Collar' }],
+    [{ start: 5, valueStart: 25, role: 'startDate', label: 'Start' },
+      { start: 55, valueStart: 75, role: 'endDate', label: 'End' },
+      { start: 105, valueStart: 125, role: 'initialWaterDepth', label: 'Initial' },
+      { start: 145, valueStart: 165, role: 'stableWaterDepth', label: 'Stable' }],
+  ]
+  const style = validateKnowledgePack({ schema: 'kjdraw.knowledge-pack.v1', id: 'geo-physical-header-test', version: '1.0.0',
+    title: 'MIT synthetic unequal header grid', domain: 'geology',
+    license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'synthetic-header', title: 'MIT-authored unequal header lanes', license: 'MIT',
+      contentHash: crypto.createHash('sha256').update('physical header 100-40-40 / 50-50-80 / 50-50-40-40').digest('hex') }],
+    ontology: { objectKinds: ['borehole-log'], relationKinds: [] }, rules: { 'geology-column-layout': {
+      paperWidth: 190, paperHeight: 290, left: 5, right: 185, headerDepth: 45, headerRowHeight: 5,
+      fieldHeaderHeight: 10, footerReserve: 15, titleHeight: 10, verticalScaleDenominators: [100],
+      fieldGrid, headerGrid: { rows: physicalRows }, legendMode: 'none',
+    } } })
+  const source = { ...hole('PHYS-1', 0, 123.45, [1, 4, 18]), x: 123456.78, y: 654321.09,
+    startDate: '2026-01-02', endDate: '2026-01-03', initialWaterDepth: 2.5, stableWaterDepth: 3 }
+  const input = { hole: source, projectName: 'Project A', documentFacts: { projectCode: 'P-18' },
+    verticalScaleDenominator: 100, expectedRevision: 0, columnStylePack: style }
+  const compiled = compileGeologyColumn(input)
+  const texts = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT')
+  for (const [value, x] of [['P-18', 127], ['PHYS-1', 167], ['2.50', 127], ['3.00', 167]])
+    assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x), `${value} at ${x}`)
+  const headerBottom = 245, headerTop = 260
+  const vertical = compiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
+    entity.payload.start[0] === entity.payload.end[0] && entity.payload.start[1] >= headerBottom && entity.payload.end[1] <= headerTop)
+  for (const x of [25, 55, 75, 105, 125, 145, 165]) assert.ok(vertical.some(entity => entity.payload.start[0] === x), `header x=${x}`)
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const reopened = await sdk.readDocument(dxf, { format: 'DXF' })
+  assert.equal(reopened.validate().valid, true)
+  assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === '2.50'))
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); xs=sorted({round(e.dxf.start.x,6) for e in m.query("LINE") if abs(e.dxf.start.x-e.dxf.end.x)<1e-9 and e.dxf.start.y>=245 and e.dxf.end.y<=260}); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"xs":xs,"texts":[e.dxf.text for e in m.query("TEXT")]},ensure_ascii=False))'],
+  dxf, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+    PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    const report = JSON.parse(independent.stdout)
+    assert.deepEqual([report.errors, report.fixes], [0, 0])
+    for (const x of [25, 55, 75, 105, 125, 145, 165]) assert.ok(report.xs.includes(x), `ezdxf header x=${x}`)
+    for (const value of ['2.50', '3.00']) assert.ok(report.texts.includes(value), `ezdxf ${value}`)
+  }
+  const partial = structuredClone(input)
+  delete partial.columnStylePack.rules['geology-column-layout'].headerGrid.rows[0][1].valueStart
+  assert.throws(() => compileGeologyColumn(partial), /must declare start and valueStart/u)
+  const outside = structuredClone(input)
+  outside.hole.initialWaterDepth = 19
+  assert.throws(() => compileGeologyColumn(outside), /initial groundwater depth is outside/u)
 })
 
 test('bundled Chinese column header renders the selected physical vertical scale as visible native text', () => {

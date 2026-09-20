@@ -39,6 +39,8 @@ test('versioned geology facts compile to a host-only CREATEBATCH proposal, then 
   assert.equal(schema.effect, 'propose')
   assert.deepEqual(schema.inputSchema.properties.units.enum, ['millimeter'])
   assert.equal(schema.inputSchema.required.includes('verticalScaleDenominator'), false)
+  assert.equal(schema.inputSchema.properties.hole.required.includes('initialWaterDepth'), false)
+  assert.equal(schema.inputSchema.properties.hole.properties.initialWaterDepth.minimum, 0)
   assert.equal(session.definitions.some(tool => /approve|save|execute/.test(tool.name)), false)
   const before = document.serialize(), proposal = accepted(await session.call('cad_propose_geology_column', intent()))
   assert.equal(proposal.command, 'CREATEBATCH')

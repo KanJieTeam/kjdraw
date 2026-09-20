@@ -338,10 +338,10 @@ const geologyObservationSchema = objectWithOptional({
 const geologyHoleSchema = objectWithOptional({
   id: { ...text, maxLength: 64 }, collarElevation: number, depth: radius,
   x: number, y: number, startDate: { ...text, maxLength: 64 }, endDate: { ...text, maxLength: 64 },
-  stableWaterDepth: nonnegative, station: number,
+  initialWaterDepth: nonnegative, stableWaterDepth: nonnegative, station: number,
   strata: { type: 'array', minItems: 1, maxItems: 80, items: geologyStratumSchema },
   observations: { type: 'array', minItems: 0, maxItems: 256, items: geologyObservationSchema },
-}, ['x', 'y', 'startDate', 'endDate', 'stableWaterDepth', 'station', 'observations'])
+}, ['x', 'y', 'startDate', 'endDate', 'initialWaterDepth', 'stableWaterDepth', 'station', 'observations'])
 const geologyColumnSchema = objectWithOptional({
   version: { type: 'string', enum: ['1.0.0'] }, expectedRevision: revision, units: { type: 'string', enum: ['millimeter'] },
   locale: { type: 'string', enum: ['zh-CN', 'en'] },

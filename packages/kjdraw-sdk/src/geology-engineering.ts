@@ -35,6 +35,8 @@ export interface KJGeologyBorehole {
   y?: number
   startDate?: string
   endDate?: string
+  /** Measured groundwater depth first observed while drilling; distinct from the later stable level. */
+  initialWaterDepth?: number
   /** Measured stable groundwater depth; never inferred from another hole. */
   stableWaterDepth?: number
   station?: number
@@ -175,10 +177,11 @@ interface ColumnLayout {
   sourceTemplate?: { sourceId: string; sourceSha256: string; verticalScaleDenominator: number; innerGridWidthMillimeters: number; fieldRoles: string[]; footerLabels: string[]; gridLineHandles: string[] }
 }
 
-type HeaderRole = 'projectName' | 'holeId' | 'collarElevation' | 'depth' | 'x' | 'y' | 'startDate' | 'endDate' | 'stableWaterDepth' | 'verticalScale'
-type HeaderCell = { role: HeaderRole; label: string; optional?: boolean } | { role: 'documentFact'; key: string; label: string; optional?: boolean }
+type HeaderRole = 'projectName' | 'holeId' | 'collarElevation' | 'depth' | 'x' | 'y' | 'startDate' | 'endDate' | 'initialWaterDepth' | 'stableWaterDepth' | 'verticalScale'
+type HeaderCellGeometry = { start?: number; valueStart?: number }
+type HeaderCell = ({ role: HeaderRole; label: string; optional?: boolean } | { role: 'documentFact'; key: string; label: string; optional?: boolean }) & HeaderCellGeometry
 type FooterCell = { start: number; key: string; label: string }
-const headerRoles = new Set<HeaderRole>(['projectName', 'holeId', 'collarElevation', 'depth', 'x', 'y', 'startDate', 'endDate', 'stableWaterDepth', 'verticalScale'])
+const headerRoles = new Set<HeaderRole>(['projectName', 'holeId', 'collarElevation', 'depth', 'x', 'y', 'startDate', 'endDate', 'initialWaterDepth', 'stableWaterDepth', 'verticalScale'])
 const stableDocumentFactKey = (value: unknown, label = 'document fact key'): string => {
   if (typeof value !== 'string' || !/^[A-Za-z][A-Za-z0-9]{0,31}$/u.test(value) || ['constructor', 'prototype'].includes(value.toLowerCase())) throw new KJValidationError(`Geology: invalid ${label}`)
   return value
@@ -316,24 +319,41 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     const seen = new Set<HeaderRole>(), documentKeys = new Set<string>()
     headerGrid = { rows: rows.map((row, rowIndex) => {
       if (!Array.isArray(row) || row.length < 1 || row.length > 4 || (right - left) / row.length < 45) throw new KJValidationError(`Geology: header grid row ${rowIndex + 1} is unreadable`)
-      return row.map((raw, cellIndex) => {
+      const physical = row.some(raw => raw && typeof raw === 'object' && !Array.isArray(raw) &&
+        ('start' in raw || 'valueStart' in raw))
+      const parsed = row.map((raw, cellIndex) => {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a role and label`)
         const cell = raw as Record<string, unknown>
         const optional = cell.optional == null ? undefined : cell.optional
         if (optional != null && typeof optional !== 'boolean') throw new KJValidationError('Geology: header fact optional flag must be boolean')
+        const hasGeometry = cell.start != null || cell.valueStart != null
+        if (physical !== hasGeometry || hasGeometry && (cell.start == null || cell.valueStart == null))
+          throw new KJValidationError('Geology: a physical header row must declare start and valueStart for every cell')
+        const geometry = !physical ? {} : {
+          start: numeric(cell.start, `header grid start ${rowIndex + 1}/${cellIndex + 1}`),
+          valueStart: numeric(cell.valueStart, `header grid value start ${rowIndex + 1}/${cellIndex + 1}`),
+        }
+        const geometryKeys = physical ? ',start,valueStart' : ''
         if (cell.role === 'documentFact') {
-          if (!['key,label,role', 'key,label,optional,role'].includes(Object.keys(cell).sort().join(','))) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a document fact key, role and label`)
+          if (![...['key,label,role', 'key,label,optional,role'].map(schema => `${schema}${geometryKeys}`)].includes(Object.keys(cell).sort().join(','))) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a document fact key, role and label`)
           const key = stableDocumentFactKey(cell.key), canonical = key.toLowerCase()
           if (documentKeys.has(canonical)) throw new KJValidationError('Geology: duplicate document fact key')
           documentKeys.add(canonical)
-          return { role: 'documentFact' as const, key, label: bounded(cell.label, 'header fact label', 24), ...(optional == null ? {} : { optional }) }
+          return { role: 'documentFact' as const, key, label: bounded(cell.label, 'header fact label', 24), ...(optional == null ? {} : { optional }), ...geometry }
         }
-        if (!['label,role', 'label,optional,role'].includes(Object.keys(cell).sort().join(',')) || typeof cell.role !== 'string' || !headerRoles.has(cell.role as HeaderRole)) throw new KJValidationError('Geology: undeclared header fact role')
+        if (![...['label,role', 'label,optional,role'].map(schema => `${schema}${geometryKeys}`)].includes(Object.keys(cell).sort().join(',')) || typeof cell.role !== 'string' || !headerRoles.has(cell.role as HeaderRole)) throw new KJValidationError('Geology: undeclared header fact role')
         const role = cell.role as HeaderRole
         if (seen.has(role)) throw new KJValidationError('Geology: duplicate header fact role')
         seen.add(role)
-        return { role, label: bounded(cell.label, 'header fact label', 24), ...(optional == null ? {} : { optional }) }
+        return { role, label: bounded(cell.label, 'header fact label', 24), ...(optional == null ? {} : { optional }), ...geometry }
       })
+      if (physical) for (const [cellIndex, cell] of parsed.entries()) {
+        const end = parsed[cellIndex + 1]?.start ?? right
+        if (cell.start! < left || cellIndex === 0 && Math.abs(cell.start! - left) > 1e-6 || end - cell.start! < 30 ||
+          cell.valueStart! - cell.start! < 10 || end - cell.valueStart! < 10)
+          throw new KJValidationError(`Geology: physical header cell ${rowIndex + 1}/${cellIndex + 1} is out of bounds or unreadable`)
+      }
+      return parsed
     }) }
   }
   let fieldGrid: ColumnLayout['fieldGrid']
@@ -498,6 +518,7 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
   if (hole.endDate != null) bounded(hole.endDate, 'end date', 32)
   positive(hole.depth, 'hole depth')
   if (hole.stableWaterDepth != null && (numeric(hole.stableWaterDepth, 'stable groundwater depth') < 0 || hole.stableWaterDepth > hole.depth)) throw new KJValidationError('Geology: stable groundwater depth is outside the hole')
+  if (hole.initialWaterDepth != null && (numeric(hole.initialWaterDepth, 'initial groundwater depth') < 0 || hole.initialWaterDepth > hole.depth)) throw new KJValidationError('Geology: initial groundwater depth is outside the hole')
   if (!Array.isArray(hole.strata) || !hole.strata.length || hole.strata.length > 80) throw new KJValidationError('Geology: 1–80 strata are required')
   const strata = [...hole.strata].sort((a, b) => a.top - b.top)
   const grouped = strata.some(layer => layer.groupId != null || layer.groupRole != null)
@@ -720,6 +741,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       holeId: hole.id, collarElevation: metres(hole.collarElevation), depth: metres(hole.depth),
       x: hole.x == null ? undefined : metres(hole.x), y: hole.y == null ? undefined : metres(hole.y),
       startDate: hole.startDate, endDate: hole.endDate,
+      initialWaterDepth: hole.initialWaterDepth == null ? undefined : metres(hole.initialWaterDepth),
       stableWaterDepth: hole.stableWaterDepth == null ? undefined : metres(hole.stableWaterDepth),
       verticalScale: `1:${scaleDenominator(verticalScaleDenominator)}`,
     }
@@ -732,9 +754,12 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     for (const [rowIndex, row] of headerGrid.rows.entries()) {
       const rowTop = headerTop - rowIndex * rowHeight, rowBottom = rowTop - rowHeight
       if (rowIndex) g.line(0, left, rowTop, right, rowTop)
-      const width = (right - left) / row.length
+      const equalWidth = (right - left) / row.length
       for (const [cellIndex, cell] of row.entries()) {
-        const cellLeft = left + cellIndex * width, valueX = cellLeft + Math.min(25, width * 0.35)
+        const cellLeft = cell.start ?? left + cellIndex * equalWidth
+        const cellRight = row[cellIndex + 1]?.start ?? right
+        const width = cellRight - cellLeft
+        const valueX = cell.valueStart ?? cellLeft + Math.min(25, width * 0.35)
         if (cellIndex) g.line(0, cellLeft, rowBottom, cellLeft, rowTop)
         g.line(0, valueX, rowBottom, valueX, rowTop)
         const identity = cell.role === 'documentFact' ? cell.key : cell.role

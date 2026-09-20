@@ -30,6 +30,8 @@ export interface KJGeologyBorehole {
     y?: number;
     startDate?: string;
     endDate?: string;
+    /** Measured groundwater depth first observed while drilling; distinct from the later stable level. */
+    initialWaterDepth?: number;
     /** Measured stable groundwater depth; never inferred from another hole. */
     stableWaterDepth?: number;
     station?: number;

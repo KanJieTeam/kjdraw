@@ -1507,6 +1507,7 @@ const geologyHoleSchema = objectWithOptional({
         ...text,
         maxLength: 64
     },
+    initialWaterDepth: nonnegative,
     stableWaterDepth: nonnegative,
     station: number,
     strata: {
@@ -1526,6 +1527,7 @@ const geologyHoleSchema = objectWithOptional({
     'y',
     'startDate',
     'endDate',
+    'initialWaterDepth',
     'stableWaterDepth',
     'station',
     'observations'
