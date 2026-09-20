@@ -75,7 +75,7 @@ test('ordinate dimensions project while unsupported native definitions keep cach
   dimensions.push(await add({definitionPoints:[[0,2,0],[0,0,0],[3,4,8]],measurement:999}))
   dimensions.push(await add({normal:[0,1,0],measurement:88}))
   dimensions.push(await add({textPosition:[5,2,1],measurement:55}))
-  dimensions.push(await add({dimensionType:'ANGULAR_3_POINT',definitionPoints:[[5,5],[10,0],[0,10],[0,0]],angularUnits:1,measurement:999}))
+  dimensions.push(await add({dimensionType:'ANGULAR_3_POINT',definitionPoints:[[5,5],[10,0],[0,10],[0,0]],angularUnits:4,measurement:999}))
   dimensions.push(await add({dimensionType:'ANGULAR',definitionPoints:[[0,10],[0,0],[10,0],[0,0]],incompleteAngularDefinition:true,measurement:90}))
   const source=document.serialize(),result=value(await session.call('cad_read_drawing',{}))
   const ordinateGeometry=result.entities.find(e=>e.id===ordinate.id).geometry

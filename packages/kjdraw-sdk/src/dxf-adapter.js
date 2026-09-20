@@ -2310,10 +2310,6 @@ function buildDimensionExportBlocks(document, entities, sourceBlocks, dimensionS
         assertNativeDimensionIsXY(payload, entity.handle);
         const style = (payload.styleId ? dimensionStyles.find((record)=>record.id === payload.styleId) : undefined)?.payload ?? {};
         if (VERSION_RANK[context.version] < VERSION_RANK['2000'] && (payload.precision != null || style.decimalPlaces != null)) throw new KJValidationError('Explicit dimension precision requires DXF 2000 or newer');
-        if ([
-            2,
-            5
-        ].includes(subtype) && Number(payload.angularUnits ?? style.angularUnits ?? 0) !== 0) throw new KJValidationError('Angular DIMENSION regeneration currently supports decimal degrees only');
         const angularPrecision = Number(style.angularDecimalPlaces) >= 0 ? style.angularDecimalPlaces : style.decimalPlaces;
         const precision = [
             2,
@@ -2452,6 +2448,12 @@ function buildDimensionExportBlocks(document, entities, sourceBlocks, dimensionS
             } : {},
             ...resolveDimensionAnnotationStyle(payload, style),
             precision: Math.max(0, Math.min(8, Math.trunc(Number.isFinite(Number(precision)) && precision != null ? Number(precision) : 2))),
+            ...[
+                2,
+                5
+            ].includes(subtype) ? {
+                angularUnits: Number(payload.angularUnits ?? style.angularUnits ?? 0)
+            } : {},
             textPosition: [
                 projection.label.position[0],
                 projection.label.position[1],
@@ -3364,7 +3366,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
             emit(output, 1070, dimensionStyle.precision);
             if (angular) {
                 emit(output, 1070, 275);
-                emit(output, 1070, 0);
+                emit(output, 1070, dimensionStyle.angularUnits ?? 0);
                 emit(output, 1070, 79);
                 emit(output, 1070, 2);
             }
