@@ -262,6 +262,7 @@ function columnLayout(input) {
             'textHeights',
             'stratigraphicNotationStyle',
             'sampleMarkerStyle',
+            'sampleRangeBaselineStyle',
             'groundwaterAnnotationStyle',
             'patternLabelStyle',
             'titleMarginFacts',
@@ -564,6 +565,22 @@ function columnLayout(input) {
             baselineOffset
         };
     }
+    let sampleRangeBaselineStyle;
+    if (value.sampleRangeBaselineStyle != null) {
+        if (!isFieldGrid || !value.sampleRangeBaselineStyle || typeof value.sampleRangeBaselineStyle !== 'object' || Array.isArray(value.sampleRangeBaselineStyle) || Object.keys(value.sampleRangeBaselineStyle).sort().join(',') !== 'boundaries,continuity,insetMm') throw new KJValidationError('Geology: sample range baselines need an exact declarative field-grid schema');
+        const rule = value.sampleRangeBaselineStyle;
+        if (!Array.isArray(rule.boundaries) || rule.boundaries.length < 1 || rule.boundaries.length > 2 || rule.boundaries.some((boundary)=>boundary !== 'top' && boundary !== 'bottom') || new Set(rule.boundaries).size !== rule.boundaries.length) throw new KJValidationError('Geology: sample range baseline boundaries must contain unique top/bottom roles');
+        if (rule.continuity !== 'collision-safe' && rule.continuity !== 'continuous') throw new KJValidationError('Geology: sample range baseline continuity must be collision-safe or continuous');
+        const insetMm = numeric(rule.insetMm, 'sample range baseline inset');
+        const sampleIndex = fieldGrid.findIndex((field)=>field.role === 'sample');
+        const sampleWidth = sampleIndex < 0 ? 0 : (fieldGrid[sampleIndex + 1]?.start ?? right) - fieldGrid[sampleIndex].start;
+        if (sampleIndex < 0 || insetMm < 0 || sampleWidth - insetMm * 2 < 0.4) throw new KJValidationError('Geology: sample range baseline inset leaves no visible source lane');
+        sampleRangeBaselineStyle = {
+            boundaries: rule.boundaries,
+            continuity: rule.continuity,
+            insetMm
+        };
+    }
     let groundwaterAnnotationStyle;
     if (value.groundwaterAnnotationStyle != null) {
         if (!isFieldGrid || !value.groundwaterAnnotationStyle || typeof value.groundwaterAnnotationStyle !== 'object' || Array.isArray(value.groundwaterAnnotationStyle) || Object.keys(value.groundwaterAnnotationStyle).sort().join(',') !== 'dateOffset,fieldRole,gap,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset') throw new KJValidationError('Geology: groundwater annotation style needs an exact declarative field-grid schema');
@@ -776,6 +793,9 @@ function columnLayout(input) {
         } : {},
         ...sampleMarkerStyle ? {
             sampleMarkerStyle
+        } : {},
+        ...sampleRangeBaselineStyle ? {
+            sampleRangeBaselineStyle
         } : {},
         ...groundwaterAnnotationStyle ? {
             groundwaterAnnotationStyle
@@ -1211,7 +1231,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
 export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
-    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, stratigraphicNotationStyle, sampleMarkerStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
+    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, stratigraphicNotationStyle, sampleMarkerStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
     if (strata.some((layer)=>layer.stratigraphicNotation != null) && !stratigraphicNotationStyle) throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style');
     const documentFacts = documentFactRecord(input.documentFacts);
     const declaredDocumentFactKeys = new Set([
@@ -1907,14 +1927,25 @@ export function compileGeologyColumn(input) {
                     const rangeTextY = rangeBottomY - 2.2, rangeText = `${metres(item.rangeTop)}–${metres(item.rangeBottom)}`;
                     if (rangeTextY < bottom + 0.4 || textBoxes.some((box)=>box.role === 'sample' && rangeTextY - 0.25 <= box.top && rangeTextY + 1.75 >= box.bottom)) throw new KJValidationError(`Geology: sampled range ${item.id} cannot be labelled without colliding in its source lane`);
                     emitFieldText(cell, rangeTextY, rangeText, textHeights?.observation ?? 1.5);
-                    bandLines.push({
-                        x1: cell.start,
-                        x2: gridEnd(cell),
-                        y: rangeTopY
-                    }, {
-                        x1: cell.start,
-                        x2: gridEnd(cell),
-                        y: rangeBottomY
+                    const baselineStyle = sampleRangeBaselineStyle ?? {
+                        boundaries: [
+                            'top',
+                            'bottom'
+                        ],
+                        continuity: 'collision-safe',
+                        insetMm: 0
+                    };
+                    const baselineY = {
+                        top: rangeTopY,
+                        bottom: rangeBottomY
+                    };
+                    for (const boundary of baselineStyle.boundaries)bandLines.push({
+                        x1: cell.start + baselineStyle.insetMm,
+                        x2: gridEnd(cell) - baselineStyle.insetMm,
+                        y: baselineY[boundary],
+                        ...baselineStyle.continuity === 'continuous' ? {
+                            continuity: 'continuous'
+                        } : {}
                     });
                 }
             }
@@ -1924,6 +1955,10 @@ export function compileGeologyColumn(input) {
             for (const item of hole.groundwaterObservations)emitGroundwaterAnnotation(groundwaterField, top - item.depth * scale, item);
         }
         for (const line of bandLines){
+            if (line.continuity === 'continuous') {
+                g.line(1, line.x1, line.y, line.x2, line.y);
+                continue;
+            }
             let cursor = line.x1;
             const gaps = textBoxes.filter((box)=>box.bottom <= line.y && line.y <= box.top && box.right > line.x1 && box.left < line.x2).map((box)=>({
                     left: Math.max(line.x1, box.left),

@@ -676,6 +676,7 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
   const rangedCompiled = compileGeologyColumn(ranged)
   assert.ok(rangedCompiled.commandArgs.entities.some(entity => entity.type === 'TEXT' &&
     entity.payload.text === '2.00–2.15'), 'only source-supplied sample endpoints may be charted')
+  const rangedLabel = rangedCompiled.commandArgs.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === '1(2.00)')
   for (const endpoint of [2, 2.15]) {
     const endpointY = 340 - 56 - 10 - endpoint * 4
     assert.ok(rangedCompiled.commandArgs.entities.some(entity => entity.type === 'LINE' &&
@@ -683,6 +684,38 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
       Math.abs(entity.payload.end[1] - endpointY) < 1e-6 &&
       entity.payload.start[0] >= 171 && entity.payload.end[0] <= 186), `sample endpoint ${endpoint}`)
   }
+  const rangedTopY = 340 - 56 - 10 - 2 * 4
+  assert.ok(!rangedCompiled.commandArgs.entities.some(entity => entity.type === 'LINE' &&
+    Math.abs(entity.payload.start[1] - rangedTopY) < 1e-6 && Math.abs(entity.payload.end[1] - rangedTopY) < 1e-6 &&
+    entity.payload.start[0] <= rangedLabel.payload.position[0] && entity.payload.end[0] >= rangedLabel.payload.position[0]),
+  'the default sample endpoint rule remains collision-safe')
+
+  const continuous = structuredClone(ranged)
+  continuous.columnStylePack.rules['geology-column-layout'].sampleRangeBaselineStyle = {
+    boundaries: ['top'], continuity: 'continuous', insetMm: 3.5,
+  }
+  const continuousCompiled = compileGeologyColumn(continuous)
+  const sampleLines = continuousCompiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
+    entity.payload.start[0] >= 171 && entity.payload.end[0] <= 186 &&
+    [rangedTopY, 340 - 56 - 10 - 2.15 * 4].some(y => Math.abs(entity.payload.start[1] - y) < 1e-6 && Math.abs(entity.payload.end[1] - y) < 1e-6))
+  assert.deepEqual(sampleLines.map(entity => [entity.payload.start.slice(0, 2), entity.payload.end.slice(0, 2)]),
+    [[[174.5, rangedTopY], [182.5, rangedTopY]]], 'a source-backed rule emits one uninterrupted inset baseline at the declared boundary')
+  const continuousDocument = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', continuousCompiled.commandArgs, { document: continuousDocument })
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(continuousDocument, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await sdk.readDocument(bytes, { format })
+    const reopenedLines = reopened.listEntities({ type: 'LINE' }).filter(entity =>
+      Math.abs(entity.payload.start[0] - 174.5) < 1e-6 && Math.abs(entity.payload.end[0] - 182.5) < 1e-6 &&
+      Math.abs(entity.payload.start[1] - rangedTopY) < 1e-6 && Math.abs(entity.payload.end[1] - rangedTopY) < 1e-6)
+    assert.equal(reopenedLines.length, 1, `${format} preserves the continuous sample baseline`)
+  }
+  const invalidBaseline = structuredClone(continuous)
+  invalidBaseline.columnStylePack.rules['geology-column-layout'].sampleRangeBaselineStyle.boundaries = ['top', 'top']
+  assert.throws(() => compileGeologyColumn(invalidBaseline), /unique top\/bottom roles/)
+  const hiddenBaseline = structuredClone(continuous)
+  hiddenBaseline.columnStylePack.rules['geology-column-layout'].sampleRangeBaselineStyle.insetMm = 7.4
+  assert.throws(() => compileGeologyColumn(hiddenBaseline), /leaves no visible source lane/)
   const rangedDocument = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', rangedCompiled.commandArgs, { document: rangedDocument })
   const rangedDxf = await sdk.writeDocument(rangedDocument, { format: 'DXF', version: '2018' })

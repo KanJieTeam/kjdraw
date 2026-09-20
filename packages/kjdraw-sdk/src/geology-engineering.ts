@@ -74,6 +74,15 @@ export interface KJGeologyObservation {
   rangeTop?: number
   rangeBottom?: number
 }
+
+/** Source-backed rendering facts for measured sample intervals. The default
+ * remains two collision-safe endpoint rules; a style pack may request the
+ * exact continuous boundary line present in its licensed source template. */
+export interface KJGeologySampleRangeBaselineStyle {
+  boundaries: ('top' | 'bottom')[]
+  continuity: 'collision-safe' | 'continuous'
+  insetMm: number
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,
@@ -194,6 +203,7 @@ interface ColumnLayout {
   textHeights?: { headerFact: number; fieldHeader: number; fieldSubHeader: number; majorValue: number; intervalDepth: number; observation: number }
   stratigraphicNotationStyle?: { symbolHeight: number; qualifierHeight: number }
   sampleMarkerStyle?: { height: number; gap: number; baselineOffset: number }
+  sampleRangeBaselineStyle?: KJGeologySampleRangeBaselineStyle
   groundwaterAnnotationStyle?: { fieldRole: 'pattern'; textHeight: number; markerHeight: number; textWidthFactor: number; gap: number; valueOffset: number; markerOffset: number; dateOffset: number }
   patternLabelStyle?: { height: number; textWidthFactor: number; minimumBandHeight: number }
   titleMarginFacts?: TitleMarginFactPlacement[]
@@ -299,7 +309,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'sampleRangeBaselineStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -507,6 +517,25 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: sample marker style is unreadable')
     sampleMarkerStyle = { height, gap, baselineOffset }
   }
+  let sampleRangeBaselineStyle: ColumnLayout['sampleRangeBaselineStyle']
+  if (value.sampleRangeBaselineStyle != null) {
+    if (!isFieldGrid || !value.sampleRangeBaselineStyle || typeof value.sampleRangeBaselineStyle !== 'object' || Array.isArray(value.sampleRangeBaselineStyle) ||
+      Object.keys(value.sampleRangeBaselineStyle).sort().join(',') !== 'boundaries,continuity,insetMm')
+      throw new KJValidationError('Geology: sample range baselines need an exact declarative field-grid schema')
+    const rule = value.sampleRangeBaselineStyle as Record<string, unknown>
+    if (!Array.isArray(rule.boundaries) || rule.boundaries.length < 1 || rule.boundaries.length > 2 ||
+      rule.boundaries.some(boundary => boundary !== 'top' && boundary !== 'bottom') || new Set(rule.boundaries).size !== rule.boundaries.length)
+      throw new KJValidationError('Geology: sample range baseline boundaries must contain unique top/bottom roles')
+    if (rule.continuity !== 'collision-safe' && rule.continuity !== 'continuous')
+      throw new KJValidationError('Geology: sample range baseline continuity must be collision-safe or continuous')
+    const insetMm = numeric(rule.insetMm, 'sample range baseline inset')
+    const sampleIndex = fieldGrid!.findIndex(field => field.role === 'sample')
+    const sampleWidth = sampleIndex < 0 ? 0 : (fieldGrid![sampleIndex + 1]?.start ?? right) - fieldGrid![sampleIndex]!.start
+    if (sampleIndex < 0 || insetMm < 0 || sampleWidth - insetMm * 2 < 0.4)
+      throw new KJValidationError('Geology: sample range baseline inset leaves no visible source lane')
+    sampleRangeBaselineStyle = { boundaries: rule.boundaries as ('top' | 'bottom')[],
+      continuity: rule.continuity, insetMm }
+  }
   let groundwaterAnnotationStyle: ColumnLayout['groundwaterAnnotationStyle']
   if (value.groundwaterAnnotationStyle != null) {
     if (!isFieldGrid || !value.groundwaterAnnotationStyle || typeof value.groundwaterAnnotationStyle !== 'object' || Array.isArray(value.groundwaterAnnotationStyle) ||
@@ -658,6 +687,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     ...(observationColumns ? { observationColumns } : {}), labels,
     ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}),
     ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sampleMarkerStyle ? { sampleMarkerStyle } : {}),
+    ...(sampleRangeBaselineStyle ? { sampleRangeBaselineStyle } : {}),
     ...(groundwaterAnnotationStyle ? { groundwaterAnnotationStyle } : {}), ...(patternLabelStyle ? { patternLabelStyle } : {}),
     ...(titleMarginFacts ? { titleMarginFacts } : {}),
     ...(frameStyle ? { frameStyle } : {}), ...(descriptionBoundaryStyle ? { descriptionBoundaryStyle } : {}),
@@ -878,7 +908,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
     headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights,
-    stratigraphicNotationStyle, sampleMarkerStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology,
+    stratigraphicNotationStyle, sampleMarkerStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology,
     layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
     throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style')
@@ -1121,7 +1151,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     const fieldWidth = (item: typeof fieldGrid[number]) => gridEnd(item) - item.start
     const estimatedWidth = (value: string, height: number) => [...value].reduce((sum, character) =>
       sum + (/^[\x20-\x7e]$/u.test(character) ? height * 0.64 : height), 0)
-    const bandLines: { x1: number; x2: number; y: number }[] = []
+    const bandLines: { x1: number; x2: number; y: number; continuity?: 'continuous' }[] = []
     const majorBoundaries: { y: number }[] = []
     const descriptionTops = new Map<number, number>()
     const textBoxes: { role: FieldRole; left: number; right: number; bottom: number; top: number }[] = []
@@ -1379,8 +1409,14 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
             rangeTextY - 0.25 <= box.top && rangeTextY + 1.75 >= box.bottom))
             throw new KJValidationError(`Geology: sampled range ${item.id} cannot be labelled without colliding in its source lane`)
           emitFieldText(cell, rangeTextY, rangeText, textHeights?.observation ?? 1.5)
-          bandLines.push({ x1: cell.start, x2: gridEnd(cell), y: rangeTopY },
-            { x1: cell.start, x2: gridEnd(cell), y: rangeBottomY })
+          const baselineStyle = sampleRangeBaselineStyle ?? {
+            boundaries: ['top', 'bottom'] as ('top' | 'bottom')[], continuity: 'collision-safe' as const, insetMm: 0,
+          }
+          const baselineY = { top: rangeTopY, bottom: rangeBottomY }
+          for (const boundary of baselineStyle.boundaries) bandLines.push({
+            x1: cell.start + baselineStyle.insetMm, x2: gridEnd(cell) - baselineStyle.insetMm,
+            y: baselineY[boundary], ...(baselineStyle.continuity === 'continuous' ? { continuity: 'continuous' as const } : {}),
+          })
         }
       }
     }
@@ -1389,6 +1425,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       for (const item of hole.groundwaterObservations) emitGroundwaterAnnotation(groundwaterField, top - item.depth * scale, item)
     }
     for (const line of bandLines) {
+      if (line.continuity === 'continuous') { g.line(1, line.x1, line.y, line.x2, line.y); continue }
       let cursor = line.x1
       const gaps = textBoxes.filter(box => box.bottom <= line.y && line.y <= box.top && box.right > line.x1 && box.left < line.x2)
         .map(box => ({ left: Math.max(line.x1, box.left), right: Math.min(line.x2, box.right) }))

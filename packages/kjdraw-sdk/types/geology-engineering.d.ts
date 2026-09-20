@@ -73,6 +73,14 @@ export interface KJGeologyObservation {
     rangeTop?: number;
     rangeBottom?: number;
 }
+/** Source-backed rendering facts for measured sample intervals. The default
+ * remains two collision-safe endpoint rules; a style pack may request the
+ * exact continuous boundary line present in its licensed source template. */
+export interface KJGeologySampleRangeBaselineStyle {
+    boundaries: ('top' | 'bottom')[];
+    continuity: 'collision-safe' | 'continuous';
+    insetMm: number;
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,
