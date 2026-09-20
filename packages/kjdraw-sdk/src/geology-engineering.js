@@ -596,13 +596,31 @@ function columnLayout(input) {
         if (height < 7 || height > 16 || height + 5 > footerReserve || !Array.isArray(cells) || cells.length < 3 || cells.length > 8) throw new KJValidationError('Geology: footer grid does not fit the declared sheet');
         const keys = new Set();
         const parsed = cells.map((raw, index)=>{
-            if (!raw || typeof raw !== 'object' || Array.isArray(raw) || ![
-                'key,label,start',
-                'internalDivider,key,label,start'
-            ].includes(Object.keys(raw).sort().join(','))) throw new KJValidationError('Geology: footer cell needs an exact key, label, start and optional internal divider');
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: footer cell needs an exact key, label, start and optional internal divider');
             const cell = raw, start = numeric(cell.start, `footer cell start ${index + 1}`);
+            const schema = [
+                'key',
+                'label',
+                'start',
+                ...cell.internalDivider == null ? [] : [
+                    'internalDivider'
+                ],
+                ...cell.textStyle == null ? [] : [
+                    'textStyle'
+                ]
+            ].sort().join(',');
+            if (Object.keys(cell).sort().join(',') !== schema) throw new KJValidationError('Geology: footer cell needs an exact key, label, start and optional internal divider/text style');
             const key = stableDocumentFactKey(cell.key, 'footer fact key'), label = bounded(cell.label, 'footer fact label', 16);
             const internalDivider = cell.internalDivider == null ? undefined : numeric(cell.internalDivider, `footer cell internal divider ${index + 1}`);
+            let textStyle;
+            if (cell.textStyle != null) {
+                if (!cell.textStyle || typeof cell.textStyle !== 'object' || Array.isArray(cell.textStyle) || Object.keys(cell.textStyle).sort().join(',') !== 'label,value') throw new KJValidationError('Geology: footer fact text style must declare exact label and value placements');
+                const supplied = cell.textStyle;
+                textStyle = {
+                    label: sourceTextPlacement(supplied.label, `footer fact ${index + 1} label`),
+                    value: sourceTextPlacement(supplied.value, `footer fact ${index + 1} value`)
+                };
+            }
             if (keys.has(key.toLowerCase())) throw new KJValidationError('Geology: duplicate footer fact key');
             keys.add(key.toLowerCase());
             return {
@@ -611,12 +629,27 @@ function columnLayout(input) {
                 label,
                 ...internalDivider == null ? {} : {
                     internalDivider
-                }
+                },
+                ...textStyle ? {
+                    textStyle
+                } : {}
             };
         });
         for (const [index, cell] of parsed.entries()){
             const end = parsed[index + 1]?.start ?? right;
             if (cell.start < left || end - cell.start < 20 || index && cell.start <= parsed[index - 1].start || cell.internalDivider != null && (cell.internalDivider - cell.start < 4 || end - cell.internalDivider < 4)) throw new KJValidationError('Geology: footer cell is out of bounds or unreadable');
+            if (cell.textStyle) for (const [placement, laneWidth] of [
+                [
+                    cell.textStyle.label,
+                    (cell.internalDivider ?? end) - cell.start
+                ],
+                [
+                    cell.textStyle.value,
+                    end - (cell.internalDivider ?? cell.start)
+                ]
+            ]){
+                if (placement.offset[0] < 0 || placement.offset[0] > laneWidth || placement.offset[1] < 0 || placement.offset[1] > height) throw new KJValidationError('Geology: footer fact text placement is outside its physical lane');
+            }
         }
         if (Math.abs(parsed[0].start - left) > 1e-6) throw new KJValidationError('Geology: footer grid must start at the table margin');
         footerGrid = {
@@ -1799,16 +1832,35 @@ export function compileGeologyColumn(input) {
             if (index) g.line(0, cell.start, bottom, cell.start, top);
             if (cell.internalDivider != null) g.line(0, cell.internalDivider, bottom, cell.internalDivider, top);
             const width = end - cell.start;
-            const labelHeight = width < 25 ? 1.4 : 1.55;
-            g.text(3, cell.start + width / 2, top - labelHeight - 1, cell.label, labelHeight, true);
             const value = documentFacts[cell.key];
-            if (value) {
-                const valueHeight = width < 25 ? 1.3 : 1.45;
-                const estimated = [
-                    ...value
-                ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? valueHeight * 0.64 : valueHeight), 0);
-                if (estimated > width - 2) throw new KJValidationError(`Geology: footer fact ${cell.key} does not fit its declared cell`);
-                g.text(3, cell.start + width / 2, bottom + 1.2, value, valueHeight, true);
+            if (cell.textStyle) {
+                const fitsLane = (text, placement, laneWidth)=>{
+                    const textWidth = [
+                        ...text
+                    ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? placement.height * 0.64 : placement.height) * placement.textWidthFactor, 0);
+                    const leftExtent = placement.horizontalAlignment === 'left' ? placement.offset[0] : placement.horizontalAlignment === 'center' ? placement.offset[0] - textWidth / 2 : placement.offset[0] - textWidth;
+                    return leftExtent >= -1e-9 && leftExtent + textWidth <= laneWidth + 1e-9;
+                };
+                const valueOrigin = cell.internalDivider ?? cell.start;
+                if (!fitsLane(cell.label, cell.textStyle.label, (cell.internalDivider ?? end) - cell.start) || value && !fitsLane(value, cell.textStyle.value, end - valueOrigin)) throw new KJValidationError(`Geology: footer fact ${cell.key} does not fit its source-backed text lanes`);
+                const emitFooterFact = (originX, text, placement)=>{
+                    const horizontalAlignment = placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2;
+                    const verticalAlignment = placement.verticalAlignment === 'baseline' ? 0 : 2;
+                    g.placedText(3, originX + placement.offset[0], bottom + placement.offset[1], text, placement.height, placement.textWidthFactor, horizontalAlignment, verticalAlignment, 0);
+                };
+                emitFooterFact(cell.start, cell.label, cell.textStyle.label);
+                if (value) emitFooterFact(valueOrigin, value, cell.textStyle.value);
+            } else {
+                const labelHeight = width < 25 ? 1.4 : 1.55;
+                g.text(3, cell.start + width / 2, top - labelHeight - 1, cell.label, labelHeight, true);
+                if (value) {
+                    const valueHeight = width < 25 ? 1.3 : 1.45;
+                    const estimated = [
+                        ...value
+                    ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? valueHeight * 0.64 : valueHeight), 0);
+                    if (estimated > width - 2) throw new KJValidationError(`Geology: footer fact ${cell.key} does not fit its declared cell`);
+                    g.text(3, cell.start + width / 2, bottom + 1.2, value, valueHeight, true);
+                }
             }
         }
     };

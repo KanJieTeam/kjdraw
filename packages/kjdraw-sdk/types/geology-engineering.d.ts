@@ -140,6 +140,12 @@ export interface KJGeologyHeaderFactTextStyle {
     label: KJGeologyFieldHeaderTextPlacement;
     value: KJGeologyFieldHeaderTextPlacement;
 }
+/** Independent source-backed placements for one footer fact's label and
+ * value. The value offset starts at an internal divider when one is declared. */
+export interface KJGeologyFooterFactTextStyle {
+    label: KJGeologyFieldHeaderTextPlacement;
+    value: KJGeologyFieldHeaderTextPlacement;
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,

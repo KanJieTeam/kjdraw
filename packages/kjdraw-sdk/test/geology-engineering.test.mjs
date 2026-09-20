@@ -249,7 +249,10 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
       fieldHeaderHeight: 10, footerReserve: 15, titleHeight: 10, verticalScaleDenominators: [100],
       fieldGrid, headerGrid: { rows: physicalRows, continuousDividers: [145, 165] }, footerGrid: { height: 10, cells: [
         { start: 5, key: 'organization', label: 'Organization' }, { start: 65, key: 'checkedBy', label: 'Checked' },
-        { start: 125, key: 'drawingNumber', label: 'Drawing', internalDivider: 145 },
+        { start: 125, key: 'drawingNumber', label: 'Drawing', internalDivider: 145, textStyle: {
+          label: { offset: [1, 3.2], height: 2.2, textWidthFactor: 0.8, horizontalAlignment: 'left', verticalAlignment: 'baseline' },
+          value: { offset: [1.5, 3.2], height: 2.3, textWidthFactor: 0.85, horizontalAlignment: 'left', verticalAlignment: 'baseline' },
+        } },
       ] }, legendMode: 'none', textHeights: {
         headerFact: 3, fieldHeader: 3, fieldSubHeader: 2.5, majorValue: 3, intervalDepth: 2.5, observation: 2,
       }, stratigraphicNotationStyle: { symbolHeight: 3, qualifierHeight: 1.5 },
@@ -279,7 +282,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   source.strata[2].stratigraphicNotation = { symbol: 'N', superscript: 'al' }
   source.observations = [{ kind: 'sample', id: 'S1', depth: 5, sampleMarker: 'filled-circle' }]
   source.groundwaterObservations = [{ depth: 3.25, elevation: 120.2, observedOn: '2026-01-04', marker: 'filled-down-triangle' }]
-  const input = { hole: source, projectName: 'Project A', documentFacts: { projectCode: 'P-18', recordNumber: '18' },
+  const input = { hole: source, projectName: 'Project A', documentFacts: { projectCode: 'P-18', recordNumber: '18', drawingNumber: 'D-7' },
     verticalScaleDenominator: 100, expectedRevision: 0, columnStylePack: style }
   const compiled = compileGeologyColumn(input)
   const texts = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT')
@@ -296,6 +299,11 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   ]) assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x &&
     entity.payload.position[1] === y && entity.payload.height === height && entity.payload.widthFactor === widthFactor &&
     entity.payload.horizontalAlignment == null && entity.payload.alignmentPoint == null), `${value} uses its source-backed table-header placement`)
+  for (const [value, x, y, height, widthFactor] of [
+    ['Drawing', 126, 8.2, 2.2, 0.8], ['D-7', 146.5, 8.2, 2.3, 0.85],
+  ]) assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x &&
+    entity.payload.position[1] === y && entity.payload.height === height && entity.payload.widthFactor === widthFactor &&
+    entity.payload.horizontalAlignment == null && entity.payload.alignmentPoint == null), `${value} uses its source-backed footer placement`)
   for (const [value, x, y, height, widthFactor] of [
     ['No', 6.25, 239.4, 2.6, 0.85], ['Pattern', 66.5, 242.1, 2.75, 0.8], ['1:100', 67.25, 237.1, 2.25, 0.9],
   ]) assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x &&
@@ -361,7 +369,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     entity.payload.start[0] === 145 && entity.payload.end[0] === 145 &&
     Math.min(entity.payload.start[1], entity.payload.end[1]) === 5 && Math.max(entity.payload.start[1], entity.payload.end[1]) === 15),
   'declared footer internal divider survives KJD/DXF reopen')
-  for (const value of ['2.50', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18']) {
+  for (const value of ['2.50', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18', 'D-7']) {
     assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `DXF ${value}`)
     assert.ok(reopenedKjd.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `KJD ${value}`)
   }
@@ -377,7 +385,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     const report = JSON.parse(independent.stdout)
     assert.deepEqual([report.errors, report.fixes], [0, 0])
     for (const x of [25, 55, 75, 105, 125, 145, 165]) assert.ok(report.xs.includes(x), `ezdxf header x=${x}`)
-    for (const value of ['2.50', '3.00', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18'])
+    for (const value of ['2.50', '3.00', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18', 'D-7'])
       assert.ok(report.texts.includes(value), `ezdxf ${value}`)
     assert.deepEqual(report.record, [[180, 280, 3, 0.8, 2, 0, 0]])
     assert.deepEqual(report.outer, [[0.5, 5, 5, 285]])
@@ -405,6 +413,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const incompleteFieldHeaderPlacement = structuredClone(input)
   delete incompleteFieldHeaderPlacement.columnStylePack.rules['geology-column-layout'].fieldGrid[5].headerTextStyle.sub
   assert.throws(() => compileGeologyColumn(incompleteFieldHeaderPlacement), /exactly match the field sublabel/u)
+  const incompleteFooterFactPlacement = structuredClone(input)
+  delete incompleteFooterFactPlacement.columnStylePack.rules['geology-column-layout'].footerGrid.cells[2].textStyle.value
+  assert.throws(() => compileGeologyColumn(incompleteFooterFactPlacement), /exact label and value placements/u)
   const unsafeTextStyle = structuredClone(input)
   unsafeTextStyle.columnStylePack.rules['geology-column-layout'].defaultTextStyle.fontFile = 'https://invalid.example/font.ttf'
   assert.throws(() => compileGeologyColumn(unsafeTextStyle), /invalid default text font file/u)
