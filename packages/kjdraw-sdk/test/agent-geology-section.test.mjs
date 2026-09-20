@@ -39,6 +39,8 @@ test('explicit correlated strata become a review-only A3 section proposal; host 
   const schema = session.definitions.find(tool => tool.name === 'cad_propose_geology_section')
   assert.equal(schema.effect, 'propose')
   assert.deepEqual(schema.inputSchema.properties.units.enum, ['millimeter'])
+  assert.equal(schema.inputSchema.properties.correlations.minItems, 0)
+  assert.deepEqual(schema.inputSchema.properties.manualConnections.items.properties.kind.enum, ['continuity', 'pinchout', 'lens', 'manualBoundary'])
   const before = document.serialize(), proposal = accepted(await session.call('cad_propose_geology_section', intent()))
   assert.equal(proposal.command, 'CREATEBATCH')
   assert.equal(proposal.status, 'awaiting-host-approval')
@@ -69,6 +71,22 @@ test('explicit correlated strata become a review-only A3 section proposal; host 
   }
 })
 
+test('manual pinchout and lens boundaries are available through the reviewed Agent tool', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), session = new KJAgentToolSession(sdk, document)
+  const request = { ...intent(), correlations: [], manualConnections: [
+    { fromHoleId: 'SYN-01', toHoleId: 'SYN-02', fromDepth: 3, toDepth: 4, kind: 'pinchout', layerCode: '1' },
+    { fromHoleId: 'SYN-01', toHoleId: 'SYN-02', fromDepth: 9, toDepth: 10, kind: 'lens', layerCode: '2' },
+  ] }
+  const proposal = accepted(await session.call('cad_propose_geology_section', request))
+  const boundaries = proposal.arguments.entities.filter(entity => entity.type === 'LINE' && entity.payload.semanticRole === 'source-manual-connection')
+  assert.deepEqual(boundaries.map(entity => entity.payload.connectionKind), ['pinchout', 'lens'])
+  const receipt = accepted(await session.approve(proposal.planId, 'synthetic-host-reviewer'))
+  assert.equal(receipt.afterRevision, 1)
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const reopened = await createKJDrawSDK().readDocument(dxf, { format: 'DXF' })
+  assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+  assert.equal(reopened.listEntities({ type: 'LINE' }).length, document.listEntities({ type: 'LINE' }).length)
+})
 test('reversed, incompatible, ambiguous or invented correlations fail without a plan or any changed source geometry', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), session = new KJAgentToolSession(sdk, document)
   const before = document.serialize()

@@ -1634,6 +1634,34 @@ const geologyCorrelationSchema = objectWithOptional({
     'fromIntervalId',
     'toIntervalId'
 ]);
+const geologySectionConnectionSchema = objectWithOptional({
+    fromHoleId: {
+        ...text,
+        maxLength: 64
+    },
+    toHoleId: {
+        ...text,
+        maxLength: 64
+    },
+    fromDepth: nonnegative,
+    toDepth: nonnegative,
+    kind: {
+        type: 'string',
+        enum: [
+            'continuity',
+            'pinchout',
+            'lens',
+            'manualBoundary'
+        ]
+    },
+    layerCode: {
+        ...text,
+        maxLength: 24
+    }
+}, [
+    'kind',
+    'layerCode'
+]);
 const geologySectionSchema = objectWithOptional({
     version: {
         type: 'string',
@@ -1663,9 +1691,15 @@ const geologySectionSchema = objectWithOptional({
     },
     correlations: {
         type: 'array',
-        minItems: 1,
+        minItems: 0,
         maxItems: 200,
         items: geologyCorrelationSchema
+    },
+    manualConnections: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 200,
+        items: geologySectionConnectionSchema
     },
     horizontalScaleDenominator: radius,
     verticalScaleDenominator: radius,
@@ -1687,6 +1721,7 @@ const geologySectionSchema = objectWithOptional({
     documentFacts: geologyColumnSchema.properties.documentFacts
 }, [
     'locale',
+    'manualConnections',
     'projectName',
     'title',
     'documentFacts'
@@ -1839,7 +1874,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_section',
         effect: 'propose',
-        description: 'Compile one editable A3 engineering geological section from 2–24 supplied boreholes with exact station, collar elevation, continuous depth intervals, optional measured water/sample/SPT observations, and explicit compatible interval/layer correlations. Set locale=zh-CN for a Chinese request so compiler-generated visible labels and notes are Chinese; if omitted, Chinese source text is detected automatically. Hole facts, station, elevations, depths and datum are metres; CAD page is millimetres. Version 1.0.0 uses the bundled versioned professional section layout and original redistributable semantic hatch patterns. Optional projectName and declared documentFacts populate the title block; missing facts remain blank and are never inferred. It does not infer unsupplied cross-hole continuity, water, observations or raw MDB/DWG provenance. Ambiguous, reverse, duplicate or incompatible correlations and non-fitting scales are rejected; uncorrelated space remains blank. The model supplies facts and identity links, not low-level CAD entities, private hatch assets or approval. Requires a blank millimetre drawing and at least one declared correlation. Returns a bounded native CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
+        description: 'Compile one editable A3 engineering geological section from 2–24 supplied boreholes with exact station, collar elevation, continuous depth intervals, optional measured water/sample/SPT observations, and explicit compatible interval/layer correlations or source-backed manual boundaries for continuity, pinchout and lens conditions. Set locale=zh-CN for a Chinese request so compiler-generated visible labels and notes are Chinese; if omitted, Chinese source text is detected automatically. Hole facts, station, elevations, depths and datum are metres; CAD page is millimetres. Version 1.0.0 uses the bundled versioned professional section layout and original redistributable semantic hatch patterns. Optional projectName and declared documentFacts populate the title block; missing facts remain blank and are never inferred. It does not infer unsupplied cross-hole continuity, water, observations or raw MDB/DWG provenance. Ambiguous, reverse, duplicate or incompatible correlations and non-fitting scales are rejected; uncorrelated space remains blank. The model supplies facts and identity links, not low-level CAD entities, private hatch assets or approval. Requires a blank millimetre drawing and at least one declared correlation or manual connection. Returns a bounded native CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
         inputSchema: geologySectionSchema
     },
     {
@@ -2882,6 +2917,7 @@ export class KJAgentToolSession {
                             };
                         } else if (name === 'cad_propose_geology_section') {
                             if (document.listEntities().length !== 0) throw new KJValidationError('Geology section requires a blank drawing; existing geometry is not replaced');
+                            if (!(Array.isArray(args.correlations) && args.correlations.length) && !(Array.isArray(args.manualConnections) && args.manualConnections.length)) throw new KJValidationError('Geology section requires at least one explicit correlation or manual connection');
                             const { version: _version, units: _units, documentFacts: suppliedDocumentFacts, ...intent } = args;
                             let documentFacts;
                             if (suppliedDocumentFacts !== undefined) {
