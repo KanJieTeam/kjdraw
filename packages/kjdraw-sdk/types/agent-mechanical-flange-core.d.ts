@@ -129,9 +129,16 @@ export type KJFlangeSideViewOutlineSegment = {
     radius: number;
     styleKey?: string;
 };
+/** One explicit, source-measured line family in a section pattern. */
+export interface KJFlangeHatchPatternLine {
+    angle: number;
+    base: Point2;
+    offset: Point2;
+    dashes?: number[];
+}
 /** A source-measured cut face in the side view. Boundary coordinates are
- *  relative to the projection axis; the pattern is generated, not copied
- *  from DXF tags or a private block definition. */
+ *  relative to the projection axis. Pattern geometry is represented as
+ *  bounded semantic line families, never as raw DXF tags. */
 export interface KJFlangeSectionHatch {
     edges: ({
         kind: 'line';
@@ -154,9 +161,16 @@ export interface KJFlangeSectionHatch {
         endAngle: number;
         counterClockwise?: boolean;
     })[];
-    lineAngle: number;
-    lineSpacing: number;
+    /** Solid fills do not accept pattern-line fields. */
+    solid?: boolean;
+    /** Defaults to SOLID for solid fills and ANSI31 for patterned fills. */
+    patternName?: string;
+    /** Legacy one-family shorthand retained for existing callers. */
+    lineAngle?: number;
+    lineSpacing?: number;
     patternOrigin?: Point2;
+    /** Exact bounded line families for patterns such as ANSI32. */
+    patternLines?: KJFlangeHatchPatternLine[];
     styleKey?: string;
 }
 /** Drawing-style roles are caller-supplied facts. The compiler never embeds
