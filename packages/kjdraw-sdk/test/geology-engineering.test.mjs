@@ -259,6 +259,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
       defaultTextStyle: { name: 'GEO-SYNTHETIC-TEXT', fontFamily: 'serif', fontFile: 'serif.ttf', bigFontFile: '',
         fixedHeight: 0, widthFactor: 1, obliqueAngleDegrees: 0, dxfFlags: 0, generationFlags: 0 },
       sampleMarkerStyle: { height: 1, gap: 0.5, baselineOffset: 0.5 },
+      sampleAnnotationStyle: { depthAnchor: 'observation-depth',
+        label: { offset: [3, 1.1], height: 2, textWidthFactor: 0.9, horizontalAlignment: 'center', verticalAlignment: 'middle' },
+        marker: { offset: [7, 1.1], height: 1, textWidthFactor: 0.95, horizontalAlignment: 'center', verticalAlignment: 'middle' } },
       groundwaterAnnotationStyle: { fieldRole: 'pattern', textHeight: 2, markerHeight: 2.5,
         textWidthFactor: 0.8, gap: 0.6, valueOffset: 3, markerOffset: 0, dateOffset: -3, guide: 'field-top-to-reading' },
       patternLabelStyle: { height: 1.5, textWidthFactor: 1, minimumBandHeight: 2 },
@@ -312,6 +315,11 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   for (const [value, height] of [['Q', 3], ['4', 1.5], ['ml', 1.5], ['3', 1.5], ['N', 3], ['al', 1.5]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} notation height ${height}`)
   assert.ok(texts.some(entity => entity.payload.text === '●' && entity.payload.height === 1), 'filled sample marker')
+  for (const [value, x, y, height, widthFactor] of [
+    ['S1', 148, 186.1, 2, 0.9], ['●', 152, 186.1, 1, 0.95],
+  ]) assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x &&
+    entity.payload.position[1] === y && entity.payload.height === height && entity.payload.widthFactor === widthFactor &&
+    entity.payload.horizontalAlignment === 1 && entity.payload.verticalAlignment === 2), `${value} uses its source-backed sample annotation placement`)
   for (const [value, height] of [['3.25', 2], ['120.20', 2], ['▼', 2.5], ['2026-01-04', 2]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} groundwater annotation`)
   assert.ok(texts.some(entity => entity.payload.text === 'SC' && entity.payload.height === 1.5 &&
@@ -369,7 +377,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     entity.payload.start[0] === 145 && entity.payload.end[0] === 145 &&
     Math.min(entity.payload.start[1], entity.payload.end[1]) === 5 && Math.max(entity.payload.start[1], entity.payload.end[1]) === 15),
   'declared footer internal divider survives KJD/DXF reopen')
-  for (const value of ['2.50', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18', 'D-7']) {
+  for (const value of ['2.50', 'Q', 'ml', 'S1', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18', 'D-7']) {
     assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `DXF ${value}`)
     assert.ok(reopenedKjd.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `KJD ${value}`)
   }
@@ -385,7 +393,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     const report = JSON.parse(independent.stdout)
     assert.deepEqual([report.errors, report.fixes], [0, 0])
     for (const x of [25, 55, 75, 105, 125, 145, 165]) assert.ok(report.xs.includes(x), `ezdxf header x=${x}`)
-    for (const value of ['2.50', '3.00', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18', 'D-7'])
+    for (const value of ['2.50', '3.00', 'Q', 'ml', 'S1', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18', 'D-7'])
       assert.ok(report.texts.includes(value), `ezdxf ${value}`)
     assert.deepEqual(report.record, [[180, 280, 3, 0.8, 2, 0, 0]])
     assert.deepEqual(report.outer, [[0.5, 5, 5, 285]])
@@ -431,6 +439,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const missingMarkerStyle = structuredClone(input)
   delete missingMarkerStyle.columnStylePack.rules['geology-column-layout'].sampleMarkerStyle
   assert.throws(() => compileGeologyColumn(missingMarkerStyle), /marker facts need a declared/u)
+  const incompleteSampleAnnotationStyle = structuredClone(input)
+  delete incompleteSampleAnnotationStyle.columnStylePack.rules['geology-column-layout'].sampleAnnotationStyle.marker
+  assert.throws(() => compileGeologyColumn(incompleteSampleAnnotationStyle), /exact declarative field-grid schema/u)
   const invalidMarker = structuredClone(input)
   invalidMarker.hole.observations[0].sampleMarker = 'triangle'
   assert.throws(() => compileGeologyColumn(invalidMarker), /must be a declared marker/u)

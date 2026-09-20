@@ -145,6 +145,14 @@ export interface KJGeologyFooterFactTextStyle {
   label: KJGeologyFieldHeaderTextPlacement
   value: KJGeologyFieldHeaderTextPlacement
 }
+/** Source-backed placement for a sampled point's visible label and marker.
+ * Offsets are millimetres from the sample field's lower-left at the selected
+ * measured depth anchor. */
+export interface KJGeologySampleAnnotationStyle {
+  depthAnchor: 'observation-depth' | 'range-top' | 'range-bottom'
+  label: KJGeologyFieldHeaderTextPlacement
+  marker: KJGeologyFieldHeaderTextPlacement
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,
@@ -234,7 +242,7 @@ const positive = (value: unknown, label: string): number => {
   if (result <= 0) throw new KJValidationError(`Geology: ${label} must be positive`)
   return result
 }
-const sourceTextPlacement = (raw: unknown, label: string): KJGeologyFieldHeaderTextPlacement => {
+const sourceTextPlacement = (raw: unknown, label: string, minimumHeight = 1.2): KJGeologyFieldHeaderTextPlacement => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
     Object.keys(raw).sort().join(',') !== 'height,horizontalAlignment,offset,textWidthFactor,verticalAlignment')
     throw new KJValidationError(`Geology: ${label} needs an exact source-backed placement schema`)
@@ -246,7 +254,7 @@ const sourceTextPlacement = (raw: unknown, label: string): KJGeologyFieldHeaderT
   const textWidthFactor = numeric(rule.textWidthFactor, `${label} width factor`)
   if (!['left', 'center', 'right'].includes(rule.horizontalAlignment as string) ||
     !['baseline', 'middle'].includes(rule.verticalAlignment as string) ||
-    height < 1.2 || height > 5 || textWidthFactor < 0.5 || textWidthFactor > 1.5)
+    height < minimumHeight || height > 5 || textWidthFactor < 0.5 || textWidthFactor > 1.5)
     throw new KJValidationError(`Geology: ${label} placement is unreadable`)
   return { offset, height, textWidthFactor,
     horizontalAlignment: rule.horizontalAlignment as KJGeologyFieldHeaderTextPlacement['horizontalAlignment'],
@@ -284,6 +292,7 @@ interface ColumnLayout {
   defaultTextStyle?: KJGeologyDefaultTextStyle
   stratigraphicNotationStyle?: { symbolHeight: number; qualifierHeight: number }
   sampleMarkerStyle?: { height: number; gap: number; baselineOffset: number }
+  sampleAnnotationStyle?: KJGeologySampleAnnotationStyle
   sampleRangeBaselineStyle?: KJGeologySampleRangeBaselineStyle
   groundwaterAnnotationStyle?: KJGeologyGroundwaterAnnotationStyle
   patternLabelStyle?: { height: number; textWidthFactor: number; minimumBandHeight: number }
@@ -391,7 +400,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'defaultTextStyle', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'sampleRangeBaselineStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'defaultTextStyle', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'sampleAnnotationStyle', 'sampleRangeBaselineStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -700,6 +709,23 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: sample marker style is unreadable')
     sampleMarkerStyle = { height, gap, baselineOffset }
   }
+  let sampleAnnotationStyle: ColumnLayout['sampleAnnotationStyle']
+  if (value.sampleAnnotationStyle != null) {
+    if (!isFieldGrid || !value.sampleAnnotationStyle || typeof value.sampleAnnotationStyle !== 'object' || Array.isArray(value.sampleAnnotationStyle) ||
+      Object.keys(value.sampleAnnotationStyle).sort().join(',') !== 'depthAnchor,label,marker')
+      throw new KJValidationError('Geology: sample annotation style needs an exact declarative field-grid schema')
+    const rule = value.sampleAnnotationStyle as Record<string, unknown>
+    if (!['observation-depth', 'range-top', 'range-bottom'].includes(rule.depthAnchor as string))
+      throw new KJValidationError('Geology: sample annotation depth anchor is unsupported')
+    const label = sourceTextPlacement(rule.label, 'sample annotation label')
+    const marker = sourceTextPlacement(rule.marker, 'sample annotation marker', 0.8)
+    const sampleIndex = fieldGrid!.findIndex(field => field.role === 'sample')
+    const sampleWidth = sampleIndex < 0 ? 0 : (fieldGrid![sampleIndex + 1]?.start ?? right) - fieldGrid![sampleIndex]!.start
+    if (sampleIndex < 0 || [label, marker].some(placement =>
+      placement.offset[0] < 0 || placement.offset[0] > sampleWidth || placement.offset[1] < -10 || placement.offset[1] > 10))
+      throw new KJValidationError('Geology: sample annotation placement is outside its physical lane')
+    sampleAnnotationStyle = { depthAnchor: rule.depthAnchor as KJGeologySampleAnnotationStyle['depthAnchor'], label, marker }
+  }
   let sampleRangeBaselineStyle: ColumnLayout['sampleRangeBaselineStyle']
   if (value.sampleRangeBaselineStyle != null) {
     if (!isFieldGrid || !value.sampleRangeBaselineStyle || typeof value.sampleRangeBaselineStyle !== 'object' || Array.isArray(value.sampleRangeBaselineStyle) ||
@@ -893,6 +919,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     ...(observationColumns ? { observationColumns } : {}), labels,
     ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}), ...(defaultTextStyle ? { defaultTextStyle } : {}),
     ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sampleMarkerStyle ? { sampleMarkerStyle } : {}),
+    ...(sampleAnnotationStyle ? { sampleAnnotationStyle } : {}),
     ...(sampleRangeBaselineStyle ? { sampleRangeBaselineStyle } : {}),
     ...(groundwaterAnnotationStyle ? { groundwaterAnnotationStyle } : {}), ...(patternLabelStyle ? { patternLabelStyle } : {}),
     ...(titleMarginFacts ? { titleMarginFacts } : {}),
@@ -1131,7 +1158,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
     headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights,
-    defaultTextStyle, stratigraphicNotationStyle, sampleMarkerStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology,
+    defaultTextStyle, stratigraphicNotationStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology,
     layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
     throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style')
@@ -1444,10 +1471,34 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       textBoxes.push({ role: item.role, left: x - (centered ? width / 2 : 0) - 0.25,
         right: x + (centered ? width / 2 : width) + 0.25, bottom: y - 0.25, top: y + height + 0.25 })
     }
-    const emitSampleText = (item: typeof fieldGrid[number], y: number, value: string,
+    const emitSampleText = (item: typeof fieldGrid[number], observation: KJGeologyObservation, value: string,
       marker: NonNullable<KJGeologyObservation['sampleMarker']>, height: number): void => {
       const style = sampleMarkerStyle!, factor = item.textWidthFactor ?? 1
       const glyph = marker === 'filled-circle' ? '●' : '○'
+      if (sampleAnnotationStyle) {
+        const anchorDepth = sampleAnnotationStyle.depthAnchor === 'observation-depth' ? observation.depth :
+          sampleAnnotationStyle.depthAnchor === 'range-top' ? observation.rangeTop : observation.rangeBottom
+        if (anchorDepth == null) throw new KJValidationError(`Geology: sample ${observation.id} lacks its declared annotation depth anchor`)
+        const anchorY = top - anchorDepth * scale
+        const emitPlaced = (text: string, placement: KJGeologyFieldHeaderTextPlacement): void => {
+          const textWidth = estimatedWidth(text, placement.height) * placement.textWidthFactor
+          const x = item.start + placement.offset[0], y = anchorY + placement.offset[1]
+          const left = placement.horizontalAlignment === 'left' ? x :
+            placement.horizontalAlignment === 'center' ? x - textWidth / 2 : x - textWidth
+          if (left < item.start + 0.2 || left + textWidth > gridEnd(item) - 0.2 || y < bottom || y > top)
+            throw new KJValidationError('Geology: sampled annotation does not fit its declared source lane')
+          const horizontalAlignment = placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2
+          const verticalAlignment = placement.verticalAlignment === 'baseline' ? 0 : 2
+          g.placedText(3, x, y, text, placement.height, placement.textWidthFactor, horizontalAlignment, verticalAlignment, 0)
+          const textBottom = placement.verticalAlignment === 'middle' ? y - placement.height / 2 : y
+          textBoxes.push({ role: item.role, left: left - 0.25, right: left + textWidth + 0.25,
+            bottom: textBottom - 0.25, top: textBottom + placement.height + 0.25 })
+        }
+        emitPlaced(value, sampleAnnotationStyle.label)
+        emitPlaced(glyph, sampleAnnotationStyle.marker)
+        return
+      }
+      const y = top - observation.depth * scale
       const labelWidth = estimatedWidth(value, height) * factor
       const markerWidth = estimatedWidth(glyph, style.height) * factor
       const width = labelWidth + style.gap + markerWidth
@@ -1696,7 +1747,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         if (value != null) {
           const height = textHeights?.observation ?? 1.5
           if (cell.role === 'sample' && item.kind === 'sample' && item.sampleMarker)
-            emitSampleText(cell, y, value, item.sampleMarker, height)
+            emitSampleText(cell, item, value, item.sampleMarker, height)
           else emitFieldText(cell, y, value, height)
         }
         if (cell.role === 'sample' && item.kind === 'sample' && item.rangeTop != null && item.rangeBottom != null) {

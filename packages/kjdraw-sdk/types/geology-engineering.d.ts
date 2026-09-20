@@ -146,6 +146,14 @@ export interface KJGeologyFooterFactTextStyle {
     label: KJGeologyFieldHeaderTextPlacement;
     value: KJGeologyFieldHeaderTextPlacement;
 }
+/** Source-backed placement for a sampled point's visible label and marker.
+ * Offsets are millimetres from the sample field's lower-left at the selected
+ * measured depth anchor. */
+export interface KJGeologySampleAnnotationStyle {
+    depthAnchor: 'observation-depth' | 'range-top' | 'range-bottom';
+    label: KJGeologyFieldHeaderTextPlacement;
+    marker: KJGeologyFieldHeaderTextPlacement;
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,

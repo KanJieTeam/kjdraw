@@ -34,7 +34,7 @@ const positive = (value, label)=>{
     if (result <= 0) throw new KJValidationError(`Geology: ${label} must be positive`);
     return result;
 };
-const sourceTextPlacement = (raw, label)=>{
+const sourceTextPlacement = (raw, label, minimumHeight = 1.2)=>{
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'height,horizontalAlignment,offset,textWidthFactor,verticalAlignment') throw new KJValidationError(`Geology: ${label} needs an exact source-backed placement schema`);
     const rule = raw;
     if (!Array.isArray(rule.offset) || rule.offset.length !== 2) throw new KJValidationError(`Geology: ${label} offset must contain two millimetre coordinates`);
@@ -48,7 +48,7 @@ const sourceTextPlacement = (raw, label)=>{
     ].includes(rule.horizontalAlignment) || ![
         'baseline',
         'middle'
-    ].includes(rule.verticalAlignment) || height < 1.2 || height > 5 || textWidthFactor < 0.5 || textWidthFactor > 1.5) throw new KJValidationError(`Geology: ${label} placement is unreadable`);
+    ].includes(rule.verticalAlignment) || height < minimumHeight || height > 5 || textWidthFactor < 0.5 || textWidthFactor > 1.5) throw new KJValidationError(`Geology: ${label} placement is unreadable`);
     return {
         offset,
         height,
@@ -286,6 +286,7 @@ function columnLayout(input) {
             'defaultTextStyle',
             'stratigraphicNotationStyle',
             'sampleMarkerStyle',
+            'sampleAnnotationStyle',
             'sampleRangeBaselineStyle',
             'groundwaterAnnotationStyle',
             'patternLabelStyle',
@@ -752,6 +753,29 @@ function columnLayout(input) {
             baselineOffset
         };
     }
+    let sampleAnnotationStyle;
+    if (value.sampleAnnotationStyle != null) {
+        if (!isFieldGrid || !value.sampleAnnotationStyle || typeof value.sampleAnnotationStyle !== 'object' || Array.isArray(value.sampleAnnotationStyle) || Object.keys(value.sampleAnnotationStyle).sort().join(',') !== 'depthAnchor,label,marker') throw new KJValidationError('Geology: sample annotation style needs an exact declarative field-grid schema');
+        const rule = value.sampleAnnotationStyle;
+        if (![
+            'observation-depth',
+            'range-top',
+            'range-bottom'
+        ].includes(rule.depthAnchor)) throw new KJValidationError('Geology: sample annotation depth anchor is unsupported');
+        const label = sourceTextPlacement(rule.label, 'sample annotation label');
+        const marker = sourceTextPlacement(rule.marker, 'sample annotation marker', 0.8);
+        const sampleIndex = fieldGrid.findIndex((field)=>field.role === 'sample');
+        const sampleWidth = sampleIndex < 0 ? 0 : (fieldGrid[sampleIndex + 1]?.start ?? right) - fieldGrid[sampleIndex].start;
+        if (sampleIndex < 0 || [
+            label,
+            marker
+        ].some((placement)=>placement.offset[0] < 0 || placement.offset[0] > sampleWidth || placement.offset[1] < -10 || placement.offset[1] > 10)) throw new KJValidationError('Geology: sample annotation placement is outside its physical lane');
+        sampleAnnotationStyle = {
+            depthAnchor: rule.depthAnchor,
+            label,
+            marker
+        };
+    }
     let sampleRangeBaselineStyle;
     if (value.sampleRangeBaselineStyle != null) {
         if (!isFieldGrid || !value.sampleRangeBaselineStyle || typeof value.sampleRangeBaselineStyle !== 'object' || Array.isArray(value.sampleRangeBaselineStyle) || Object.keys(value.sampleRangeBaselineStyle).sort().join(',') !== 'boundaries,continuity,insetMm') throw new KJValidationError('Geology: sample range baselines need an exact declarative field-grid schema');
@@ -1010,6 +1034,9 @@ function columnLayout(input) {
         } : {},
         ...sampleMarkerStyle ? {
             sampleMarkerStyle
+        } : {},
+        ...sampleAnnotationStyle ? {
+            sampleAnnotationStyle
         } : {},
         ...sampleRangeBaselineStyle ? {
             sampleRangeBaselineStyle
@@ -1487,7 +1514,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
 export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
-    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, defaultTextStyle, stratigraphicNotationStyle, sampleMarkerStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
+    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, defaultTextStyle, stratigraphicNotationStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
     if (strata.some((layer)=>layer.stratigraphicNotation != null) && !stratigraphicNotationStyle) throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style');
     if (strata.some((layer)=>layer.bottomBoundaryLineVisibility != null) && !fieldGrid) throw new KJValidationError('Geology: bottom boundary line visibility needs a declared physical field grid');
     const documentFacts = documentFactRecord(input.documentFacts);
@@ -1888,9 +1915,35 @@ export function compileGeologyColumn(input) {
                 top: y + height + 0.25
             });
         };
-        const emitSampleText = (item, y, value, marker, height)=>{
+        const emitSampleText = (item, observation, value, marker, height)=>{
             const style = sampleMarkerStyle, factor = item.textWidthFactor ?? 1;
             const glyph = marker === 'filled-circle' ? '●' : '○';
+            if (sampleAnnotationStyle) {
+                const anchorDepth = sampleAnnotationStyle.depthAnchor === 'observation-depth' ? observation.depth : sampleAnnotationStyle.depthAnchor === 'range-top' ? observation.rangeTop : observation.rangeBottom;
+                if (anchorDepth == null) throw new KJValidationError(`Geology: sample ${observation.id} lacks its declared annotation depth anchor`);
+                const anchorY = top - anchorDepth * scale;
+                const emitPlaced = (text, placement)=>{
+                    const textWidth = estimatedWidth(text, placement.height) * placement.textWidthFactor;
+                    const x = item.start + placement.offset[0], y = anchorY + placement.offset[1];
+                    const left = placement.horizontalAlignment === 'left' ? x : placement.horizontalAlignment === 'center' ? x - textWidth / 2 : x - textWidth;
+                    if (left < item.start + 0.2 || left + textWidth > gridEnd(item) - 0.2 || y < bottom || y > top) throw new KJValidationError('Geology: sampled annotation does not fit its declared source lane');
+                    const horizontalAlignment = placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2;
+                    const verticalAlignment = placement.verticalAlignment === 'baseline' ? 0 : 2;
+                    g.placedText(3, x, y, text, placement.height, placement.textWidthFactor, horizontalAlignment, verticalAlignment, 0);
+                    const textBottom = placement.verticalAlignment === 'middle' ? y - placement.height / 2 : y;
+                    textBoxes.push({
+                        role: item.role,
+                        left: left - 0.25,
+                        right: left + textWidth + 0.25,
+                        bottom: textBottom - 0.25,
+                        top: textBottom + placement.height + 0.25
+                    });
+                };
+                emitPlaced(value, sampleAnnotationStyle.label);
+                emitPlaced(glyph, sampleAnnotationStyle.marker);
+                return;
+            }
+            const y = top - observation.depth * scale;
             const labelWidth = estimatedWidth(value, height) * factor;
             const markerWidth = estimatedWidth(glyph, style.height) * factor;
             const width = labelWidth + style.gap + markerWidth;
@@ -2260,7 +2313,7 @@ export function compileGeologyColumn(input) {
                 if (cell.role === 'measurement' && item.kind === 'sample' && Object.hasOwn(item.measurements ?? {}, cell.key)) value = item.measurements[cell.key].toFixed(cell.decimals ?? 2);
                 if (value != null) {
                     const height = textHeights?.observation ?? 1.5;
-                    if (cell.role === 'sample' && item.kind === 'sample' && item.sampleMarker) emitSampleText(cell, y, value, item.sampleMarker, height);
+                    if (cell.role === 'sample' && item.kind === 'sample' && item.sampleMarker) emitSampleText(cell, item, value, item.sampleMarker, height);
                     else emitFieldText(cell, y, value, height);
                 }
                 if (cell.role === 'sample' && item.kind === 'sample' && item.rangeTop != null && item.rangeBottom != null) {
