@@ -237,6 +237,8 @@ export interface KJGeologyDescriptionTextStyle {
     fieldRole: 'description';
     anchor: 'declared-major-group-boundary';
     height: number;
+    /** Optional source-declared MTEXT paragraph width in physical millimetres. */
+    width?: number;
 }
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is

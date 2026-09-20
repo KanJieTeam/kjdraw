@@ -1143,14 +1143,24 @@ function columnLayout(input) {
     }
     let descriptionTextStyle;
     if (value.descriptionTextStyle != null) {
-        if (!isFieldGrid || !value.descriptionTextStyle || typeof value.descriptionTextStyle !== 'object' || Array.isArray(value.descriptionTextStyle) || Object.keys(value.descriptionTextStyle).sort().join(',') !== 'anchor,fieldRole,height') throw new KJValidationError('Geology: description text style needs an exact declarative field-grid schema');
+        if (!isFieldGrid || !value.descriptionTextStyle || typeof value.descriptionTextStyle !== 'object' || Array.isArray(value.descriptionTextStyle) || ![
+            'anchor,fieldRole,height',
+            'anchor,fieldRole,height,width'
+        ].includes(Object.keys(value.descriptionTextStyle).sort().join(','))) throw new KJValidationError('Geology: description text style needs an exact declarative field-grid schema');
         const rule = value.descriptionTextStyle;
         const height = numeric(rule.height, 'description text height');
         if (rule.fieldRole !== 'description' || rule.anchor !== 'declared-major-group-boundary' || height < 1.5 || height > 5) throw new KJValidationError('Geology: description text style needs the description field and declared group boundary anchors');
+        const width = rule.width == null ? undefined : numeric(rule.width, 'description text width');
+        const descriptionIndex = fieldGrid.findIndex((field)=>field.role === 'description');
+        const descriptionWidth = descriptionIndex < 0 ? 0 : (fieldGrid[descriptionIndex + 1]?.start ?? right) - fieldGrid[descriptionIndex].start;
+        if (width != null && (width < height * 2 || width > descriptionWidth)) throw new KJValidationError('Geology: description text width is outside its physical field');
         descriptionTextStyle = {
             fieldRole: 'description',
             anchor: 'declared-major-group-boundary',
-            height
+            height,
+            ...width == null ? {} : {
+                width
+            }
         };
     }
     let descriptionBoundaryStyle;
@@ -2434,7 +2444,7 @@ export function compileGeologyColumn(input) {
         const firstGroupBottom = grouped ? groups[0].bottom : strata[0].bottom;
         const nextGroupBottom = grouped ? groups[1]?.bottom : strata[1]?.bottom;
         const writeGridDescription = (description, yTop, yBottom, coreIndex, identity, placement)=>{
-            const width = descriptionRight - descriptionX - 4;
+            const width = descriptionTextStyle?.width ?? descriptionRight - descriptionX - 4;
             if (descriptionTextStyle) {
                 if (!placement) throw new KJValidationError(`Geology: ${identity} lacks its declared description boundary placement`);
                 const boundaryY = placement.boundaryRole === 'top' ? yTop : placement.boundaryRole === 'bottom' ? yBottom : (yTop + yBottom) / 2;
