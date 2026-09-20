@@ -212,8 +212,10 @@ test('versioned header grid uses only present borehole facts and keeps a deep-lo
 test('source-backed physical header cells preserve unequal real-form lanes and separate initial from stable water', async t => {
   const fieldGrid = [
     { start: 5, role: 'layerNumber', label: 'No' }, { start: 15, role: 'layerName', label: 'Name' },
-    { start: 33, role: 'baseElevation', label: 'Base' }, { start: 45, role: 'thickness', label: 'Thick' },
-    { start: 55, role: 'depth', label: 'Depth' }, { start: 65, role: 'pattern', label: 'Pattern' },
+    { start: 33, role: 'baseElevation', label: 'Base', textWidthFactor: 0.7 },
+    { start: 45, role: 'thickness', label: 'Thick', textWidthFactor: 0.7 },
+    { start: 55, role: 'depth', label: 'Depth', textWidthFactor: 0.7 },
+    { start: 65, role: 'pattern', label: 'Pattern', subLabel: '1:{verticalScale}' },
     { start: 85, role: 'description', label: 'Description' }, { start: 145, role: 'sample', label: 'Sample' },
     { start: 165, role: 'spt', label: 'SPT' },
   ]
@@ -237,16 +239,22 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     ontology: { objectKinds: ['borehole-log'], relationKinds: [] }, rules: { 'geology-column-layout': {
       paperWidth: 190, paperHeight: 290, left: 5, right: 185, headerDepth: 45, headerRowHeight: 5,
       fieldHeaderHeight: 10, footerReserve: 15, titleHeight: 10, verticalScaleDenominators: [100],
-      fieldGrid, headerGrid: { rows: physicalRows }, legendMode: 'none',
+      fieldGrid, headerGrid: { rows: physicalRows }, legendMode: 'none', textHeights: {
+        headerFact: 3, fieldHeader: 3, fieldSubHeader: 2.5, majorValue: 3, intervalDepth: 2.5, observation: 2,
+      },
     } } })
-  const source = { ...hole('PHYS-1', 0, 123.45, [1, 4, 18]), x: 123456.78, y: 654321.09,
+  const source = { ...hole('PHYS-1', 0, 123.45, [0.6, 4, 18]), x: 123456.78, y: 654321.09,
     startDate: '2026-01-02', endDate: '2026-01-03', initialWaterDepth: 2.5, stableWaterDepth: 3 }
+  source.strata[0].name = 'Fill'; source.strata[1].name = 'Clay'; source.strata[2].name = 'Sand'
+  source.observations = [{ kind: 'sample', id: 'S1', depth: 5 }]
   const input = { hole: source, projectName: 'Project A', documentFacts: { projectCode: 'P-18' },
     verticalScaleDenominator: 100, expectedRevision: 0, columnStylePack: style }
   const compiled = compileGeologyColumn(input)
   const texts = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT')
   for (const [value, x] of [['P-18', 127], ['PHYS-1', 167], ['2.50', 127], ['3.00', 167]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x), `${value} at ${x}`)
+  for (const [value, height] of [['Project', 3], ['Pattern', 3], ['1:100', 2.5], ['Fill', 3], ['0.60', 2.5], ['S1', 2]])
+    assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} height ${height}`)
   const headerBottom = 245, headerTop = 260
   const vertical = compiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
     entity.payload.start[0] === entity.payload.end[0] && entity.payload.start[1] >= headerBottom && entity.payload.end[1] <= headerTop)
@@ -277,6 +285,12 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const outside = structuredClone(input)
   outside.hole.initialWaterDepth = 19
   assert.throws(() => compileGeologyColumn(outside), /initial groundwater depth is outside/u)
+  const incompleteTextHeights = structuredClone(input)
+  delete incompleteTextHeights.columnStylePack.rules['geology-column-layout'].textHeights.observation
+  assert.throws(() => compileGeologyColumn(incompleteTextHeights), /exact versioned schema/u)
+  const oversizedText = structuredClone(input)
+  oversizedText.columnStylePack.rules['geology-column-layout'].textHeights.headerFact = 5
+  assert.throws(() => compileGeologyColumn(oversizedText), /do not fit the declared rows/u)
 })
 
 test('bundled Chinese column header renders the selected physical vertical scale as visible native text', () => {

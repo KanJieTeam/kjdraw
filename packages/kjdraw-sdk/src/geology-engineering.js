@@ -259,6 +259,7 @@ function columnLayout(input) {
             'layerNumberStyle',
             'titleHeight',
             'textFlow',
+            'textHeights',
             'verticalScaleDenominators',
             'sourceTemplate'
         ].includes(key)) || expectedKeys.some((key)=>!keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns');
@@ -508,6 +509,28 @@ function columnLayout(input) {
             paragraphGapMm
         };
     }
+    let textHeights;
+    if (value.textHeights != null) {
+        if (!isFieldGrid || !value.textHeights || typeof value.textHeights !== 'object' || Array.isArray(value.textHeights)) throw new KJValidationError('Geology: role text heights require a declarative field grid');
+        const rule = value.textHeights;
+        const roles = [
+            'headerFact',
+            'fieldHeader',
+            'fieldSubHeader',
+            'majorValue',
+            'intervalDepth',
+            'observation'
+        ];
+        if (Object.keys(rule).sort().join(',') !== [
+            ...roles
+        ].sort().join(',')) throw new KJValidationError('Geology: role text heights need an exact versioned schema');
+        const parsedTextHeights = Object.fromEntries(roles.map((role)=>[
+                role,
+                numeric(rule[role], `${role} text height`)
+            ]));
+        if (Object.values(parsedTextHeights).some((height)=>height < 1.2 || height > 5) || parsedTextHeights.headerFact > headerRowHeight - 1 || parsedTextHeights.fieldHeader + parsedTextHeights.fieldSubHeader + 0.8 > fieldHeaderHeight) throw new KJValidationError('Geology: role text heights do not fit the declared rows');
+        textHeights = parsedTextHeights;
+    }
     let verticalScaleDenominators = [
         ...defaultColumnVerticalScales
     ];
@@ -584,6 +607,9 @@ function columnLayout(input) {
         } : {},
         ...textFlow ? {
             textFlow
+        } : {},
+        ...textHeights ? {
+            textHeights
         } : {},
         ...sourceTemplate ? {
             sourceTemplate
@@ -939,7 +965,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
 export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
-    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, layerNumberStyle, sourceTemplate } = layout;
+    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, layerNumberStyle, sourceTemplate } = layout;
     const documentFacts = documentFactRecord(input.documentFacts);
     const declaredDocumentFactKeys = new Set([
         ...headerGrid?.rows.flat().filter((cell)=>cell.role === 'documentFact').map((cell)=>cell.key) ?? [],
@@ -1086,12 +1112,13 @@ export function compileGeologyColumn(input) {
                 const value = cell.role === 'documentFact' ? documentFacts[cell.key] : facts[cell.role];
                 if (value == null && !cell.optional) throw new KJValidationError(`Geology: declared header fact ${identity} is missing; refusing to invent a value`);
                 const visibleValue = value ?? '';
+                const headerFactHeight = textHeights?.headerFact ?? 2.2;
                 const estimated = (text)=>[
                         ...text
-                    ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? 1.15 : 2.1), 0);
+                    ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? headerFactHeight * 0.52 : headerFactHeight * 0.95), 0);
                 if (estimated(cell.label) > valueX - cellLeft - 3 || estimated(visibleValue) > cellLeft + width - valueX - 3) throw new KJValidationError(`Geology: header fact ${identity} does not fit the declared cell`);
-                g.text(3, cellLeft + 2, rowTop - rowHeight * 0.69, cell.label, 2.2);
-                if (visibleValue) g.text(3, valueX + 2, rowTop - rowHeight * 0.69, visibleValue, 2.2);
+                g.text(3, cellLeft + 2, rowTop - rowHeight * 0.69, cell.label, headerFactHeight);
+                if (visibleValue) g.text(3, valueX + 2, rowTop - rowHeight * 0.69, visibleValue, headerFactHeight);
             }
         }
     } else {
@@ -1250,9 +1277,9 @@ export function compileGeologyColumn(input) {
             const centerX = item.start + fieldWidth(item) / 2;
             if (item.subLabel) {
                 const subLabel = item.subLabel.replaceAll('{verticalScale}', scaleDenominator(verticalScaleDenominator));
-                g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.42, item.label, 1.8, true, item.textWidthFactor);
-                g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.78, subLabel, 1.6, true, item.textWidthFactor);
-            } else g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.62, item.label, 1.8, true, item.textWidthFactor);
+                g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.42, item.label, textHeights?.fieldHeader ?? 1.8, true, item.textWidthFactor);
+                g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.78, subLabel, textHeights?.fieldSubHeader ?? 1.6, true, item.textWidthFactor);
+            } else g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.62, item.label, textHeights?.fieldHeader ?? 1.8, true, item.textWidthFactor);
         }
         g.line(0, left, top, right, top);
         const patternField = field('pattern'), depthField = field('depth');
@@ -1261,7 +1288,8 @@ export function compileGeologyColumn(input) {
             const coreIndex = renderedCoreCount++;
             const mid = (yTop + yBottom) / 2;
             let labelY = yTop - Math.max(1.8, (yTop - yBottom) / 2);
-            let labelHeight = 2.1;
+            let labelHeight = textHeights?.majorValue ?? 2.1;
+            if (textHeights) labelY = Math.min(labelY, yTop - labelHeight - 0.2);
             if (textFlow && coreIndex < 2) {
                 labelHeight = textFlow.labelHeightMm;
                 labelY = Math.min(yTop - textFlow.firstBaselineMm, previousLabelY == null ? yTop - textFlow.firstBaselineMm : previousLabelY - textFlow.labelPitchMm);
@@ -1336,7 +1364,9 @@ export function compileGeologyColumn(input) {
             ], layer);
             const depthY = depthLabelY.get(layer) ?? yBottom + 0.4;
             if (Math.abs(depthY - (yBottom + 0.4)) > 0.6) g.line(1, gridEnd(depthField) - 5, yBottom, gridEnd(depthField) - 1, depthY);
-            emitFieldText(depthField, depthY, metres(layer.bottom), grouped ? 1.5 : Math.min(2.1, (yTop - yBottom) * 0.55));
+            const intervalDepthHeight = textHeights?.intervalDepth ?? (grouped ? 1.5 : Math.min(2.1, (yTop - yBottom) * 0.55));
+            if (textHeights && intervalDepthHeight > yTop - yBottom - 0.4) throw new KJValidationError(`Geology: layer ${layer.code} depth text does not fit its declared band`);
+            emitFieldText(depthField, depthY, metres(layer.bottom), intervalDepthHeight);
             if (!grouped) writeCore(layer.code, layer.top, layer.bottom, layer);
         }
         if (grouped) for (const group of groups)writeCore(group.id, group.top, group.bottom, group.principal);
@@ -1351,12 +1381,12 @@ export function compileGeologyColumn(input) {
                     value = item.displayLabel ?? `N=${Number.isInteger(shown) ? shown.toString() : metres(shown)}`;
                 }
                 if (cell.role === 'measurement' && item.kind === 'sample' && Object.hasOwn(item.measurements ?? {}, cell.key)) value = item.measurements[cell.key].toFixed(cell.decimals ?? 2);
-                if (value != null) emitFieldText(cell, y, value, 1.5);
+                if (value != null) emitFieldText(cell, y, value, textHeights?.observation ?? 1.5);
                 if (cell.role === 'sample' && item.kind === 'sample' && item.rangeTop != null && item.rangeBottom != null) {
                     const rangeTopY = top - item.rangeTop * scale, rangeBottomY = top - item.rangeBottom * scale;
                     const rangeTextY = rangeBottomY - 2.2, rangeText = `${metres(item.rangeTop)}–${metres(item.rangeBottom)}`;
                     if (rangeTextY < bottom + 0.4 || textBoxes.some((box)=>box.role === 'sample' && rangeTextY - 0.25 <= box.top && rangeTextY + 1.75 >= box.bottom)) throw new KJValidationError(`Geology: sampled range ${item.id} cannot be labelled without colliding in its source lane`);
-                    emitFieldText(cell, rangeTextY, rangeText, 1.5);
+                    emitFieldText(cell, rangeTextY, rangeText, textHeights?.observation ?? 1.5);
                     bandLines.push({
                         x1: cell.start,
                         x2: gridEnd(cell),
