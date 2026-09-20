@@ -674,6 +674,37 @@ test('auxiliary curve budget accepts 512 mixed native curves and atomically reje
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves: [...auxiliaryCurves, auxiliaryCurves[0]] }), /512-curve budget/u)
   assert.equal(document.serialize(), before)
 })
+
+test('auxiliary arcs accept stable finite positive native-unit radii and reject invalid bounds atomically', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const radii = [1e-9, 0.01893297888, 100_000]
+  const auxiliaryCurves = radii.map((radius, index) => ({ kind: 'arc', center: [20 + index * 10, 80], radius, startAngle: 0, endAngle: Math.PI / 2, role: 'geometry' }))
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves })
+  assert.equal(proposal.evidence.parameters.auxiliaryArcRadiusMinimum, 1e-9)
+  assert.deepEqual(proposal.commandArgs.entities.filter(entity => entity.type === 'ARC').slice(-3).map(entity => entity.payload.radius), radii)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const [kjd, dxf] = await Promise.all([
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
+    sdk.readDocument(dxfText, { format: 'DXF' }),
+  ])
+  for (const reopened of [kjd, dxf]) for (const radius of radii) assert.ok(reopened.listEntities({ type: 'ARC' }).some(entity => Math.abs(entity.payload.radius - radius) <= Math.max(1e-15, radius * 1e-12)))
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); r=sorted(float(e.dxf.radius) for e in d.modelspace().query("ARC")); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"minimum":r[0],"maximum":r[-1]}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || independent.status !== 0 && /No module named ['"]ezdxf/u.test(independent.stderr ?? '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr ?? independent.error?.message)
+    t.skip('official ezdxf is not installed'); return
+  }
+  assert.equal(independent.status, 0, independent.stderr)
+  assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, minimum: 1e-9, maximum: 100_000 })
+  const before = document.serialize(), withRadius = radius => ({ ...input(document.revision), auxiliaryCurves: [{ kind: 'arc', center: [20, 80], radius, startAngle: 0, endAngle: 1, role: 'geometry' }] })
+  for (const radius of [0, -1e-9, Number.NaN, Number.POSITIVE_INFINITY, 100_000.000_001]) {
+    assert.throws(() => buildAgentMechanicalFlangeCore(document, withRadius(radius)), /radius must be finite from 1e-9 to 100000/u)
+    assert.equal(document.serialize(), before)
+  }
+})
+
 test('generic local symbols compile as editable native blocks without source block metadata', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const symbols = { definitions: [{ key: 'local-callout', basePoint: [0, 0], members: [
