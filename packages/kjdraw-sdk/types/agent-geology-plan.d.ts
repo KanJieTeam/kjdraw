@@ -22,6 +22,16 @@ export interface KJGeologyPlanCoordinateGrid {
     origin: Point2;
     spacing: number;
 }
+export interface KJGeologyPlanCoordinateCallout {
+    id: string;
+    point: Point2;
+    elbow: Point2;
+    landingEnd: Point2;
+    xLabelPosition: Point2;
+    yLabelPosition: Point2;
+    precision?: number;
+    textHeight?: number;
+}
 export interface KJGeologyPlanBuildingFootprint {
     id: string;
     outline: Point2[];
@@ -53,7 +63,8 @@ export interface KJAgentGeologyPlanInput {
     boundary: Point2[];
     boreholes: KJGeologyPlanBorehole[];
     sectionLines: KJGeologyPlanSectionLine[];
-    coordinateGrid: KJGeologyPlanCoordinateGrid;
+    coordinateGrid?: KJGeologyPlanCoordinateGrid;
+    coordinateCallouts?: KJGeologyPlanCoordinateCallout[];
     buildingFootprints?: KJGeologyPlanBuildingFootprint[];
     roadPaths?: KJGeologyPlanRoadPath[];
     northAngleDegrees?: number;
@@ -107,6 +118,12 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
                 color: 8;
                 linetypeId: string;
                 lineweight: 13;
+                name: string;
+            } | {
+                id: `${string}-layer-coordinates`;
+                color: 2;
+                linetypeId: string;
+                lineweight: 18;
                 name: string;
             } | {
                 id: `${string}-layer-points`;
@@ -202,6 +219,8 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
             segmentCount: number | undefined;
         }[];
         gridLineCount: number;
+        coordinateCalloutCount: number;
+        coordinateConvention: 'engineering X=northing, Y=easting';
         coordinateBounds: {
             minimum: Point2;
             maximum: Point2;

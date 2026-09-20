@@ -30,6 +30,17 @@ export interface KJGeologyPlanCoordinateGrid {
   spacing: number
 }
 
+export interface KJGeologyPlanCoordinateCallout {
+  id: string
+  point: Point2
+  elbow: Point2
+  landingEnd: Point2
+  xLabelPosition: Point2
+  yLabelPosition: Point2
+  precision?: number
+  textHeight?: number
+}
+
 export interface KJGeologyPlanBuildingFootprint {
   id: string
   outline: Point2[]
@@ -58,7 +69,8 @@ export interface KJAgentGeologyPlanInput {
   boundary: Point2[]
   boreholes: KJGeologyPlanBorehole[]
   sectionLines: KJGeologyPlanSectionLine[]
-  coordinateGrid: KJGeologyPlanCoordinateGrid
+  coordinateGrid?: KJGeologyPlanCoordinateGrid
+  coordinateCallouts?: KJGeologyPlanCoordinateCallout[]
   buildingFootprints?: KJGeologyPlanBuildingFootprint[]
   roadPaths?: KJGeologyPlanRoadPath[]
   northAngleDegrees?: number
@@ -72,10 +84,11 @@ interface GeologyPlanDocument {
 
 type EntitySpec = { type: string; payload: Record<string, unknown>; options: { id: string } }
 
-const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'buildingFootprints', 'roadPaths', 'northAngleDegrees']
+const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'coordinateCallouts', 'buildingFootprints', 'roadPaths', 'northAngleDegrees']
 const BOREHOLE_KEYS = ['id', 'position', 'collarElevation', 'depth', 'kind']
 const SECTION_KEYS = ['id', 'holeIds', 'label', 'endpointLabels', 'markerClearance', 'endpointTailLengths', 'endpointLabelPositions']
 const GRID_KEYS = ['origin', 'spacing']
+const COORDINATE_CALLOUT_KEYS = ['id', 'point', 'elbow', 'landingEnd', 'xLabelPosition', 'yLabelPosition', 'precision', 'textHeight']
 const BUILDING_KEYS = ['id', 'outline']
 const ROAD_PATH_KEYS = ['id', 'start', 'segments', 'closed']
 const ROAD_LINE_KEYS = ['kind', 'end']
@@ -198,10 +211,10 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
   const boundary = input.boundary.map((value, index) => point(value, `input.boundary[${index}]`)); validatePolygon(boundary)
   const boundaryMinimum: Point2 = [Math.min(...boundary.map(value => value[0])), Math.min(...boundary.map(value => value[1]))]
   const boundaryMaximum: Point2 = [Math.max(...boundary.map(value => value[0])), Math.max(...boundary.map(value => value[1]))]
-  const roadViewportCenter: Point2 = [(boundaryMinimum[0] + boundaryMaximum[0]) / 2, (boundaryMinimum[1] + boundaryMaximum[1]) / 2]
-  const roadViewportWidth = 390 * scale / 1000, roadViewportHeight = 250 * scale / 1000
-  const insideRoadViewport = (value: Point2) => value[0] >= roadViewportCenter[0] - roadViewportWidth / 2 - EPSILON && value[0] <= roadViewportCenter[0] + roadViewportWidth / 2 + EPSILON
-    && value[1] >= roadViewportCenter[1] - roadViewportHeight / 2 - EPSILON && value[1] <= roadViewportCenter[1] + roadViewportHeight / 2 + EPSILON
+  const modelViewportCenter: Point2 = [(boundaryMinimum[0] + boundaryMaximum[0]) / 2, (boundaryMinimum[1] + boundaryMaximum[1]) / 2]
+  const modelViewportWidth = 390 * scale / 1000, modelViewportHeight = 250 * scale / 1000
+  const insideModelViewport = (value: Point2) => value[0] >= modelViewportCenter[0] - modelViewportWidth / 2 - EPSILON && value[0] <= modelViewportCenter[0] + modelViewportWidth / 2 + EPSILON
+    && value[1] >= modelViewportCenter[1] - modelViewportHeight / 2 - EPSILON && value[1] <= modelViewportCenter[1] + modelViewportHeight / 2 + EPSILON
   if (!Array.isArray(input.boreholes) || input.boreholes.length < 2 || input.boreholes.length > 128) throw new KJValidationError('input.boreholes must contain 2-128 points')
   const boreholes = input.boreholes.map((raw, index) => {
     const value = plain(raw, `input.boreholes[${index}]`); exactKeys(value, BOREHOLE_KEYS, `input.boreholes[${index}]`)
@@ -250,8 +263,38 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
     }
     return { id, holeIds, label: text(value.label, `input.sectionLines[${index}].label`, 48), endpointLabels, markerClearance, endpointTailLengths, endpointLabelPositions }
   })
-  const grid = plain(input.coordinateGrid, 'input.coordinateGrid'); exactKeys(grid, GRID_KEYS, 'input.coordinateGrid')
-  const coordinateGrid = { origin: point(grid.origin, 'input.coordinateGrid.origin'), spacing: finite(grid.spacing, 'input.coordinateGrid.spacing', 0.1, 1_000_000) }
+  let coordinateGrid: KJGeologyPlanCoordinateGrid | undefined
+  if (input.coordinateGrid !== undefined) {
+    const grid = plain(input.coordinateGrid, 'input.coordinateGrid'); exactKeys(grid, GRID_KEYS, 'input.coordinateGrid')
+    coordinateGrid = { origin: point(grid.origin, 'input.coordinateGrid.origin'), spacing: finite(grid.spacing, 'input.coordinateGrid.spacing', 0.1, 1_000_000) }
+  }
+  if (input.coordinateCallouts !== undefined && (!Array.isArray(input.coordinateCallouts) || input.coordinateCallouts.length > 64))
+    throw new KJValidationError('input.coordinateCallouts must contain at most 64 supplied callouts')
+  const coordinateCalloutIds = new Set<string>()
+  const coordinateCallouts = (input.coordinateCallouts ?? []).map((raw, index) => {
+    const value = plain(raw, `input.coordinateCallouts[${index}]`); exactKeys(value, COORDINATE_CALLOUT_KEYS, `input.coordinateCallouts[${index}]`)
+    const id = text(value.id, `input.coordinateCallouts[${index}].id`, 40)
+    if (coordinateCalloutIds.has(id)) throw new KJValidationError(`input.coordinateCallouts contains duplicate id ${id}`)
+    coordinateCalloutIds.add(id)
+    const callout = {
+      id,
+      point: point(value.point, `input.coordinateCallouts[${index}].point`),
+      elbow: point(value.elbow, `input.coordinateCallouts[${index}].elbow`),
+      landingEnd: point(value.landingEnd, `input.coordinateCallouts[${index}].landingEnd`),
+      xLabelPosition: point(value.xLabelPosition, `input.coordinateCallouts[${index}].xLabelPosition`),
+      yLabelPosition: point(value.yLabelPosition, `input.coordinateCallouts[${index}].yLabelPosition`),
+      precision: value.precision == null ? 3 : integer(value.precision, `input.coordinateCallouts[${index}].precision`, 0, 6),
+      textHeight: value.textHeight == null ? 2.5 * scale / 1000 : finite(value.textHeight, `input.coordinateCallouts[${index}].textHeight`, 0.01, 1_000),
+    }
+    if (![callout.point, callout.elbow, callout.landingEnd, callout.xLabelPosition, callout.yLabelPosition].every(insideModelViewport))
+      throw new KJValidationError(`input.coordinateCallouts[${index}] geometry must lie inside the declared model viewport`)
+    if (Math.hypot(callout.elbow[0] - callout.point[0], callout.elbow[1] - callout.point[1]) <= EPSILON)
+      throw new KJValidationError(`input.coordinateCallouts[${index}] point-to-elbow leader must have positive length`)
+    if (Math.hypot(callout.landingEnd[0] - callout.elbow[0], callout.landingEnd[1] - callout.elbow[1]) <= EPSILON)
+      throw new KJValidationError(`input.coordinateCallouts[${index}] elbow-to-landing leader must have positive length`)
+    return callout
+  })
+  if (Boolean(coordinateGrid) === (coordinateCallouts.length > 0)) throw new KJValidationError('input must supply exactly one coordinate strategy: coordinateGrid or coordinateCallouts')
   if (input.buildingFootprints !== undefined && (!Array.isArray(input.buildingFootprints) || input.buildingFootprints.length > 128))
     throw new KJValidationError('input.buildingFootprints must contain at most 128 supplied outlines')
   const buildingIds = new Set<string>()
@@ -281,7 +324,7 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
     if (roadIds.has(id)) throw new KJValidationError(`input.roadPaths contains duplicate id ${id}`)
     roadIds.add(id)
     const start = point(value.start, `input.roadPaths[${pathIndex}].start`)
-    if (!insideRoadViewport(start)) throw new KJValidationError(`input.roadPaths[${pathIndex}].start must lie inside the declared model viewport`)
+    if (!insideModelViewport(start)) throw new KJValidationError(`input.roadPaths[${pathIndex}].start must lie inside the declared model viewport`)
     if (!Array.isArray(value.segments) || value.segments.length < 1 || value.segments.length > 64)
       throw new KJValidationError(`input.roadPaths[${pathIndex}].segments must contain 1-64 continuous segments`)
     const closed = value.closed == null ? false : value.closed
@@ -293,7 +336,7 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
       if (segment.kind !== 'line' && segment.kind !== 'arc') throw new KJValidationError(`${label}.kind must be line or arc`)
       exactKeys(segment, segment.kind === 'line' ? ROAD_LINE_KEYS : ROAD_ARC_KEYS, label)
       const end = point(segment.end, `${label}.end`)
-      if (!insideRoadViewport(end)) throw new KJValidationError(`${label}.end must lie inside the declared model viewport`)
+      if (!insideModelViewport(end)) throw new KJValidationError(`${label}.end must lie inside the declared model viewport`)
       const segmentStart = current
       current = end
       roadSegmentCount += 1
@@ -301,7 +344,7 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
         if (Math.hypot(end[0] - segmentStart[0], end[1] - segmentStart[1]) <= EPSILON) throw new KJValidationError(`${label} must have positive length`)
         for (let sample = 1; sample < 10; sample += 1) {
           const ratio = sample / 10
-          if (!insideRoadViewport([segmentStart[0] + (end[0] - segmentStart[0]) * ratio, segmentStart[1] + (end[1] - segmentStart[1]) * ratio]))
+          if (!insideModelViewport([segmentStart[0] + (end[0] - segmentStart[0]) * ratio, segmentStart[1] + (end[1] - segmentStart[1]) * ratio]))
             throw new KJValidationError(`${label} must remain inside the declared model viewport`)
         }
         return { kind: 'line' as const, end }
@@ -319,7 +362,7 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
       const sampleCount = Math.max(2, Math.ceil(sweep / (Math.PI / 18)))
       for (let sample = 1; sample < sampleCount; sample += 1) {
         const angle = startAngle + (clockwise ? -1 : 1) * sweep * sample / sampleCount
-        if (!insideRoadViewport([center[0] + Math.cos(angle) * startRadius, center[1] + Math.sin(angle) * startRadius]))
+        if (!insideModelViewport([center[0] + Math.cos(angle) * startRadius, center[1] + Math.sin(angle) * startRadius]))
           throw new KJValidationError(`${label} must remain inside the declared model viewport`)
       }
       return { kind: 'arc' as const, center, end, clockwise, radius: startRadius, startAngle, endAngle }
@@ -332,7 +375,7 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
   const northAngleDegrees = finite(input.northAngleDegrees ?? 0, 'input.northAngleDegrees', -360, 360)
   const locale = input.locale == null ? [...boreholes.map(value => value.id), ...sectionLines.map(value => value.label), input.title].some(value => /[\u3400-\u9fff]/u.test(String(value ?? ''))) ? 'zh-CN' as const : 'en' as const
     : input.locale === 'zh-CN' || input.locale === 'en' ? input.locale : (() => { throw new KJValidationError('input.locale must be zh-CN or en') })()
-  return { expectedRevision, scale, boundary, boreholes, holesById, sectionLines, coordinateGrid, buildingFootprints, roadPaths, roadSegmentCount, northAngleDegrees, locale,
+  return { expectedRevision, scale, boundary, boreholes, holesById, sectionLines, coordinateGrid, coordinateCallouts, buildingFootprints, roadPaths, roadSegmentCount, northAngleDegrees, locale,
     drawingId: text(input.drawingId, 'input.drawingId', 64), title: input.title == null ? undefined : text(input.title, 'input.title', 96), revision: input.revision == null ? undefined : text(input.revision, 'input.revision', 32) }
 }
 
@@ -345,13 +388,15 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
   const center: Point2 = [(minimum[0] + maximum[0]) / 2, (minimum[1] + maximum[1]) / 2]
   const insideViewport = (value: Point2) => value[0] >= center[0] - groundWidth / 2 - EPSILON && value[0] <= center[0] + groundWidth / 2 + EPSILON
     && value[1] >= center[1] - groundHeight / 2 - EPSILON && value[1] <= center[1] + groundHeight / 2 + EPSILON
-  const margin = Math.max(input.coordinateGrid.spacing * 0.12, 4 * input.scale / 1000)
+  const margin = Math.max((input.coordinateGrid?.spacing ?? 0) * 0.12, 4 * input.scale / 1000)
   if (width + margin * 2 > groundWidth + EPSILON || height + margin * 2 > groundHeight + EPSILON) throw new KJValidationError('input.boundary does not fit ISO A3 landscape at the declared scale')
-  const firstGridX = input.coordinateGrid.origin[0] + Math.ceil((minimum[0] - input.coordinateGrid.origin[0]) / input.coordinateGrid.spacing) * input.coordinateGrid.spacing
-  const firstGridY = input.coordinateGrid.origin[1] + Math.ceil((minimum[1] - input.coordinateGrid.origin[1]) / input.coordinateGrid.spacing) * input.coordinateGrid.spacing
   const gridXs: number[] = [], gridYs: number[] = []
-  for (let value = firstGridX; value <= maximum[0] + EPSILON; value += input.coordinateGrid.spacing) gridXs.push(value)
-  for (let value = firstGridY; value <= maximum[1] + EPSILON; value += input.coordinateGrid.spacing) gridYs.push(value)
+  if (input.coordinateGrid) {
+    const firstGridX = input.coordinateGrid.origin[0] + Math.ceil((minimum[0] - input.coordinateGrid.origin[0]) / input.coordinateGrid.spacing) * input.coordinateGrid.spacing
+    const firstGridY = input.coordinateGrid.origin[1] + Math.ceil((minimum[1] - input.coordinateGrid.origin[1]) / input.coordinateGrid.spacing) * input.coordinateGrid.spacing
+    for (let value = firstGridX; value <= maximum[0] + EPSILON; value += input.coordinateGrid.spacing) gridXs.push(value)
+    for (let value = firstGridY; value <= maximum[1] + EPSILON; value += input.coordinateGrid.spacing) gridYs.push(value)
+  }
   if (gridXs.length + gridYs.length > 80) throw new KJValidationError('input.coordinateGrid expands to more than 80 grid lines; increase spacing')
 
   const prefix = `geoplan-${stableHash({ drawingId: input.drawingId, version: source.version }).slice(0, 12)}`
@@ -361,6 +406,7 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     BUILDINGS: { id: `${prefix}-layer-buildings`, color: 8, linetypeId: linetypes.continuous, lineweight: 25 },
     ROADS: { id: `${prefix}-layer-roads`, color: 3, linetypeId: linetypes.continuous, lineweight: 25 },
     GRID: { id: `${prefix}-layer-grid`, color: 8, linetypeId: linetypes.grid, lineweight: 13 },
+    COORDINATES: { id: `${prefix}-layer-coordinates`, color: 2, linetypeId: linetypes.continuous, lineweight: 18 },
     POINTS: { id: `${prefix}-layer-points`, color: 1, linetypeId: linetypes.continuous, lineweight: 35 },
     SECTIONS: { id: `${prefix}-layer-sections`, color: 2, linetypeId: linetypes.section, lineweight: 35 },
     ANNOTATION: { id: `${prefix}-layer-annotation`, color: 7, linetypeId: linetypes.continuous, lineweight: 18 },
@@ -388,6 +434,12 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
   for (const y of gridYs) {
     add('LINE', 'GRID', { start: [minimum[0], y, 0], end: [maximum[0], y, 0], semanticRole: 'coordinate-grid-northing', coordinate: y })
     addText([minimum[0] - textHeight * 4.2, y], `N ${format(y, 3)}`, textHeight * 0.72)
+  }
+  for (const callout of input.coordinateCallouts) {
+    add('LINE', 'COORDINATES', { start: p3(callout.point), end: p3(callout.elbow), semanticRole: 'coordinate-callout-leader', segmentRole: 'point-to-elbow', sourceId: callout.id, sourceBacked: true })
+    add('LINE', 'COORDINATES', { start: p3(callout.elbow), end: p3(callout.landingEnd), semanticRole: 'coordinate-callout-leader', segmentRole: 'elbow-to-landing', sourceId: callout.id, sourceBacked: true })
+    addText(callout.xLabelPosition, `X=${callout.point[1].toFixed(callout.precision)}`, callout.textHeight, 'COORDINATES', 0, { semanticRole: 'coordinate-callout-label', coordinateAxis: 'X', coordinateValue: callout.point[1], coordinateConvention: 'X=northing', sourceId: callout.id, sourceBacked: true })
+    addText(callout.yLabelPosition, `Y=${callout.point[0].toFixed(callout.precision)}`, callout.textHeight, 'COORDINATES', 0, { semanticRole: 'coordinate-callout-label', coordinateAxis: 'Y', coordinateValue: callout.point[0], coordinateConvention: 'Y=easting', sourceId: callout.id, sourceBacked: true })
   }
   for (const hole of input.boreholes) {
     add('CIRCLE', 'POINTS', { center: p3(hole.position), radius: markerRadius, semanticRole: 'investigation-point', sourceId: hole.id, pointKind: hole.kind })
@@ -480,9 +532,9 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
       viewport: { center, width: groundWidth, height: groundHeight } },
     evidence: { drawingId: input.drawingId, skillId: 'geology-plan', skillVersion: KJDRAW_GEOLOGY_PLAN_VERSION, expectedRevision: input.expectedRevision, units: 'meter' as const,
       modelEntityCount: entities.length, entityCount: entities.length + 1, boreholeCount: input.boreholes.length, sectionLineCount: input.sectionLines.length, buildingFootprintCount: input.buildingFootprints.length, roadPathCount: input.roadPaths.length, roadSegmentCount: input.roadSegmentCount,
-      sectionReferences: input.sectionLines.map(value => ({ id: value.id, label: value.label, holeIds: [...value.holeIds], endpointLabels: value.endpointLabels ? [...value.endpointLabels] : [value.label, value.label], markerClearance: value.markerClearance ? [...value.markerClearance] : undefined, endpointTailLengths: value.endpointTailLengths ? [...value.endpointTailLengths] : undefined, endpointLabelPositions: value.endpointLabelPositions ? value.endpointLabelPositions.map(position => [...position]) : undefined, segmentCount: sectionSegmentCounts.get(value.id) })), gridLineCount: gridXs.length + gridYs.length,
+      sectionReferences: input.sectionLines.map(value => ({ id: value.id, label: value.label, holeIds: [...value.holeIds], endpointLabels: value.endpointLabels ? [...value.endpointLabels] : [value.label, value.label], markerClearance: value.markerClearance ? [...value.markerClearance] : undefined, endpointTailLengths: value.endpointTailLengths ? [...value.endpointTailLengths] : undefined, endpointLabelPositions: value.endpointLabelPositions ? value.endpointLabelPositions.map(position => [...position]) : undefined, segmentCount: sectionSegmentCounts.get(value.id) })), gridLineCount: gridXs.length + gridYs.length, coordinateCalloutCount: input.coordinateCallouts.length, coordinateConvention: 'engineering X=northing, Y=easting' as const,
       coordinateBounds: { minimum, maximum }, scaleDenominator: input.scale, northAngleDegrees: input.northAngleDegrees,
       externalBaseMapDependencies: input.roadPaths.length ? ['terrain', 'landscaping', 'other-context'] : ['roads', 'terrain', 'landscaping', 'other-context'],
-      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred', 'Unsupplied roads, terrain, landscaping and other base-map context remain external source-backed dependencies and are never inferred'] },
+      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Coordinate graphics are compiled only from an explicit grid or explicit point callouts; engineering X is northing and Y is easting, and label placement is never inferred', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred', 'Unsupplied roads, terrain, landscaping and other base-map context remain external source-backed dependencies and are never inferred'] },
   }
 }

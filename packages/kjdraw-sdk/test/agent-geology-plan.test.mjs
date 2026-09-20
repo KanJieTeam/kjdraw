@@ -64,6 +64,31 @@ test('geology plan compiles true coordinates, investigation points and explicit 
   assert.equal(new Set(entities.map(entity => entity.options.id)).size, entities.length)
 })
 
+test('geology plan compiles explicit point callouts with engineering X northing and Y easting without inventing a grid', () => {
+  const document = KJDocument.create({ documentId: 'geology-plan-coordinate-callouts', units: 'meter' })
+  const source = intent()
+  delete source.coordinateGrid
+  source.coordinateCallouts = [{
+    id: 'control-1', point: [385000, 3452000], elbow: [384990, 3451990], landingEnd: [384980, 3451990],
+    xLabelPosition: [384981, 3451992], yLabelPosition: [384981, 3451987], precision: 3, textHeight: 1.8,
+  }]
+  const compiled = buildAgentGeologyPlan(document, source)
+  const leaders = compiled.commandArgs.entities.filter(entity => entity.payload.semanticRole === 'coordinate-callout-leader')
+  const labels = compiled.commandArgs.entities.filter(entity => entity.payload.semanticRole === 'coordinate-callout-label')
+  assert.deepEqual(leaders.map(entity => [entity.type, entity.payload.segmentRole, entity.payload.start, entity.payload.end]), [
+    ['LINE', 'point-to-elbow', [385000, 3452000, 0], [384990, 3451990, 0]],
+    ['LINE', 'elbow-to-landing', [384990, 3451990, 0], [384980, 3451990, 0]],
+  ])
+  assert.deepEqual(labels.map(entity => [entity.payload.coordinateAxis, entity.payload.text, entity.payload.position, entity.payload.height]), [
+    ['X', 'X=3452000.000', [384981, 3451992, 0], 1.8],
+    ['Y', 'Y=385000.000', [384981, 3451987, 0], 1.8],
+  ])
+  assert.equal(compiled.commandArgs.entities.some(entity => String(entity.payload.semanticRole).startsWith('coordinate-grid-')), false)
+  assert.equal(compiled.evidence.gridLineCount, 0)
+  assert.equal(compiled.evidence.coordinateCalloutCount, 1)
+  assert.equal(compiled.evidence.coordinateConvention, 'engineering X=northing, Y=easting')
+})
+
 test('geology plan compiles only explicitly supplied closed building footprints as source-backed context', () => {
   const document = KJDocument.create({ documentId: 'geology-plan-buildings', units: 'meter' })
   const compiled = buildAgentGeologyPlan(document, intent({
@@ -200,6 +225,10 @@ test('geology plan fails closed on stale revisions, unsafe coordinates and broke
   rejects({ roadPaths: [{ id: 'zero', start: [385010, 3452050], segments: [{ kind: 'line', end: [385010, 3452050] }] }] }, /positive length/)
   rejects({ roadPaths: [{ id: 'closure', start: [385010, 3452050], segments: [{ kind: 'line', end: [385030, 3452050] }], closed: true }] }, /closed flag/)
   rejects({ coordinateGrid: { origin: [385000, 3452000], spacing: 1 } }, /more than 80 grid lines/)
+  rejects({ coordinateGrid: undefined }, /exactly one coordinate strategy/)
+  rejects({ coordinateCallouts: [{ id: 'both', point: [385000, 3452000], elbow: [384990, 3451990], landingEnd: [384980, 3451990], xLabelPosition: [384981, 3451992], yLabelPosition: [384981, 3451987] }] }, /exactly one coordinate strategy/)
+  rejects({ coordinateGrid: undefined, coordinateCallouts: [{ id: 'zero', point: [385000, 3452000], elbow: [385000, 3452000], landingEnd: [384980, 3451990], xLabelPosition: [384981, 3451992], yLabelPosition: [384981, 3451987] }] }, /positive length/)
+  rejects({ coordinateGrid: undefined, coordinateCallouts: [{ id: 'outside', point: [385000, 3452000], elbow: [0, 0], landingEnd: [384980, 3451990], xLabelPosition: [384981, 3451992], yLabelPosition: [384981, 3451987] }] }, /declared model viewport/)
   rejects({ boundary: [[385000, 3452000], [385300, 3452000], [385300, 3452200], [385000, 3452200]] }, /does not fit ISO A3/)
   assert.throws(() => buildAgentGeologyPlan(KJDocument.create({ units: 'millimeter' }), intent()), /meter units/)
   const sdk = createKJDrawSDK(), nonBlank = sdk.createDocument({ units: 'meter' })

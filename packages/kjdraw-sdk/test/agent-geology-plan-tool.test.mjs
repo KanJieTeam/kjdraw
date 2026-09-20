@@ -26,7 +26,10 @@ function intent(patch = {}) {
       { id: 'section-1', holeIds: ['ZK01', 'ZK02', 'ZK03'], label: "1—1′", endpointLabels: ['1', "1′"], markerClearance: [4, 3], endpointTailLengths: [3, 3], endpointLabelPositions: [[385010, 3452010], [385125, 3452080]] },
       { id: 'section-2', holeIds: ['ZK01', 'ZK03'], label: "2—2′", endpointLabels: ['2', "2′"] },
     ],
-    coordinateGrid: { origin: [385000, 3452000], spacing: 20 },
+    coordinateCallouts: [{
+      id: 'control-1', point: [385000, 3452000], elbow: [384990, 3451990], landingEnd: [384980, 3451990],
+      xLabelPosition: [384981, 3451992], yLabelPosition: [384981, 3451987], precision: 3, textHeight: 1.8,
+    }],
     buildingFootprints: [{ id: 'building-a', outline: [[385010, 3452010], [385035, 3452015], [385030, 3452030], [385005, 3452025]] }],
     roadPaths: [{ id: 'road-edge-a', start: [385010, 3452050], segments: [{ kind: 'line', end: [385030, 3452050] }, { kind: 'arc', center: [385030, 3452060], end: [385040, 3452060], clockwise: false }] }],
     northAngleDegrees: -6,
@@ -48,6 +51,10 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
   assert.equal(definition.inputSchema.properties.sectionLines.items.properties.markerClearance.items.exclusiveMinimum, 0)
   assert.equal(definition.inputSchema.properties.sectionLines.items.properties.endpointTailLengths.items.minimum, 0)
   assert.equal(definition.inputSchema.properties.sectionLines.items.properties.endpointLabelPositions.items.minItems, 2)
+  assert.ok(!definition.inputSchema.required.includes('coordinateGrid'))
+  assert.equal(definition.inputSchema.properties.coordinateCallouts.maxItems, 64)
+  assert.deepEqual(definition.inputSchema.properties.coordinateCallouts.items.required, ['id', 'point', 'elbow', 'landingEnd', 'xLabelPosition', 'yLabelPosition'])
+  assert.ok(!definition.inputSchema.required.includes('coordinateCallouts'))
   assert.equal(definition.inputSchema.properties.buildingFootprints.maxItems, 128)
   assert.equal(definition.inputSchema.properties.buildingFootprints.items.properties.outline.minItems, 3)
   assert.equal(definition.inputSchema.properties.buildingFootprints.items.properties.outline.maxItems, 65)
@@ -65,6 +72,9 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
   assert.equal(proposal.engineeringEvidence.skillId, 'geology-plan')
   assert.equal(proposal.engineeringEvidence.boreholeCount, 3)
   assert.equal(proposal.engineeringEvidence.sectionLineCount, 2)
+  assert.equal(proposal.engineeringEvidence.gridLineCount, 0)
+  assert.equal(proposal.engineeringEvidence.coordinateCalloutCount, 1)
+  assert.equal(proposal.engineeringEvidence.coordinateConvention, 'engineering X=northing, Y=easting')
   assert.equal(proposal.engineeringEvidence.buildingFootprintCount, 1)
   assert.deepEqual(proposal.engineeringEvidence.externalBaseMapDependencies, ['terrain', 'landscaping', 'other-context'])
   assert.equal(proposal.engineeringEvidence.roadPathCount, 1)
@@ -81,6 +91,8 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
   assert.equal(document.listEntities().length, proposal.engineeringEvidence.entityCount)
   assert.equal(document.listEntities().filter(entity => entity.payload.semanticRole === 'building-footprint').length, 1)
   assert.equal(document.listEntities().filter(entity => entity.payload.semanticRole === 'road-path-segment').length, 2)
+  assert.equal(document.listEntities().filter(entity => entity.payload.semanticRole === 'coordinate-callout-leader').length, 2)
+  assert.deepEqual(document.listEntities().filter(entity => entity.payload.semanticRole === 'coordinate-callout-label').map(entity => entity.payload.text), ['X=3452000.000', 'Y=385000.000'])
   assert.equal((await session.approve(proposal.planId, 'host-reviewer')).ok, false)
   await document.undo(); assert.equal(document.listEntities().length, 0)
   await document.redo(); assert.equal(document.listEntities().length, proposal.engineeringEvidence.entityCount)
@@ -96,10 +108,10 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
     try {
       const dxfPath = join(root, 'plan.dxf'), auditPath = join(root, 'audit.py')
       await writeFile(dxfPath, dxf)
-      await writeFile(auditPath, 'import ezdxf,json,sys\nd=ezdxf.readfile(sys.argv[1]);a=d.audit();m=d.modelspace();print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"arcs":len(m.query("ARC")),"closed":sum(1 for e in m.query("LWPOLYLINE") if e.closed),"viewports":len(d.query("VIEWPORT"))}))\n')
+      await writeFile(auditPath, 'import ezdxf,json,sys\nd=ezdxf.readfile(sys.argv[1]);a=d.audit();m=d.modelspace();print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"arcs":len(m.query("ARC")),"closed":sum(1 for e in m.query("LWPOLYLINE") if e.closed),"coordinateLeaders":sum(1 for e in m.query("LINE") if e.dxf.layer=="COORDINATES"),"coordinateLabels":sum(1 for e in m.query("TEXT") if e.dxf.text.startswith(("X=","Y="))),"viewports":len(d.query("VIEWPORT"))}))\n')
       const result = spawnSync(python, [auditPath, dxfPath], { encoding: 'utf8', env: { ...process.env, PYTHONPATH: pythonPath } })
       assert.equal(result.status, 0, result.stderr)
-      assert.deepEqual(JSON.parse(result.stdout), { errors: 0, fixes: 0, circles: 3, arcs: 1, closed: 3, viewports: 1 })
+      assert.deepEqual(JSON.parse(result.stdout), { errors: 0, fixes: 0, circles: 3, arcs: 1, closed: 3, coordinateLeaders: 2, coordinateLabels: 2, viewports: 1 })
     } finally { await rm(root, { recursive: true, force: true }) }
   }
 })
@@ -114,6 +126,7 @@ test('geology plan tool fails closed before a plan on stale, broken or nonblank 
     intent({ scale: 333 }),
     intent({ buildingFootprints: [{ id: 'bad', outline: [[385010, 3452010], [385030, 3452030], [385010, 3452030], [385030, 3452010]] }] }),
     intent({ roadPaths: [{ id: 'bad-road', start: [385010, 3452050], segments: [{ kind: 'arc', center: [385020, 3452050], end: [385020, 3452070] }] }] }),
+    intent({ coordinateGrid: { origin: [385000, 3452000], spacing: 20 } }),
     { ...intent(), surprise: true },
   ]) {
     const result = await session.call('cad_propose_geology_plan', invalid)
