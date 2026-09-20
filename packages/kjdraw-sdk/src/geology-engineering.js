@@ -638,7 +638,10 @@ function columnLayout(input) {
         titleMarginFacts = value.titleMarginFacts.map((raw, index)=>{
             if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError(`Geology: title margin fact ${index + 1} is invalid`);
             const item = raw;
-            if (Object.keys(item).sort().join(',') !== 'anchor,edge,height,horizontalAlignment,key,label,offset,rotationDegrees,separator,textWidthFactor,verticalAlignment') throw new KJValidationError('Geology: title margin fact needs an exact versioned placement schema');
+            if (![
+                'anchor,edge,height,horizontalAlignment,key,label,offset,rotationDegrees,separator,textWidthFactor,verticalAlignment',
+                'anchor,decoration,edge,height,horizontalAlignment,key,label,offset,rotationDegrees,separator,textWidthFactor,verticalAlignment'
+            ].includes(Object.keys(item).sort().join(','))) throw new KJValidationError('Geology: title margin fact needs an exact versioned placement schema');
             const key = stableDocumentFactKey(item.key, 'title margin fact key'), canonical = key.toLowerCase();
             if (seen.has(canonical)) throw new KJValidationError('Geology: duplicate title margin fact key');
             seen.add(canonical);
@@ -662,6 +665,19 @@ function columnLayout(input) {
             const textWidthFactor = numeric(item.textWidthFactor, 'title margin fact width factor');
             const rotationDegrees = numeric(item.rotationDegrees, 'title margin fact rotation');
             if (height < 0.8 || height > 8 || textWidthFactor < 0.4 || textWidthFactor > 1.5 || rotationDegrees < -180 || rotationDegrees > 180) throw new KJValidationError('Geology: title margin fact typography is unreadable');
+            let decoration;
+            if (item.decoration != null) {
+                if (!item.decoration || typeof item.decoration !== 'object' || Array.isArray(item.decoration) || Object.keys(item.decoration).sort().join(',') !== 'elbowOffset,horizontalEnd,kind') throw new KJValidationError('Geology: title margin fact decoration needs an exact source-backed schema');
+                const rawDecoration = item.decoration;
+                if (rawDecoration.kind !== 'top-edge-elbow-underline' || rawDecoration.horizontalEnd !== 'frame-right' || !Array.isArray(rawDecoration.elbowOffset) || rawDecoration.elbowOffset.length !== 2) throw new KJValidationError('Geology: unsupported title margin fact decoration');
+                const elbowOffset = rawDecoration.elbowOffset.map((coordinate, coordinateIndex)=>numeric(coordinate, `title margin decoration offset ${coordinateIndex + 1}`));
+                if (elbowOffset.some((coordinate)=>coordinate < -30 || coordinate > 30)) throw new KJValidationError('Geology: title margin fact decoration is outside the readable title band');
+                decoration = {
+                    kind: rawDecoration.kind,
+                    elbowOffset,
+                    horizontalEnd: rawDecoration.horizontalEnd
+                };
+            }
             return {
                 key,
                 label,
@@ -673,7 +689,10 @@ function columnLayout(input) {
                 textWidthFactor,
                 horizontalAlignment: item.horizontalAlignment,
                 verticalAlignment: item.verticalAlignment,
-                rotationDegrees
+                rotationDegrees,
+                ...decoration ? {
+                    decoration
+                } : {}
             };
         });
     }
@@ -1494,6 +1513,24 @@ export function compileGeologyColumn(input) {
             if (bounds.left < (formalFrame ? left : 5) + 0.5 || bounds.right > (formalFrame ? right : pageWidth - 5) - 0.5 || bounds.bottom < titleRegionBottom + 0.5 || bounds.top > frameTop - 0.5) throw new KJValidationError(`Geology: title margin fact ${placement.key} crosses the title band or drawing frame`);
             if (occupied.some((prior)=>bounds.left < prior.right && bounds.right > prior.left && bounds.bottom < prior.top && bounds.top > prior.bottom)) throw new KJValidationError(`Geology: title margin fact ${placement.key} overlaps another title margin fact`);
             occupied.push(bounds);
+            if (placement.decoration) {
+                const elbowX = x + placement.decoration.elbowOffset[0], elbowY = y + placement.decoration.elbowOffset[1];
+                if (elbowX < (formalFrame ? left : 5) + 0.5 || elbowX >= bounds.left - 0.2 || elbowY < titleRegionBottom + 0.5 || elbowY >= bounds.bottom - 0.2 || elbowY >= frameTop - 0.5) throw new KJValidationError(`Geology: title margin fact ${placement.key} decoration crosses its text or drawing frame`);
+                g.poly(0, [
+                    [
+                        elbowX,
+                        frameTop
+                    ],
+                    [
+                        elbowX,
+                        elbowY
+                    ],
+                    [
+                        right,
+                        elbowY
+                    ]
+                ], false);
+            }
             g.placedText(3, x, y, value, placement.height, placement.textWidthFactor, placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2, placement.verticalAlignment === 'baseline' ? 0 : 2, radians);
         }
     }

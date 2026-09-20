@@ -255,7 +255,8 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
         labelPitchMm: 5, labelHeightMm: 2, paragraphGapMm: 0.8 },
       descriptionBoundaryStyle: { inset: 2, clearance: 1.5 },
       titleMarginFacts: [{ key: 'recordNumber', label: 'Record', separator: ':', edge: 'top', anchor: 'right', offset: [-10, -10],
-        height: 3, textWidthFactor: 0.8, horizontalAlignment: 'right', verticalAlignment: 'baseline', rotationDegrees: 0 }],
+        height: 3, textWidthFactor: 0.8, horizontalAlignment: 'right', verticalAlignment: 'baseline', rotationDegrees: 0,
+        decoration: { kind: 'top-edge-elbow-underline', elbowOffset: [-15, -3], horizontalEnd: 'frame-right' } }],
     } } })
   const source = { ...hole('PHYS-1', 0, 123.45, [0.6, 4, 18]), x: 123456.78, y: 654321.09,
     startDate: '2026-01-02', endDate: '2026-01-03', initialWaterDepth: 2.5, stableWaterDepth: 3 }
@@ -290,6 +291,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   assert.ok(polylines.some(entity => entity.payload.closed !== true && entity.payload.vertices.length === 3 &&
     JSON.stringify(entity.payload.vertices) === JSON.stringify([[65, 235, 0], [65, 202.5, 0], [85, 202.5, 0]])),
   'declared groundwater guide connects the field top to the exact reading depth')
+  assert.ok(polylines.some(entity => entity.payload.closed !== true && entity.payload.vertices.length === 3 &&
+    JSON.stringify(entity.payload.vertices) === JSON.stringify([[165, 285, 0], [165, 277, 0], [185, 277, 0]])),
+  'declared title-margin decoration connects the frame edge to an exact underline')
   assert.ok(polylines.some(entity => entity.payload.closed === true && entity.payload.constantWidth === 0.5 &&
     entity.payload.vertices[0][0] === 5 && entity.payload.vertices[0][1] === 5 && entity.payload.vertices[2][1] === 285), 'source-backed wide outer frame')
   assert.equal(polylines.filter(entity => entity.payload.closed !== true && entity.payload.vertices.length === 6).length, 3,
@@ -315,6 +319,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const kjd = await sdk.writeDocument(document, { format: 'KJD', version: '1' })
   const reopened = await sdk.readDocument(dxf, { format: 'DXF' }), reopenedKjd = await sdk.readDocument(kjd, { format: 'KJD' })
   assert.equal(reopened.validate().valid, true); assert.equal(reopenedKjd.validate().valid, true)
+  for (const reopenedDocument of [reopened, reopenedKjd]) assert.equal(reopenedDocument.listEntities({ type: 'LWPOLYLINE' })
+    .filter(entity => entity.payload.closed !== true && entity.payload.vertices.length === 3).length, 2,
+  'groundwater guide and title-margin decoration survive KJD/DXF reopen')
   for (const value of ['2.50', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18']) {
     assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `DXF ${value}`)
     assert.ok(reopenedKjd.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `KJD ${value}`)
@@ -401,6 +408,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const frameCrossingTitleFact = structuredClone(input)
   frameCrossingTitleFact.columnStylePack.rules['geology-column-layout'].titleMarginFacts[0].offset = [-10, -4]
   assert.throws(() => compileGeologyColumn(frameCrossingTitleFact), /crosses the title band or drawing frame/u)
+  const invalidTitleDecoration = structuredClone(input)
+  invalidTitleDecoration.columnStylePack.rules['geology-column-layout'].titleMarginFacts[0].decoration.kind = 'freehand'
+  assert.throws(() => compileGeologyColumn(invalidTitleDecoration), /unsupported title margin fact decoration/u)
   const malformedFrame = structuredClone(input)
   malformedFrame.columnStylePack.rules['geology-column-layout'].frameStyle.constantWidth = 3
   assert.throws(() => compileGeologyColumn(malformedFrame), /frame style is outside/u)

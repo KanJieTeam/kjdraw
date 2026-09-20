@@ -94,6 +94,12 @@ export interface KJGeologyGroundwaterAnnotationStyle {
     dateOffset: number;
     guide?: 'field-top-to-reading';
 }
+/** Optional source-backed linework attached to one title-margin fact. */
+export interface KJGeologyTitleMarginDecoration {
+    kind: 'top-edge-elbow-underline';
+    elbowOffset: [number, number];
+    horizontalEnd: 'frame-right';
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,
