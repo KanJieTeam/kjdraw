@@ -8,8 +8,8 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0';
 const MAX_AUXILIARY_LINES = 1024;
 const MAX_AUXILIARY_CURVES = 512;
 const MIN_AUXILIARY_ARC_RADIUS = 1e-9;
-const MAX_SYMBOL_DEFINITIONS = 128;
-const MAX_SYMBOL_MEMBERS_PER_DEFINITION = 512;
+const MAX_SYMBOL_DEFINITIONS = 256;
+const MAX_SYMBOL_MEMBERS_PER_DEFINITION = 1024;
 const MAX_SYMBOL_MEMBERS_TOTAL = 2048;
 const MAX_SYMBOL_INSTANCES = 256;
 const finite = (value, label, min, max)=>{
@@ -295,7 +295,7 @@ function validate(document, source) {
     }
     if (holePatterns.reduce((sum, pattern)=>sum + pattern.count, 0) > 256) throw new KJValidationError('input.endView.holePatterns exceed the 256-hole budget');
     if (end.outlineSegments != null && !Array.isArray(end.outlineSegments)) throw new KJValidationError('input.endView.outlineSegments must be an array');
-    if (end.outlineSegments?.length && end.outlineSegments.length > 128) throw new KJValidationError('input.endView.outlineSegments exceed their budget');
+    if (end.outlineSegments?.length && end.outlineSegments.length > 256) throw new KJValidationError('input.endView.outlineSegments exceed their 256-segment budget');
     const outlineSegments = (end.outlineSegments ?? []).map((value, index)=>{
         const segment = plain(value, `input.endView.outlineSegments[${index}]`);
         const styleKey = entityStyleKey(segment.styleKey, `input.endView.outlineSegments[${index}].styleKey`);
@@ -451,7 +451,7 @@ function validate(document, source) {
             'startCapStyleKey',
             'endCapStyleKey'
         ], `input.sideViewAxis.symmetricProfiles[${profileIndex}]`);
-        if (!Array.isArray(profile.vertices) || profile.vertices.length < 2 || profile.vertices.length > 64) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices must contain 2 to 64 points`);
+        if (!Array.isArray(profile.vertices) || profile.vertices.length < 2 || profile.vertices.length > 128) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices must contain 2 to 128 points`);
         const vertices = profile.vertices.map((vertexValue, vertexIndex)=>{
             const vertex = plain(vertexValue, `input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices[${vertexIndex}]`);
             exact(vertex, [
@@ -519,7 +519,7 @@ function validate(document, source) {
         };
     });
     if (side?.outlineSegments != null && !Array.isArray(side.outlineSegments)) throw new KJValidationError('input.sideViewAxis.outlineSegments must be an array');
-    if (side?.outlineSegments?.length && side.outlineSegments.length > 128) throw new KJValidationError('input.sideViewAxis.outlineSegments exceed their budget');
+    if (side?.outlineSegments?.length && side.outlineSegments.length > 256) throw new KJValidationError('input.sideViewAxis.outlineSegments exceed their 256-segment budget');
     const sideOutlineSegments = (side?.outlineSegments ?? []).map((value, index)=>{
         const segment = plain(value, `input.sideViewAxis.outlineSegments[${index}]`);
         const styleKey = entityStyleKey(segment.styleKey, `input.sideViewAxis.outlineSegments[${index}].styleKey`);

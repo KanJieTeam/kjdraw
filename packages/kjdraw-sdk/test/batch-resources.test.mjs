@@ -153,8 +153,8 @@ test('block resource identity, ownership and references are validated atomically
     args => { args.resources.blocks[0].entities[0].type = 'INSERT' },
     args => { args.entities[0].payload.blockRecordId = 'missing' },
     args => { args.entities[0].payload.attributeIds = ['forged'] },
-    args => { args.resources.blocks[0].entities = Array.from({ length: 513 }, (_, index) => ({ type: 'POINT', payload: { position: [index, 0, 0], layerId: 'layer' }, options: { id: `member-${index}` } })) },
-    args => { args.resources.blocks = Array.from({ length: 129 }, (_, index) => ({ id: `b-${index}`, name: `B-${index}`, basePoint: [0, 0, 0], entities: [{ type: 'POINT', payload: { position: [0, 0, 0], layerId: 'layer' }, options: { id: `m-${index}` } }] })) },
+    args => { args.resources.blocks[0].entities = Array.from({ length: 1025 }, (_, index) => ({ type: 'POINT', payload: { position: [index, 0, 0], layerId: 'layer' }, options: { id: `member-${index}` } })) },
+    args => { args.resources.blocks = Array.from({ length: 257 }, (_, index) => ({ id: `b-${index}`, name: `B-${index}`, basePoint: [0, 0, 0], entities: [{ type: 'POINT', payload: { position: [0, 0, 0], layerId: 'layer' }, options: { id: `m-${index}` } }] })) },
   ]
   for (const mutate of cases) {
     const args = valid(); mutate(args)
@@ -163,7 +163,7 @@ test('block resource identity, ownership and references are validated atomically
   }
 })
 
-test('CREATEBATCH block budgets accept 128 records, 512 per block and 2048 total before atomic next-value rejection', async t => {
+test('CREATEBATCH block budgets accept 256 records, 1024 per block and 2048 total before atomic next-value rejection', async t => {
   const { sdk, document } = fixture()
   const member = (blockIndex, memberIndex) => ({ type: 'POINT', payload: { position: [memberIndex, blockIndex, 0] }, options: { id: `public-member-${blockIndex}-${memberIndex}` } })
   const makeArgs = (blockCount, memberCounts) => {
@@ -177,17 +177,17 @@ test('CREATEBATCH block budgets accept 128 records, 512 per block and 2048 total
   }
   const source = document.serialize()
   for (const [args, pattern] of [
-    [makeArgs(129, []), /at most 128 block records/u],
-    [makeArgs(1, [513]), /at most 512 definition entities/u],
+    [makeArgs(257, []), /at most 256 block records/u],
+    [makeArgs(1, [1025]), /at most 1024 definition entities/u],
     [makeArgs(5, [512, 512, 512, 512, 1]), /at most 2048 total definition entities/u],
   ]) {
     await assert.rejects(sdk.executeCommand('CREATEBATCH', args), pattern)
     assert.equal(document.serialize(), source)
   }
-  const args = makeArgs(128, [512, 512, 512, 512])
+  const args = makeArgs(256, [1024, 1024])
   await sdk.executeCommand('CREATEBATCH', args)
   const customBlocks = document.getTable('blockRecords').records.filter(record => record.name?.startsWith('PUBLIC_BOUNDARY_'))
-  assert.equal(customBlocks.length, 128)
+  assert.equal(customBlocks.length, 256)
   assert.equal(customBlocks.reduce((sum, block) => sum + block.payload.entityIds.length, 0), 2048)
   const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   const [kjd, dxf] = await Promise.all([
@@ -196,7 +196,7 @@ test('CREATEBATCH block budgets accept 128 records, 512 per block and 2048 total
   ])
   for (const reopened of [kjd, dxf]) {
     const blocks = reopened.getTable('blockRecords').records.filter(record => record.name?.startsWith('PUBLIC_BOUNDARY_'))
-    assert.equal(blocks.length, 128)
+    assert.equal(blocks.length, 256)
     assert.equal(blocks.reduce((sum, block) => sum + block.payload.entityIds.length, 0), 2048)
   }
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
@@ -207,7 +207,7 @@ test('CREATEBATCH block budgets accept 128 records, 512 per block and 2048 total
     t.diagnostic('official ezdxf unavailable; independent check skipped')
   } else {
     assert.equal(independent.status, 0, independent.stderr)
-    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, blocks: 128, members: 2048 })
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, blocks: 256, members: 2048 })
   }
 })
 test('CREATEBATCH atomically creates editable attributed block sequences and preserves them through KJD and DXF', async () => {
