@@ -17,7 +17,7 @@ import type { KJDxfPlotSettings } from './plot-settings.js'
 import { validateDxfLayoutGeometry } from './layout-geometry.js'
 import type { KJDxfLayoutGeometry } from './layout-geometry.js'
 
-type DxfVersion = 'R12' | 'R14' | '2000' | '2004' | '2010' | '2013' | '2018' | '2024'
+type DxfVersion = 'R12' | 'R14' | '2000' | '2004' | '2007' | '2010' | '2013' | '2018' | '2024'
 type DxfProductVersion = Exclude<DxfVersion, 'R12'>
 type Point3 = [number, number, number]
 
@@ -313,16 +313,16 @@ function documentTableRecords(document: KJDocument, name: KJTableName): Readonly
   return table.records
 }
 
-const PRODUCT_VERSIONS: readonly DxfProductVersion[] = Object.freeze(['R14', '2000', '2004', '2010', '2013', '2018', '2024'])
+const PRODUCT_VERSIONS: readonly DxfProductVersion[] = Object.freeze(['R14', '2000', '2004', '2007', '2010', '2013', '2018', '2024'])
 const VERSIONS: readonly DxfVersion[] = Object.freeze(['R12', ...PRODUCT_VERSIONS])
-const ACADVER: Readonly<Record<DxfVersion, string>> = Object.freeze({ R12: 'AC1009', R14: 'AC1014', 2000: 'AC1015', 2004: 'AC1018', 2010: 'AC1024', 2013: 'AC1027', 2018: 'AC1032', 2024: 'AC1032' })
-const VERSION_BY_CODE: Readonly<Record<string, DxfVersion>> = Object.freeze({ AC1009: 'R12', AC1014: 'R14', AC1015: '2000', AC1018: '2004', AC1024: '2010', AC1027: '2013', AC1032: '2018' })
+const ACADVER: Readonly<Record<DxfVersion, string>> = Object.freeze({ R12: 'AC1009', R14: 'AC1014', 2000: 'AC1015', 2004: 'AC1018', 2007: 'AC1021', 2010: 'AC1024', 2013: 'AC1027', 2018: 'AC1032', 2024: 'AC1032' })
+const VERSION_BY_CODE: Readonly<Record<string, DxfVersion>> = Object.freeze({ AC1009: 'R12', AC1014: 'R14', AC1015: '2000', AC1018: '2004', AC1021: '2007', AC1024: '2010', AC1027: '2013', AC1032: '2018' })
 const READ_TYPES = Object.freeze(['LINE', 'XLINE', 'RAY', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'TOLERANCE', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
 const WRITE_TYPES = new Set(['LINE', 'XLINE', 'RAY', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'TOLERANCE', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
 
 const DIMENSION_TYPE_BY_CODE: Readonly<Record<number, string>> = Object.freeze({ 0: 'ROTATED', 1: 'ALIGNED', 2: 'ANGULAR', 3: 'DIAMETER', 4: 'RADIUS', 5: 'ANGULAR_3_POINT', 6: 'ORDINATE' })
 const DIMENSION_CODE_BY_TYPE: Readonly<Record<string, number>> = Object.freeze(Object.fromEntries(Object.entries(DIMENSION_TYPE_BY_CODE).map(([code, type]) => [type, Number(code)])))
-const VERSION_RANK: Readonly<Record<DxfVersion, number>> = Object.freeze({ R12: 0, R14: 1, 2000: 2, 2004: 3, 2010: 4, 2013: 5, 2018: 6, 2024: 6 })
+const VERSION_RANK: Readonly<Record<DxfVersion, number>> = Object.freeze({ R12: 0, R14: 1, 2000: 2, 2004: 3, 2007: 4, 2010: 5, 2013: 6, 2018: 7, 2024: 7 })
 const MIN_ENTITY_VERSION: Readonly<Record<string, DxfVersion>> = Object.freeze({
   ELLIPSE: 'R14', SPLINE: 'R14', MTEXT: 'R14', LEADER: 'R14', HATCH: 'R14',
   WIPEOUT: '2000', XLINE: '2000', RAY: '2000', VIEWPORT: 'R14',

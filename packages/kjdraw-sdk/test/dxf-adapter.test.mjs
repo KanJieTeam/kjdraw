@@ -122,6 +122,26 @@ test('DXF BLOCKS definitions and INSERT ownership survive write and reopen', asy
   assert.equal(reopened.listEntities({ ownerId: reopenedInsert.payload.blockRecordId, type: 'CIRCLE' }).length, 1)
 })
 
+test('DXF 2007 header and native hatch remain AC1021 across round-trip', async () => {
+  const source = [
+    '0','SECTION','2','HEADER','9','$ACADVER','1','AC1021','0','ENDSEC',
+    '0','SECTION','2','ENTITIES',
+    '0','HATCH','5','10','8','GEO-AREA','10','0','20','0','30','0','2','SOLID','70','1','71','0','91','1','92','3','72','0','73','1','93','4',
+    '10','10','20','10','10','70','20','10','10','70','20','50','10','10','20','50','97','0','75','0','76','1','98','0',
+    '0','ENDSEC','0','EOF','',
+  ].join('\r\n')
+  const adapter = createDXFFileAdapter()
+  const document = await adapter.read(source)
+  assert.equal(document.snapshot().header.sourceVersion, '2007')
+  assert.equal(document.listEntities({ type: 'HATCH' }).length, 1)
+
+  const written = await adapter.write(document, { version: document.snapshot().header.sourceVersion })
+  assert.match(written, /\$ACADVER\r\n\s*1\r\nAC1021\r\n/)
+  const reopened = await adapter.read(written)
+  assert.equal(reopened.snapshot().header.sourceVersion, '2007')
+  assert.equal(reopened.listEntities({ type: 'HATCH' }).length, 1)
+})
+
 test('DXF DIMENSION with a missing imported picture block is repaired from definition geometry', async () => {
   const source = [
     '0','SECTION','2','HEADER','9','$ACADVER','1','AC1032','0','ENDSEC',

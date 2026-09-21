@@ -72,6 +72,9 @@ export declare const KJDRAW_CAD_VERSION_MATRIX: readonly [{
     readonly label: '2004';
     readonly code: 'AC1018';
 }, {
+    readonly label: '2007';
+    readonly code: 'AC1021';
+}, {
     readonly label: '2010';
     readonly code: 'AC1024';
 }, {
@@ -124,6 +127,9 @@ export declare const KJDRAW_1_0_PRODUCT_CONTRACT: {
     }, {
         readonly label: '2004';
         readonly code: 'AC1018';
+    }, {
+        readonly label: '2007';
+        readonly code: 'AC1021';
     }, {
         readonly label: '2010';
         readonly code: 'AC1024';

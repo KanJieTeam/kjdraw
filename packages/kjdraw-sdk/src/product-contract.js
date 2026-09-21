@@ -32,6 +32,10 @@ export const KJDRAW_CAD_VERSION_MATRIX = deepFreeze([
         code: 'AC1018'
     },
     {
+        label: '2007',
+        code: 'AC1021'
+    },
+    {
         label: '2010',
         code: 'AC1024'
     },

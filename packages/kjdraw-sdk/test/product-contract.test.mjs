@@ -21,8 +21,8 @@ test('KJDraw 1.0 contract is deployment-neutral and locks the supported CAD matr
   assert.deepEqual(KJDRAW_1_0_PRODUCT_CONTRACT.domainExtensions, { included: false, policy: 'separate-packages' })
   assert.equal(KJDRAW_1_0_PRODUCT_CONTRACT.authorities.geometry, 'kjcore-rust')
   assert.equal(KJDRAW_1_0_PRODUCT_CONTRACT.authorities.fileIntermediateModel, 'kjcore-rust')
-  assert.deepEqual(KJDRAW_CAD_VERSION_MATRIX.map(row => row.label), ['R14', '2000', '2004', '2010', '2013', '2018', '2024'])
-  assert.equal(JSON.stringify(KJDRAW_1_0_PRODUCT_CONTRACT).includes('2007'), false)
+  assert.deepEqual(KJDRAW_CAD_VERSION_MATRIX.map(row => row.label), ['R14', '2000', '2004', '2007', '2010', '2013', '2018', '2024'])
+  assert.equal(KJDRAW_1_0_PRODUCT_CONTRACT.cadVersions.some(row => row.code === 'AC1021'), true)
 })
 
 test('deployment profiles bind only explicit host providers', () => {
@@ -41,13 +41,12 @@ test('deployment profiles bind only explicit host providers', () => {
   assert.throws(() => validateDeploymentProfile({ mode: 'hybrid', providers: { compute: 'missing' } }, registry), /unavailable provider/)
 })
 
-test('public DXF adapter does not advertise legacy R12 or removed 2007', () => {
+test('public DXF adapter advertises 2007 while keeping legacy R12 migration-only', () => {
   const sdk = createKJDrawSDK()
   const adapter = sdk.fileAdapters.get('kanjie.dxf.ascii')
   const versions = adapter.formats.DXF
-  assert.deepEqual(versions.read, ['R14', '2000', '2004', '2010', '2013', '2018', '2024'])
+  assert.deepEqual(versions.read, ['R14', '2000', '2004', '2007', '2010', '2013', '2018', '2024'])
   assert.deepEqual(versions.write, versions.read)
-  assert.equal(JSON.stringify(versions).includes('2007'), false)
   assert.deepEqual(adapter.capabilities.legacyMigrationVersions, ['R12'])
 })
 
@@ -150,8 +149,8 @@ test('acceptance matrix is machine-readable and passed scope is backed by releas
   assert.equal(dwgRoundtrip.status, 'out-of-scope')
   assert.equal(dwgRoundtrip.requiredForStable, false)
   assert.ok(dwgRoundtrip.evidence.some(path => path.endsWith('/1.0-scope.md')))
-  assert.deepEqual([...new Set(KJDRAW_CAD_VERSION_MATRIX.map(row => row.code))], ['AC1014', 'AC1015', 'AC1018', 'AC1024', 'AC1027', 'AC1032'])
-  assert.equal(KJDRAW_CAD_VERSION_MATRIX.some(row => row.code === 'AC1021'), false)
+  assert.deepEqual([...new Set(KJDRAW_CAD_VERSION_MATRIX.map(row => row.code))], ['AC1014', 'AC1015', 'AC1018', 'AC1021', 'AC1024', 'AC1027', 'AC1032'])
+  assert.equal(KJDRAW_CAD_VERSION_MATRIX.some(row => row.code === 'AC1021'), true)
   const fileKernel = matrix.gates.find(row => row.id === 'kernel.file-intermediate-model')
   assert.equal(fileKernel.status, 'passed')
   assert.ok(fileKernel.evidence.some(path => path.endsWith('/cad.rs')))

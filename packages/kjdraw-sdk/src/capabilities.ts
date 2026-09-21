@@ -97,8 +97,8 @@ export const KJDRAW_1_0_READINESS_PROFILE: Readonly<KJSDKReadinessProfile> = Obj
   requiredFormats: Object.freeze([
     { format: 'KJD', operation: 'read', versions: ['1'], certification: 'schema-roundtrip' },
     { format: 'KJD', operation: 'write', versions: ['1'], certification: 'schema-roundtrip' },
-    { format: 'DXF', operation: 'read', versions: ['R14', '2000', '2004', '2010', '2013', '2018', '2024'], certification: 'cross-implementation-subset' },
-    { format: 'DXF', operation: 'write', versions: ['R14', '2000', '2004', '2010', '2013', '2018', '2024'], certification: 'cross-implementation-subset' },
+    { format: 'DXF', operation: 'read', versions: ['R14', '2000', '2004', '2007', '2010', '2013', '2018', '2024'], certification: 'cross-implementation-subset' },
+    { format: 'DXF', operation: 'write', versions: ['R14', '2000', '2004', '2007', '2010', '2013', '2018', '2024'], certification: 'cross-implementation-subset' },
   ] satisfies KJFormatReadinessRequirement[]),
   authoritativeGeometry: true,
 })

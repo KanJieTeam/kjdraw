@@ -154,6 +154,7 @@ const PRODUCT_VERSIONS = Object.freeze([
     'R14',
     '2000',
     '2004',
+    '2007',
     '2010',
     '2013',
     '2018',
@@ -168,6 +169,7 @@ const ACADVER = Object.freeze({
     R14: 'AC1014',
     2000: 'AC1015',
     2004: 'AC1018',
+    2007: 'AC1021',
     2010: 'AC1024',
     2013: 'AC1027',
     2018: 'AC1032',
@@ -178,6 +180,7 @@ const VERSION_BY_CODE = Object.freeze({
     AC1014: 'R14',
     AC1015: '2000',
     AC1018: '2004',
+    AC1021: '2007',
     AC1024: '2010',
     AC1027: '2013',
     AC1032: '2018'
@@ -250,10 +253,11 @@ const VERSION_RANK = Object.freeze({
     R14: 1,
     2000: 2,
     2004: 3,
-    2010: 4,
-    2013: 5,
-    2018: 6,
-    2024: 6
+    2007: 4,
+    2010: 5,
+    2013: 6,
+    2018: 7,
+    2024: 7
 });
 const MIN_ENTITY_VERSION = Object.freeze({
     ELLIPSE: 'R14',

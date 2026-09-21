@@ -6,6 +6,7 @@
     { "file": "synthetic-r14-core.dxf", "version": "R14", "acadver": "AC1014" },
     { "file": "synthetic-2000-core.dxf", "version": "2000", "acadver": "AC1015" },
     { "file": "synthetic-2004-core.dxf", "version": "2004", "acadver": "AC1018" },
+    { "file": "synthetic-2007-core.dxf", "version": "2007", "acadver": "AC1021" },
     { "file": "synthetic-2010-core.dxf", "version": "2010", "acadver": "AC1024" },
     { "file": "synthetic-2013-core.dxf", "version": "2013", "acadver": "AC1027" },
     { "file": "synthetic-2018-core.dxf", "version": "2018", "acadver": "AC1032" },
