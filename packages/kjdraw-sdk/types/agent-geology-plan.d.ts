@@ -138,6 +138,12 @@ export interface KJGeologyPlanBaseMapHatch {
         sourceMemberIds: string[];
     }[];
 }
+export interface KJGeologyPlanBaseMapSolid {
+    id: string;
+    styleId: string;
+    kind: 'solid';
+    solidVertices: [Point2, Point2, Point2, Point2];
+}
 export type KJGeologyPlanBaseMapLinework = {
     id: string;
     styleId: string;
@@ -194,7 +200,7 @@ export interface KJGeologyPlanBaseMapBlock {
     extrusion?: Point3;
     attributes?: KJGeologyPlanBaseMapAttribute[];
     basePoint: Point2;
-    entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapHatch | KJGeologyPlanBaseMapAttributeDefinition | KJGeologyPlanBaseMapInsert)[];
+    entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapHatch | KJGeologyPlanBaseMapSolid | KJGeologyPlanBaseMapAttributeDefinition | KJGeologyPlanBaseMapInsert)[];
 }
 export interface KJAgentGeologyPlanInput {
     version: typeof KJDRAW_GEOLOGY_PLAN_VERSION;
@@ -348,6 +354,7 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
         baseMapAttributeDefinitionCount: number;
         baseMapAttributeCount: number;
         baseMapHatchCount: number;
+        baseMapSolidCount: number;
         baseMapLineworkTypeCounts: {
             [k: string]: number;
         };

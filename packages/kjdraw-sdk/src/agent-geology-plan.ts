@@ -143,6 +143,13 @@ export interface KJGeologyPlanBaseMapHatch {
   }[]
 }
 
+export interface KJGeologyPlanBaseMapSolid {
+  id: string
+  styleId: string
+  kind: 'solid'
+  solidVertices: [Point2, Point2, Point2, Point2]
+}
+
 export type KJGeologyPlanBaseMapLinework =
   | { id: string; styleId: string; kind: 'line'; start: Point2; end: Point2 }
   | { id: string; styleId: string; kind: 'arc'; center: Point2; radius: number; startAngleDegrees: number; endAngleDegrees: number; clockwise?: boolean }
@@ -164,7 +171,7 @@ export interface KJGeologyPlanBaseMapBlock {
   extrusion?: Point3
   attributes?: KJGeologyPlanBaseMapAttribute[]
   basePoint: Point2
-  entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapHatch | KJGeologyPlanBaseMapAttributeDefinition | KJGeologyPlanBaseMapInsert)[]
+  entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapHatch | KJGeologyPlanBaseMapSolid | KJGeologyPlanBaseMapAttributeDefinition | KJGeologyPlanBaseMapInsert)[]
 }
 
 
@@ -208,10 +215,11 @@ type NormalizedBaseMapEntity =
   | { id: string; styleId: string; kind: 'polyline'; points: Point2[]; closed: boolean; bulges: number[] | undefined; startWidths: number[] | undefined; endWidths: number[] | undefined }
   | { id: string; styleId: string; kind: 'legacyPolyline'; points: Point3[]; closed: boolean; elevation: number; dxfFlags: number; vertexFlags: number[]; bulges: number[]; startWidths: number[]; endWidths: number[] }
   | KJGeologyPlanBaseMapHatch
+  | KJGeologyPlanBaseMapSolid
   | ({ id: string; kind: 'attributeDefinition'; prompt: string } & NormalizedBaseMapAttribute)
   | { id: string; styleId: string; kind: 'insert'; blockId: string; position: Point2; scale: Point3; rotation: number; extrusion: Point3; attributes: NormalizedBaseMapAttribute[] }
 
-type NormalizedBaseMapLinework = Exclude<NormalizedBaseMapEntity, { kind: 'insert' } | { kind: 'attributeDefinition' } | { kind: 'hatch' }>
+type NormalizedBaseMapLinework = Exclude<NormalizedBaseMapEntity, { kind: 'insert' } | { kind: 'attributeDefinition' } | { kind: 'hatch' } | { kind: 'solid' }>
 const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'baseMapStyles', 'baseMapTextStyles', 'baseMapLinework', 'baseMapBlocks', 'baseMapInserts', 'northAngleDegrees']
 const BOREHOLE_KEYS = ['id', 'position', 'collarElevation', 'depth', 'kind', 'labelLayout']
 const BOREHOLE_LABEL_LAYOUT_KEYS = ['idPosition', 'collarElevationPosition', 'depthPosition', 'textHeight', 'rotationDegrees', 'precision']
@@ -232,6 +240,7 @@ const BASE_MAP_LEGACY_POLYLINE_KEYS = ['id', 'styleId', 'kind', 'legacyPoints', 
 const BASE_MAP_HATCH_KEYS = ['id', 'styleId', 'kind', 'patternName', 'solid', 'associative', 'patternAngleDegrees', 'patternScale', 'patternLines', 'seedPoints', 'boundaryLoops']
 const BASE_MAP_HATCH_PATTERN_LINE_KEYS = ['angleDegrees', 'base', 'offset', 'dashes']
 const BASE_MAP_HATCH_LOOP_KEYS = ['external', 'flags', 'closed', 'vertices', 'sourceMemberIds']
+const BASE_MAP_SOLID_KEYS = ['id', 'styleId', 'kind', 'solidVertices']
 const BASE_MAP_HATCH_VERTEX_KEYS = ['point', 'bulge']
 const BASE_MAP_BLOCK_KEYS = ['id', 'basePoint', 'entities']
 const BASE_MAP_TEXT_STYLE_KEYS = ['id', 'fontFamily', 'fontFile', 'bigFontFile', 'fixedHeight', 'widthFactor', 'obliqueAngleDegrees', 'dxfFlags', 'generationFlags', 'lastHeight']
@@ -804,10 +813,23 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
       return { ...attribute, kind: 'attributeDefinition' as const, prompt: typeof value.prompt === 'string' && value.prompt.length <= 256 && !/[\u0000-\u001f\u007f]/u.test(value.prompt) ? value.prompt : (() => { throw new KJValidationError(`${label}.prompt must be bounded printable text`) })() }
     }
     const kind = value.kind
-    if (kind !== 'line' && kind !== 'arc' && kind !== 'circle' && kind !== 'polyline' && kind !== 'legacyPolyline' && kind !== 'hatch') throw new KJValidationError(`${label}.kind must be line, arc, circle, polyline, legacyPolyline, hatch or an explicit block insert`)
-    exactKeys(value, kind === 'line' ? BASE_MAP_LINE_KEYS : kind === 'arc' ? BASE_MAP_ARC_KEYS : kind === 'circle' ? BASE_MAP_CIRCLE_KEYS : kind === 'legacyPolyline' ? BASE_MAP_LEGACY_POLYLINE_KEYS : kind === 'hatch' ? BASE_MAP_HATCH_KEYS : BASE_MAP_POLYLINE_KEYS, label)
+    if (kind !== 'line' && kind !== 'arc' && kind !== 'circle' && kind !== 'polyline' && kind !== 'legacyPolyline' && kind !== 'hatch' && kind !== 'solid') throw new KJValidationError(`${label}.kind must be line, arc, circle, polyline, legacyPolyline, hatch, solid or an explicit block insert`)
+    exactKeys(value, kind === 'line' ? BASE_MAP_LINE_KEYS : kind === 'arc' ? BASE_MAP_ARC_KEYS : kind === 'circle' ? BASE_MAP_CIRCLE_KEYS : kind === 'legacyPolyline' ? BASE_MAP_LEGACY_POLYLINE_KEYS : kind === 'hatch' ? BASE_MAP_HATCH_KEYS : kind === 'solid' ? BASE_MAP_SOLID_KEYS : BASE_MAP_POLYLINE_KEYS, label)
     const id = text(value.id, `${label}.id`, 40), styleId = text(value.styleId, `${label}.styleId`, 40)
     if (!baseMapStyleIds.has(styleId)) throw new KJValidationError(`${label}.styleId references unknown base-map style ${styleId}`)
+    if (kind === 'solid') {
+      if (topLevel) throw new KJValidationError(`${label} solid is valid only inside an explicit source-backed block`)
+      if (!Array.isArray(value.solidVertices) || value.solidVertices.length !== 4) throw new KJValidationError(`${label}.solidVertices must contain exactly four supplied native vertices`)
+      const solidVertices = value.solidVertices.map((rawPoint, pointIndex) => point(rawPoint, `${label}.solidVertices[${pointIndex}]`)) as [Point2, Point2, Point2, Point2]
+      const unique = new Set(solidVertices.map(vertex => `${vertex[0]}\u0000${vertex[1]}`))
+      let maximumCross = 0
+      for (let first = 0; first < solidVertices.length; first += 1) for (let second = first + 1; second < solidVertices.length; second += 1) for (let third = second + 1; third < solidVertices.length; third += 1) {
+        const a = solidVertices[first]!, b = solidVertices[second]!, c = solidVertices[third]!
+        maximumCross = Math.max(maximumCross, Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])))
+      }
+      if (unique.size !== 4 || maximumCross <= EPSILON) throw new KJValidationError(`${label}.solidVertices must contain four distinct non-collinear native vertices`)
+      return { id, styleId, kind, solidVertices }
+    }
     if (kind === 'hatch') {
       if (topLevel) throw new KJValidationError(`${label} hatch is valid only inside an explicit source-backed block`)
       if (typeof value.solid !== 'boolean' || value.solid) throw new KJValidationError(`${label}.solid must be false for an explicit source-backed pattern`)
@@ -1055,6 +1077,7 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
         sourceIds: loop.sourceMemberIds.map(sourceId => memberIds.get(sourceId)!),
       })), ...common,
     }, options: { id } }
+    if (item.kind === 'solid') return { type: 'SOLID', payload: { vertices: item.solidVertices.map(p3), ...common }, options: { id } }
     const vertices = item.points.map((value, index) => item.bulges || item.startWidths || item.endWidths ? { point: p3(value), bulge: item.bulges?.[index] ?? 0, startWidth: item.startWidths?.[index] ?? 0, endWidth: item.endWidths?.[index] ?? 0 } : p3(value))
     return { type: 'LWPOLYLINE', payload: { vertices, closed: item.closed, ...common }, options: { id } }
   }
@@ -1240,12 +1263,13 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
       baseMapStyleCount: input.baseMapStyles.length, baseMapTextStyleCount: input.baseMapTextStyles.length, baseMapLineworkCount: input.baseMapLinework.length,
       baseMapAttributeDefinitionCount: input.baseMapBlocks.reduce((sum, block) => sum + block.entities.filter(entity => entity.kind === 'attributeDefinition').length, 0), baseMapAttributeCount: input.baseMapInserts.reduce((sum, insert) => sum + insert.attributes.length, 0),
       baseMapHatchCount: input.baseMapBlocks.reduce((sum, block) => sum + block.entities.filter(entity => entity.kind === 'hatch').length, 0),
+      baseMapSolidCount: input.baseMapBlocks.reduce((sum, block) => sum + block.entities.filter(entity => entity.kind === 'solid').length, 0),
       baseMapLineworkTypeCounts: Object.fromEntries(['line', 'arc', 'circle', 'polyline', 'legacyPolyline'].map(kind => [kind, input.baseMapLinework.filter(value => value.kind === kind).length])),
       baseMapBlockCount: input.baseMapBlocks.length, baseMapBlockMemberCount: input.baseMapBlocks.reduce((sum, block) => sum + block.entities.length, 0),
       baseMapInsertCount: input.baseMapInserts.length,
       sectionReferences: input.sectionLines.map(value => ({ id: value.id, label: value.label, holeIds: [...value.holeIds], endpointLabels: value.endpointLabels ? [...value.endpointLabels] : [value.label, value.label], markerClearance: value.markerClearance ? [...value.markerClearance] : undefined, endpointTailLengths: value.endpointTailLengths ? [...value.endpointTailLengths] : undefined, endpointLabelPositions: value.endpointLabelPositions ? value.endpointLabelPositions.map(position => [...position]) : undefined, segmentCount: sectionSegmentCounts.get(value.id) })), gridLineCount: gridXs.length + gridYs.length, coordinateCalloutCount: input.coordinateCallouts.length, coordinateConvention: 'engineering X=northing, Y=easting' as const,
       coordinateBounds: { minimum, maximum }, scaleDenominator: input.scale, northAngleDegrees: input.northAngleDegrees,
       externalBaseMapDependencies: input.roadPaths.length ? ['terrain', 'landscaping', 'other-context'] : ['roads', 'terrain', 'landscaping', 'other-context'],
-      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Coordinate graphics are compiled only from an explicit grid or explicit point callouts; engineering X is northing and Y is easting, and label placement is never inferred', 'Aligned dimensions are compiled only from supplied definition points, numeric display values and bounded unit suffixes; KJDraw does not infer measurements or arbitrary dimension text', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred', 'Base-map linework is compiled only from explicit source-backed line, arc, circle, lightweight-polyline and native 2D POLYLINE facts with supplied styles', 'Reusable blocks, attached attributes and associative patterned fills are compiled only from complete explicit source-backed native definitions, sequences, transforms, boundaries and supplied styles', 'Unsupplied roads, terrain, landscaping, symbols, text, fills and other base-map context remain external source-backed dependencies and are never inferred'] },
+      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Coordinate graphics are compiled only from an explicit grid or explicit point callouts; engineering X is northing and Y is easting, and label placement is never inferred', 'Aligned dimensions are compiled only from supplied definition points, numeric display values and bounded unit suffixes; KJDraw does not infer measurements or arbitrary dimension text', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred', 'Base-map linework is compiled only from explicit source-backed line, arc, circle, lightweight-polyline and native 2D POLYLINE facts with supplied styles', 'Reusable blocks, attached attributes, associative patterned fills and native planar SOLID faces are compiled only from complete explicit source-backed definitions, sequences, transforms, vertices, boundaries and supplied styles', 'Unsupplied roads, terrain, landscaping, symbols, text, fills and other base-map context remain external source-backed dependencies and are never inferred'] },
   }
 }

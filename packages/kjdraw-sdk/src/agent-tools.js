@@ -2309,6 +2309,7 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
             'polyline',
             'legacyPolyline',
             'hatch',
+            'solid',
             'attributeDefinition'
         ]
     },
@@ -2411,6 +2412,12 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
                 }
             }
         })
+    },
+    solidVertices: {
+        type: 'array',
+        minItems: 4,
+        maxItems: 4,
+        items: numericTuple(2)
     },
     startAngleDegrees: {
         type: 'number',
@@ -2543,7 +2550,8 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
     'patternScale',
     'patternLines',
     'seedPoints',
-    'boundaryLoops'
+    'boundaryLoops',
+    'solidVertices'
 ]);
 const geologyPlanBaseMapBlockSchema = object({
     id: {
