@@ -434,9 +434,14 @@ function validateInput(document, source) {
         if (modelSpace && dxfFlags & 6) throw new KJValidationError(`${label} fitted legacyPolyline geometry is supported only inside explicit source-backed blocks`);
         if (!Array.isArray(value.vertexFlags) || value.vertexFlags.length !== points.length) throw new KJValidationError(`${label}.vertexFlags must contain one value per point`);
         const vertexFlags = value.vertexFlags.map((entry, entryIndex)=>integer(entry, `${label}.vertexFlags[${entryIndex}]`, 0, 31));
+        const splineVertexFlags = new Set([
+            8,
+            16
+        ]);
         for(let pointIndex = 0; pointIndex < points.length - (closed ? 0 : 1); pointIndex += 1){
             const first = points[pointIndex], second = points[(pointIndex + 1) % points.length];
-            if (Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON) throw new KJValidationError(`${label} contains a zero-length segment`);
+            const zeroLength = Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON;
+            if (zeroLength && (modelSpace || (dxfFlags & 4) === 0 || !splineVertexFlags.has(vertexFlags[pointIndex]) || !splineVertexFlags.has(vertexFlags[(pointIndex + 1) % points.length]))) throw new KJValidationError(`${label} contains a zero-length segment outside an explicit spline-fitted source sequence`);
         }
         const perVertex = (key, minimum)=>{
             const rawValues = value[key];
