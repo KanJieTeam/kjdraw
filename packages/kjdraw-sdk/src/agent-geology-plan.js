@@ -881,15 +881,15 @@ function validateInput(document, source) {
         if (!points.every(insideModelViewport)) throw new KJValidationError(`${label} geometry must lie inside the declared model viewport`);
         const closed = value.closed == null ? false : value.closed;
         if (typeof closed !== 'boolean') throw new KJValidationError(`${label}.closed must be boolean`);
-        if (closed && points.length < 3) throw new KJValidationError(`${label}.points must contain at least 3 points when closed`);
-        for(let pointIndex = 0; pointIndex < points.length - (closed ? 0 : 1); pointIndex += 1){
-            const first = points[pointIndex], second = points[(pointIndex + 1) % points.length];
-            if (Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON) throw new KJValidationError(`${label} contains a zero-length segment`);
-        }
         const bulges = value.bulges === undefined ? undefined : (()=>{
             if (!Array.isArray(value.bulges) || value.bulges.length !== points.length) throw new KJValidationError(`${label}.bulges must contain one value per point`);
             return value.bulges.map((entry, entryIndex)=>finite(entry, `${label}.bulges[${entryIndex}]`, -1_000_000, 1_000_000));
         })();
+        if (closed && points.length < 3 && (!bulges || bulges.every((value)=>Math.abs(value) <= EPSILON))) throw new KJValidationError(`${label}.points must contain at least 3 points when closed unless an explicit curved bulge closes two distinct points`);
+        for(let pointIndex = 0; pointIndex < points.length - (closed ? 0 : 1); pointIndex += 1){
+            const first = points[pointIndex], second = points[(pointIndex + 1) % points.length];
+            if (Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON) throw new KJValidationError(`${label} contains a zero-length segment`);
+        }
         if (bulges) for(let pointIndex = 0; pointIndex < points.length - (closed ? 0 : 1); pointIndex += 1){
             if (!bulgeSegmentInsideModelViewport(points[pointIndex], points[(pointIndex + 1) % points.length], bulges[pointIndex])) throw new KJValidationError(`${label} geometry must lie inside the declared model viewport`);
         }
@@ -1007,15 +1007,15 @@ function validateInput(document, source) {
         const points = value.points.map((rawPoint, pointIndex)=>point(rawPoint, `${label}.points[${pointIndex}]`));
         const closed = value.closed == null ? false : value.closed;
         if (typeof closed !== 'boolean') throw new KJValidationError(`${label}.closed must be boolean`);
-        if (closed && points.length < 3) throw new KJValidationError(`${label}.points must contain at least 3 points when closed`);
-        for(let pointIndex = 0; pointIndex < points.length - (closed ? 0 : 1); pointIndex += 1){
-            const first = points[pointIndex], second = points[(pointIndex + 1) % points.length];
-            if (Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON) throw new KJValidationError(`${label} contains a zero-length segment`);
-        }
         const bulges = value.bulges === undefined ? undefined : (()=>{
             if (!Array.isArray(value.bulges) || value.bulges.length !== points.length) throw new KJValidationError(`${label}.bulges must contain one value per point`);
             return value.bulges.map((entry, entryIndex)=>finite(entry, `${label}.bulges[${entryIndex}]`, -1_000_000, 1_000_000));
         })();
+        if (closed && points.length < 3 && (!bulges || bulges.every((value)=>Math.abs(value) <= EPSILON))) throw new KJValidationError(`${label}.points must contain at least 3 points when closed unless an explicit curved bulge closes two distinct points`);
+        for(let pointIndex = 0; pointIndex < points.length - (closed ? 0 : 1); pointIndex += 1){
+            const first = points[pointIndex], second = points[(pointIndex + 1) % points.length];
+            if (Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON) throw new KJValidationError(`${label} contains a zero-length segment`);
+        }
         const widths = (key)=>{
             const rawWidths = value[key];
             if (rawWidths === undefined) return undefined;

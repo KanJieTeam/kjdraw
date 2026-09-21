@@ -17,6 +17,7 @@ const intent = overrides => ({
   baseMapLinework: [{ id: 'curved-boundary', styleId: 'source', kind: 'polyline', points: [[30, 30], [50, 30], [50, 50]], bulges: [0.5, -0.25, 0], closed: false }],
   baseMapBlocks: [{ id: 'curved-symbol', basePoint: [0, 0], entities: [
     { id: 'curved-member', styleId: 'source', kind: 'polyline', points: [[-2, 0], [0, 2], [2, 0]], bulges: [0.25, -0.5, 0], closed: false },
+    { id: 'closed-two-point-member', styleId: 'source', kind: 'polyline', points: [[-3, -2], [3, -2]], bulges: [1, 1], closed: true },
   ] }],
   baseMapInserts: [{ id: 'symbol-instance', styleId: 'source', blockId: 'curved-symbol', position: [90, 45], scale: [1, 1, 1], rotationDegrees: 0 }],
   ...overrides,
@@ -34,13 +35,13 @@ test('ordinary geology-plan MCP preserves explicit source-backed bulges through 
   assert.equal(result.ok, true, JSON.stringify(result))
   assert.equal(document.listEntities().length, 0)
   assert.equal((await session.approve(result.value.planId, 'host-reviewer')).ok, true)
-  assert.deepEqual(sourcePolylines(document).map(bulges).sort(), [[0.25, -0.5, 0], [0.5, -0.25, 0]].sort())
+  assert.deepEqual(sourcePolylines(document).map(bulges).sort(), [[0.25, -0.5, 0], [0.5, -0.25, 0], [1, 1]].sort())
 
   const kjd = await sdk.writeDocument(document, { format: 'KJD' }), dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   for (const reopened of [await sdk.readDocument(kjd, { format: 'KJD' }), await sdk.readDocument(dxf, { format: 'DXF' })]) {
     assert.equal(reopened.validate().valid, true)
     assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
-    assert.deepEqual(sourcePolylines(reopened).map(bulges).sort(), [[0.25, -0.5, 0], [0.5, -0.25, 0]].sort())
+    assert.deepEqual(sourcePolylines(reopened).map(bulges).sort(), [[0.25, -0.5, 0], [0.5, -0.25, 0], [1, 1]].sort())
   }
 
   const python = process.env.KJDRAW_PYTHON, pythonPath = process.env.KJDRAW_EZDXF_PATH
@@ -52,7 +53,7 @@ test('ordinary geology-plan MCP preserves explicit source-backed bulges through 
     await writeFile(auditPath, 'import ezdxf,json,sys\nd=ezdxf.readfile(sys.argv[1]);a=d.audit();values=[]\nfor e in d.modelspace().query("LWPOLYLINE"): values += [p[4] for p in e.get_points("xyseb") if abs(p[4])>0]\nfor b in d.blocks:\n if b.name.startswith("BASEMAP_BLOCK_"):\n  for e in b.query("LWPOLYLINE"): values += [p[4] for p in e.get_points("xyseb") if abs(p[4])>0]\nprint(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"bulges":sorted(values),"proxies":len(d.modelspace().query("ACAD_PROXY_ENTITY"))}))\n')
     const audit = spawnSync(python, [auditPath, dxfPath], { encoding: 'utf8', env: { ...process.env, PYTHONPATH: pythonPath } })
     assert.equal(audit.status, 0, audit.stderr)
-    assert.deepEqual(JSON.parse(audit.stdout), { errors: 0, fixes: 0, bulges: [-0.5, -0.25, 0.25, 0.5], proxies: 0 })
+    assert.deepEqual(JSON.parse(audit.stdout), { errors: 0, fixes: 0, bulges: [-0.5, -0.25, 0.25, 0.5, 1, 1], proxies: 0 })
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
@@ -62,6 +63,8 @@ test('geology-plan bulges reject mismatched, non-finite, out-of-range and viewpo
     intent({ baseMapBlocks: [{ id: 'curved-symbol', basePoint: [0, 0], entities: [{ id: 'bad', styleId: 'source', kind: 'polyline', points: [[0, 0], [1, 0]], bulges: [Number.NaN, 0] }] }] }),
     intent({ baseMapBlocks: [{ id: 'curved-symbol', basePoint: [0, 0], entities: [{ id: 'bad', styleId: 'source', kind: 'polyline', points: [[0, 0], [1, 0]], bulges: [1_000_001, 0] }] }] }),
     intent({ baseMapLinework: [{ id: 'bad', styleId: 'source', kind: 'polyline', points: [[0, 0], [140, 0]], bulges: [2, 0] }] }),
+    intent({ baseMapBlocks: [{ id: 'curved-symbol', basePoint: [0, 0], entities: [{ id: 'bad', styleId: 'source', kind: 'polyline', points: [[0, 0], [1, 0]], closed: true }] }] }),
+    intent({ baseMapBlocks: [{ id: 'curved-symbol', basePoint: [0, 0], entities: [{ id: 'bad', styleId: 'source', kind: 'polyline', points: [[0, 0], [1, 0]], bulges: [0, 0], closed: true }] }] }),
   ]
   for (const value of invalid) {
     const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'meter' }), session = new KJAgentToolSession(sdk, document)
