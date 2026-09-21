@@ -6,6 +6,8 @@ param(
   [ValidateSet('millimeter', 'meter')][string]$Units = 'millimeter',
   [string]$GeologyColumnPack,
   [string]$GeologyColumnPackSha256,
+  [string]$GeologySectionPack,
+  [string]$GeologySectionPackSha256,
   [switch]$DryRun
 )
 
@@ -15,9 +17,13 @@ try {
   $installer = Join-Path $PSScriptRoot 'install-kjdraw.mjs'
   if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw 'Local KJDraw installer core is missing' }
   if ([bool]$GeologyColumnPack -xor [bool]$GeologyColumnPackSha256) { throw 'Geology column pack path and SHA-256 must be supplied together' }
+  if ([bool]$GeologySectionPack -xor [bool]$GeologySectionPackSha256) { throw 'Geology section pack path and SHA-256 must be supplied together' }
   $arguments = @($installer, '--project', $Project, '--blank', $Blank, '--candidate-sha', $CandidateSha, '--integrity', $Integrity, '--units', $Units)
   if ($GeologyColumnPack -or $GeologyColumnPackSha256) {
     $arguments += @('--geology-column-pack', $GeologyColumnPack, '--geology-column-pack-sha256', $GeologyColumnPackSha256)
+  }
+  if ($GeologySectionPack -or $GeologySectionPackSha256) {
+    $arguments += @('--geology-section-pack', $GeologySectionPack, '--geology-section-pack-sha256', $GeologySectionPackSha256)
   }
   if ($DryRun) { $arguments += '--dry-run' }
   & $nodeCommand.Source @arguments

@@ -35,7 +35,7 @@ const SKILL_TARGETS = Object.freeze([
 ])
 
 function usage() {
-  return `Usage: kjdraw-connect --all --workspace <directory> [--scope project|user] (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--candidate-dir .kjdraw/results] [--mcp-script <absolute-installed-launcher>] [--previous-mcp-script <absolute-installed-file>]... [--replace-existing] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. --candidate-dir is an explicit host policy that materializes exact proposals as new candidate files without overwriting the input drawing. --mcp-script is restricted to user scope and lets the official installer persist one stable launcher across upgrades. Each --previous-mcp-script authorizes one exact KJDraw-managed entry migration from an earlier regular file. --replace-existing is an explicit host instruction to replace a conflicting kjdraw entry while preserving the rest of each client configuration.`
+  return `Usage: kjdraw-connect --all --workspace <directory> [--scope project|user] (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--candidate-dir .kjdraw/results] [--mcp-script <absolute-installed-launcher>] [--previous-mcp-script <absolute-installed-file>]... [--replace-existing] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--geology-section-pack <relative.json> --geology-section-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. --candidate-dir is an explicit host policy that materializes exact proposals as new candidate files without overwriting the input drawing. --mcp-script is restricted to user scope and lets the official installer persist one stable launcher across upgrades. Each --previous-mcp-script authorizes one exact KJDraw-managed entry migration from an earlier regular file. --replace-existing is an explicit host instruction to replace a conflicting kjdraw entry while preserving the rest of each client configuration.`
 }
 
 function parseArgs(argv) {
@@ -55,7 +55,7 @@ function parseArgs(argv) {
       ;(options.previousMcpScripts ??= []).push(argv[++i])
       continue
     }
-    if (!['--workspace', '--scope', '--input', '--blank', '--units', '--proposal-dir', '--candidate-dir', '--mcp-script', '--previous-mcp-script', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
+    if (!['--workspace', '--scope', '--input', '--blank', '--units', '--proposal-dir', '--candidate-dir', '--mcp-script', '--previous-mcp-script', '--geology-column-pack', '--geology-column-pack-sha256', '--geology-section-pack', '--geology-section-pack-sha256'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
     options[key === '--proposal-dir' ? 'proposalDir' : key === '--candidate-dir' ? 'candidateDir' : key === '--mcp-script' ? 'mcpScript' : key === '--previous-mcp-script' ? 'previousMcpScript' : key.slice(2)] = argv[++i]
   }
   if (!options.all || !options.workspace) throw new Error('--all and --workspace are required')
@@ -65,6 +65,8 @@ function parseArgs(argv) {
   if (options.input && options.units) throw new Error('--units is only for --blank')
   if (Boolean(options['geology-column-pack']) !== Boolean(options['geology-column-pack-sha256'])) throw new Error('Geology column pack path and SHA-256 must be supplied together')
   if (options['geology-column-pack-sha256'] && !/^[a-f0-9]{64}$/u.test(options['geology-column-pack-sha256'])) throw new Error('Geology column pack SHA-256 must be lowercase hexadecimal')
+  if (Boolean(options['geology-section-pack']) !== Boolean(options['geology-section-pack-sha256'])) throw new Error('Geology section pack path and SHA-256 must be supplied together')
+  if (options['geology-section-pack-sha256'] && !/^[a-f0-9]{64}$/u.test(options['geology-section-pack-sha256'])) throw new Error('Geology section pack SHA-256 must be lowercase hexadecimal')
   return options
 }
 
@@ -313,6 +315,20 @@ export async function connectWorkspace(options, hooks = {}) {
     if (pack.domain !== 'geology' || !pack.rules?.['geology-column-layout']) throw new Error('Geology column pack must declare the geology domain and geology-column-layout rule')
     geologyColumnKnowledge = { id: pack.id, version: pack.version, sha256: sha(bytes), path: relative(root, path).split(sep).join('/') }
   }
+  let geologySectionKnowledge
+  if (options['geology-section-pack']) {
+    const path = await checkedPath(root, options['geology-section-pack'], '--geology-section-pack', 'file')
+    const info = await item(path)
+    if (!info?.isFile() || info.isSymbolicLink() || info.size > MAX_KNOWLEDGE_PACK_BYTES) throw new Error('Geology section pack must be an existing regular JSON file no larger than 1 MiB')
+    const bytes = await readFile(path)
+    if (sha(bytes) !== options['geology-section-pack-sha256']) throw new Error('Geology section pack bytes do not match the host-supplied SHA-256')
+    let source
+    try { source = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
+    catch { throw new Error('Geology section pack must be strict UTF-8 JSON') }
+    const pack = validateKnowledgePack(source)
+    if (pack.domain !== 'geology' || !pack.rules?.['geology-section-layout']) throw new Error('Geology section pack must declare the geology domain and geology-section-layout rule')
+    geologySectionKnowledge = { id: pack.id, version: pack.version, sha256: sha(bytes), path: relative(root, path).split(sep).join('/') }
+  }
   // Keep the spelling used to launch the installed package in persisted client
   // entries. On macOS, realpath('/var/...') is '/private/var/...'; rewriting the
   // user-visible path on every install makes an otherwise identical entry look
@@ -344,7 +360,8 @@ export async function connectWorkspace(options, hooks = {}) {
   // 'node' avoids an ephemeral desktop runtime path and TraeCode's no-spaces command rule.
   const entry = { command: 'node', args: [mcpPath, '--workspace', rawRoot, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/'),
     ...(candidates ? ['--candidate-dir', relative(root, candidates).split(sep).join('/')] : []),
-    ...(geologyColumnKnowledge ? ['--geology-column-pack', geologyColumnKnowledge.path, '--geology-column-pack-sha256', geologyColumnKnowledge.sha256] : [])] }
+    ...(geologyColumnKnowledge ? ['--geology-column-pack', geologyColumnKnowledge.path, '--geology-column-pack-sha256', geologyColumnKnowledge.sha256] : []),
+    ...(geologySectionKnowledge ? ['--geology-section-pack', geologySectionKnowledge.path, '--geology-section-pack-sha256', geologySectionKnowledge.sha256] : [])] }
   const entryFor = client => client.name === 'Kimi Code'
     ? { ...entry, args: [...entry.args, '--tool-profile', KIMI_TOOL_PROFILE] }
     : entry
@@ -384,7 +401,8 @@ export async function connectWorkspace(options, hooks = {}) {
   const changed = plans.filter(plan => plan.content)
   const configurationEvidence = { guiVerified: false, engineInvoked: false, approvalRoute: 'trusted-host-only', conflictPolicy: options.replaceExisting ? 'replace-explicit' : 'refuse-unknown', serverEntryName: 'kjdraw', scope, kimiToolProfile: KIMI_TOOL_PROFILE, workBuddyGuide: clients.find(client => client.name === 'WorkBuddy')?.guide, node: nodeEvidence,
     ...(traeInstallUrl ? { traeInstallUrl, traeGuide: 'https://docs.trae.cn/ide_mcp-server-install-links' } : {}),
-    ...(geologyColumnKnowledge ? { geologyColumnKnowledge } : {}) }
+    ...(geologyColumnKnowledge ? { geologyColumnKnowledge } : {}),
+    ...(geologySectionKnowledge ? { geologySectionKnowledge } : {}) }
   const skillEvidence = { canonicalSha256: skill.sha256, workBuddy: 'MCP connected; WorkBuddy only documents Marketplace Skill installation, so no unverified local Skill path is written.', targets: skillPlans.map(plan => ({ path: relative(root, plan.path).split(sep).join('/'), clients: plan.clients, action: plan.action, activation: plan.activation })) }
   const clientEvidence = () => [
     ...plans.map(plan => ({ client: plan.name, action: plan.content ? (options.apply ? 'added' : 'add') : 'unchanged', status: `${scope}-config-candidate-not-GUI-verified` })),

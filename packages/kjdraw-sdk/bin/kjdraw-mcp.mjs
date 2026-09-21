@@ -39,7 +39,7 @@ const KIMI_SAFE_TOOL_NAMES = new Set([
 ])
 
 function usage() {
-  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json> [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>] [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json> [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>] [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --check-tool-schemas\n\nOptional host-only geology style binding:\n  --geology-column-pack <existing-relative.json> --geology-column-pack-sha256 <64-lowercase-hex>\n\n--tool-profile defaults to full. kimi-safe exposes the core read, drafting, geology, architecture, manufacturing and chart tools through a bounded schema set for older Kimi Work runtimes. --proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session. When the host also supplies --candidate-dir, exact CREATEBATCH proposals are materialized into new KJD/DXF/SVG candidate files there; the input drawing is never overwritten. The model cannot choose either path or approve writes to the input.`
+  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json> [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>] [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json> [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>] [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --check-tool-schemas\n\nOptional host-only geology style binding:\n  --geology-column-pack <existing-relative.json> --geology-column-pack-sha256 <64-lowercase-hex>\n  --geology-section-pack <existing-relative.json> --geology-section-pack-sha256 <64-lowercase-hex>\n\n--tool-profile defaults to full. kimi-safe exposes the core read, drafting, geology, architecture, manufacturing and chart tools through a bounded schema set for older Kimi Work runtimes. --proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session. When the host also supplies --candidate-dir, exact CREATEBATCH proposals are materialized into new KJD/DXF/SVG candidate files there; the input drawing is never overwritten. The model cannot choose either path or approve writes to the input.`
 }
 
 function parseArgs(argv) {
@@ -49,7 +49,7 @@ function parseArgs(argv) {
   const values = {}
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index], value = argv[index + 1]
-    if (!['--workspace', '--input', '--blank', '--units', '--proposals', '--proposal-dir', '--candidate-dir', '--geology-column-pack', '--geology-column-pack-sha256', '--tool-profile'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
+    if (!['--workspace', '--input', '--blank', '--units', '--proposals', '--proposal-dir', '--candidate-dir', '--geology-column-pack', '--geology-column-pack-sha256', '--geology-section-pack', '--geology-section-pack-sha256', '--tool-profile'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
     values[key.slice(2)] = value
   }
   if (!values.workspace) throw new Error('Missing required --workspace')
@@ -60,6 +60,8 @@ function parseArgs(argv) {
   if (values.input && values.units) throw new Error('--units is only allowed with --blank')
   if (Boolean(values['geology-column-pack']) !== Boolean(values['geology-column-pack-sha256'])) throw new Error('--geology-column-pack and --geology-column-pack-sha256 must be supplied together')
   if (values['geology-column-pack-sha256'] && !/^[a-f0-9]{64}$/u.test(values['geology-column-pack-sha256'])) throw new Error('--geology-column-pack-sha256 must be 64 lowercase hexadecimal characters')
+  if (Boolean(values['geology-section-pack']) !== Boolean(values['geology-section-pack-sha256'])) throw new Error('--geology-section-pack and --geology-section-pack-sha256 must be supplied together')
+  if (values['geology-section-pack-sha256'] && !/^[a-f0-9]{64}$/u.test(values['geology-section-pack-sha256'])) throw new Error('--geology-section-pack-sha256 must be 64 lowercase hexadecimal characters')
   values['tool-profile'] ??= 'full'
   if (!['full', 'kimi-safe'].includes(values['tool-profile'])) throw new Error('--tool-profile must be full or kimi-safe')
   return values
@@ -445,7 +447,7 @@ async function deliverCandidate(host, proposal) {
 }
 
 async function openHost(options) {
-  if (options.blank || options['proposal-dir'] || options['candidate-dir'] || options['geology-column-pack']) {
+  if (options.blank || options['proposal-dir'] || options['candidate-dir'] || options['geology-column-pack'] || options['geology-section-pack']) {
     const workspaceEntry = await lstat(options.workspace)
     if (workspaceEntry.isSymbolicLink()) throw new Error('--workspace must not be a symbolic link')
   }
@@ -463,6 +465,19 @@ async function openHost(options) {
     try { pack = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
     catch { throw new Error('--geology-column-pack must be strict UTF-8 JSON') }
     geologyColumnKnowledge = { pack, sha256, path: relative(workspace, packPath).split(sep).join('/'), byteLength: bytes.byteLength }
+  }
+  let geologySectionKnowledge
+  if (options['geology-section-pack']) {
+    const packPath = await resolveRegularFileWithoutLinks(workspace, options['geology-section-pack'], '--geology-section-pack')
+    const metadata = await stat(packPath)
+    if (metadata.size > MAX_KNOWLEDGE_PACK_BYTES) throw new Error(`--geology-section-pack must be no larger than ${MAX_KNOWLEDGE_PACK_BYTES} bytes`)
+    const bytes = await readFile(packPath)
+    const sha256 = createHash('sha256').update(bytes).digest('hex')
+    if (sha256 !== options['geology-section-pack-sha256']) throw new Error('--geology-section-pack bytes do not match the host-supplied SHA-256')
+    let pack
+    try { pack = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
+    catch { throw new Error('--geology-section-pack must be strict UTF-8 JSON') }
+    geologySectionKnowledge = { pack, sha256, path: relative(workspace, packPath).split(sep).join('/'), byteLength: bytes.byteLength }
   }
   const input = options.blank
     ? await resolveVacantFileInside(workspace, options.blank, '--blank')
@@ -501,8 +516,12 @@ async function openHost(options) {
     sdk = createKJDrawSDK()
     document = await sdk.readDocument(source, { format })
   }
-  const session = new KJAgentToolSession(sdk, document, geologyColumnKnowledge ? { geologyColumnKnowledge } : {})
+  const session = new KJAgentToolSession(sdk, document, {
+    ...(geologyColumnKnowledge ? { geologyColumnKnowledge } : {}),
+    ...(geologySectionKnowledge ? { geologySectionKnowledge } : {}),
+  })
   const geologyColumnKnowledgeDescriptor = session.geologyColumnKnowledge
+  const geologySectionKnowledgeDescriptor = session.geologySectionKnowledge
   const sourceFingerprint = fingerprint(document)
   const ledger = {
     schema: 'com.kanjie.kjdraw.mcp-pending-proposals@1',
@@ -518,8 +537,12 @@ async function openHost(options) {
       ...(options.blank ? { createdBlank: true } : {})
     },
     proposals: [],
-    ...(geologyColumnKnowledgeDescriptor ? { knowledge: { geologyColumn: { ...geologyColumnKnowledgeDescriptor,
-      path: geologyColumnKnowledge.path, byteLength: geologyColumnKnowledge.byteLength } } } : {}),
+    ...(geologyColumnKnowledgeDescriptor || geologySectionKnowledgeDescriptor ? { knowledge: {
+      ...(geologyColumnKnowledgeDescriptor ? { geologyColumn: { ...geologyColumnKnowledgeDescriptor,
+        path: geologyColumnKnowledge.path, byteLength: geologyColumnKnowledge.byteLength } } : {}),
+      ...(geologySectionKnowledgeDescriptor ? { geologySection: { ...geologySectionKnowledgeDescriptor,
+        path: geologySectionKnowledge.path, byteLength: geologySectionKnowledge.byteLength } } : {}),
+    } } : {}),
     ...(sessionId ? { session: { id: sessionId, ledgerPath: relative(workspace, proposals).split(sep).join('/') } } : {})
   }
   if (proposalDir) {

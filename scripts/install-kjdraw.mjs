@@ -25,7 +25,7 @@ function parseArgs(argv) {
       values.set(key, true)
       continue
     }
-    if (!['--project', '--blank', '--candidate-sha', '--integrity', '--units', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || values.has(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) fail('Unknown, duplicate or incomplete installer option')
+    if (!['--project', '--blank', '--candidate-sha', '--integrity', '--units', '--geology-column-pack', '--geology-column-pack-sha256', '--geology-section-pack', '--geology-section-pack-sha256'].includes(key) || values.has(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) fail('Unknown, duplicate or incomplete installer option')
     values.set(key, argv[++i])
   }
   if (!['--project', '--blank', '--candidate-sha', '--integrity'].every(key => values.has(key))) fail('Explicit project, new KJD path, candidate SHA and release integrity are required')
@@ -33,8 +33,11 @@ function parseArgs(argv) {
   if (!['millimeter', 'meter'].includes(units)) fail('Units must be millimeter or meter')
   if (values.has('--geology-column-pack') !== values.has('--geology-column-pack-sha256')) fail('Geology column pack path and SHA-256 must be supplied together')
   if (values.has('--geology-column-pack-sha256') && !/^[a-f0-9]{64}$/u.test(values.get('--geology-column-pack-sha256'))) fail('Geology column pack SHA-256 must be lowercase hexadecimal')
+  if (values.has('--geology-section-pack') !== values.has('--geology-section-pack-sha256')) fail('Geology section pack path and SHA-256 must be supplied together')
+  if (values.has('--geology-section-pack-sha256') && !/^[a-f0-9]{64}$/u.test(values.get('--geology-section-pack-sha256'))) fail('Geology section pack SHA-256 must be lowercase hexadecimal')
   return { project: values.get('--project'), blank: values.get('--blank'), candidateSha: values.get('--candidate-sha'), integrity: values.get('--integrity'), units, dryRun: values.has('--dry-run'),
-    geologyColumnPack: values.get('--geology-column-pack'), geologyColumnPackSha256: values.get('--geology-column-pack-sha256') }
+    geologyColumnPack: values.get('--geology-column-pack'), geologyColumnPackSha256: values.get('--geology-column-pack-sha256'),
+    geologySectionPack: values.get('--geology-section-pack'), geologySectionPackSha256: values.get('--geology-section-pack-sha256') }
 }
 
 export function validatePublishedCandidate(metadata, lock) {
@@ -137,6 +140,15 @@ async function main() {
     try { JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(packBytes)) }
     catch { fail('Geology column pack must be strict UTF-8 JSON') }
   }
+  if (options.geologySectionPack) {
+    const packPath = await checkedChild(project, options.geologySectionPack, 'Geology section pack')
+    const packInfo = await item(packPath)
+    if (!packInfo?.isFile() || packInfo.isSymbolicLink() || packInfo.size > 1024 * 1024) fail('Geology section pack must be an existing regular file no larger than 1 MiB')
+    const packBytes = await readFile(packPath)
+    if (sha256(packBytes) !== options.geologySectionPackSha256) fail('Geology section pack bytes do not match the host-supplied SHA-256')
+    try { JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(packBytes)) }
+    catch { fail('Geology section pack must be strict UTF-8 JSON') }
+  }
   const vendorRelative = `.kjdraw/vendor/kjdraw-${CANDIDATE_VERSION}`
   const vendor = await checkedChild(project, vendorRelative, 'Candidate install directory', true)
   const localPackage = JSON.parse(await readFile(join(SCRIPT_DIR, '../packages/kjdraw-sdk/package.json'), 'utf8'))
@@ -166,7 +178,8 @@ async function main() {
   const connectEntry = await item(connect)
   if (installed.name !== PACKAGE || installed.version !== CANDIDATE_VERSION || !connectEntry?.isFile() || connectEntry.isSymbolicLink()) fail('Installed candidate package identity or connect binary failed verification')
   const run = spawnSync(process.execPath, [connect, '--all', '--apply', '--workspace', project, '--blank', options.blank, '--units', options.units,
-    ...(options.geologyColumnPack ? ['--geology-column-pack', options.geologyColumnPack, '--geology-column-pack-sha256', options.geologyColumnPackSha256] : [])], {
+    ...(options.geologyColumnPack ? ['--geology-column-pack', options.geologyColumnPack, '--geology-column-pack-sha256', options.geologyColumnPackSha256] : []),
+    ...(options.geologySectionPack ? ['--geology-section-pack', options.geologySectionPack, '--geology-section-pack-sha256', options.geologySectionPackSha256] : [])], {
     encoding: 'utf8', timeout: 30000, maxBuffer: 1024 * 1024, windowsHide: true,
   })
   if (run.status !== 0 || run.error) fail('Installed candidate connect failed; candidate package remains in the explicit project vendor directory for inspection')

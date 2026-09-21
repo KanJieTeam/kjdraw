@@ -599,6 +599,76 @@ test('MCP host hash-locks one project geology column knowledge pack while the mo
   await assert.rejects(readFile(join(directory, 'linked.kjd')), /ENOENT/u)
 })
 
+test('MCP host hash-locks a geology section knowledge pack while ordinary model input remains facts only', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'kjdraw-mcp-section-pack-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const pack = {
+    schema: 'kjdraw.knowledge-pack.v1', id: 'synthetic-stdio-section-layout', version: '1.0.0', title: 'MIT synthetic stdio section layout',
+    domain: 'geology', license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'synthetic-layout', title: 'MIT-authored section layout', license: 'MIT', contentHash: sha256('synthetic-stdio-section-layout') }],
+    ontology: { objectKinds: ['section'], relationKinds: [] }, rules: { 'geology-section-layout': {
+      paperWidth: 420, paperHeight: 297, outerMargins: { left: 5, right: 5, bottom: 5, top: 5 },
+      innerMargins: { left: 12, right: 12, bottom: 12, top: 12 },
+      frameStyle: { outer: { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 }, inner: { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 } },
+      headingTextStyle: { title: { anchorX: 210, height: 6, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 }, scale: { anchorX: 210, height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
+      sectionReferenceStyle: { start: { offset: [150, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'right', verticalAlignment: 'baseline' }, end: { offset: [270, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
+      observationSymbolStyle: { sample: { centerOffset: [-4, 0], radius: 0.7, fill: 'solid' }, spt: { topRightOffset: [-7, 0], width: 10, height: 3, labelPlacement: { offset: [-12, -1.5], height: 2, textWidthFactor: 1, horizontalAlignment: 'center', verticalAlignment: 'baseline' } } },
+      plotLeft: 30, plotRight: 390, plotBottom: 35, plotTop: 245, titleY: 275, scaleY: 262, footerHeight: 10, boreholeWidth: 3, elevationTickStep: 2,
+      footerGrid: [{ start: 12, key: 'projectName', label: 'Project' }, { start: 140, key: 'organization', label: 'Organization' }, { start: 260, key: 'drawingNumber', label: 'Drawing' }],
+    } },
+  }
+  const packBytes = Buffer.from(JSON.stringify(pack))
+  await writeFile(join(directory, 'section.json'), packBytes)
+  const holes = [
+    { id: 'SYN-01', station: 0, collarElevation: 105.25, depth: 16, observations: [{ kind: 'sample', id: 'S1', depth: 4 }], strata: [
+      { intervalId: 'SYN-01-a', code: '1', name: 'Made ground', top: 0, bottom: 3, lithology: 'fill' },
+      { intervalId: 'SYN-01-b', code: '2', name: 'Silty clay', top: 3, bottom: 9, lithology: 'clay' },
+      { intervalId: 'SYN-01-c', code: '3', name: 'Medium sand', top: 9, bottom: 16, lithology: 'sand' },
+    ] },
+    { id: 'SYN-02', station: 12, collarElevation: 104.8, depth: 16, strata: [
+      { intervalId: 'SYN-02-a', code: '1', name: 'Made ground', top: 0, bottom: 3, lithology: 'fill' },
+      { intervalId: 'SYN-02-b', code: '2', name: 'Silty clay', top: 3, bottom: 9, lithology: 'clay' },
+      { intervalId: 'SYN-02-c', code: '3', name: 'Medium sand', top: 9, bottom: 16, lithology: 'sand' },
+    ] },
+  ]
+  const facts = {
+    version: '1.0.0', expectedRevision: 0, units: 'millimeter', holes,
+    correlations: ['a', 'b', 'c'].map(suffix => ({ fromHoleId: 'SYN-01', toHoleId: 'SYN-02', fromIntervalId: `SYN-01-${suffix}`, toIntervalId: `SYN-02-${suffix}` })),
+    horizontalScaleDenominator: 200, verticalScaleDenominator: 125, datumElevation: 80,
+    surfaceRule: 'straight-between-supplied-collars', title: 'Synthetic geological section', sectionReference: { start: 'A', end: "A'" },
+  }
+  const messages = [
+    request(1, 'initialize', { protocolVersion: '2025-11-25' }),
+    request(2, 'tools/list', {}),
+    request(3, 'tools/call', { name: 'cad_propose_geology_section', arguments: facts }),
+  ]
+  const drawingPath = join(directory, 'section.kjd')
+  const child = invoke([...blankArgs(directory, 'section.kjd', 'section-ledger.json', 'millimeter'),
+    '--geology-section-pack', 'section.json', '--geology-section-pack-sha256', sha256(packBytes)], messages)
+  assert.equal(child.status, 0, child.stderr)
+  const responses = child.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const schema = responses[1].result.tools.find(tool => tool.name === 'cad_propose_geology_section').inputSchema
+  assert.equal(Object.hasOwn(schema.properties, 'sectionStylePack'), false)
+  assert.equal(Object.hasOwn(schema.properties, 'knowledgePack'), false)
+  const visible = responses[2].result.structuredContent.value
+  assert.equal(visible.status, 'awaiting-host-approval')
+  assert.deepEqual(visible.engineeringEvidence.knowledgePack, { id: pack.id, version: pack.version, sha256: sha256(packBytes) })
+  const drawingBytes = await readFile(drawingPath)
+  const ledger = JSON.parse(await readFile(join(directory, 'section-ledger.json'), 'utf8'))
+  assert.deepEqual(ledger.knowledge.geologySection, { id: pack.id, version: pack.version, sha256: sha256(packBytes), path: 'section.json', byteLength: packBytes.byteLength })
+  assert.equal(ledger.proposals[0].result.engineeringEvidence.knowledgePack.sha256, sha256(packBytes))
+  assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'CIRCLE').length, 1)
+  assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'TEXT' && ['A', "A'"].includes(entity.payload.text)).length, 2)
+  assert.deepEqual(await readFile(drawingPath), drawingBytes)
+  assert.deepEqual(await readFile(join(directory, 'section.json')), packBytes)
+
+  const rejected = invoke([...blankArgs(directory, 'bad-section.kjd', 'bad-section-ledger.json', 'millimeter'),
+    '--geology-section-pack', 'section.json', '--geology-section-pack-sha256', '0'.repeat(64)])
+  assert.equal(rejected.status, 1, rejected.stderr)
+  assert.match(rejected.stderr, /do not match the host-supplied SHA-256/u)
+  await assert.rejects(readFile(join(directory, 'bad-section.kjd')), /ENOENT/u)
+})
+
 test('MCP host bounds an oversized frame, discards it, and resumes on the next newline', async t => {
   const fixture = await drawingFixture('KJD')
   t.after(() => rm(fixture.directory, { recursive: true, force: true }))
