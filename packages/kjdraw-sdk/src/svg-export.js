@@ -133,12 +133,18 @@ function viewportClip(document, viewport) {
 function hatchEdgePath(value) {
     const loop = data(value), edges = loop.edges;
     if (!Array.isArray(edges) || !edges.length || edges.length > 4096) fail('hatch edge loop requires 1–4096 edges');
-    let path = '';
-    for (const [index, raw] of edges.entries()){
+    let path = '', last;
+    const join = (start)=>{
+        if (!last) path += `M ${pos(start)}`;
+        else if (last[0] !== start[0] || last[1] !== start[1]) path += ` L ${pos(start)}`;
+    };
+    for (const raw of edges){
         const edge = data(raw), type = String(edge.type).toUpperCase();
         if (type === 'LINE') {
             const a = point(edge.start), b = point(edge.end);
-            path += `${index ? ` L ${pos(a)}` : `M ${pos(a)}`} L ${pos(b)}`;
+            join(a);
+            path += ` L ${pos(b)}`;
+            last = b;
             continue;
         }
         if (type === 'SPLINE') {
@@ -164,8 +170,9 @@ function hatchEdgePath(value) {
                     center[0] + radius * Math.cos(angle),
                     center[1] + radius * Math.sin(angle)
                 ], finish = start + (ccw ? sweep : -sweep), flag = ccw ? 1 : 0;
-            path += index ? ` L ${pos(at(start))}` : `M ${pos(at(start))}`;
-            path += sweep === TAU ? ` A ${radius} ${radius} 0 0 ${flag} ${pos(at(start + (ccw ? Math.PI : -Math.PI)))} A ${radius} ${radius} 0 0 ${flag} ${pos(at(finish))}` : ` A ${radius} ${radius} 0 ${sweep > Math.PI ? 1 : 0} ${flag} ${pos(at(finish))}`;
+            join(at(start));
+            last = at(finish);
+            path += sweep === TAU ? ` A ${radius} ${radius} 0 0 ${flag} ${pos(at(start + (ccw ? Math.PI : -Math.PI)))} A ${radius} ${radius} 0 0 ${flag} ${pos(last)}` : ` A ${radius} ${radius} 0 ${sweep > Math.PI ? 1 : 0} ${flag} ${pos(last)}`;
             continue;
         }
         if (type === 'ELLIPSE') {
@@ -175,75 +182,94 @@ function hatchEdgePath(value) {
                     center[0] + axis[0] * Math.cos(angle) - axis[1] * ratio * Math.sin(angle),
                     center[1] + axis[1] * Math.cos(angle) + axis[0] * ratio * Math.sin(angle)
                 ], finish = start + (ccw ? sweep : -sweep), rotation = Math.atan2(axis[1], axis[0]) * 180 / Math.PI, flag = ccw ? 1 : 0;
-            path += index ? ` L ${pos(at(start))}` : `M ${pos(at(start))}`;
-            path += sweep === TAU ? ` A ${radius} ${radius * ratio} ${rotation} 0 ${flag} ${pos(at(start + (ccw ? Math.PI : -Math.PI)))} A ${radius} ${radius * ratio} ${rotation} 0 ${flag} ${pos(at(finish))}` : ` A ${radius} ${radius * ratio} ${rotation} ${sweep > Math.PI ? 1 : 0} ${flag} ${pos(at(finish))}`;
+            join(at(start));
+            last = at(finish);
+            path += sweep === TAU ? ` A ${radius} ${radius * ratio} ${rotation} 0 ${flag} ${pos(at(start + (ccw ? Math.PI : -Math.PI)))} A ${radius} ${radius * ratio} ${rotation} 0 ${flag} ${pos(last)}` : ` A ${radius} ${radius * ratio} ${rotation} ${sweep > Math.PI ? 1 : 0} ${flag} ${pos(last)}`;
             continue;
         }
         fail(`unsupported hatch edge ${type}`);
     }
     return path + ' Z';
 }
+function hatchLoopEdges(value) {
+    const loop = data(value);
+    if (!Array.isArray(loop.vertices)) {
+        if (!Array.isArray(loop.edges) || !loop.edges.length || loop.edges.length > 4096) fail('hatch edge loop requires 1–4096 edges');
+        return loop.edges;
+    }
+    if (loop.vertices.length < 2 || loop.vertices.length > 4096) fail('hatch vertex loop requires 2–4096 vertices');
+    const rows = loop.vertices.map((vertex)=>({
+            point: point(Array.isArray(vertex) ? vertex : data(vertex).point),
+            bulge: numeric(data(vertex).bulge, 0),
+            startWidth: numeric(data(vertex).startWidth, 0),
+            endWidth: numeric(data(vertex).endWidth, 0)
+        }));
+    if (rows.some((row)=>row.startWidth !== 0 || row.endWidth !== 0)) fail('variable-width hatch boundary is unsupported');
+    return rows.map((row, index)=>{
+        const next = rows[(index + 1) % rows.length], start = row.point, end = next.point;
+        if (!row.bulge) return {
+            type: 'LINE',
+            start,
+            end
+        };
+        const dx = end[0] - start[0], dy = end[1] - start[1], chord = Math.hypot(dx, dy);
+        if (!chord) fail('degenerate hatch bulge segment');
+        const offset = chord * (1 / row.bulge - row.bulge) / 4;
+        const center = [
+            (start[0] + end[0]) / 2 - dy / chord * offset,
+            (start[1] + end[1]) / 2 + dx / chord * offset
+        ];
+        const startAngle = Math.atan2(start[1] - center[1], start[0] - center[0]);
+        return {
+            type: 'ARC',
+            center,
+            radius: Math.hypot(start[0] - center[0], start[1] - center[1]),
+            startAngle,
+            endAngle: startAngle + 4 * Math.atan(row.bulge),
+            counterClockwise: row.bulge > 0
+        };
+    });
+}
+function hatchBoundaryPath(value) {
+    return hatchEdgePath({
+        edges: hatchLoopEdges(value)
+    });
+}
 function hatchPreviewBoundary(loops) {
     const paths = [], points = [];
     let count = 0;
     for (const raw of loops){
         const loop = data(raw);
-        if (Array.isArray(loop.vertices)) {
-            if (loop.vertices.length < 3) fail('custom PAT boundary requires at least three vertices');
-            count += loop.vertices.length;
-            paths.push(polyPath(loop.vertices, true));
-            for(let index = 0; index < loop.vertices.length; index++){
-                const vertex = loop.vertices[index], next = loop.vertices[(index + 1) % loop.vertices.length];
-                const a = point(Array.isArray(vertex) ? vertex : data(vertex).point);
-                points.push(a);
-                const bulge = numeric(data(vertex).bulge, 0);
-                if (bulge) {
-                    const b = point(Array.isArray(next) ? next : data(next).point);
-                    const chord = Math.hypot(b[0] - a[0], b[1] - a[1]);
-                    if (!chord) fail('custom PAT boundary contains a degenerate bulge');
-                    const radius = chord * (1 + bulge * bulge) / (4 * Math.abs(bulge));
-                    for (const p of [
-                        a,
-                        b
-                    ])points.push([
-                        p[0] - 2 * radius,
-                        p[1] - 2 * radius
-                    ], [
-                        p[0] + 2 * radius,
-                        p[1] + 2 * radius
-                    ]);
-                }
+        if (Array.isArray(loop.vertices) && loop.vertices.length < 3) fail('custom PAT boundary requires at least three vertices');
+        const edges = hatchLoopEdges(loop);
+        count += edges.length;
+        paths.push(hatchEdgePath({
+            edges
+        }));
+        for (const rawEdge of edges){
+            const edge = data(rawEdge), type = String(edge.type).toUpperCase();
+            if (type === 'LINE') {
+                points.push(point(edge.start), point(edge.end));
+                continue;
             }
-        } else {
-            const edges = loop.edges;
-            if (!Array.isArray(edges) || !edges.length) fail('custom PAT boundary requires polygon or edge loops');
-            count += edges.length;
-            paths.push(hatchEdgePath(loop));
-            for (const rawEdge of edges){
-                const edge = data(rawEdge), type = String(edge.type).toUpperCase();
-                if (type === 'LINE') {
-                    points.push(point(edge.start), point(edge.end));
-                    continue;
-                }
-                let center, radius;
-                if (type === 'SPLINE') {
-                    const conic = closedHatchSplineConic(edge);
-                    if (!conic) fail('unsupported custom PAT spline boundary');
-                    center = point(conic.center);
-                    radius = Math.hypot(...point(conic.majorAxis));
-                } else if (type === 'ARC' || type === 'ELLIPSE') {
-                    center = point(edge.center);
-                    radius = type === 'ARC' ? numeric(edge.radius) : Math.hypot(...point(edge.majorAxis));
-                } else return fail(`unsupported custom PAT edge ${type}`);
-                if (!(radius > 0)) fail('custom PAT curved boundary radius must be positive');
-                points.push([
-                    center[0] - radius,
-                    center[1] - radius
-                ], [
-                    center[0] + radius,
-                    center[1] + radius
-                ]);
-            }
+            let center, radius;
+            if (type === 'SPLINE') {
+                const conic = closedHatchSplineConic(edge);
+                if (!conic) fail('unsupported custom PAT spline boundary');
+                center = point(conic.center);
+                radius = Math.hypot(...point(conic.majorAxis));
+            } else if (type === 'ARC' || type === 'ELLIPSE') {
+                center = point(edge.center);
+                radius = type === 'ARC' ? numeric(edge.radius) : Math.hypot(...point(edge.majorAxis));
+            } else return fail(`unsupported custom PAT edge ${type}`);
+            if (!(radius > 0)) fail('custom PAT curved boundary radius must be positive');
+            points.push([
+                center[0] - radius,
+                center[1] - radius
+            ], [
+                center[0] + radius,
+                center[1] + radius
+            ]);
         }
         if (count > 4096) fail('custom PAT boundary exceeds the preview budget');
     }
@@ -527,7 +553,7 @@ export function exportDrawingSvg(document, options) {
         }
         if (entity.type === 'HATCH' && p.solid === true) {
             if (!Array.isArray(p.boundaryLoops) || !p.boundaryLoops.length) fail('solid hatch has no boundaries');
-            return `<path d="${p.boundaryLoops.map((loop)=>Array.isArray(data(loop).vertices) ? polyPath(data(loop).vertices, true) : hatchEdgePath(loop)).join(' ')}" fill="currentColor" fill-rule="evenodd" stroke="none"/>`;
+            return `<path d="${p.boundaryLoops.map(hatchBoundaryPath).join(' ')}" fill="currentColor" fill-rule="evenodd" stroke="none"/>`;
         }
         if (entity.type === 'HATCH' && p.solid !== true) {
             if (!Array.isArray(p.boundaryLoops) || !p.boundaryLoops.length || p.boundaryLoops.length > 128) fail('pattern hatch has no bounded boundaries');
@@ -650,7 +676,7 @@ export function exportDrawingSvg(document, options) {
                 type: entity.type,
                 reason: `SVG previews ${name} as a bounded visual proxy; DXF retains its named CAD hatch`
             });
-            return `<path d="${p.boundaryLoops.map((loop)=>Array.isArray(data(loop).vertices) ? polyPath(data(loop).vertices, true) : hatchEdgePath(loop)).join(' ')}" fill="url(#${id})" fill-rule="evenodd" stroke="none"/>`;
+            return `<path d="${p.boundaryLoops.map(hatchBoundaryPath).join(' ')}" fill="url(#${id})" fill-rule="evenodd" stroke="none"/>`;
         }
         return fail(`unsupported entity ${entity.type}`);
     };

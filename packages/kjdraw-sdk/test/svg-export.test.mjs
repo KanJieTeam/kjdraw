@@ -86,6 +86,61 @@ test('custom PAT SVG clips bounded edge loops including curved boundaries', asyn
   parseSvg(result.svg)
 })
 
+test('equivalent vertex and contiguous line-edge HATCH loops export identical SVG paths', async () => {
+  const { document, layoutId, create } = await fixture()
+  const vertices = [[0, 0], [20, 0], [20, 10], [0, 10]]
+  await create('HATCH', { solid: true, patternName: 'SOLID', boundaryLoops: [{ vertices }] })
+  await create('HATCH', { solid: true, patternName: 'SOLID', boundaryLoops: [{ edges: vertices.map((start, index) => ({
+    type: 'LINE', start, end: vertices[(index + 1) % vertices.length],
+  })) }] })
+  const result = exportDrawingSvg(document, { layoutId, allowPartial: false })
+  assert.equal(result.report.diagnostics.length, 0, JSON.stringify(result.report.diagnostics))
+  assert.equal((result.svg.match(/d="M 0 0 L 20 0 L 20 10 L 0 10 L 0 0 Z"/g) ?? []).length, 2)
+})
+
+test('equivalent bulged-vertex and explicit ARC HATCH loops export identical SVG paths', async () => {
+  const { document, layoutId, create } = await fixture()
+  await create('HATCH', { solid: true, patternName: 'SOLID', boundaryLoops: [{ vertices: [
+    { point: [-10, 0], bulge: 1 }, { point: [10, 0] }, { point: [10, 1] },
+  ] }] })
+  await create('HATCH', { solid: true, patternName: 'SOLID', boundaryLoops: [{ edges: [
+    { type: 'ARC', center: [0, 0], radius: 10, startAngle: Math.PI, endAngle: Math.PI * 2, counterClockwise: true },
+    { type: 'LINE', start: [10, 0], end: [10, 1] }, { type: 'LINE', start: [10, 1], end: [-10, 0] },
+  ] }] })
+  const result = exportDrawingSvg(document, { layoutId, allowPartial: false })
+  assert.equal(result.report.diagnostics.length, 0, JSON.stringify(result.report.diagnostics))
+  const paths = [...result.svg.matchAll(/<path d="([^"]+)" fill="currentColor" fill-rule="evenodd" stroke="none"\/>/g)].map(match => match[1])
+  assert.equal(paths.length, 2)
+  assert.equal(paths[0], paths[1])
+})
+
+test('equivalent vertex/bulge and edge/arc custom PAT boundaries emit identical clips and marks', async () => {
+  const { document, layoutId, create } = await fixture()
+  const pattern = { patternName: 'LOCAL', patternScale: 1, patternAngle: 0,
+    patternLines: [{ angle: 0, base: [0, 0], offset: [0, 2], dashes: [] }] }
+  const vertex = await create('HATCH', { ...pattern, boundaryLoops: [{ vertices: [
+    { point: [-10, 0], bulge: 1 }, { point: [10, 0] }, { point: [10, 10] }, { point: [-10, 10] },
+  ] }] })
+  const edges = await create('HATCH', { ...pattern, boundaryLoops: [{ edges: [
+    { type: 'ARC', center: [0, 0], radius: 10, startAngle: Math.PI, endAngle: Math.PI * 2, counterClockwise: true },
+    { type: 'LINE', start: [10, 0], end: [10, 10] }, { type: 'LINE', start: [10, 10], end: [-10, 10] },
+    { type: 'LINE', start: [-10, 10], end: [-10, 0] },
+  ] }] })
+  const result = exportDrawingSvg(document, { layoutId, allowPartial: false })
+  assert.equal(result.report.diagnostics.length, 0, JSON.stringify(result.report.diagnostics))
+  const clips = [...result.svg.matchAll(/<clipPath id="kj-pat-clip-\d+"[^>]*><path d="([^"]+)"/g)].map(match => match[1])
+  assert.equal(clips.length, 2)
+  assert.equal(clips[0], clips[1])
+  const marks = entity => {
+    const marker = `data-entity-id="${entity.id}"`, start = result.svg.indexOf(marker), end = result.svg.indexOf('</g>', start)
+    assert.ok(start >= 0 && end > start)
+    return [...result.svg.slice(start, end).matchAll(/<line ([^>]+)\/>/g)].map(match => match[1])
+  }
+  const vertexMarks = marks(vertex), edgeMarks = marks(edges)
+  assert.ok(vertexMarks.length > 1)
+  assert.deepEqual(vertexMarks, edgeMarks)
+})
+
 test('custom PAT SVG keeps OCS row offsets for vertical geology marks at scaled spacing', async () => {
   const { document, layoutId, create } = await fixture()
   const hatch = await create('HATCH', {
