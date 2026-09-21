@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-KJDRAW_SOURCE_SHA='87cf874a26c39fd5e7a16e5602e38e2bfd1daf4c'
+KJDRAW_SOURCE_SHA='e74812f0cbe5b39ba131b80b846da98a1c0fb70c'
 command -v node >/dev/null 2>&1 || { echo 'KJDraw requires Node.js 22 or newer.' >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo 'KJDraw requires curl.' >&2; exit 1; }
 command -v tar >/dev/null 2>&1 || { echo 'KJDraw requires tar.' >&2; exit 1; }
@@ -9,7 +9,7 @@ node -e 'if (+process.versions.node.split(".")[0] < 22) process.exit(1)'
 KJDRAW_USER_HOME="${KJDRAW_USER_HOME:-$(node -p 'require("node:os").homedir()')}"
 KJDRAW_DATA_ROOT="${XDG_DATA_HOME:-$KJDRAW_USER_HOME/.local/share}"
 KJDRAW_ROOT="$KJDRAW_DATA_ROOT/kjdraw"
-KJDRAW_INSTALL="$KJDRAW_ROOT/source-87cf874"
+KJDRAW_INSTALL="$KJDRAW_ROOT/source-e74812f"
 KJDRAW_STABLE_BIN="$KJDRAW_ROOT/bin"
 KJDRAW_STABLE_MCP="$KJDRAW_STABLE_BIN/kjdraw-mcp.mjs"
 KJDRAW_CURRENT="$KJDRAW_ROOT/current.json"
@@ -35,6 +35,7 @@ KJDRAW_PREVIOUS_2A79="$KJDRAW_ROOT/source-2a793ad/packages/kjdraw-sdk/bin/kjdraw
 KJDRAW_PREVIOUS_BE1E="$KJDRAW_ROOT/source-be1e4b5/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_6977="$KJDRAW_ROOT/source-6977028/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_1A6F="$KJDRAW_ROOT/source-1a6ff8c/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
+KJDRAW_PREVIOUS_87CF="$KJDRAW_ROOT/source-87cf874/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 
 case "$KJDRAW_USER_HOME" in
   /*) ;;
@@ -135,6 +136,7 @@ if [ -f "$KJDRAW_PREVIOUS_2A79" ]; then set -- "$@" --previous-mcp-script "$KJDR
 if [ -f "$KJDRAW_PREVIOUS_BE1E" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_BE1E"; fi
 if [ -f "$KJDRAW_PREVIOUS_6977" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_6977"; fi
 if [ -f "$KJDRAW_PREVIOUS_1A6F" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_1A6F"; fi
+if [ -f "$KJDRAW_PREVIOUS_87CF" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_87CF"; fi
 KJDRAW_RESULT=$(node "$KJDRAW_CONNECT" "$@")
 mv -f "$KJDRAW_CURRENT_STAGE" "$KJDRAW_CURRENT"
 trap - 0 HUP INT TERM
