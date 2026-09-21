@@ -296,6 +296,15 @@ export interface KJGeologySectionObservationSymbolStyle {
         markerPolygon: [number, number][];
         fill: 'solid' | 'none';
         labelPlacement?: KJGeologyFieldHeaderTextPlacement;
+        labelFormat?: 'role-depth' | 'depth-elevation';
+        labelPrecision?: 0 | 1 | 2 | 3 | 4;
+        labelOverrides?: {
+            holeId: string;
+            observationRole: 'stable-water';
+            depth: number;
+            elevation: number;
+            placement: KJGeologyFieldHeaderTextPlacement;
+        }[];
     };
 }
 export interface KJGeologyColumnInput {

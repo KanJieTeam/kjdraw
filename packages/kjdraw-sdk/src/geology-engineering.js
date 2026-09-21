@@ -2080,12 +2080,52 @@ function sectionLayout(input) {
         const sample = supplied.sample, spt = supplied.spt;
         let groundwater;
         if (supplied.groundwater != null) {
-            if (!supplied.groundwater || typeof supplied.groundwater !== 'object' || Array.isArray(supplied.groundwater) || ![
-                'fill,insertOffset,lineSegments,markerPolygon',
-                'fill,insertOffset,labelPlacement,lineSegments,markerPolygon'
-            ].includes(Object.keys(supplied.groundwater).sort().join(','))) throw new KJValidationError('Geology: section groundwater symbol rule is invalid');
+            if (!supplied.groundwater || typeof supplied.groundwater !== 'object' || Array.isArray(supplied.groundwater)) throw new KJValidationError('Geology: section groundwater symbol rule is invalid');
             const rule = supplied.groundwater;
+            const optionalKeys = [
+                'labelFormat',
+                'labelOverrides',
+                'labelPlacement',
+                'labelPrecision'
+            ].filter((key)=>rule[key] != null);
+            if (Object.keys(rule).sort().join(',') !== [
+                'fill',
+                'insertOffset',
+                'lineSegments',
+                'markerPolygon',
+                ...optionalKeys
+            ].sort().join(',')) throw new KJValidationError('Geology: section groundwater symbol rule is invalid');
             if (!Array.isArray(rule.lineSegments) || rule.lineSegments.length < 1 || rule.lineSegments.length > 8 || !Array.isArray(rule.markerPolygon) || rule.markerPolygon.length < 3 || rule.markerPolygon.length > 12 || rule.fill !== 'solid' && rule.fill !== 'none') throw new KJValidationError('Geology: section groundwater symbol geometry is unreadable');
+            const labelFormat = rule.labelFormat == null ? 'role-depth' : rule.labelFormat;
+            const labelPrecision = rule.labelPrecision == null ? 2 : precision(rule.labelPrecision, 'stable groundwater label');
+            if (![
+                'role-depth',
+                'depth-elevation'
+            ].includes(labelFormat) || (rule.labelFormat != null || rule.labelPrecision != null || rule.labelOverrides != null) && rule.labelPlacement == null) throw new KJValidationError('Geology: section groundwater label presentation is invalid');
+            let groundwaterLabelOverrides;
+            if (rule.labelOverrides != null) {
+                if (labelFormat !== 'depth-elevation' || !Array.isArray(rule.labelOverrides) || rule.labelOverrides.length < 1 || rule.labelOverrides.length > 128) throw new KJValidationError('Geology: section stable groundwater label overrides need bounded depth-elevation facts');
+                const identities = new Set();
+                groundwaterLabelOverrides = rule.labelOverrides.map((raw, index)=>{
+                    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'depth,elevation,holeId,observationRole,placement') throw new KJValidationError(`Geology: section stable groundwater label override ${index + 1} needs an exact fact schema`);
+                    const item = raw;
+                    const holeId = bounded(item.holeId, `section stable groundwater label override ${index + 1} hole`, 40);
+                    if (item.observationRole !== 'stable-water') throw new KJValidationError('Geology: section groundwater label override needs the stable-water observation role');
+                    if (identities.has(holeId)) throw new KJValidationError('Geology: duplicate section stable groundwater label override fact');
+                    identities.add(holeId);
+                    const depth = numeric(item.depth, `section stable groundwater label override ${index + 1} depth`);
+                    const elevation = numeric(item.elevation, `section stable groundwater label override ${index + 1} elevation`);
+                    const placement = sourceTextPlacement(item.placement, `section stable groundwater label override ${index + 1}`);
+                    if (depth < 0 || depth > 10000 || elevation < -10000 || elevation > 10000 || placement.offset.some((value)=>Math.abs(value) > 50)) throw new KJValidationError(`Geology: section stable groundwater label override ${index + 1} is out of bounds`);
+                    return {
+                        holeId,
+                        observationRole: 'stable-water',
+                        depth,
+                        elevation,
+                        placement
+                    };
+                });
+            }
             const point = (raw, label)=>{
                 const result = offsetPair(raw, label);
                 if (result.some((coordinate)=>Math.abs(coordinate) > 20)) throw new KJValidationError(`Geology: ${label} is outside the bounded local marker`);
@@ -2104,7 +2144,16 @@ function sectionLayout(input) {
                 fill: rule.fill,
                 ...rule.labelPlacement == null ? {} : {
                     labelPlacement: sourceTextPlacement(rule.labelPlacement, 'section groundwater label')
-                }
+                },
+                ...rule.labelFormat == null ? {} : {
+                    labelFormat: labelFormat
+                },
+                ...rule.labelPrecision == null ? {} : {
+                    labelPrecision
+                },
+                ...groundwaterLabelOverrides ? {
+                    labelOverrides: groundwaterLabelOverrides
+                } : {}
             };
         }
         let labelOverrides;
@@ -3958,6 +4007,17 @@ export function compileGeologySection(input) {
         const displayTolerance = 0.5 * 10 ** -sectionText.intervalBottom.precision + 1e-9;
         if (Math.abs(item.depth - interval.bottom) > displayTolerance) throw new KJValidationError('Geology: section interval bottom label override depth does not match its supplied interval');
     }
+    const groundwaterStyle = layout.observationSymbolStyle?.groundwater;
+    const stableWaterLabelOverrides = new Map((groundwaterStyle?.labelOverrides ?? []).map((item)=>[
+            `${item.holeId}\u0000${item.observationRole}`,
+            item
+        ]));
+    for (const item of groundwaterStyle?.labelOverrides ?? []){
+        const hole = byId.get(item.holeId)?.hole;
+        if (hole?.stableWaterDepth == null) throw new KJValidationError('Geology: section stable groundwater label override references an unknown supplied observation');
+        const displayTolerance = 0.5 * 10 ** -(groundwaterStyle?.labelPrecision ?? 2) + 1e-9;
+        if (Math.abs(item.depth - hole.stableWaterDepth) > displayTolerance) throw new KJValidationError('Geology: section stable groundwater label override depth does not match its supplied observation');
+    }
     const sptLabelOverrides = new Map((layout.observationSymbolStyle?.spt.labelOverrides ?? []).map((item)=>[
             `${item.holeId}\u0000${item.observationId}`,
             item.placement
@@ -4049,7 +4109,14 @@ export function compileGeologySection(input) {
                     ]);
                 g.poly(1, marker, true);
                 if (style.fill === 'solid') g.solidPolygonHatch(marker);
-                if (style.labelPlacement) emitPlaced(center, waterY, `${locale === 'zh-CN' ? '水位' : 'WL'} ${metres(hole.stableWaterDepth)}`, style.labelPlacement);
+                if (style.labelPlacement) {
+                    const override = stableWaterLabelOverrides.get(`${hole.id}\u0000stable-water`);
+                    const precision = style.labelPrecision ?? 2;
+                    const depth = override?.depth ?? hole.stableWaterDepth;
+                    const elevation = override?.elevation ?? hole.collarElevation - hole.stableWaterDepth;
+                    const visible = style.labelFormat === 'depth-elevation' ? `${fixed(depth, precision)}-${fixed(elevation, precision)}` : `${locale === 'zh-CN' ? '水位' : 'WL'} ${metres(hole.stableWaterDepth)}`;
+                    emitPlaced(center, waterY, visible, override?.placement ?? style.labelPlacement);
+                }
             } else {
                 g.line(1, center - 5, waterY, center + 5, waterY);
                 g.poly(1, [
@@ -4287,6 +4354,9 @@ export function compileGeologySection(input) {
         } : {},
         ...sectionText?.intervalBottom.labelOverrides ? {
             sourceBackedIntervalBottomLabelOverrideCount: sectionText.intervalBottom.labelOverrides.length
+        } : {},
+        ...groundwaterStyle?.labelOverrides ? {
+            sourceBackedStableWaterLabelOverrideCount: groundwaterStyle.labelOverrides.length
         } : {},
         ...layout.observationSymbolStyle?.spt.labelOverrides ? {
             sourceBackedSptLabelOverrideCount: layout.observationSymbolStyle.spt.labelOverrides.length

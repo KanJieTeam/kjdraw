@@ -74,7 +74,13 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
       footerFrameStyle: { left: 12, right: 408, bottom: 12, top: 22, guideY: 12, primitive: 'line-segments', cellMode: 'none' },
       headingTextStyle: { title: { anchorX: 210, height: 6, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 }, scale: { anchorX: 210, height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
       sectionReferenceStyle: { start: { offset: [150, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'right', verticalAlignment: 'baseline' }, end: { offset: [270, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
-      observationSymbolStyle: { sample: { centerOffset: [-4, 0], radius: 0.7, fill: 'solid' }, spt: { topRightOffset: [-7, 0], width: 10, height: 3,
+      observationSymbolStyle: { groundwater: { insertOffset: [-8, 0], lineSegments: [[[0, -2], [4, -2]]],
+        markerPolygon: [[1, 2], [3, 2], [2, 0]], fill: 'none',
+        labelPlacement: { offset: [-8, 1], height: 2.2, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' },
+        labelFormat: 'depth-elevation', labelPrecision: 2, labelOverrides: [
+          { holeId: 'SYN-01', observationRole: 'stable-water', depth: 6, elevation: 99.13,
+            placement: { offset: [-7.5, 0.75], height: 2.2, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
+        ] }, sample: { centerOffset: [-4, 0], radius: 0.7, fill: 'solid' }, spt: { topRightOffset: [-7, 0], width: 10, height: 3,
         labelPlacement: { offset: [-12, -1.5], height: 2, textWidthFactor: 1, horizontalAlignment: 'middle', verticalAlignment: 'baseline' },
         labelOverrides: [{ holeId: 'SYN-01', observationId: 'N1', placement: { offset: [-11.5, -1.25], height: 2,
           textWidthFactor: 1, horizontalAlignment: 'middle', verticalAlignment: 'baseline' } }] } },
@@ -86,6 +92,7 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
   const digest = sha(JSON.stringify(pack)), session = new KJAgentToolSession(sdk, document, { geologySectionKnowledge: { pack, sha256: digest } })
   const request = intent()
   request.sectionReference = { start: 'A', end: "A'" }
+  request.holes[0].stableWaterDepth = 6
   request.holes[0].observations = [{ kind: 'sample', id: 'S1', depth: 4 }, { kind: 'spt', id: 'N1', depth: 8, value: 12 }]
   const proposal = accepted(await session.call('cad_propose_geology_section', request))
   assert.deepEqual(session.geologySectionKnowledge, { id: pack.id, version: pack.version, sha256: digest })
@@ -94,6 +101,9 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
   assert.equal(intervalLabels.some(entity => entity.payload.text === '3.00-102.13'), true)
   assert.equal(intervalLabels.some(entity => entity.payload.text === '3.00-102.25'), false)
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedIntervalBottomLabelOverrideCount, 1)
+  const stableWaterLabel = proposal.arguments.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === '6.00-99.13')
+  assert.deepEqual(stableWaterLabel.payload.position, [40.5, 189.75, 0])
+  assert.equal(proposal.engineeringEvidence.parameters.sourceBackedStableWaterLabelOverrideCount, 1)
   const roleHatches = proposal.arguments.entities.filter(entity => entity.type === 'HATCH' && entity.payload.solid !== true)
   assert.equal(roleHatches.some(entity => entity.payload.patternScale === 0.75 && entity.payload.patternAngle === 0.25), true)
   assert.equal(roleHatches.some(entity => entity.payload.patternScale === 1.25 && entity.payload.patternAngle === 0), true)

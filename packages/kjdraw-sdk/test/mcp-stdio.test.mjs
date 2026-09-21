@@ -648,7 +648,13 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
         { primitive: 'open-polyline', points: [[2, 95], [10, 94.5]] },
         { primitive: 'closed-polyline', points: [[2, 98], [10, 97.5], [10, 96], [2, 96.5]] },
       ],
-      observationSymbolStyle: { sample: { centerOffset: [-4, 0], radius: 0.7, fill: 'solid' }, spt: { topRightOffset: [-7, 0], width: 10, height: 3,
+      observationSymbolStyle: { groundwater: { insertOffset: [-8, 0], lineSegments: [[[0, -2], [4, -2]]],
+        markerPolygon: [[1, 2], [3, 2], [2, 0]], fill: 'none',
+        labelPlacement: { offset: [-8, 1], height: 2.2, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' },
+        labelFormat: 'depth-elevation', labelPrecision: 2, labelOverrides: [
+          { holeId: 'SYN-01', observationRole: 'stable-water', depth: 6, elevation: 99.13,
+            placement: { offset: [-7.5, 0.75], height: 2.2, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
+        ] }, sample: { centerOffset: [-4, 0], radius: 0.7, fill: 'solid' }, spt: { topRightOffset: [-7, 0], width: 10, height: 3,
         labelPlacement: { offset: [-12, -1.5], height: 2, textWidthFactor: 1, horizontalAlignment: 'middle', verticalAlignment: 'baseline' },
         labelOverrides: [{ holeId: 'SYN-01', observationId: 'N1', placement: { offset: [-11.5, -1.25], height: 2,
           textWidthFactor: 1, horizontalAlignment: 'middle', verticalAlignment: 'baseline' } }] } },
@@ -659,7 +665,7 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
   const packBytes = Buffer.from(JSON.stringify(pack))
   await writeFile(join(directory, 'section.json'), packBytes)
   const holes = [
-    { id: 'SYN-01', station: 0, collarElevation: 105.25, depth: 16,
+    { id: 'SYN-01', station: 0, collarElevation: 105.25, depth: 16, stableWaterDepth: 6,
       observations: [{ kind: 'sample', id: 'S1', depth: 4 }, { kind: 'spt', id: 'N1', depth: 8, value: 12 }], strata: [
       { intervalId: 'SYN-01-a', code: '1', name: 'Made ground', top: 0, bottom: 3, lithology: 'fill' },
       { intervalId: 'SYN-01-b', code: '2', name: 'Silty clay', top: 3, bottom: 9, lithology: 'clay' },
@@ -705,6 +711,8 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedIntervalBottomLabelOverrideCount, 1)
   assert.equal(ledger.proposals[0].result.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === '3.00-102.13'), true)
   assert.equal(ledger.proposals[0].result.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === '3.00-102.25'), false)
+  assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedStableWaterLabelOverrideCount, 1)
+  assert.equal(ledger.proposals[0].result.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === '6.00-99.13'), true)
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedSptLabelOverrideCount, 1)
   const sourceBackedSpt = ledger.proposals[0].result.arguments.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'N=12')
   assert.equal(sourceBackedSpt.payload.horizontalAlignment, 4)

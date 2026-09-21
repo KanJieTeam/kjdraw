@@ -239,7 +239,11 @@ test('section preserves caller-supplied references and native measured-observati
     groundwater: { insertOffset: [-8, 0], lineSegments: [
       [[0, -2], [4, -2]],
       [[0, -1], [4, -1]],
-    ], markerPolygon: [[1, 2], [3, 2], [2, 0]], fill: 'solid' },
+    ], markerPolygon: [[1, 2], [3, 2], [2, 0]], fill: 'solid',
+      labelPlacement: placement([-8, 1], 2.2, 'left'), labelFormat: 'depth-elevation', labelPrecision: 2,
+      labelOverrides: [{ holeId: holes[0].id, observationRole: 'stable-water', depth: 6, elevation: 93.75,
+        placement: placement([-7.5, 0.75], 2.2, 'left') }],
+    },
   }
   const measured = structuredClone(holes)
   measured[0].stableWaterDepth = 6
@@ -274,6 +278,9 @@ test('section preserves caller-supplied references and native measured-observati
   assert.deepEqual(groundwaterMarker.payload.vertices, [[45, 185, 0], [47, 185, 0], [46, 183, 0]])
   assert.equal(entities.filter(entity => entity.type === 'HATCH' && entity.payload.solid === true).length, 2)
   assert.equal(entities.filter(entity => entity.type === 'TEXT' && String(entity.payload.text).startsWith('WL ')).length, 0)
+  const stableWaterLabel = entities.find(entity => entity.type === 'TEXT' && entity.payload.text === '6.00-93.75')
+  assert.deepEqual(stableWaterLabel.payload.position, [44.5, 183.75, 0])
+  assert.equal(result.evidence.parameters.sourceBackedStableWaterLabelOverrideCount, 1)
   const spt = entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'N=8')
   assert.deepEqual(spt.payload.alignmentPoint, [48, 202, 0])
   assert.equal(spt.payload.height, 2)
@@ -288,6 +295,7 @@ test('section preserves caller-supplied references and native measured-observati
     assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
     assert.equal(reopened.listEntities({ type: 'CIRCLE' }).length, document.listEntities({ type: 'CIRCLE' }).length)
     assert.equal(reopened.listEntities({ type: 'HATCH' }).filter(entity => entity.payload.solid === true).length, 2)
+    assert.equal(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === '6.00-93.75'), true)
     const reopenedSpt = reopened.listEntities({ type: 'TEXT' }).find(entity => entity.payload.text === 'N=8')
     assert.equal(reopenedSpt.payload.horizontalAlignment, 4)
     assert.deepEqual(reopenedSpt.payload.alignmentPoint, [48, 202, 0])
@@ -306,6 +314,12 @@ test('section preserves caller-supplied references and native measured-observati
   const unknownOverride = structuredClone(input)
   unknownOverride.sectionStylePack.rules['geology-section-layout'].observationSymbolStyle.spt.labelOverrides[0].observationId = 'absent'
   assert.throws(() => compileGeologySection(unknownOverride), /references an unknown supplied SPT observation/u)
+  const unknownWater = structuredClone(input)
+  unknownWater.sectionStylePack.rules['geology-section-layout'].observationSymbolStyle.groundwater.labelOverrides[0].holeId = 'absent'
+  assert.throws(() => compileGeologySection(unknownWater), /references an unknown supplied observation/u)
+  const mismatchedWaterDepth = structuredClone(input)
+  mismatchedWaterDepth.sectionStylePack.rules['geology-section-layout'].observationSymbolStyle.groundwater.labelOverrides[0].depth = 5
+  assert.throws(() => compileGeologySection(mismatchedWaterDepth), /depth does not match its supplied observation/u)
   const invalidAlignment = structuredClone(input)
   invalidAlignment.sectionStylePack.rules['geology-section-layout'].observationSymbolStyle.spt.labelPlacement.horizontalAlignment = 'fit'
   assert.throws(() => compileGeologySection(invalidAlignment), /placement is unreadable/u)
