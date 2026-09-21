@@ -2093,6 +2093,125 @@ const geologyPlanBaseMapLineworkSchema = objectWithOptional({
     'startWidths',
     'endWidths'
 ]);
+const geologyPlanBaseMapInsertSchema = object({
+    id: {
+        ...text,
+        maxLength: 40
+    },
+    styleId: {
+        ...text,
+        maxLength: 40
+    },
+    blockId: {
+        ...text,
+        maxLength: 40
+    },
+    position: numericTuple(2),
+    scale: numericTuple(3),
+    rotationDegrees: {
+        type: 'number',
+        minimum: -360_000,
+        maximum: 360_000
+    }
+});
+const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
+    id: {
+        ...text,
+        maxLength: 40
+    },
+    styleId: {
+        ...text,
+        maxLength: 40
+    },
+    kind: {
+        type: 'string',
+        enum: [
+            'line',
+            'arc',
+            'circle',
+            'polyline'
+        ]
+    },
+    start: numericTuple(2),
+    end: numericTuple(2),
+    center: numericTuple(2),
+    radius,
+    startAngleDegrees: {
+        type: 'number',
+        minimum: -360_000,
+        maximum: 360_000
+    },
+    endAngleDegrees: {
+        type: 'number',
+        minimum: -360_000,
+        maximum: 360_000
+    },
+    clockwise: {
+        type: 'boolean'
+    },
+    points: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 256,
+        items: numericTuple(2)
+    },
+    closed: {
+        type: 'boolean'
+    },
+    startWidths: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 256,
+        items: nonnegative
+    },
+    endWidths: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 256,
+        items: nonnegative
+    },
+    blockId: {
+        ...text,
+        maxLength: 40
+    },
+    position: numericTuple(2),
+    scale: numericTuple(3),
+    rotationDegrees: {
+        type: 'number',
+        minimum: -360_000,
+        maximum: 360_000
+    }
+}, [
+    'kind',
+    'start',
+    'end',
+    'center',
+    'radius',
+    'startAngleDegrees',
+    'endAngleDegrees',
+    'clockwise',
+    'points',
+    'closed',
+    'startWidths',
+    'endWidths',
+    'blockId',
+    'position',
+    'scale',
+    'rotationDegrees'
+]);
+const geologyPlanBaseMapBlockSchema = object({
+    id: {
+        ...text,
+        maxLength: 40
+    },
+    basePoint: numericTuple(2),
+    entities: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 1024,
+        items: geologyPlanBaseMapBlockMemberSchema
+    }
+});
 const geologyPlanSchema = objectWithOptional({
     version: {
         type: 'string',
@@ -2199,6 +2318,18 @@ const geologyPlanSchema = objectWithOptional({
         type: 'number',
         minimum: -360,
         maximum: 360
+    },
+    baseMapBlocks: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 64,
+        items: geologyPlanBaseMapBlockSchema
+    },
+    baseMapInserts: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 512,
+        items: geologyPlanBaseMapInsertSchema
     }
 }, [
     'locale',
@@ -2211,6 +2342,8 @@ const geologyPlanSchema = objectWithOptional({
     'roadPaths',
     'baseMapStyles',
     'baseMapLinework',
+    'baseMapBlocks',
+    'baseMapInserts',
     'northAngleDegrees'
 ]);
 export const KJDRAW_AGENT_TOOLS = deepFreeze([

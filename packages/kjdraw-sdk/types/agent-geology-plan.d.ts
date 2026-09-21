@@ -106,6 +106,19 @@ export type KJGeologyPlanBaseMapLinework = {
     startWidths?: number[];
     endWidths?: number[];
 };
+export interface KJGeologyPlanBaseMapInsert {
+    id: string;
+    styleId: string;
+    blockId: string;
+    position: Point2;
+    scale: Point3;
+    rotationDegrees: number;
+}
+export interface KJGeologyPlanBaseMapBlock {
+    id: string;
+    basePoint: Point2;
+    entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapInsert)[];
+}
 export interface KJAgentGeologyPlanInput {
     version: typeof KJDRAW_GEOLOGY_PLAN_VERSION;
     expectedRevision: number;
@@ -125,6 +138,8 @@ export interface KJAgentGeologyPlanInput {
     roadPaths?: KJGeologyPlanRoadPath[];
     baseMapStyles?: KJGeologyPlanBaseMapStyle[];
     baseMapLinework?: KJGeologyPlanBaseMapLinework[];
+    baseMapBlocks?: KJGeologyPlanBaseMapBlock[];
+    baseMapInserts?: KJGeologyPlanBaseMapInsert[];
     northAngleDegrees?: number;
 }
 interface GeologyPlanDocument {
@@ -159,6 +174,12 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
                 color: number;
                 linetypeId: string;
                 lineweight: number;
+            }[];
+            blocks: {
+                id: string;
+                name: string;
+                basePoint: Point3;
+                entities: EntitySpec[];
             }[];
         };
         layout: {
@@ -230,6 +251,9 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
         baseMapLineworkTypeCounts: {
             [k: string]: number;
         };
+        baseMapBlockCount: number;
+        baseMapBlockMemberCount: number;
+        baseMapInsertCount: number;
         sectionReferences: {
             id: string;
             label: string;
