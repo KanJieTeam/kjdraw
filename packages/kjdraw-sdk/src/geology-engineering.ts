@@ -344,11 +344,19 @@ type SectionHeadingTextRule = { anchorX: number; height: number; textWidthFactor
 
 type SectionTextPlacementRule = { offset: [number, number]; height: number; textWidthFactor: number;
   horizontalAlignment: 0 | 1 | 2 | 4; verticalAlignment: 0 | 1 | 2 | 3 }
+type SectionIntervalBottomLabelOverride = {
+  holeId: string
+  intervalId: string
+  depth: number
+  elevation: number
+  placement?: SectionTextPlacementRule
+}
 type SectionTextStyle = {
   elevationTick: SectionTextPlacementRule
   holeIdentifier: SectionTextPlacementRule
   collarElevation: SectionTextPlacementRule
-  intervalBottom: SectionTextPlacementRule & { format: 'depth' | 'depth-elevation'; precision: 0 | 1 | 2 | 3 | 4 }
+  intervalBottom: SectionTextPlacementRule & { format: 'depth' | 'depth-elevation'; precision: 0 | 1 | 2 | 3 | 4;
+    labelOverrides?: SectionIntervalBottomLabelOverride[] }
   station: SectionTextPlacementRule & { mode: 'cumulative-at-hole' | 'adjacent-spacing-between-holes'; precision: 0 | 1 | 2 | 3 | 4 }
   holeDepth: SectionTextPlacementRule & { visibility: 'shown' | 'omitted'; precision: 0 | 1 | 2 | 3 | 4 }
   stationLabel: SectionTextPlacementRule & { visibility: 'shown' | 'omitted' }
@@ -1510,7 +1518,8 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     const supplied = value.sectionTextStyle as Record<string, unknown>
     const interval = supplied.intervalBottom as Record<string, unknown>, station = supplied.station as Record<string, unknown>
     const holeDepth = supplied.holeDepth as Record<string, unknown>, stationLabel = supplied.stationLabel as Record<string, unknown>
-    const intervalPlacement = parseSectionTextPlacement(interval, 'interval bottom', ['format', 'precision'])
+    const intervalPlacement = parseSectionTextPlacement(interval, 'interval bottom', ['format', 'precision',
+      ...(interval?.labelOverrides == null ? [] : ['labelOverrides'])])
     const stationPlacement = parseSectionTextPlacement(station, 'station', ['mode', 'precision'])
     const holeDepthPlacement = parseSectionTextPlacement(holeDepth, 'hole depth', ['precision', 'visibility'])
     const stationLabelPlacement = parseSectionTextPlacement(stationLabel, 'station label', ['visibility'])
@@ -1518,11 +1527,38 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
       !['cumulative-at-hole', 'adjacent-spacing-between-holes'].includes(station.mode as string) ||
       !['shown', 'omitted'].includes(holeDepth.visibility as string) || !['shown', 'omitted'].includes(stationLabel.visibility as string))
       throw new KJValidationError('Geology: section text presentation mode is invalid')
+    let labelOverrides: SectionIntervalBottomLabelOverride[] | undefined
+    if (interval.labelOverrides != null) {
+      if (interval.format !== 'depth-elevation' || !Array.isArray(interval.labelOverrides) ||
+        interval.labelOverrides.length < 1 || interval.labelOverrides.length > 256)
+        throw new KJValidationError('Geology: section interval bottom label overrides need bounded depth-elevation facts')
+      const identities = new Set<string>()
+      labelOverrides = interval.labelOverrides.map((raw, index) => {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+          throw new KJValidationError(`Geology: section interval bottom label override ${index + 1} needs an exact fact schema`)
+        const item = raw as Record<string, unknown>, hasPlacement = item.placement != null
+        const expectedKeys = ['depth', 'elevation', 'holeId', 'intervalId', ...(hasPlacement ? ['placement'] : [])]
+        if (Object.keys(item).sort().join(',') !== expectedKeys.sort().join(','))
+          throw new KJValidationError(`Geology: section interval bottom label override ${index + 1} needs an exact fact schema`)
+        const holeId = bounded(item.holeId, `section interval bottom label override ${index + 1} hole id`)
+        const intervalId = bounded(item.intervalId, `section interval bottom label override ${index + 1} interval id`)
+        const identity = `${holeId}\u0000${intervalId}`
+        if (identities.has(identity)) throw new KJValidationError('Geology: section interval bottom label overrides must be unique')
+        identities.add(identity)
+        const depth = numeric(item.depth, `section interval bottom label override ${index + 1} depth`)
+        const elevation = numeric(item.elevation, `section interval bottom label override ${index + 1} elevation`)
+        if (depth < 0 || depth > 10000 || elevation < -10000 || elevation > 10000)
+          throw new KJValidationError(`Geology: section interval bottom label override ${index + 1} is out of bounds`)
+        return { holeId, intervalId, depth, elevation,
+          ...(hasPlacement ? { placement: parseSectionTextPlacement(item.placement, `interval bottom label override ${index + 1}`) } : {}) }
+      })
+    }
     sectionTextStyle = {
       elevationTick: parseSectionTextPlacement(supplied.elevationTick, 'elevation tick'),
       holeIdentifier: parseSectionTextPlacement(supplied.holeIdentifier, 'hole identifier'),
       collarElevation: parseSectionTextPlacement(supplied.collarElevation, 'collar elevation'),
-      intervalBottom: { ...intervalPlacement, format: interval.format as 'depth' | 'depth-elevation', precision: precision(interval.precision, 'interval bottom') },
+      intervalBottom: { ...intervalPlacement, format: interval.format as 'depth' | 'depth-elevation', precision: precision(interval.precision, 'interval bottom'),
+        ...(labelOverrides ? { labelOverrides } : {}) },
       station: { ...stationPlacement, mode: station.mode as 'cumulative-at-hole' | 'adjacent-spacing-between-holes', precision: precision(station.precision, 'station') },
       holeDepth: { ...holeDepthPlacement, visibility: holeDepth.visibility as 'shown' | 'omitted', precision: precision(holeDepth.precision, 'hole depth') },
       stationLabel: { ...stationLabelPlacement, visibility: stationLabel.visibility as 'shown' | 'omitted' },
@@ -3090,6 +3126,17 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   } else if (sectionText?.stationLabel.visibility === 'shown') emitTextRole(layout.plotLeft, footerBottom,
     locale === 'zh-CN' ? '里程' : 'STATION', sectionText.stationLabel)
   g.poly(1, surface)
+  const intervalBottomLabelOverrides = new Map((sectionText?.intervalBottom.labelOverrides ?? []).map(item =>
+    [`${item.holeId}\u0000${item.intervalId}`, item]))
+  for (const item of sectionText?.intervalBottom.labelOverrides ?? []) {
+    const supplied = byId.get(item.holeId)
+    const interval = supplied?.strata.find(candidate => candidate.intervalId === item.intervalId)
+    if (!interval)
+      throw new KJValidationError('Geology: section interval bottom label override references an unknown supplied interval')
+    const displayTolerance = 0.5 * 10 ** -sectionText!.intervalBottom.precision + 1e-9
+    if (Math.abs(item.depth - interval.bottom) > displayTolerance)
+      throw new KJValidationError('Geology: section interval bottom label override depth does not match its supplied interval')
+  }
   const sptLabelOverrides = new Map((layout.observationSymbolStyle?.spt.labelOverrides ?? []).map(item =>
     [`${item.holeId}\u0000${item.observationId}`, item.placement]))
   for (const item of layout.observationSymbolStyle?.spt.labelOverrides ?? []) {
@@ -3140,9 +3187,12 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
       if (layer.patternVisibility !== 'boundary-only') g.hatch([[center - half, b], [center + half, b], [center + half, a], [center - half, a]], layer,
         layout.sectionHatchPresentation?.boreholeColumn)
       if (sectionText) {
-        const role = sectionText.intervalBottom, depth = fixed(layer.bottom, role.precision)
-        const visible = role.format === 'depth-elevation' ? `${depth}-${fixed(hole.collarElevation - layer.bottom, role.precision)}` : depth
-        emitTextRole(center, b, visible, role)
+        const role = sectionText.intervalBottom
+        const override = layer.intervalId == null ? undefined : intervalBottomLabelOverrides.get(`${hole.id}\u0000${layer.intervalId}`)
+        const depth = fixed(override?.depth ?? layer.bottom, role.precision)
+        const elevation = override?.elevation ?? hole.collarElevation - layer.bottom
+        const visible = role.format === 'depth-elevation' ? `${depth}-${fixed(elevation, role.precision)}` : depth
+        emitTextRole(center, b, visible, override?.placement ?? role)
       } else g.text(3, center + half + 1.5, b + 0.5, metres(layer.bottom), 1.35)
     }
     if (hole.stableWaterDepth != null) {
@@ -3335,6 +3385,8 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     ...(layout.sourceBackedBands ? { sourceBackedBandCount: layout.sourceBackedBands.length } : {}),
     ...(layout.sourceBackedPatternSymbols ? { sourceBackedPatternSymbolCount: layout.sourceBackedPatternSymbols.length,
       sourceBackedPatternEntityCount: layout.sourceBackedPatternSymbols.length * 3 } : {}),
+    ...(sectionText?.intervalBottom.labelOverrides ?
+      { sourceBackedIntervalBottomLabelOverrideCount: sectionText.intervalBottom.labelOverrides.length } : {}),
     ...(layout.observationSymbolStyle?.spt.labelOverrides ?
       { sourceBackedSptLabelOverrideCount: layout.observationSymbolStyle.spt.labelOverrides.length } : {}),
     ...(layout.sourceBackedBoundaryPolylines ? { sourceBackedBoundaryPolylineCount: layout.sourceBackedBoundaryPolylines.length } : {}),

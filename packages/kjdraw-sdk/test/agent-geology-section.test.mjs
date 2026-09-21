@@ -47,7 +47,11 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
         elevationTick: { offset: [-12, -0.5], height: 2, textWidthFactor: 1, horizontalAlignment: 2, verticalAlignment: 0 },
         holeIdentifier: { offset: [0, 10], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 },
         collarElevation: { offset: [0, 5], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 },
-        intervalBottom: { offset: [2, -1], height: 2.2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0, format: 'depth-elevation', precision: 2 },
+        intervalBottom: { offset: [2, -1], height: 2.2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0,
+          format: 'depth-elevation', precision: 2, labelOverrides: [
+            { holeId: 'SYN-01', intervalId: 'SYN-01-a', depth: 3, elevation: 102.13,
+              placement: { offset: [2.25, -1.5], height: 2.2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0 } },
+          ] },
         station: { offset: [0, 5], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0, mode: 'adjacent-spacing-between-holes', precision: 1 },
         holeDepth: { offset: [0, -12], height: 2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0, visibility: 'omitted', precision: 2 },
         stationLabel: { offset: [-8, 4], height: 2.5, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0, visibility: 'shown' },
@@ -86,7 +90,10 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
   const proposal = accepted(await session.call('cad_propose_geology_section', request))
   assert.deepEqual(session.geologySectionKnowledge, { id: pack.id, version: pack.version, sha256: digest })
   assert.deepEqual(proposal.engineeringEvidence.knowledgePack, { id: pack.id, version: pack.version, sha256: digest })
-  assert.equal(proposal.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === '3.00-102.25'), true)
+  const intervalLabels = proposal.arguments.entities.filter(entity => entity.type === 'TEXT' && /^\d+\.\d+-\d+\.\d+$/u.test(entity.payload.text))
+  assert.equal(intervalLabels.some(entity => entity.payload.text === '3.00-102.13'), true)
+  assert.equal(intervalLabels.some(entity => entity.payload.text === '3.00-102.25'), false)
+  assert.equal(proposal.engineeringEvidence.parameters.sourceBackedIntervalBottomLabelOverrideCount, 1)
   const roleHatches = proposal.arguments.entities.filter(entity => entity.type === 'HATCH' && entity.payload.solid !== true)
   assert.equal(roleHatches.some(entity => entity.payload.patternScale === 0.75 && entity.payload.patternAngle === 0.25), true)
   assert.equal(roleHatches.some(entity => entity.payload.patternScale === 1.25 && entity.payload.patternAngle === 0), true)

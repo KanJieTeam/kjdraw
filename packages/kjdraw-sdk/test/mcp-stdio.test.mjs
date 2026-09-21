@@ -626,6 +626,18 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
       paperWidth: 420, paperHeight: 297, outerMargins: { left: 5, right: 5, bottom: 5, top: 5 },
       innerMargins: { left: 12, right: 12, bottom: 12, top: 12 },
       frameStyle: { outer: { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 }, inner: { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 } },
+      sectionTextStyle: {
+        elevationTick: { offset: [-12, -0.5], height: 2, textWidthFactor: 1, horizontalAlignment: 2, verticalAlignment: 0 },
+        holeIdentifier: { offset: [0, 10], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 },
+        collarElevation: { offset: [0, 5], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 },
+        intervalBottom: { offset: [2, -1], height: 2.2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0,
+          format: 'depth-elevation', precision: 2, labelOverrides: [
+            { holeId: 'SYN-01', intervalId: 'SYN-01-a', depth: 3, elevation: 102.13 },
+          ] },
+        station: { offset: [0, 5], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0, mode: 'adjacent-spacing-between-holes', precision: 1 },
+        holeDepth: { offset: [0, -12], height: 2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0, visibility: 'omitted', precision: 2 },
+        stationLabel: { offset: [-8, 4], height: 2.5, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0, visibility: 'shown' },
+      },
       headingTextStyle: { title: { anchorX: 210, height: 6, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 }, scale: { anchorX: 210, height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
       sectionReferenceStyle: { start: { offset: [150, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'right', verticalAlignment: 'baseline' }, end: { offset: [270, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
       boreholeProfileStyle: { primitive: 'centerline', guideEndOffset: -2, bottomTickOffsets: [0, 1.5],
@@ -690,6 +702,9 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedPatternSymbolCount, 1)
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedPatternEntityCount, 3)
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedBoundaryPolylineCount, 2)
+  assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedIntervalBottomLabelOverrideCount, 1)
+  assert.equal(ledger.proposals[0].result.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === '3.00-102.13'), true)
+  assert.equal(ledger.proposals[0].result.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === '3.00-102.25'), false)
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedSptLabelOverrideCount, 1)
   const sourceBackedSpt = ledger.proposals[0].result.arguments.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'N=12')
   assert.equal(sourceBackedSpt.payload.horizontalAlignment, 4)
