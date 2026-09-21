@@ -707,7 +707,6 @@ function validateInput(document, source) {
         if (!baseMapStyleIds.has(styleId)) throw new KJValidationError(`${label}.styleId references unknown base-map style ${styleId}`);
         if (kind === 'line') {
             const start = point(value.start, `${label}.start`), end = point(value.end, `${label}.end`);
-            if (Math.hypot(end[0] - start[0], end[1] - start[1]) <= EPSILON) throw new KJValidationError(`${label} must have positive length`);
             return {
                 id,
                 styleId,
