@@ -1347,6 +1347,9 @@ function sectionLayout(input) {
         hasInnerMargins ? 'innerMargins' : 'innerMargin',
         ...value.drawingOrigin == null ? [] : [
             'drawingOrigin'
+        ],
+        ...value.frameStyle == null ? [] : [
+            'frameStyle'
         ]
     ];
     if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field');
@@ -1354,6 +1357,55 @@ function sectionLayout(input) {
             key,
             numeric(value[key], `section ${key}`)
         ]));
+    const legacyFrameRule = {
+        primitive: 'closed-polyline',
+        startCorner: 'bottom-left',
+        winding: 'counter-clockwise',
+        constantWidth: 0
+    };
+    const parseFrameRule = (raw, label)=>{
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError(`Geology: section ${label} frame rule must be an object`);
+        const rule = raw;
+        if (rule.primitive !== 'line-segments' && rule.primitive !== 'closed-polyline') throw new KJValidationError(`Geology: section ${label} frame primitive is invalid`);
+        if (![
+            'bottom-left',
+            'bottom-right',
+            'top-right',
+            'top-left'
+        ].includes(rule.startCorner)) throw new KJValidationError(`Geology: section ${label} frame start corner is invalid`);
+        if (rule.winding !== 'clockwise' && rule.winding !== 'counter-clockwise') throw new KJValidationError(`Geology: section ${label} frame winding is invalid`);
+        const expected = rule.primitive === 'closed-polyline' ? 'constantWidth,primitive,startCorner,winding' : 'primitive,startCorner,winding';
+        if (Object.keys(rule).sort().join(',') !== expected) throw new KJValidationError(`Geology: section ${label} frame rule has an undeclared or missing field`);
+        if (rule.primitive === 'line-segments') return {
+            primitive: rule.primitive,
+            startCorner: rule.startCorner,
+            winding: rule.winding
+        };
+        const constantWidth = numeric(rule.constantWidth, `section ${label} frame constant width`);
+        if (constantWidth < 0 || constantWidth > 5) throw new KJValidationError(`Geology: section ${label} frame constant width is out of bounds`);
+        return {
+            primitive: rule.primitive,
+            startCorner: rule.startCorner,
+            winding: rule.winding,
+            constantWidth
+        };
+    };
+    let frameStyle = {
+        outer: {
+            ...legacyFrameRule
+        },
+        inner: {
+            ...legacyFrameRule
+        }
+    };
+    if (value.frameStyle != null) {
+        if (!value.frameStyle || typeof value.frameStyle !== 'object' || Array.isArray(value.frameStyle) || Object.keys(value.frameStyle).sort().join(',') !== 'inner,outer') throw new KJValidationError('Geology: section frame style needs exact inner and outer rules');
+        const supplied = value.frameStyle;
+        frameStyle = {
+            outer: parseFrameRule(supplied.outer, 'outer'),
+            inner: parseFrameRule(supplied.inner, 'inner')
+        };
+    }
     const parseMargins = (raw, fallback, label)=>{
         if (raw == null) {
             const margin = numeric(fallback, `section ${label} margin`);
@@ -1409,6 +1461,7 @@ function sectionLayout(input) {
         drawingOrigin,
         outerMargins,
         innerMargins,
+        frameStyle,
         footerGrid
     };
 }
@@ -2909,8 +2962,51 @@ export function compileGeologySection(input) {
     const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, [
         ...byId.values()
     ].flatMap((value)=>value.strata)), undefined, layout.drawingOrigin);
-    g.rect(0, layout.outerMargins.left, layout.outerMargins.bottom, layout.paperWidth - layout.outerMargins.right, layout.paperHeight - layout.outerMargins.top);
-    g.rect(0, layout.innerMargins.left, layout.innerMargins.bottom, layout.paperWidth - layout.innerMargins.right, layout.paperHeight - layout.innerMargins.top);
+    const frame = (margins, rule)=>{
+        const left = margins.left, right = layout.paperWidth - margins.right;
+        const bottom = margins.bottom, top = layout.paperHeight - margins.top;
+        const corners = {
+            'bottom-left': [
+                left,
+                bottom
+            ],
+            'bottom-right': [
+                right,
+                bottom
+            ],
+            'top-right': [
+                right,
+                top
+            ],
+            'top-left': [
+                left,
+                top
+            ]
+        };
+        const names = rule.winding === 'clockwise' ? [
+            'bottom-left',
+            'top-left',
+            'top-right',
+            'bottom-right'
+        ] : [
+            'bottom-left',
+            'bottom-right',
+            'top-right',
+            'top-left'
+        ];
+        const start = names.indexOf(rule.startCorner), ordered = [
+            ...names.slice(start),
+            ...names.slice(0, start)
+        ].map((name)=>corners[name]);
+        if (rule.primitive === 'line-segments') {
+            for(let index = 0; index < ordered.length; index++){
+                const from = ordered[index], to = ordered[(index + 1) % ordered.length];
+                g.line(0, from[0], from[1], to[0], to[1]);
+            }
+        } else g.poly(0, ordered, true, rule.constantWidth);
+    };
+    frame(layout.outerMargins, layout.frameStyle.outer);
+    frame(layout.innerMargins, layout.frameStyle.inner);
     const locale = geologyLocale(input);
     g.text(3, layout.paperWidth / 2, layout.titleY, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质剖面图' : 'ENGINEERING GEOLOGICAL SECTION'), 'title'), 5, true);
     g.text(3, layout.paperWidth / 2, layout.scaleY, locale === 'zh-CN' ? `水平比例尺 1:${scaleDenominator(input.horizontalScaleDenominator)}   垂直比例尺 1:${scaleDenominator(input.verticalScaleDenominator)}` : `HORIZONTAL 1:${scaleDenominator(input.horizontalScaleDenominator)}   VERTICAL 1:${scaleDenominator(input.verticalScaleDenominator)}`, 2.5, true);
