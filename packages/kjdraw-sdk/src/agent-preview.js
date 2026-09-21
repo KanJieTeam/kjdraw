@@ -559,6 +559,12 @@ export async function createAgentGeometryPreview(document, command, args, option
     const structuralIds = command === 'STRUCTURALEDIT' ? validateStructuralEditPreview(document, args) : undefined;
     const maxCreatedEntities = options.maxCreatedEntities ?? 64;
     if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 2048) throw new KJValidationError('Preview creation budget must be an integer from 1 to 2048');
+    const maxCreatedResources = options.maxCreatedResources ?? 32;
+    if (!Number.isSafeInteger(maxCreatedResources) || maxCreatedResources < 1 || maxCreatedResources > 256) throw new KJValidationError('Preview resource budget must be an integer from 1 to 256');
+    const maxPreviewEntities = options.maxPreviewEntities ?? maxCreatedEntities;
+    if (!Number.isSafeInteger(maxPreviewEntities) || maxPreviewEntities < maxCreatedEntities || maxPreviewEntities > 4096) throw new KJValidationError('Complete preview entity budget must be an integer from maxCreatedEntities to 4096');
+    const maxPreviewBytes = options.maxPreviewBytes ?? 262144;
+    if (!Number.isSafeInteger(maxPreviewBytes) || maxPreviewBytes < 1 || maxPreviewBytes > 4194304) throw new KJValidationError('Preview byte budget must be an integer from 1 to 4194304');
     if (command === 'CREATEBATCH') {
         if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} supported drawing and annotation entities`);
     } else if (command !== 'COMPONENTINSERT' && command !== 'STRUCTURALEDIT') {
@@ -682,7 +688,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     if (command === 'LENGTHEN' && !after.length) throw new KJValidationError('LENGTHEN would leave the selected geometry unchanged');
     if (command === 'PEDIT' && !after.length) throw new KJValidationError('Polyline edit would leave the selected geometry unchanged');
     if (command === 'PROPERTIES' && (before.length !== ids.length || after.length !== ids.length)) throw new KJValidationError('Relayer preview must include complete before and after payloads for every changed entity');
-    if (before.length > 64 || after.length > (command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit');
+    if (before.length > 64 || after.length > (command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? maxPreviewEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit');
     const draftState = draft.snapshot();
     const recordChanges = command === 'STRUCTURALEDIT' ? Object.values(source.objects).filter((record)=>record.kind === 'group' || record.type === 'SEQEND').flatMap((beforeRecord)=>{
         const rawAfter = draftState.objects[beforeRecord.id];
@@ -705,7 +711,7 @@ export async function createAgentGeometryPreview(document, command, args, option
                 kind: item.kind
             } : {}
         }));
-    if (resources.length > 32) throw new KJValidationError('Preview exceeds the 32 new resource limit');
+    if (resources.length > maxCreatedResources) throw new KJValidationError(`Preview exceeds the ${maxCreatedResources} new resource limit`);
     const designId = design?.id ?? (command === 'DESIGNCREATE' ? String(args.id) : undefined);
     const dictionaryId = draft.snapshot().namedObjectsDictionaryId;
     const dictionaryKey = designId ? Object.entries(draft.getObject(dictionaryId).payload.entries ?? {}).find(([key, target])=>key.startsWith('KJDRAW_DESIGN:') && target === designId)?.[0] : undefined;
@@ -747,7 +753,7 @@ export async function createAgentGeometryPreview(document, command, args, option
             designChange
         } : {}
     };
-    if (new TextEncoder().encode(JSON.stringify(preview)).length > 262144) throw new KJValidationError('Agent geometry preview exceeds the 256 KiB output limit');
+    if (new TextEncoder().encode(JSON.stringify(preview)).length > maxPreviewBytes) throw new KJValidationError(`Agent geometry preview exceeds the ${Math.ceil(maxPreviewBytes / 1024)} KiB output limit`);
     return deepFreeze(preview);
 }
 export function agentPreviewMatchesDocument(document, preview) {

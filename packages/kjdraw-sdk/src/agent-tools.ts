@@ -1153,13 +1153,26 @@ export class KJAgentToolSession {
             }
             const definition = this.#sdk.commands.resolve(command)
             if (!definition || definition.owner !== '@kanjieteam/kjdraw') throw new KJValidationError('Agent preview requires the built-in core command')
+            const geologyPlanProposalByteLimit = 4194304
+            if (name === 'cad_propose_geology_plan') {
+              if (!engineeringEvidence || typeof engineeringEvidence !== 'object' || Array.isArray(engineeringEvidence)) throw new KJValidationError('Geology plan proposal requires engineering evidence')
+              engineeringEvidence = { ...engineeringEvidence, proposalBytes: 0, proposalByteLimit: geologyPlanProposalByteLimit }
+            }
             const maxCreatedEntities = name === 'cad_propose_component_insert' ? 65 : name === 'cad_propose_geology_plan' ? 2048
               : ['cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_site_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) ? 512 : undefined
-            const preview = await createAgentGeometryPreview(document, command, commandArgs, maxCreatedEntities === undefined ? {} : { maxCreatedEntities })
+            const preview = await createAgentGeometryPreview(document, command, commandArgs, name === 'cad_propose_geology_plan' ? { maxCreatedEntities: 2048, maxCreatedResources: 256, maxPreviewEntities: 4096, maxPreviewBytes: 4194304 } : maxCreatedEntities === undefined ? {} : { maxCreatedEntities })
             const envelope = this.#sdk.createCommandEnvelope(command, commandArgs, { document, mode: 'plan', origin: 'ai', expectedRevision: preview.revision })
             value = { planId: envelope.id, documentId: document.id, expectedRevision: envelope.expectedRevision, units: args.units, command, arguments: structuredClone(commandArgs), status: 'awaiting-host-approval', previewKind: 'geometry', preview, ...(engineeringEvidence ? { engineeringEvidence } : {}), ...(sourceAsset ? { sourceAsset } : {}), ...(selectionSet ? { selectionSet: structuredClone(selectionSet) } : {}), ...(unchangedIds ? { unchangedIds: [...unchangedIds] } : {}), ...(layerChange ? { layerChange: structuredClone(layerChange) } : {}), ...(structuralEdit ? { structuralEdit } : {}) }
             if (['cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 1048576) throw new KJValidationError('Road tool proposal exceeds the 1 MiB output limit')
-            if (name === 'cad_propose_geology_plan' && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 1048576) throw new KJValidationError('Geology plan proposal exceeds the 1 MiB output limit')
+            if (name === 'cad_propose_geology_plan') {
+              const evidence = (value as { engineeringEvidence: { proposalBytes: number; proposalByteLimit: number } }).engineeringEvidence
+              let previousBytes = -1
+              while (previousBytes !== evidence.proposalBytes) {
+                previousBytes = evidence.proposalBytes
+                evidence.proposalBytes = new TextEncoder().encode(JSON.stringify({ ok: true, value })).length
+              }
+              if (evidence.proposalBytes > geologyPlanProposalByteLimit) throw new KJValidationError('Geology plan proposal exceeds the 4 MiB output limit')
+            }
             if (name === 'cad_propose_geology_column' && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 1048576) throw new KJValidationError('Geology column proposal exceeds the 1 MiB output limit')
             if (name === 'cad_propose_geology_section' && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 1048576) throw new KJValidationError('Geology section proposal exceeds the 1 MiB output limit')
             if (name === 'cad_propose_relayer' && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > Number(args.maxBytes)) throw new KJValidationError('Relayer proposal exceeds maxBytes; increase the exact response budget')

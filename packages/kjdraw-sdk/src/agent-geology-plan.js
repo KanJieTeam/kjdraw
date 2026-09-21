@@ -162,6 +162,8 @@ const KINDS = new Set([
 ]);
 const EPSILON = 1e-9;
 const MAX_ENTITIES = 2048;
+const MAX_TABLE_RESOURCES = 80;
+const MAX_PLAN_RESOURCES = 204;
 function plain(value, label) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError(`${label} must be an object`);
     const prototype = Object.getPrototypeOf(value);
@@ -1549,55 +1551,59 @@ export function buildAgentGeologyPlan(document, source) {
             scaleDenominator: input.scale
         }
     };
+    const resources = {
+        linetypes: [
+            {
+                id: linetypes.continuous,
+                name: `KJ_${prefix.slice(8, 20)}_CONT`,
+                pattern: []
+            },
+            {
+                id: linetypes.grid,
+                name: `KJ_${prefix.slice(8, 20)}_GRID`,
+                pattern: [
+                    1.5,
+                    -1.5
+                ]
+            },
+            {
+                id: linetypes.section,
+                name: `KJ_${prefix.slice(8, 20)}_SECTION`,
+                pattern: [
+                    6,
+                    -2,
+                    1,
+                    -2
+                ]
+            },
+            ...baseMapStyleResources.map((style)=>({
+                    id: style.linetypeId,
+                    name: style.linetypeName,
+                    pattern: style.pattern
+                }))
+        ],
+        layers: [
+            ...Object.entries(layers).map(([name, definition])=>({
+                    name,
+                    ...definition
+                })),
+            ...baseMapStyleResources.map((style)=>({
+                    id: style.layerId,
+                    name: style.layerName,
+                    color: style.color,
+                    linetypeId: style.linetypeId,
+                    lineweight: style.lineweight
+                }))
+        ],
+        blocks: baseMapBlockResources
+    };
+    if (resources.linetypes.length > MAX_TABLE_RESOURCES || resources.layers.length > MAX_TABLE_RESOURCES) throw new KJValidationError(`Geology plan resources exceed the ${MAX_TABLE_RESOURCES} record table budget`);
+    const resourceCount = resources.linetypes.length + resources.layers.length + resources.blocks.length;
+    if (resourceCount > MAX_PLAN_RESOURCES) throw new KJValidationError(`Geology plan resources exceed the ${MAX_PLAN_RESOURCES} record proposal budget`);
     return {
         commandArgs: {
             entities,
-            resources: {
-                linetypes: [
-                    {
-                        id: linetypes.continuous,
-                        name: `KJ_${prefix.slice(8, 20)}_CONT`,
-                        pattern: []
-                    },
-                    {
-                        id: linetypes.grid,
-                        name: `KJ_${prefix.slice(8, 20)}_GRID`,
-                        pattern: [
-                            1.5,
-                            -1.5
-                        ]
-                    },
-                    {
-                        id: linetypes.section,
-                        name: `KJ_${prefix.slice(8, 20)}_SECTION`,
-                        pattern: [
-                            6,
-                            -2,
-                            1,
-                            -2
-                        ]
-                    },
-                    ...baseMapStyleResources.map((style)=>({
-                            id: style.linetypeId,
-                            name: style.linetypeName,
-                            pattern: style.pattern
-                        }))
-                ],
-                layers: [
-                    ...Object.entries(layers).map(([name, definition])=>({
-                            name,
-                            ...definition
-                        })),
-                    ...baseMapStyleResources.map((style)=>({
-                            id: style.layerId,
-                            name: style.layerName,
-                            color: style.color,
-                            linetypeId: style.linetypeId,
-                            lineweight: style.lineweight
-                        }))
-                ],
-                blocks: baseMapBlockResources
-            },
+            resources,
             layout
         },
         outputConfig: {

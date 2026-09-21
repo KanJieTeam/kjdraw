@@ -2530,6 +2530,7 @@ function normalizePlotSettings(value = {}) {
 const MAX_BATCH_BLOCK_RECORDS = 256;
 const MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION = 1024;
 const MAX_BATCH_BLOCK_MEMBERS_TOTAL = 2048;
+const MAX_BATCH_TABLE_RECORDS = 80;
 const BATCH_LINEWEIGHTS = new Set([
     -3,
     -2,
@@ -3117,7 +3118,7 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
         resources.layers,
         textStyles,
         dimensionStyles
-    ])if (!Array.isArray(group) || group.length > 32) throw new KJValidationError('CREATEBATCH resources allow at most 32 records per table');
+    ])if (!Array.isArray(group) || group.length > MAX_BATCH_TABLE_RECORDS) throw new KJValidationError(`CREATEBATCH resources allow at most ${MAX_BATCH_TABLE_RECORDS} records per table`);
     if (!Array.isArray(blocks) || blocks.length > MAX_BATCH_BLOCK_RECORDS) throw new KJValidationError(`CREATEBATCH resources allow at most ${MAX_BATCH_BLOCK_RECORDS} block records`);
     const totalBlockMembers = blocks.reduce((sum, block)=>sum + (Array.isArray(block.entities) ? block.entities.length : 0), 0);
     if (totalBlockMembers > MAX_BATCH_BLOCK_MEMBERS_TOTAL) throw new KJValidationError(`CREATEBATCH block resources allow at most ${MAX_BATCH_BLOCK_MEMBERS_TOTAL} total definition entities`);

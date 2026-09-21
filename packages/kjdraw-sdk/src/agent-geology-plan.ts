@@ -168,6 +168,8 @@ const SCALES = new Set<ScaleDenominator>([50, 100, 200, 500, 1000, 2000])
 const KINDS = new Set(['borehole', 'test-pit', 'in-situ-test'])
 const EPSILON = 1e-9
 const MAX_ENTITIES = 2048
+const MAX_TABLE_RESOURCES = 80
+const MAX_PLAN_RESOURCES = 204
 
 function plain(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError(`${label} must be an object`)
@@ -883,16 +885,20 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
   const layout = { id: `${prefix}-layout`, blockRecordId: `${prefix}-paper-space`, name: layoutName,
     dxfPlotSettings: { paperWidth: 420, paperHeight: 297, marginLeft: 15, marginBottom: 25, marginRight: 15, marginTop: 12, originX: 0, originY: 0, scaleNumerator: 1, scaleDenominator: 1, flags: 0, paperUnits: 1 as const, rotation: 0 as const, plotType: 5 as const },
     viewport: { id: `${prefix}-viewport`, center: [210, 155, 0] as Point3, width: 390, height: 250, viewCenter: [...center, 0] as Point3, viewHeight: groundHeight, twistAngle: 0, modelUnits: 'meter' as const, scaleDenominator: input.scale } }
+  const resources = { linetypes: [
+    { id: linetypes.continuous, name: `KJ_${prefix.slice(8, 20)}_CONT`, pattern: [] },
+    { id: linetypes.grid, name: `KJ_${prefix.slice(8, 20)}_GRID`, pattern: [1.5, -1.5] },
+    { id: linetypes.section, name: `KJ_${prefix.slice(8, 20)}_SECTION`, pattern: [6, -2, 1, -2] },
+    ...baseMapStyleResources.map(style => ({ id: style.linetypeId, name: style.linetypeName, pattern: style.pattern })),
+  ], layers: [
+    ...Object.entries(layers).map(([name, definition]) => ({ name, ...definition })),
+    ...baseMapStyleResources.map(style => ({ id: style.layerId, name: style.layerName, color: style.color, linetypeId: style.linetypeId, lineweight: style.lineweight })),
+  ], blocks: baseMapBlockResources }
+  if (resources.linetypes.length > MAX_TABLE_RESOURCES || resources.layers.length > MAX_TABLE_RESOURCES) throw new KJValidationError(`Geology plan resources exceed the ${MAX_TABLE_RESOURCES} record table budget`)
+  const resourceCount = resources.linetypes.length + resources.layers.length + resources.blocks.length
+  if (resourceCount > MAX_PLAN_RESOURCES) throw new KJValidationError(`Geology plan resources exceed the ${MAX_PLAN_RESOURCES} record proposal budget`)
   return {
-    commandArgs: { entities, resources: { linetypes: [
-      { id: linetypes.continuous, name: `KJ_${prefix.slice(8, 20)}_CONT`, pattern: [] },
-      { id: linetypes.grid, name: `KJ_${prefix.slice(8, 20)}_GRID`, pattern: [1.5, -1.5] },
-      { id: linetypes.section, name: `KJ_${prefix.slice(8, 20)}_SECTION`, pattern: [6, -2, 1, -2] },
-      ...baseMapStyleResources.map(style => ({ id: style.linetypeId, name: style.linetypeName, pattern: style.pattern })),
-    ], layers: [
-      ...Object.entries(layers).map(([name, definition]) => ({ name, ...definition })),
-      ...baseMapStyleResources.map(style => ({ id: style.layerId, name: style.layerName, color: style.color, linetypeId: style.linetypeId, lineweight: style.lineweight })),
-    ], blocks: baseMapBlockResources }, layout },
+    commandArgs: { entities, resources, layout },
     outputConfig: { layoutName, paper: { standard: 'ISO A3', orientation: 'landscape', widthMm: 420, heightMm: 297 }, scaleNumerator: 1, scaleDenominator: input.scale, modelUnits: 'meter' as const,
       viewport: { center, width: groundWidth, height: groundHeight } },
     evidence: { drawingId: input.drawingId, skillId: 'geology-plan', skillVersion: KJDRAW_GEOLOGY_PLAN_VERSION, expectedRevision: input.expectedRevision, units: 'meter' as const,

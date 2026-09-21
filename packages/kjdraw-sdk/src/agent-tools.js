@@ -4077,6 +4077,15 @@ export class KJAgentToolSession {
                         }
                         const definition = this.#sdk.commands.resolve(command);
                         if (!definition || definition.owner !== '@kanjieteam/kjdraw') throw new KJValidationError('Agent preview requires the built-in core command');
+                        const geologyPlanProposalByteLimit = 4194304;
+                        if (name === 'cad_propose_geology_plan') {
+                            if (!engineeringEvidence || typeof engineeringEvidence !== 'object' || Array.isArray(engineeringEvidence)) throw new KJValidationError('Geology plan proposal requires engineering evidence');
+                            engineeringEvidence = {
+                                ...engineeringEvidence,
+                                proposalBytes: 0,
+                                proposalByteLimit: geologyPlanProposalByteLimit
+                            };
+                        }
                         const maxCreatedEntities = name === 'cad_propose_component_insert' ? 65 : name === 'cad_propose_geology_plan' ? 2048 : [
                             'cad_propose_drawing_pattern',
                             'cad_propose_drawing_annotated',
@@ -4089,7 +4098,12 @@ export class KJAgentToolSession {
                             'cad_propose_road_drawing',
                             'cad_propose_road_drawing_from_asset'
                         ].includes(name) ? 512 : undefined;
-                        const preview = await createAgentGeometryPreview(document, command, commandArgs, maxCreatedEntities === undefined ? {} : {
+                        const preview = await createAgentGeometryPreview(document, command, commandArgs, name === 'cad_propose_geology_plan' ? {
+                            maxCreatedEntities: 2048,
+                            maxCreatedResources: 256,
+                            maxPreviewEntities: 4096,
+                            maxPreviewBytes: 4194304
+                        } : maxCreatedEntities === undefined ? {} : {
                             maxCreatedEntities
                         });
                         const envelope = this.#sdk.createCommandEnvelope(command, commandArgs, {
@@ -4136,10 +4150,18 @@ export class KJAgentToolSession {
                             ok: true,
                             value
                         })).length > 1048576) throw new KJValidationError('Road tool proposal exceeds the 1 MiB output limit');
-                        if (name === 'cad_propose_geology_plan' && new TextEncoder().encode(JSON.stringify({
-                            ok: true,
-                            value
-                        })).length > 1048576) throw new KJValidationError('Geology plan proposal exceeds the 1 MiB output limit');
+                        if (name === 'cad_propose_geology_plan') {
+                            const evidence = value.engineeringEvidence;
+                            let previousBytes = -1;
+                            while(previousBytes !== evidence.proposalBytes){
+                                previousBytes = evidence.proposalBytes;
+                                evidence.proposalBytes = new TextEncoder().encode(JSON.stringify({
+                                    ok: true,
+                                    value
+                                })).length;
+                            }
+                            if (evidence.proposalBytes > geologyPlanProposalByteLimit) throw new KJValidationError('Geology plan proposal exceeds the 4 MiB output limit');
+                        }
                         if (name === 'cad_propose_geology_column' && new TextEncoder().encode(JSON.stringify({
                             ok: true,
                             value
