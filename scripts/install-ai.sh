@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-KJDRAW_SOURCE_SHA='be1e4b5ab556170bc9a1f8f6355674458d27a853'
+KJDRAW_SOURCE_SHA='6977028ba021ceb890a1f66bb02513e13851d2de'
 command -v node >/dev/null 2>&1 || { echo 'KJDraw requires Node.js 22 or newer.' >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo 'KJDraw requires curl.' >&2; exit 1; }
 command -v tar >/dev/null 2>&1 || { echo 'KJDraw requires tar.' >&2; exit 1; }
@@ -9,7 +9,7 @@ node -e 'if (+process.versions.node.split(".")[0] < 22) process.exit(1)'
 KJDRAW_USER_HOME="${KJDRAW_USER_HOME:-$(node -p 'require("node:os").homedir()')}"
 KJDRAW_DATA_ROOT="${XDG_DATA_HOME:-$KJDRAW_USER_HOME/.local/share}"
 KJDRAW_ROOT="$KJDRAW_DATA_ROOT/kjdraw"
-KJDRAW_INSTALL="$KJDRAW_ROOT/source-be1e4b5"
+KJDRAW_INSTALL="$KJDRAW_ROOT/source-6977028"
 KJDRAW_STABLE_BIN="$KJDRAW_ROOT/bin"
 KJDRAW_STABLE_MCP="$KJDRAW_STABLE_BIN/kjdraw-mcp.mjs"
 KJDRAW_CURRENT="$KJDRAW_ROOT/current.json"
@@ -32,6 +32,7 @@ KJDRAW_PREVIOUS_A3C1="$KJDRAW_ROOT/source-a3c1bca/packages/kjdraw-sdk/bin/kjdraw
 KJDRAW_PREVIOUS_71DF="$KJDRAW_ROOT/source-71df822/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_616133E="$KJDRAW_ROOT/source-616133e/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_2A79="$KJDRAW_ROOT/source-2a793ad/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
+KJDRAW_PREVIOUS_BE1E="$KJDRAW_ROOT/source-be1e4b5/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 
 case "$KJDRAW_USER_HOME" in
   /*) ;;
@@ -129,6 +130,7 @@ if [ -f "$KJDRAW_PREVIOUS_A3C1" ]; then set -- "$@" --previous-mcp-script "$KJDR
 if [ -f "$KJDRAW_PREVIOUS_71DF" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_71DF"; fi
 if [ -f "$KJDRAW_PREVIOUS_616133E" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_616133E"; fi
 if [ -f "$KJDRAW_PREVIOUS_2A79" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_2A79"; fi
+if [ -f "$KJDRAW_PREVIOUS_BE1E" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_BE1E"; fi
 KJDRAW_RESULT=$(node "$KJDRAW_CONNECT" "$@")
 mv -f "$KJDRAW_CURRENT_STAGE" "$KJDRAW_CURRENT"
 trap - 0 HUP INT TERM
