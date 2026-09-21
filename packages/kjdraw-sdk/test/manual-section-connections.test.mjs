@@ -410,4 +410,12 @@ test('section style pack preserves bounded text roles, composite interval labels
   const invalidHatch = structuredClone(input)
   invalidHatch.sectionStylePack.rules['geology-section-layout'].sectionHatchPresentation.stratigraphicBand.patternScale = 0
   assert.throws(() => compileGeologySection(invalidHatch), /hatch presentation is out of bounds/u)
+  const invalidTicks = structuredClone(input)
+  invalidTicks.sectionStylePack.rules['geology-section-layout'].elevationTickSequence =
+    { startElevation: 80, step: 0, minimumElevation: 80, maximumElevation: 90 }
+  assert.throws(() => compileGeologySection(invalidTicks), /tick sequence is out of bounds/u)
+  const unknownBand = structuredClone(input)
+  unknownBand.sectionStylePack.rules['geology-section-layout'].sourceBackedBands = [
+    { sourceHoleId: 'ZK1', sourceIntervalId: 'absent', points: [[0, 95], [10, 95], [10, 97]] }]
+  assert.throws(() => compileGeologySection(unknownBand), /references an unknown supplied interval/u)
 })

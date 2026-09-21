@@ -55,6 +55,10 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
       sectionHatchPresentation: {
         boreholeColumn: { patternScale: 0.75, patternAngle: 0.25 }, stratigraphicBand: { patternScale: 1.25, patternAngle: 0 },
       },
+      elevationTickSequence: { startElevation: 81, step: 2, minimumElevation: 81, maximumElevation: 89 },
+      sourceBackedBands: [{ sourceHoleId: 'SYN-01', sourceIntervalId: 'SYN-01-a', points: [
+        [0, 102.25], [12, 101.8], [12, 104.8], [0, 105.25],
+      ] }],
       footerFrameStyle: { left: 12, right: 408, bottom: 12, top: 22, guideY: 12, primitive: 'line-segments', cellMode: 'none' },
       headingTextStyle: { title: { anchorX: 210, height: 6, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 }, scale: { anchorX: 210, height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
       sectionReferenceStyle: { start: { offset: [150, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'right', verticalAlignment: 'baseline' }, end: { offset: [270, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
@@ -75,6 +79,11 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
   const roleHatches = proposal.arguments.entities.filter(entity => entity.type === 'HATCH' && entity.payload.solid !== true)
   assert.equal(roleHatches.some(entity => entity.payload.patternScale === 0.75 && entity.payload.patternAngle === 0.25), true)
   assert.equal(roleHatches.some(entity => entity.payload.patternScale === 1.25 && entity.payload.patternAngle === 0), true)
+  assert.equal(proposal.engineeringEvidence.parameters.elevationTickCount, 5)
+  assert.equal(proposal.engineeringEvidence.parameters.sourceBackedBandCount, 1)
+  assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'TEXT' &&
+    ['81', '83', '85', '87', '89'].includes(entity.payload.text)).length, 5)
+  assert.equal(roleHatches.length, 10)
   const footerEdges = [
     [[12, 12, 0], [408, 12, 0]], [[408, 12, 0], [408, 22, 0]],
     [[408, 22, 0], [12, 22, 0]], [[12, 22, 0], [12, 12, 0]],

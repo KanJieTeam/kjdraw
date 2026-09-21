@@ -613,6 +613,10 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
       headingTextStyle: { title: { anchorX: 210, height: 6, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 }, scale: { anchorX: 210, height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
       sectionReferenceStyle: { start: { offset: [150, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'right', verticalAlignment: 'baseline' }, end: { offset: [270, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
       observationSymbolStyle: { sample: { centerOffset: [-4, 0], radius: 0.7, fill: 'solid' }, spt: { topRightOffset: [-7, 0], width: 10, height: 3, labelPlacement: { offset: [-12, -1.5], height: 2, textWidthFactor: 1, horizontalAlignment: 'center', verticalAlignment: 'baseline' } } },
+      elevationTickSequence: { startElevation: 81, step: 2, minimumElevation: 81, maximumElevation: 89 },
+      sourceBackedBands: [{ sourceHoleId: 'SYN-01', sourceIntervalId: 'SYN-01-a', points: [
+        [0, 102.25], [12, 101.8], [12, 104.8], [0, 105.25],
+      ] }],
       plotLeft: 30, plotRight: 390, plotBottom: 35, plotTop: 245, titleY: 275, scaleY: 262, footerHeight: 10, boreholeWidth: 3, elevationTickStep: 2,
       footerGrid: [{ start: 12, key: 'projectName', label: 'Project' }, { start: 140, key: 'organization', label: 'Organization' }, { start: 260, key: 'drawingNumber', label: 'Drawing' }],
     } },
@@ -653,12 +657,16 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
   const visible = responses[2].result.structuredContent.value
   assert.equal(visible.status, 'awaiting-host-approval')
   assert.deepEqual(visible.engineeringEvidence.knowledgePack, { id: pack.id, version: pack.version, sha256: sha256(packBytes) })
+  assert.equal(visible.engineeringEvidence.parameters.elevationTickCount, 5)
+  assert.equal(visible.engineeringEvidence.parameters.sourceBackedBandCount, 1)
   const drawingBytes = await readFile(drawingPath)
   const ledger = JSON.parse(await readFile(join(directory, 'section-ledger.json'), 'utf8'))
   assert.deepEqual(ledger.knowledge.geologySection, { id: pack.id, version: pack.version, sha256: sha256(packBytes), path: 'section.json', byteLength: packBytes.byteLength })
   assert.equal(ledger.proposals[0].result.engineeringEvidence.knowledgePack.sha256, sha256(packBytes))
   assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'CIRCLE').length, 1)
   assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'TEXT' && ['A', "A'"].includes(entity.payload.text)).length, 2)
+  assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'TEXT' &&
+    ['81', '83', '85', '87', '89'].includes(entity.payload.text)).length, 5)
   assert.deepEqual(await readFile(drawingPath), drawingBytes)
   assert.deepEqual(await readFile(join(directory, 'section.json')), packBytes)
 

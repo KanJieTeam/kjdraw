@@ -353,6 +353,8 @@ type SectionHatchPresentation = {
   boreholeColumn: { patternScale: number; patternAngle: number }
   stratigraphicBand: { patternScale: number; patternAngle: number }
 }
+type SectionElevationTickSequence = { startElevation: number; step: number; minimumElevation: number; maximumElevation: number }
+type SectionSourceBackedBand = { sourceHoleId: string; sourceIntervalId: string; points: [number, number][] }
 
 interface SectionLayout {
   paperWidth: number
@@ -364,6 +366,8 @@ interface SectionLayout {
   headingTextStyle?: { title: SectionHeadingTextRule; scale: SectionHeadingTextRule }
   sectionTextStyle?: SectionTextStyle
   sectionHatchPresentation?: SectionHatchPresentation
+  elevationTickSequence?: SectionElevationTickSequence
+  sourceBackedBands?: SectionSourceBackedBand[]
   plotLeft: number
   sectionReferenceStyle?: { start: KJGeologyFieldHeaderTextPlacement; end: KJGeologyFieldHeaderTextPlacement }
   observationSymbolStyle?: KJGeologySectionObservationSymbolStyle
@@ -1376,6 +1380,8 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     hasInnerMargins ? 'innerMargins' : 'innerMargin', ...(value.drawingOrigin == null ? [] : ['drawingOrigin']), ...(value.frameStyle == null ? [] : ['frameStyle']),
     ...(value.sectionTextStyle == null ? [] : ['sectionTextStyle']),
     ...(value.sectionHatchPresentation == null ? [] : ['sectionHatchPresentation']),
+    ...(value.elevationTickSequence == null ? [] : ['elevationTickSequence']),
+    ...(value.sourceBackedBands == null ? [] : ['sourceBackedBands']),
     ...(value.headingTextStyle == null ? [] : ['headingTextStyle']), ...(value.footerFrameStyle == null ? [] : ['footerFrameStyle']), ...(value.sectionReferenceStyle == null ? [] : ['sectionReferenceStyle']), ...(value.observationSymbolStyle == null ? [] : ['observationSymbolStyle'])]
   if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field')
   const scalars = Object.fromEntries(scalarKeys.map(key => [key, numeric(value[key], `section ${key}`)])) as unknown as Omit<SectionLayout, 'footerGrid' | 'drawingOrigin' | 'outerMargins' | 'innerMargins' | 'frameStyle' | 'headingTextStyle'>
@@ -1465,6 +1471,55 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
       stratigraphicBand: parseHatchPresentation(supplied.stratigraphicBand, 'stratigraphic band') }
   }
   const legacyFrameRule: SectionFrameRule = { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 }
+  let elevationTickSequence: SectionLayout['elevationTickSequence']
+  if (value.elevationTickSequence != null) {
+    if (!value.elevationTickSequence || typeof value.elevationTickSequence !== 'object' || Array.isArray(value.elevationTickSequence) ||
+      Object.keys(value.elevationTickSequence).sort().join(',') !== 'maximumElevation,minimumElevation,startElevation,step')
+      throw new KJValidationError('Geology: section elevation tick sequence needs exact start, step and range facts')
+    const supplied = value.elevationTickSequence as Record<string, unknown>
+    const startElevation = numeric(supplied.startElevation, 'section elevation tick start')
+    const step = numeric(supplied.step, 'section elevation tick step')
+    const minimumElevation = numeric(supplied.minimumElevation, 'section elevation tick minimum')
+    const maximumElevation = numeric(supplied.maximumElevation, 'section elevation tick maximum')
+    const tickCount = Math.floor((maximumElevation - startElevation) / step + 1e-9) + 1
+    if (step < 0.1 || step > 100 || minimumElevation > startElevation || startElevation > maximumElevation ||
+      maximumElevation - minimumElevation > 1000 || tickCount < 1 || tickCount > 256)
+      throw new KJValidationError('Geology: section elevation tick sequence is out of bounds')
+    elevationTickSequence = { startElevation, step, minimumElevation, maximumElevation }
+  }
+  let sourceBackedBands: SectionLayout['sourceBackedBands']
+  if (value.sourceBackedBands != null) {
+    if (!Array.isArray(value.sourceBackedBands) || value.sourceBackedBands.length < 1 || value.sourceBackedBands.length > 128)
+      throw new KJValidationError('Geology: section source-backed bands need 1-128 explicit facts')
+    const seenBands = new Set<string>()
+    sourceBackedBands = value.sourceBackedBands.map((rawBand, bandIndex) => {
+      if (!rawBand || typeof rawBand !== 'object' || Array.isArray(rawBand) || Object.keys(rawBand).sort().join(',') !== 'points,sourceHoleId,sourceIntervalId')
+        throw new KJValidationError('Geology: section source-backed band needs an exact source reference and polygon')
+      const band = rawBand as Record<string, unknown>
+      const sourceHoleId = bounded(band.sourceHoleId, `section source-backed band ${bandIndex + 1} hole`, 40)
+      const sourceIntervalId = bounded(band.sourceIntervalId, `section source-backed band ${bandIndex + 1} interval`, 64)
+      if (!Array.isArray(band.points) || band.points.length < 3 || band.points.length > 32)
+        throw new KJValidationError('Geology: section source-backed band polygon needs 3-32 vertices')
+      const points = band.points.map((rawPoint, pointIndex) => {
+        if (!Array.isArray(rawPoint) || rawPoint.length !== 2)
+          throw new KJValidationError('Geology: section source-backed band vertex needs station and elevation')
+        return [numeric(rawPoint[0], `section source-backed band ${bandIndex + 1} station ${pointIndex + 1}`),
+          numeric(rawPoint[1], `section source-backed band ${bandIndex + 1} elevation ${pointIndex + 1}`)] as [number, number]
+      })
+      const area = Math.abs(points.reduce((sum, point, index) => {
+        const next = points[(index + 1) % points.length]!
+        return sum + point[0] * next[1] - next[0] * point[1]
+      }, 0)) / 2
+      if (area < 1e-6 || points.some((point, index) => {
+        const next = points[(index + 1) % points.length]!
+        return Math.abs(point[0] - next[0]) < 1e-9 && Math.abs(point[1] - next[1]) < 1e-9
+      })) throw new KJValidationError('Geology: section source-backed band polygon is degenerate')
+      const identity = `${sourceHoleId}\u0000${sourceIntervalId}\u0000${JSON.stringify(points)}`
+      if (seenBands.has(identity)) throw new KJValidationError('Geology: duplicate section source-backed band fact')
+      seenBands.add(identity)
+      return { sourceHoleId, sourceIntervalId, points }
+    })
+  }
   const parseFrameRule = (raw: unknown, label: string): SectionFrameRule => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError(`Geology: section ${label} frame rule must be an object`)
     const rule = raw as Record<string, unknown>
@@ -1605,6 +1660,8 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
   return { ...scalars, drawingOrigin, outerMargins, innerMargins, frameStyle, ...(headingTextStyle ? { headingTextStyle } : {}), footerGrid,
     ...(sectionTextStyle ? { sectionTextStyle } : {}),
     ...(sectionHatchPresentation ? { sectionHatchPresentation } : {}),
+    ...(elevationTickSequence ? { elevationTickSequence } : {}),
+    ...(sourceBackedBands ? { sourceBackedBands } : {}),
     ...(footerFrameStyle ? { footerFrameStyle } : {}), ...(sectionReferenceStyle ? { sectionReferenceStyle } : {}), ...(observationSymbolStyle ? { observationSymbolStyle } : {}) }
 }
 
@@ -2778,14 +2835,21 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     emitPlaced(0, 0, sectionReference.start, style.start)
     emitPlaced(0, 0, sectionReference.end, style.end)
   }
-  const maximumElevation = Math.max(...holes.map(hole => hole.collarElevation))
-  for (let elevation = Math.ceil(datum / layout.elevationTickStep) * layout.elevationTickStep; elevation <= maximumElevation + 1e-9; elevation += layout.elevationTickStep) {
+  const maximumElevation = layout.elevationTickSequence?.maximumElevation ?? Math.max(...holes.map(hole => hole.collarElevation))
+  const minimumElevation = layout.elevationTickSequence?.minimumElevation ?? datum
+  const elevationTickStep = layout.elevationTickSequence?.step ?? layout.elevationTickStep
+  const elevationTickStart = layout.elevationTickSequence?.startElevation ?? Math.ceil(datum / elevationTickStep) * elevationTickStep
+  let elevationTickCount = 0
+  for (let elevation = elevationTickStart; elevation <= maximumElevation + 1e-9; elevation += elevationTickStep) {
+    if (elevation < minimumElevation - 1e-9) continue
     const tickY = layout.plotBottom + (elevation - datum) * vs
-    if (tickY > layout.plotTop) break
+    if (tickY < layout.innerMargins.bottom - 1e-9 || tickY > layout.plotTop + 1e-9)
+      throw new KJValidationError('Geology: source-backed elevation tick sequence leaves the bounded drawing region')
     g.line(1, layout.plotLeft - 1.8, tickY, layout.plotLeft + 2.2, tickY)
     const visible = Number.isInteger(elevation) ? elevation.toFixed(0) : metres(elevation)
     if (layout.sectionTextStyle) emitTextRole(layout.plotLeft, tickY, visible, layout.sectionTextStyle.elevationTick)
     else g.text(3, layout.plotLeft - 13, tickY - 0.7, visible, 1.6)
+    elevationTickCount++
   }
   const footerBottom = layout.footerFrameStyle?.bottom ?? layout.innerMargins.bottom
   const footerTop = layout.footerFrameStyle?.top ?? footerBottom + layout.footerHeight
@@ -2976,7 +3040,28 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   g.text(3, layout.innerMargins.left + 2, footerTop + 2.2, locale === 'zh-CN'
     ? topology ? '仅显示源数据声明的地层组拓扑；未证实区域按设计留空。' : '仅显示已提供的地层与对比关系；未对比区域按设计留空。'
     : topology ? 'Only source-declared group topology is shown. Unproven regions remain blank.' : 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 1.5)
+  for (const [bandIndex, band] of (layout.sourceBackedBands ?? []).entries()) {
+    const source = byId.get(band.sourceHoleId)?.strata.find(stratum => stratum.intervalId === band.sourceIntervalId)
+    if (!source) throw new KJValidationError(`Geology: source-backed band ${bandIndex + 1} references an unknown supplied interval`)
+    if (source.patternVisibility === 'boundary-only')
+      throw new KJValidationError(`Geology: source-backed band ${bandIndex + 1} references a boundary-only interval`)
+    const points = band.points.map(([station, elevation]) => [
+      originX + (station - holes[0]!.station!) * hs,
+      layout.plotBottom + (elevation - datum) * vs,
+    ] as [number, number])
+    if (points.some(([px, py]) => px < layout.innerMargins.left - 1e-9 || px > layout.paperWidth - layout.innerMargins.right + 1e-9 ||
+      py < layout.innerMargins.bottom - 1e-9 || py > layout.plotTop + 1e-9))
+      throw new KJValidationError(`Geology: source-backed band ${bandIndex + 1} leaves the bounded drawing region`)
+    const physicalArea = Math.abs(points.reduce((sum, point, index) => {
+      const next = points[(index + 1) % points.length]!
+      return sum + point[0] * next[1] - next[0] * point[1]
+    }, 0)) / 2
+    if (physicalArea < 0.01) throw new KJValidationError(`Geology: source-backed band ${bandIndex + 1} is physically unreadable`)
+    g.hatch(points, source, layout.sectionHatchPresentation?.stratigraphicBand)
+  }
   return g.finish({ horizontalScaleDenominator: input.horizontalScaleDenominator, verticalScaleDenominator: input.verticalScaleDenominator,
+    ...(layout.elevationTickSequence ? { elevationTickCount } : {}),
+    ...(layout.sourceBackedBands ? { sourceBackedBandCount: layout.sourceBackedBands.length } : {}),
     datumElevation: datum, styleRule: 'geology-section-layout',
     ...(topology ? { correlationMode, topologyMainCellCount: topology.mainCells.length, topologyLensCellCount: topology.lensCells.length,
       topologyMainBoundaryCount: topology.mainBoundaries.length } : {}) })
