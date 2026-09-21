@@ -969,6 +969,13 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
                             role: 'endDate',
                             label: '终孔日期',
                             optional: true
+                        }
+                    ],
+                    [
+                        {
+                            role: 'initialWaterDepth',
+                            label: '初见水位(m)',
+                            optional: true
                         },
                         {
                             role: 'stableWaterDepth',

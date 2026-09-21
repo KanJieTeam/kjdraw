@@ -93,18 +93,19 @@ test('bundled field-grid knowledge carries notation, sample markers and independ
   request.hole.strata[0].stratigraphicNotation = { symbol: 'Q', subscript: '4', superscript: 'ml' }
   request.hole.strata[2].patternLabel = 'SC'
   request.hole.observations[0].sampleMarker = 'filled-circle'
+  request.hole.initialWaterDepth = 2.5
   request.hole.groundwaterObservations = [
     { depth: 6.25, elevation: 99, observedOn: '2026-01-04', marker: 'filled-down-triangle' },
   ]
   const proposal = accepted(await session.call('cad_propose_geology_column', request))
-  for (const value of ['Q', '4', 'ml', 'SC', '●', '6.25', '99.00', '▼', '2026-01-04', '记录号:18'])
+  for (const value of ['Q', '4', 'ml', 'SC', '●', '初见水位(m)', '2.50', '稳定水位(m)', '5.20', '6.25', '99.00', '▼', '2026-01-04', '记录号:18'])
     assert.ok(proposal.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === value), value)
   accepted(await session.approve(proposal.planId, 'synthetic-host-reviewer'))
   for (const format of ['KJD', 'DXF']) {
     const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
     const reopened = await createKJDrawSDK().readDocument(bytes, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
     assert.equal(reopened.validate().valid, true)
-    for (const value of ['Q', '4', 'ml', 'SC', '●', '6.25', '99.00', '▼', '2026-01-04', '记录号:18'])
+    for (const value of ['Q', '4', 'ml', 'SC', '●', '初见水位(m)', '2.50', '稳定水位(m)', '5.20', '6.25', '99.00', '▼', '2026-01-04', '记录号:18'])
       assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `${format} ${value}`)
   }
 })
