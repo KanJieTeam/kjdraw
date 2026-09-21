@@ -400,6 +400,18 @@ type SectionElevationScaleRailStyle = {
 }
 type SectionSourceBackedPatternSymbol = { primitive: 'triangle-lines'; points: [[number, number], [number, number], [number, number]] }
 type SectionSourceBackedBoundaryPolyline = { primitive: 'open-polyline' | 'closed-polyline'; points: [number, number][] }
+type SectionStratigraphicGroupLabelStyle = {
+  code: Omit<SectionTextPlacementRule, 'horizontalAlignment'> & { fitEndOffset: [number, number] }
+  symbol: SectionTextPlacementRule
+  subscript: SectionTextPlacementRule
+  superscript: SectionTextPlacementRule
+}
+type SectionSourceBackedStratigraphicGroupLabel = {
+  sourceHoleId: string
+  sourceIntervalId: string
+  /** Explicit source anchor expressed in section station/elevation coordinates. */
+  anchor: [number, number]
+}
 
 interface SectionLayout {
   paperWidth: number
@@ -417,6 +429,8 @@ interface SectionLayout {
   elevationScaleRailStyle?: SectionElevationScaleRailStyle
   sourceBackedPatternSymbols?: SectionSourceBackedPatternSymbol[]
   sourceBackedBoundaryPolylines?: SectionSourceBackedBoundaryPolyline[]
+  stratigraphicGroupLabelStyle?: SectionStratigraphicGroupLabelStyle
+  sourceBackedStratigraphicGroupLabels?: SectionSourceBackedStratigraphicGroupLabel[]
   plotLeft: number
   sectionReferenceStyle?: { start: KJGeologyFieldHeaderTextPlacement; end: KJGeologyFieldHeaderTextPlacement }
   observationSymbolStyle?: KJGeologySectionObservationSymbolStyle
@@ -1486,6 +1500,8 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     ...(value.elevationScaleRailStyle == null ? [] : ['elevationScaleRailStyle']),
     ...(value.sourceBackedPatternSymbols == null ? [] : ['sourceBackedPatternSymbols']),
     ...(value.sourceBackedBoundaryPolylines == null ? [] : ['sourceBackedBoundaryPolylines']),
+    ...(value.stratigraphicGroupLabelStyle == null ? [] : ['stratigraphicGroupLabelStyle']),
+    ...(value.sourceBackedStratigraphicGroupLabels == null ? [] : ['sourceBackedStratigraphicGroupLabels']),
     ...(value.headingTextStyle == null ? [] : ['headingTextStyle']), ...(value.footerFrameStyle == null ? [] : ['footerFrameStyle']), ...(value.sectionReferenceStyle == null ? [] : ['sectionReferenceStyle']), ...(value.observationSymbolStyle == null ? [] : ['observationSymbolStyle'])]
   if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field')
   const scalars = Object.fromEntries(scalarKeys.map(key => [key, numeric(value[key], `section ${key}`)])) as unknown as Omit<SectionLayout, 'footerGrid' | 'drawingOrigin' | 'outerMargins' | 'innerMargins' | 'frameStyle' | 'headingTextStyle'>
@@ -1530,6 +1546,60 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     if (!Number.isInteger(value) || value < 0 || value > 4) throw new KJValidationError(`Geology: section ${label} precision is out of bounds`)
     return value as 0 | 1 | 2 | 3 | 4
   }
+  let stratigraphicGroupLabelStyle: SectionLayout['stratigraphicGroupLabelStyle']
+  if (value.stratigraphicGroupLabelStyle != null) {
+    if (!value.stratigraphicGroupLabelStyle || typeof value.stratigraphicGroupLabelStyle !== 'object' ||
+      Array.isArray(value.stratigraphicGroupLabelStyle) ||
+      Object.keys(value.stratigraphicGroupLabelStyle).sort().join(',') !== 'code,subscript,superscript,symbol')
+      throw new KJValidationError('Geology: section stratigraphic group label style needs exact code and notation roles')
+    const supplied = value.stratigraphicGroupLabelStyle as Record<string, unknown>
+    if (!supplied.code || typeof supplied.code !== 'object' || Array.isArray(supplied.code) ||
+      Object.keys(supplied.code).sort().join(',') !== 'fitEndOffset,height,offset,textWidthFactor,verticalAlignment')
+      throw new KJValidationError('Geology: section stratigraphic group code needs an exact fit placement schema')
+    const rawCode = supplied.code as Record<string, unknown>
+    const parsedCode = parseSectionTextPlacement({ ...rawCode, horizontalAlignment: 0 }, 'stratigraphic group code', ['fitEndOffset'])
+    if (!Array.isArray(rawCode.fitEndOffset) || rawCode.fitEndOffset.length !== 2)
+      throw new KJValidationError('Geology: section stratigraphic group code fit endpoint needs two millimetre offsets')
+    const fitEndOffset = rawCode.fitEndOffset.map((item, index) => numeric(item,
+      `section stratigraphic group code fit endpoint ${index + 1}`)) as [number, number]
+    const fitLength = Math.hypot(fitEndOffset[0] - parsedCode.offset[0], fitEndOffset[1] - parsedCode.offset[1])
+    if (fitEndOffset.some(item => Math.abs(item) > 80) || fitLength < 0.2 || fitLength > 40)
+      throw new KJValidationError('Geology: section stratigraphic group code fit placement is out of bounds')
+    stratigraphicGroupLabelStyle = {
+      code: { offset: parsedCode.offset, fitEndOffset, height: parsedCode.height,
+        textWidthFactor: parsedCode.textWidthFactor, verticalAlignment: parsedCode.verticalAlignment },
+      symbol: parseSectionTextPlacement(supplied.symbol, 'stratigraphic group symbol'),
+      subscript: parseSectionTextPlacement(supplied.subscript, 'stratigraphic group subscript'),
+      superscript: parseSectionTextPlacement(supplied.superscript, 'stratigraphic group superscript'),
+    }
+  }
+  let sourceBackedStratigraphicGroupLabels: SectionLayout['sourceBackedStratigraphicGroupLabels']
+  if (value.sourceBackedStratigraphicGroupLabels != null) {
+    if (!Array.isArray(value.sourceBackedStratigraphicGroupLabels) || value.sourceBackedStratigraphicGroupLabels.length < 1 ||
+      value.sourceBackedStratigraphicGroupLabels.length > 64)
+      throw new KJValidationError('Geology: section stratigraphic group labels need 1-64 explicit source facts')
+    const identities = new Set<string>()
+    sourceBackedStratigraphicGroupLabels = value.sourceBackedStratigraphicGroupLabels.map((raw, index) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+        Object.keys(raw).sort().join(',') !== 'anchor,sourceHoleId,sourceIntervalId')
+        throw new KJValidationError(`Geology: section stratigraphic group label ${index + 1} needs an exact source identity and anchor`)
+      const item = raw as Record<string, unknown>
+      const sourceHoleId = bounded(item.sourceHoleId, `section stratigraphic group label ${index + 1} hole`, 40)
+      const sourceIntervalId = bounded(item.sourceIntervalId, `section stratigraphic group label ${index + 1} interval`, 64)
+      if (!Array.isArray(item.anchor) || item.anchor.length !== 2)
+        throw new KJValidationError('Geology: section stratigraphic group label anchor needs station and elevation')
+      const anchor = item.anchor.map((coordinate, coordinateIndex) => numeric(coordinate,
+        `section stratigraphic group label ${index + 1} anchor ${coordinateIndex + 1}`)) as [number, number]
+      if (anchor.some(coordinate => Math.abs(coordinate) > 100000))
+        throw new KJValidationError('Geology: section stratigraphic group label anchor is out of bounds')
+      const identity = `${sourceHoleId}\u0000${sourceIntervalId}`
+      if (identities.has(identity)) throw new KJValidationError('Geology: duplicate section stratigraphic group label source fact')
+      identities.add(identity)
+      return { sourceHoleId, sourceIntervalId, anchor }
+    })
+  }
+  if (Boolean(stratigraphicGroupLabelStyle) !== Boolean(sourceBackedStratigraphicGroupLabels))
+    throw new KJValidationError('Geology: section stratigraphic group labels require both host style and source facts')
   let sectionTextStyle: SectionLayout['sectionTextStyle']
   if (value.sectionTextStyle != null) {
     if (!value.sectionTextStyle || typeof value.sectionTextStyle !== 'object' || Array.isArray(value.sectionTextStyle))
@@ -2015,6 +2085,8 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     ...(elevationScaleRailStyle ? { elevationScaleRailStyle } : {}),
     ...(sourceBackedPatternSymbols ? { sourceBackedPatternSymbols } : {}),
     ...(sourceBackedBoundaryPolylines ? { sourceBackedBoundaryPolylines } : {}),
+    ...(stratigraphicGroupLabelStyle ? { stratigraphicGroupLabelStyle } : {}),
+    ...(sourceBackedStratigraphicGroupLabels ? { sourceBackedStratigraphicGroupLabels } : {}),
     ...(footerFrameStyle ? { footerFrameStyle } : {}), ...(sectionReferenceStyle ? { sectionReferenceStyle } : {}), ...(observationSymbolStyle ? { observationSymbolStyle } : {}) }
 }
 
@@ -2209,6 +2281,11 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     ...(horizontalAlignment === 0 ? {} : { horizontalAlignment }), ...(verticalAlignment === 0 ? {} : { verticalAlignment }),
     ...(horizontalAlignment !== 0 || verticalAlignment !== 0 ? { alignmentPoint: shifted(x, y) } : {}),
   })
+  const fitText = (layer: number, x: number, y: number, fitX: number, fitY: number, value: string, height: number,
+    widthFactor: number, verticalAlignment: 0 | 1 | 2 | 3) => add('TEXT', layer, {
+    position: shifted(x, y), alignmentPoint: shifted(fitX, fitY), text: value, height, widthFactor,
+    horizontalAlignment: 5, ...(verticalAlignment === 0 ? {} : { verticalAlignment }), rotation: 0,
+  })
   const mtext = (layer: number, x: number, y: number, value: string, height: number, width: number) => add('MTEXT', layer, {
     position: shifted(x, y), text: value, height, width, attachmentPoint: 1, ...(textStyleId ? { styleId: textStyleId } : {}),
   })
@@ -2240,7 +2317,7 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     evidence: { packId: 'geology.core', packVersion: '1.0.0', packHash: stableHash({ pattern, hatches }), intentHash: stableHash(input), templateId, rootObjectId: prefix, expectedRevision, entityCount: entities.length,
       ...(parameters ? { parameters } : {}) },
   })
-  return { line, semanticLine, text, placedText, mtext, poly, rect, circle, solid, circularHatch, solidPolygonHatch, hatch, finish }
+  return { line, semanticLine, text, placedText, fitText, mtext, poly, rect, circle, solid, circularHatch, solidPolygonHatch, hatch, finish }
 }
 
 export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<KJKnowledgeCompileResult> {
@@ -3503,6 +3580,44 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
       })
     }
   }
+  let stratigraphicGroupLabelEntityCount = 0
+  const stratigraphicGroups = new Set<string>()
+  for (const [labelIndex, label] of (layout.sourceBackedStratigraphicGroupLabels ?? []).entries()) {
+    const source = byId.get(label.sourceHoleId)?.strata.find(stratum => stratum.intervalId === label.sourceIntervalId)
+    if (!source) throw new KJValidationError(`Geology: section stratigraphic group label ${labelIndex + 1} references an unknown supplied interval`)
+    if (source.groupRole !== 'principal' || source.groupId == null || source.stratigraphicNotation == null)
+      throw new KJValidationError(`Geology: section stratigraphic group label ${labelIndex + 1} needs a principal interval with supplied notation`)
+    if (stratigraphicGroups.has(source.groupId)) throw new KJValidationError('Geology: duplicate section stratigraphic group label group fact')
+    stratigraphicGroups.add(source.groupId)
+    const signature = JSON.stringify([source.code, source.stratigraphicNotation])
+    const peers = [...byId.values()].flatMap(value => value.strata).filter(candidate =>
+      candidate.groupRole === 'principal' && candidate.groupId === source.groupId)
+    if (!peers.length || peers.some(candidate => JSON.stringify([candidate.code, candidate.stratigraphicNotation]) !== signature))
+      throw new KJValidationError('Geology: section stratigraphic group label disagrees with another supplied principal interval')
+    const style = layout.stratigraphicGroupLabelStyle!
+    const baseX = originX + (label.anchor[0] - holes[0]!.station!) * hs
+    const baseY = layout.plotBottom + (label.anchor[1] - datum) * vs
+    const points = [style.code.offset, style.code.fitEndOffset, style.symbol.offset,
+      ...(source.stratigraphicNotation.subscript == null ? [] : [style.subscript.offset]),
+      ...(source.stratigraphicNotation.superscript == null ? [] : [style.superscript.offset])]
+      .map(offset => [baseX + offset[0], baseY + offset[1]] as [number, number])
+    if (points.some(([px, py]) => px < layout.innerMargins.left - 1e-9 || px > layout.paperWidth - layout.innerMargins.right + 1e-9 ||
+      py < layout.plotBottom - 1e-9 || py > layout.plotTop + 1e-9))
+      throw new KJValidationError(`Geology: section stratigraphic group label ${labelIndex + 1} leaves the bounded section body`)
+    g.fitText(3, baseX + style.code.offset[0], baseY + style.code.offset[1],
+      baseX + style.code.fitEndOffset[0], baseY + style.code.fitEndOffset[1], source.code,
+      style.code.height, style.code.textWidthFactor, style.code.verticalAlignment)
+    emitTextRole(baseX, baseY, source.stratigraphicNotation.symbol, style.symbol)
+    stratigraphicGroupLabelEntityCount += 2
+    if (source.stratigraphicNotation.subscript != null) {
+      emitTextRole(baseX, baseY, source.stratigraphicNotation.subscript, style.subscript)
+      stratigraphicGroupLabelEntityCount++
+    }
+    if (source.stratigraphicNotation.superscript != null) {
+      emitTextRole(baseX, baseY, source.stratigraphicNotation.superscript, style.superscript)
+      stratigraphicGroupLabelEntityCount++
+    }
+  }
   g.text(3, layout.innerMargins.left + 2, footerTop + 2.2, locale === 'zh-CN'
     ? topology ? '仅显示源数据声明的地层组拓扑；未证实区域按设计留空。' : '仅显示已提供的地层与对比关系；未对比区域按设计留空。'
     : topology ? 'Only source-declared group topology is shown. Unproven regions remain blank.' : 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 1.5)
@@ -3582,6 +3697,10 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     ...(layout.observationSymbolStyle?.spt.labelOverrides ?
       { sourceBackedSptLabelOverrideCount: layout.observationSymbolStyle.spt.labelOverrides.length } : {}),
     ...(layout.sourceBackedBoundaryPolylines ? { sourceBackedBoundaryPolylineCount: layout.sourceBackedBoundaryPolylines.length } : {}),
+    ...(layout.sourceBackedStratigraphicGroupLabels ? {
+      sourceBackedStratigraphicGroupLabelCount: layout.sourceBackedStratigraphicGroupLabels.length,
+      sourceBackedStratigraphicGroupLabelEntityCount: stratigraphicGroupLabelEntityCount,
+    } : {}),
     ...(layout.boreholeProfileStyle ? { boreholeProfileElementCount: holes.length * 4 } : {}),
     datumElevation: datum, styleRule: 'geology-section-layout',
     ...(topology ? { correlationMode, topologyMainCellCount: topology.mainCells.length, topologyLensCellCount: topology.lensCells.length,

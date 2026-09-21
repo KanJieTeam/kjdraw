@@ -409,11 +409,21 @@ test('section style pack preserves bounded text roles, composite interval labels
     boreholeColumn: { patternScale: 0.75, patternAngle: 0.25 },
     stratigraphicBand: { patternScale: 1.25, patternAngle: 0 },
   }
+  pack.rules['geology-section-layout'].stratigraphicGroupLabelStyle = {
+    code: { offset: [0, 0], fitEndOffset: [3, 0], height: 3, textWidthFactor: 1.4, verticalAlignment: 0 },
+    symbol: placement([14.5, -1], 5), subscript: placement([18.5, -1], 2), superscript: placement([18.5, 2], 2),
+  }
+  pack.rules['geology-section-layout'].sourceBackedStratigraphicGroupLabels = [
+    { sourceHoleId: 'ZK1', sourceIntervalId: 'ZK1-a', anchor: [10, 95] },
+  ]
   const sectionHoles = structuredClone(holes)
   sectionHoles[0].endDate = '2024-01-02T08:30:00Z'
   sectionHoles[1].endDate = '2024-01-03'
   sectionHoles[0].strata[0].intervalId = 'ZK1-a'
   sectionHoles[1].strata[0].intervalId = 'ZK2-a'
+  for (const hole of sectionHoles) Object.assign(hole.strata[0], {
+    groupId: 'principal-a', groupRole: 'principal', stratigraphicNotation: { symbol: 'G', subscript: '2', superscript: 'uv' },
+  })
   const input = { holes: sectionHoles, correlations: [{ fromHoleId: 'ZK1', toHoleId: 'ZK2', fromStratumCode: '1', toStratumCode: '1' }], sectionStylePack: pack,
     horizontalScaleDenominator: 100, verticalScaleDenominator: 100, datumElevation: 80,
     surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 }
@@ -434,6 +444,12 @@ test('section style pack preserves bounded text roles, composite interval labels
   assert.deepEqual([endDate.payload.height, endDate.payload.position[0] - holeIdentifier.payload.position[0]], [2.2, -5])
   assert.equal(result.evidence.parameters.sourceBackedHoleEndDateLabelOverrideCount, 1)
   assert.equal(result.evidence.parameters.sourceBackedCollarElevationLabelOverrideCount, 1)
+  assert.equal(result.evidence.parameters.sourceBackedStratigraphicGroupLabelCount, 1)
+  assert.equal(result.evidence.parameters.sourceBackedStratigraphicGroupLabelEntityCount, 4)
+  const groupCode = texts.find(entity => entity.payload.text === '1' && entity.payload.horizontalAlignment === 5)
+  assert.deepEqual([groupCode.payload.position, groupCode.payload.alignmentPoint, groupCode.payload.widthFactor],
+    [[152, 193, 0], [155, 193, 0], 1.4])
+  assert.equal(texts.filter(entity => ['G', '2', 'uv'].includes(entity.payload.text)).length, 3)
   const spacing = texts.find(entity => entity.payload.text === '20.0')
   assert.deepEqual([spacing.payload.height, spacing.payload.horizontalAlignment], [3, 4])
   assert.equal(texts.some(entity => /^(?:STA|DEPTH) /u.test(entity.payload.text)), false)
@@ -456,6 +472,8 @@ test('section style pack preserves bounded text roles, composite interval labels
     assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
     assert.equal(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === '10.00-89.75'), true)
     assert.equal(reopened.listEntities({ type: 'TEXT' }).filter(entity => /^2024-01-0[23]$/u.test(entity.payload.text)).length, 2)
+    assert.equal(reopened.listEntities({ type: 'TEXT' }).filter(entity =>
+      ['G', '2', 'uv'].includes(entity.payload.text) || entity.payload.text === '1' && entity.payload.horizontalAlignment === 5).length, 4)
     assert.equal(reopened.listEntities({ type: 'HATCH' }).filter(entity => entity.payload.solid !== true).length, 3)
   }
   const invalidText = structuredClone(input)
@@ -503,6 +521,19 @@ test('section style pack preserves bounded text roles, composite interval labels
   unknownBand.sectionStylePack.rules['geology-section-layout'].sourceBackedBands = [
     { sourceHoleId: 'ZK1', sourceIntervalId: 'absent', points: [[0, 95], [10, 95], [10, 97]] }]
   assert.throws(() => compileGeologySection(unknownBand), /references an unknown supplied interval/u)
+  const unknownGroupLabel = structuredClone(input)
+  unknownGroupLabel.sectionStylePack.rules['geology-section-layout'].sourceBackedStratigraphicGroupLabels[0].sourceIntervalId = 'absent'
+  assert.throws(() => compileGeologySection(unknownGroupLabel), /stratigraphic group label 1 references an unknown supplied interval/u)
+  const missingNotation = structuredClone(input)
+  delete missingNotation.holes[0].strata[0].stratigraphicNotation
+  assert.throws(() => compileGeologySection(missingNotation), /needs a principal interval with supplied notation/u)
+  const inconsistentGroup = structuredClone(input)
+  inconsistentGroup.holes[1].strata[0].stratigraphicNotation.symbol = 'H'
+  assert.throws(() => compileGeologySection(inconsistentGroup), /disagrees with another supplied principal interval/u)
+  const duplicateGroup = structuredClone(input)
+  duplicateGroup.sectionStylePack.rules['geology-section-layout'].sourceBackedStratigraphicGroupLabels.push(
+    { sourceHoleId: 'ZK2', sourceIntervalId: 'ZK2-a', anchor: [11, 94] })
+  assert.throws(() => compileGeologySection(duplicateGroup), /duplicate section stratigraphic group label group fact/u)
 })
 
 test('host-bound borehole profile facts emit bounded centerlines, split guides, bottom ticks and collar bars while legacy packs stay unchanged', async () => {

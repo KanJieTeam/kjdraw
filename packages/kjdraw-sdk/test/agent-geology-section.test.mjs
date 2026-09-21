@@ -78,6 +78,15 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
         { primitive: 'open-polyline', points: [[2, 95], [10, 94.5]] },
         { primitive: 'closed-polyline', points: [[2, 98], [10, 97.5], [10, 96], [2, 96.5]] },
       ],
+      stratigraphicGroupLabelStyle: {
+        code: { offset: [0, 0], fitEndOffset: [3, 0], height: 3, textWidthFactor: 1.4, verticalAlignment: 0 },
+        symbol: { offset: [14.5, -1], height: 5, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0 },
+        subscript: { offset: [18.5, -1], height: 2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0 },
+        superscript: { offset: [18.5, 2], height: 2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0 },
+      },
+      sourceBackedStratigraphicGroupLabels: [
+        { sourceHoleId: 'SYN-01', sourceIntervalId: 'SYN-01-a', anchor: [5, 100] },
+      ],
       footerFrameStyle: { left: 12, right: 408, bottom: 12, top: 22, guideY: 12, primitive: 'line-segments', cellMode: 'none' },
       headingTextStyle: { title: { anchorX: 210, height: 6, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 }, scale: { anchorX: 210, height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
       sectionReferenceStyle: { start: { offset: [150, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'right', verticalAlignment: 'baseline' }, end: { offset: [270, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
@@ -100,6 +109,10 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
   const request = intent()
   request.holes[0].endDate = '2024-01-02T08:30:00Z'
   request.holes[1].endDate = '2024-01-03'
+  for (const hole of request.holes) for (const [index, stratum] of hole.strata.entries()) Object.assign(stratum, {
+    groupId: `group-${index + 1}`, groupRole: 'principal',
+    ...(index === 0 ? { stratigraphicNotation: { symbol: 'G', subscript: '2', superscript: 'uv' } } : {}),
+  })
   request.sectionReference = { start: 'A', end: "A'" }
   request.holes[0].stableWaterDepth = 6
   request.holes[0].observations = [{ kind: 'sample', id: 'S1', depth: 4 }, { kind: 'spt', id: 'N1', depth: 8, value: 12 }]
@@ -132,6 +145,12 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedPatternSymbolCount, 1)
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedPatternEntityCount, 3)
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedBoundaryPolylineCount, 2)
+  assert.equal(proposal.engineeringEvidence.parameters.sourceBackedStratigraphicGroupLabelCount, 1)
+  assert.equal(proposal.engineeringEvidence.parameters.sourceBackedStratigraphicGroupLabelEntityCount, 4)
+  assert.equal(proposal.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === 'G'), true)
+  assert.equal(proposal.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === 'uv'), true)
+  assert.equal(proposal.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === '1' &&
+    entity.payload.horizontalAlignment === 5), true)
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedSptLabelOverrideCount, 1)
   const sourceBackedSpt = proposal.arguments.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'N=12')
   assert.equal(sourceBackedSpt.payload.horizontalAlignment, 4)

@@ -655,6 +655,15 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
         { primitive: 'open-polyline', points: [[2, 95], [10, 94.5]] },
         { primitive: 'closed-polyline', points: [[2, 98], [10, 97.5], [10, 96], [2, 96.5]] },
       ],
+      stratigraphicGroupLabelStyle: {
+        code: { offset: [0, 0], fitEndOffset: [3, 0], height: 3, textWidthFactor: 1.4, verticalAlignment: 0 },
+        symbol: { offset: [14.5, -1], height: 5, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0 },
+        subscript: { offset: [18.5, -1], height: 2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0 },
+        superscript: { offset: [18.5, 2], height: 2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0 },
+      },
+      sourceBackedStratigraphicGroupLabels: [
+        { sourceHoleId: 'SYN-01', sourceIntervalId: 'SYN-01-a', anchor: [5, 100] },
+      ],
       observationSymbolStyle: { groundwater: { insertOffset: [-8, 0], lineSegments: [[[0, -2], [4, -2]]],
         markerPolygon: [[1, 2], [3, 2], [2, 0]], fill: 'none',
         labelPlacement: { offset: [-8, 1], height: 2.2, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' },
@@ -674,14 +683,16 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
   const holes = [
     { id: 'SYN-01', station: 0, collarElevation: 105.25, depth: 16, endDate: '2024-01-02T08:30:00Z', stableWaterDepth: 6,
       observations: [{ kind: 'sample', id: 'S1', depth: 4 }, { kind: 'spt', id: 'N1', depth: 8, value: 12 }], strata: [
-      { intervalId: 'SYN-01-a', code: '1', name: 'Made ground', top: 0, bottom: 3, lithology: 'fill' },
-      { intervalId: 'SYN-01-b', code: '2', name: 'Silty clay', top: 3, bottom: 9, lithology: 'clay' },
-      { intervalId: 'SYN-01-c', code: '3', name: 'Medium sand', top: 9, bottom: 16, lithology: 'sand' },
+      { intervalId: 'SYN-01-a', groupId: 'group-1', groupRole: 'principal', code: '1', name: 'Made ground', top: 0, bottom: 3,
+        lithology: 'fill', stratigraphicNotation: { symbol: 'G', subscript: '2', superscript: 'uv' } },
+      { intervalId: 'SYN-01-b', groupId: 'group-2', groupRole: 'principal', code: '2', name: 'Silty clay', top: 3, bottom: 9, lithology: 'clay' },
+      { intervalId: 'SYN-01-c', groupId: 'group-3', groupRole: 'principal', code: '3', name: 'Medium sand', top: 9, bottom: 16, lithology: 'sand' },
     ] },
     { id: 'SYN-02', station: 12, collarElevation: 104.8, depth: 16, endDate: '2024-01-03', strata: [
-      { intervalId: 'SYN-02-a', code: '1', name: 'Made ground', top: 0, bottom: 3, lithology: 'fill' },
-      { intervalId: 'SYN-02-b', code: '2', name: 'Silty clay', top: 3, bottom: 9, lithology: 'clay' },
-      { intervalId: 'SYN-02-c', code: '3', name: 'Medium sand', top: 9, bottom: 16, lithology: 'sand' },
+      { intervalId: 'SYN-02-a', groupId: 'group-1', groupRole: 'principal', code: '1', name: 'Made ground', top: 0, bottom: 3,
+        lithology: 'fill', stratigraphicNotation: { symbol: 'G', subscript: '2', superscript: 'uv' } },
+      { intervalId: 'SYN-02-b', groupId: 'group-2', groupRole: 'principal', code: '2', name: 'Silty clay', top: 3, bottom: 9, lithology: 'clay' },
+      { intervalId: 'SYN-02-c', groupId: 'group-3', groupRole: 'principal', code: '3', name: 'Medium sand', top: 9, bottom: 16, lithology: 'sand' },
     ] },
   ]
   const facts = {
@@ -715,6 +726,8 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedPatternSymbolCount, 1)
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedPatternEntityCount, 3)
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedBoundaryPolylineCount, 2)
+  assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedStratigraphicGroupLabelCount, 1)
+  assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedStratigraphicGroupLabelEntityCount, 4)
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedIntervalBottomLabelOverrideCount, 1)
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedHoleIdentifierLabelOverrideCount, 1)
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedHoleEndDateLabelOverrideCount, 1)
