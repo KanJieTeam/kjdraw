@@ -172,7 +172,7 @@ test('verified mirrored profiles stay symmetric while asymmetric source lines re
   assert.equal(emitted.has(lineKey([205, 127], [230, 124])), false)
   assert.equal(proposal.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1)
-  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.32.0')
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.33.0')
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /geometry and effective visual style both mirror/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /unpaired or asymmetric source segment remains an auxiliary line/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.annotationStyles, /style key selects only its native DIMSTYLE definition/u)
@@ -821,17 +821,40 @@ test('bounded semantic auxiliary solids compile as native editable filled faces'
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliarySolids: [{ ...auxiliarySolids[0], rawTags: [] }] }), /unsupported field/u)
 })
 
-test('auxiliary solid budget remains bounded and fail-closed', () => {
-  const document = createKJDrawSDK().createDocument({ units: 'millimeter' })
-  const auxiliarySolids = Array.from({ length: 64 }, (_, index) => ({
+test('auxiliary solid budget accepts 128 and atomically rejects 129 through KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const auxiliarySolids = Array.from({ length: 128 }, (_, index) => ({
     vertices: [[index * 2, 0], [index * 2 + 1, 0], [index * 2, 1]], role: 'geometry',
   }))
   const startedAt = performance.now(), proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliarySolids })
-  assert.equal(proposal.evidence.parameters.auxiliarySolidCount, 64)
-  assert.ok(proposal.commandArgs.entities.length < 256)
-  assert.ok(Buffer.byteLength(JSON.stringify(proposal.commandArgs), 'utf8') < 256 * 1_024)
+  assert.equal(proposal.evidence.parameters.auxiliarySolidCount, 128)
+  assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.auxiliarySolids, /up to 128 source-measured/u)
+  const expectedSolidCount = proposal.commandArgs.entities.filter(entity => entity.type === 'SOLID').length
+  assert.ok(expectedSolidCount >= 128)
+  assert.ok(proposal.commandArgs.entities.length < 320)
+  assert.ok(Buffer.byteLength(JSON.stringify(proposal.commandArgs), 'utf8') < 512 * 1_024)
   assert.ok(performance.now() - startedAt < 5_000)
-  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliarySolids: [...auxiliarySolids, auxiliarySolids[0]] }), /64-solid budget/u)
+  const before = document.serialize()
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliarySolids: [...auxiliarySolids, auxiliarySolids[0]] }), /128-solid budget/u)
+  assert.equal(document.serialize(), before)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const [kjd, dxf] = await Promise.all([
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
+    sdk.readDocument(dxfText, { format: 'DXF' }),
+  ])
+  for (const reopened of [kjd, dxf]) assert.equal(reopened.listEntities({ type: 'SOLID' }).filter(entity => entity.ownerId === reopened.spaces.modelSpaceId).length, expectedSolidCount)
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"solids":len(d.modelspace().query("SOLID"))}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+    PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, solids: expectedSolidCount })
+  }
 })
 test('auxiliary curve budget accepts 1024 mixed native curves and atomically rejects 1025', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
@@ -1197,15 +1220,16 @@ test('evidence-backed outline and symmetric-profile capacities remain bounded th
     endView: { ...source.endView, outlineSegments: endSegments(endCount) },
     sideViewAxis: { ...source.sideViewAxis, symmetricProfiles: [{ vertices: profileVertices(vertexCount) }], outlineSegments: sideSegments(sideCount) },
   })
-  const proposal = buildAgentMechanicalFlangeCore(document, capacityInput(256, 256, 128))
+  const proposal = buildAgentMechanicalFlangeCore(document, capacityInput(256, 512, 128))
   assert.deepEqual([proposal.evidence.parameters.outlineSegmentCount, proposal.evidence.parameters.sideOutlineSegmentCount,
-    proposal.evidence.parameters.symmetricProfileCount], [256, 256, 1])
+    proposal.evidence.parameters.symmetricProfileCount], [256, 512, 1])
+  assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /up to 512 source-measured/u)
   assert.ok(proposal.commandArgs.entities.filter(entity => entity.type === 'LINE').length > 700)
   const before = document.serialize()
   for (const [value, pattern] of [
-    [capacityInput(257, 256, 128), /endView\.outlineSegments exceed their 256-segment budget/u],
-    [capacityInput(256, 257, 128), /sideViewAxis\.outlineSegments exceed their 256-segment budget/u],
-    [capacityInput(256, 256, 129), /vertices must contain 2 to 128 points/u],
+    [capacityInput(257, 512, 128), /endView\.outlineSegments exceed their 256-segment budget/u],
+    [capacityInput(256, 513, 128), /sideViewAxis\.outlineSegments exceed their 512-segment budget/u],
+    [capacityInput(256, 512, 129), /vertices must contain 2 to 128 points/u],
   ]) {
     assert.throws(() => buildAgentMechanicalFlangeCore(document, value), pattern)
     assert.equal(document.serialize(), before)
@@ -1622,7 +1646,7 @@ test('generic orthographic geometry remains native when the circular end view is
     symbols,
     dimensions,
   })
-  assert.equal(proposal.evidence.knowledgePackVersion, '2.32.0')
+  assert.equal(proposal.evidence.knowledgePackVersion, '2.33.0')
   assert.equal(proposal.evidence.parameters.endViewPresent, false)
   assert.equal(proposal.evidence.parameters.ringCount, 0)
   assert.equal(proposal.commandArgs.entities.some(entity => entity.type === 'CIRCLE'), false)

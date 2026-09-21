@@ -520,7 +520,7 @@ function validate(document, source) {
         };
     });
     if (side?.outlineSegments != null && !Array.isArray(side.outlineSegments)) throw new KJValidationError('input.sideViewAxis.outlineSegments must be an array');
-    if (side?.outlineSegments?.length && side.outlineSegments.length > 256) throw new KJValidationError('input.sideViewAxis.outlineSegments exceed their 256-segment budget');
+    if (side?.outlineSegments?.length && side.outlineSegments.length > 512) throw new KJValidationError('input.sideViewAxis.outlineSegments exceed their 512-segment budget');
     const sideOutlineSegments = (side?.outlineSegments ?? []).map((value, index)=>{
         const segment = plain(value, `input.sideViewAxis.outlineSegments[${index}]`);
         const styleKey = entityStyleKey(segment.styleKey, `input.sideViewAxis.outlineSegments[${index}].styleKey`);
@@ -1681,7 +1681,7 @@ function validate(document, source) {
         };
     });
     if (input.auxiliarySolids != null && !Array.isArray(input.auxiliarySolids)) throw new KJValidationError('input.auxiliarySolids must be an array');
-    if (input.auxiliarySolids?.length && input.auxiliarySolids.length > 64) throw new KJValidationError('input.auxiliarySolids exceed their 64-solid budget');
+    if (input.auxiliarySolids?.length && input.auxiliarySolids.length > 128) throw new KJValidationError('input.auxiliarySolids exceed their 128-solid budget');
     const auxiliarySolids = (input.auxiliarySolids ?? []).map((value, index)=>{
         const label = `input.auxiliarySolids[${index}]`, solid = plain(value, label);
         exact(solid, [
