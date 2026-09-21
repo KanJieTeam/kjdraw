@@ -471,3 +471,52 @@ test('host-bound borehole profile facts emit bounded centerlines, split guides, 
   }
   assert.throws(() => compileGeologySection(undeclared), /exact source-backed geometry facts/u)
 })
+
+test('host-bound scale-rail and source-backed pattern facts preserve native SOLID cells and explicit triangle lines without changing legacy packs', async () => {
+  const pack = structuredClone(KJDRAW_GEOLOGY_KNOWLEDGE_PACK)
+  pack.id = 'test.section.source-backed-pattern-symbols'
+  pack.version = '1.0.0'
+  const styledPack = structuredClone(pack)
+  const baseInput = { holes, correlations: [], sectionStylePack: pack,
+    horizontalScaleDenominator: 100, verticalScaleDenominator: 100, datumElevation: 80,
+    surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 }
+  const legacy = compileGeologySection(baseInput)
+  assert.equal(legacy.commandArgs.entities.filter(entity => entity.type === 'SOLID').length, 0)
+  assert.equal(Object.hasOwn(legacy.evidence.parameters, 'sourceBackedPatternSymbolCount'), false)
+  styledPack.rules['geology-section-layout'].elevationTickSequence =
+    { startElevation: 85, step: 2, minimumElevation: 85, maximumElevation: 89 }
+  styledPack.rules['geology-section-layout'].elevationScaleRailStyle =
+    { primitive: 'solid-cell-per-tick', xOffsets: [-12, -10], tickCellYOffset: [-4, 0] }
+  styledPack.rules['geology-section-layout'].sourceBackedPatternSymbols = [
+    { primitive: 'triangle-lines', points: [[2, 90], [2.4, 90], [2.2, 90.25]] },
+  ]
+  const input = { ...baseInput, sectionStylePack: styledPack }
+  const result = compileGeologySection(input)
+  assert.equal(result.evidence.parameters.elevationTickCount, 3)
+  assert.equal(result.evidence.parameters.elevationScaleSolidCount, 3)
+  assert.equal(result.evidence.parameters.sourceBackedPatternSymbolCount, 1)
+  assert.equal(result.evidence.parameters.sourceBackedPatternEntityCount, 3)
+  assert.equal(result.commandArgs.entities.filter(entity => entity.type === 'SOLID').length, 3)
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', result.commandArgs, { document })
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await sdk.readDocument(bytes, { format })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+    assert.equal(reopened.listEntities({ type: 'SOLID' }).length, 3)
+  }
+  const invalidRail = structuredClone(input)
+  invalidRail.sectionStylePack.rules['geology-section-layout'].elevationScaleRailStyle.tickCellYOffset = [-4, -1]
+  assert.throws(() => compileGeologySection(invalidRail), /scale rail style is out of bounds/u)
+  const degenerate = structuredClone(input)
+  degenerate.sectionStylePack.rules['geology-section-layout'].sourceBackedPatternSymbols = [
+    { primitive: 'triangle-lines', points: [[2, 90], [2.2, 90], [2.4, 90]] },
+  ]
+  assert.throws(() => compileGeologySection(degenerate), /pattern symbol is degenerate/u)
+  const escaped = structuredClone(input)
+  escaped.sectionStylePack.rules['geology-section-layout'].sourceBackedPatternSymbols = [
+    { primitive: 'triangle-lines', points: [[-100, 90], [-99.8, 90], [-99.9, 90.2]] },
+  ]
+  assert.throws(() => compileGeologySection(escaped), /leaves the bounded section body/u)
+})

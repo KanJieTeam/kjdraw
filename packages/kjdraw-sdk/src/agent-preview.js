@@ -40,6 +40,7 @@ const creatable = [
     'ELLIPSE',
     'SPLINE',
     'HATCH',
+    'SOLID',
     'TEXT',
     'MTEXT',
     'LEADER',

@@ -1505,6 +1505,12 @@ function sectionLayout(input) {
         ...value.boreholeProfileStyle == null ? [] : [
             'boreholeProfileStyle'
         ],
+        ...value.elevationScaleRailStyle == null ? [] : [
+            'elevationScaleRailStyle'
+        ],
+        ...value.sourceBackedPatternSymbols == null ? [] : [
+            'sourceBackedPatternSymbols'
+        ],
         ...value.headingTextStyle == null ? [] : [
             'headingTextStyle'
         ],
@@ -1692,6 +1698,49 @@ function sectionLayout(input) {
             collarBarHalfWidth,
             collarBarYOffset
         };
+    }
+    let elevationScaleRailStyle;
+    if (value.elevationScaleRailStyle != null) {
+        if (!value.elevationScaleRailStyle || typeof value.elevationScaleRailStyle !== 'object' || Array.isArray(value.elevationScaleRailStyle) || Object.keys(value.elevationScaleRailStyle).sort().join(',') !== 'primitive,tickCellYOffset,xOffsets') throw new KJValidationError('Geology: section elevation scale rail style needs exact source-backed geometry facts');
+        const supplied = value.elevationScaleRailStyle;
+        if (supplied.primitive !== 'solid-cell-per-tick' || !Array.isArray(supplied.xOffsets) || supplied.xOffsets.length !== 2 || !Array.isArray(supplied.tickCellYOffset) || supplied.tickCellYOffset.length !== 2) throw new KJValidationError('Geology: section elevation scale rail geometry is invalid');
+        const xOffsets = supplied.xOffsets.map((offset, index)=>numeric(offset, `section elevation scale rail X offset ${index + 1}`));
+        const tickCellYOffset = supplied.tickCellYOffset.map((offset, index)=>numeric(offset, `section elevation scale rail tick-cell Y offset ${index + 1}`));
+        if (xOffsets.some((offset)=>Math.abs(offset) > 80) || xOffsets[1] - xOffsets[0] < 0.2 || xOffsets[1] - xOffsets[0] > 10 || tickCellYOffset[0] < -50 || tickCellYOffset[0] > -0.2 || tickCellYOffset[1] !== 0) throw new KJValidationError('Geology: section elevation scale rail style is out of bounds');
+        elevationScaleRailStyle = {
+            primitive: supplied.primitive,
+            xOffsets,
+            tickCellYOffset
+        };
+    }
+    let sourceBackedPatternSymbols;
+    if (value.sourceBackedPatternSymbols != null) {
+        if (!Array.isArray(value.sourceBackedPatternSymbols) || value.sourceBackedPatternSymbols.length < 1 || value.sourceBackedPatternSymbols.length > 256) throw new KJValidationError('Geology: section source-backed pattern symbols need 1-256 explicit facts');
+        const seenSymbols = new Set();
+        sourceBackedPatternSymbols = value.sourceBackedPatternSymbols.map((rawSymbol, symbolIndex)=>{
+            if (!rawSymbol || typeof rawSymbol !== 'object' || Array.isArray(rawSymbol) || Object.keys(rawSymbol).sort().join(',') !== 'points,primitive') throw new KJValidationError('Geology: section source-backed pattern symbol needs an exact primitive and points');
+            const symbol = rawSymbol;
+            if (symbol.primitive !== 'triangle-lines' || !Array.isArray(symbol.points) || symbol.points.length !== 3) throw new KJValidationError('Geology: section source-backed pattern symbol geometry is invalid');
+            const points = symbol.points.map((rawPoint, pointIndex)=>{
+                if (!Array.isArray(rawPoint) || rawPoint.length !== 2) throw new KJValidationError('Geology: section source-backed pattern symbol point needs station and elevation');
+                return [
+                    numeric(rawPoint[0], `section source-backed pattern symbol ${symbolIndex + 1} station ${pointIndex + 1}`),
+                    numeric(rawPoint[1], `section source-backed pattern symbol ${symbolIndex + 1} elevation ${pointIndex + 1}`)
+                ];
+            });
+            const area = Math.abs(points.reduce((sum, point, index)=>{
+                const next = points[(index + 1) % points.length];
+                return sum + point[0] * next[1] - next[0] * point[1];
+            }, 0)) / 2;
+            const identity = JSON.stringify(points);
+            if (area < 1e-8) throw new KJValidationError('Geology: section source-backed pattern symbol is degenerate');
+            if (seenSymbols.has(identity)) throw new KJValidationError('Geology: duplicate section source-backed pattern symbol fact');
+            seenSymbols.add(identity);
+            return {
+                primitive: symbol.primitive,
+                points
+            };
+        });
     }
     const legacyFrameRule = {
         primitive: 'closed-polyline',
@@ -1977,6 +2026,12 @@ function sectionLayout(input) {
         } : {},
         ...boreholeProfileStyle ? {
             boreholeProfileStyle
+        } : {},
+        ...elevationScaleRailStyle ? {
+            elevationScaleRailStyle
+        } : {},
+        ...sourceBackedPatternSymbols ? {
+            sourceBackedPatternSymbols
         } : {},
         ...footerFrameStyle ? {
             footerFrameStyle
@@ -2303,6 +2358,9 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
             center: shifted(x, y),
             radius
         });
+    const solid = (layer, points)=>add('SOLID', layer, {
+            vertices: points.map(([x, y])=>shifted(x, y))
+        });
     const circularHatch = (x, y, radius)=>add('HATCH', 2, {
             boundaryLoops: [
                 {
@@ -2396,6 +2454,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
         poly,
         rect,
         circle,
+        solid,
         circularHatch,
         solidPolygonHatch,
         hatch,
@@ -3642,7 +3701,31 @@ export function compileGeologySection(input) {
         if (elevation < minimumElevation - 1e-9) continue;
         const tickY = layout.plotBottom + (elevation - datum) * vs;
         if (tickY < layout.innerMargins.bottom - 1e-9 || tickY > layout.plotTop + 1e-9) throw new KJValidationError('Geology: source-backed elevation tick sequence leaves the bounded drawing region');
-        g.line(1, layout.plotLeft - 1.8, tickY, layout.plotLeft + 2.2, tickY);
+        const scaleRail = layout.elevationScaleRailStyle;
+        if (scaleRail) {
+            const left = layout.plotLeft + scaleRail.xOffsets[0], right = layout.plotLeft + scaleRail.xOffsets[1];
+            const bottom = tickY + scaleRail.tickCellYOffset[0], top = tickY + scaleRail.tickCellYOffset[1];
+            if (left < layout.innerMargins.left - 1e-9 || right > layout.paperWidth - layout.innerMargins.right + 1e-9 || bottom < layout.innerMargins.bottom - 1e-9 || top > layout.plotTop + 1e-9) throw new KJValidationError('Geology: elevation scale rail leaves the bounded drawing region');
+            g.line(1, left, tickY, right, tickY);
+            g.solid(1, [
+                [
+                    left,
+                    bottom
+                ],
+                [
+                    right,
+                    bottom
+                ],
+                [
+                    left,
+                    top
+                ],
+                [
+                    right,
+                    top
+                ]
+            ]);
+        } else g.line(1, layout.plotLeft - 1.8, tickY, layout.plotLeft + 2.2, tickY);
         const visible = Number.isInteger(elevation) ? elevation.toFixed(0) : metres(elevation);
         if (layout.sectionTextStyle) emitTextRole(layout.plotLeft, tickY, visible, layout.sectionTextStyle.elevationTick);
         else g.text(3, layout.plotLeft - 13, tickY - 0.7, visible, 1.6);
@@ -3953,14 +4036,38 @@ export function compileGeologySection(input) {
         if (physicalArea < 0.01) throw new KJValidationError(`Geology: source-backed band ${bandIndex + 1} is physically unreadable`);
         g.hatch(points, source, layout.sectionHatchPresentation?.stratigraphicBand);
     }
+    for (const [symbolIndex, symbol] of (layout.sourceBackedPatternSymbols ?? []).entries()){
+        const points = symbol.points.map(([station, elevation])=>[
+                originX + (station - holes[0].station) * hs,
+                layout.plotBottom + (elevation - datum) * vs
+            ]);
+        if (points.some(([px, py])=>px < layout.innerMargins.left - 1e-9 || px > layout.paperWidth - layout.innerMargins.right + 1e-9 || py < layout.plotBottom - 1e-9 || py > layout.plotTop + 1e-9)) throw new KJValidationError(`Geology: source-backed pattern symbol ${symbolIndex + 1} leaves the bounded section body`);
+        const area = Math.abs(points.reduce((sum, point, index)=>{
+            const next = points[(index + 1) % points.length];
+            return sum + point[0] * next[1] - next[0] * point[1];
+        }, 0)) / 2;
+        const edgeLengths = points.map((point, index)=>Math.hypot(point[0] - points[(index + 1) % points.length][0], point[1] - points[(index + 1) % points.length][1]));
+        if (area < 0.01 || edgeLengths.some((length)=>length < 0.2 || length > 20)) throw new KJValidationError(`Geology: source-backed pattern symbol ${symbolIndex + 1} is physically unreadable`);
+        for(let index = 0; index < points.length; index++){
+            const start = points[index], end = points[(index + 1) % points.length];
+            g.line(1, start[0], start[1], end[0], end[1]);
+        }
+    }
     return g.finish({
         horizontalScaleDenominator: input.horizontalScaleDenominator,
         verticalScaleDenominator: input.verticalScaleDenominator,
         ...layout.elevationTickSequence ? {
             elevationTickCount
         } : {},
+        ...layout.elevationScaleRailStyle ? {
+            elevationScaleSolidCount: elevationTickCount
+        } : {},
         ...layout.sourceBackedBands ? {
             sourceBackedBandCount: layout.sourceBackedBands.length
+        } : {},
+        ...layout.sourceBackedPatternSymbols ? {
+            sourceBackedPatternSymbolCount: layout.sourceBackedPatternSymbols.length,
+            sourceBackedPatternEntityCount: layout.sourceBackedPatternSymbols.length * 3
         } : {},
         ...layout.boreholeProfileStyle ? {
             boreholeProfileElementCount: holes.length * 4
