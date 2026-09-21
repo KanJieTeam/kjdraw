@@ -632,6 +632,10 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
         collarBarHalfWidth: 9, collarBarYOffset: 1.5 },
       elevationScaleRailStyle: { primitive: 'solid-cell-per-tick', xOffsets: [-12, -10], tickCellYOffset: [-4, 0] },
       sourceBackedPatternSymbols: [{ primitive: 'triangle-lines', points: [[2, 90], [2.4, 90], [2.2, 90.25]] }],
+      sourceBackedBoundaryPolylines: [
+        { primitive: 'open-polyline', points: [[2, 95], [10, 94.5]] },
+        { primitive: 'closed-polyline', points: [[2, 98], [10, 97.5], [10, 96], [2, 96.5]] },
+      ],
       observationSymbolStyle: { sample: { centerOffset: [-4, 0], radius: 0.7, fill: 'solid' }, spt: { topRightOffset: [-7, 0], width: 10, height: 3, labelPlacement: { offset: [-12, -1.5], height: 2, textWidthFactor: 1, horizontalAlignment: 'center', verticalAlignment: 'baseline' } } },
       plotLeft: 30, plotRight: 390, plotBottom: 35, plotTop: 245, titleY: 275, scaleY: 262, footerHeight: 10, boreholeWidth: 3, elevationTickStep: 2,
       footerGrid: [{ start: 12, key: 'projectName', label: 'Project' }, { start: 140, key: 'organization', label: 'Organization' }, { start: 260, key: 'drawingNumber', label: 'Drawing' }],
@@ -681,6 +685,7 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.boreholeProfileElementCount, 8)
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedPatternSymbolCount, 1)
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedPatternEntityCount, 3)
+  assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.sourceBackedBoundaryPolylineCount, 2)
   assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.elevationScaleSolidCount, 13)
   assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'SOLID').length, 13)
   assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'LWPOLYLINE' && !entity.payload.closed && entity.payload.vertices.length === 2 &&

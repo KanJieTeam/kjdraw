@@ -63,6 +63,10 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
         collarBarHalfWidth: 9, collarBarYOffset: 1.5 },
       elevationScaleRailStyle: { primitive: 'solid-cell-per-tick', xOffsets: [-12, -10], tickCellYOffset: [-4, 0] },
       sourceBackedPatternSymbols: [{ primitive: 'triangle-lines', points: [[2, 90], [2.4, 90], [2.2, 90.25]] }],
+      sourceBackedBoundaryPolylines: [
+        { primitive: 'open-polyline', points: [[2, 95], [10, 94.5]] },
+        { primitive: 'closed-polyline', points: [[2, 98], [10, 97.5], [10, 96], [2, 96.5]] },
+      ],
       footerFrameStyle: { left: 12, right: 408, bottom: 12, top: 22, guideY: 12, primitive: 'line-segments', cellMode: 'none' },
       headingTextStyle: { title: { anchorX: 210, height: 6, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 }, scale: { anchorX: 210, height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
       sectionReferenceStyle: { start: { offset: [150, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'right', verticalAlignment: 'baseline' }, end: { offset: [270, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
@@ -89,6 +93,7 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
   assert.equal(proposal.engineeringEvidence.parameters.elevationScaleSolidCount, 5)
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedPatternSymbolCount, 1)
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedPatternEntityCount, 3)
+  assert.equal(proposal.engineeringEvidence.parameters.sourceBackedBoundaryPolylineCount, 2)
   assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'SOLID').length, 5)
   assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'TEXT' &&
     ['81', '83', '85', '87', '89'].includes(entity.payload.text)).length, 5)

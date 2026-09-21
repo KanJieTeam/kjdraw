@@ -483,6 +483,7 @@ test('host-bound scale-rail and source-backed pattern facts preserve native SOLI
   const legacy = compileGeologySection(baseInput)
   assert.equal(legacy.commandArgs.entities.filter(entity => entity.type === 'SOLID').length, 0)
   assert.equal(Object.hasOwn(legacy.evidence.parameters, 'sourceBackedPatternSymbolCount'), false)
+  assert.equal(Object.hasOwn(legacy.evidence.parameters, 'sourceBackedBoundaryPolylineCount'), false)
   styledPack.rules['geology-section-layout'].elevationTickSequence =
     { startElevation: 85, step: 2, minimumElevation: 85, maximumElevation: 89 }
   styledPack.rules['geology-section-layout'].elevationScaleRailStyle =
@@ -490,12 +491,18 @@ test('host-bound scale-rail and source-backed pattern facts preserve native SOLI
   styledPack.rules['geology-section-layout'].sourceBackedPatternSymbols = [
     { primitive: 'triangle-lines', points: [[2, 90], [2.4, 90], [2.2, 90.25]] },
   ]
+  styledPack.rules['geology-section-layout'].sourceBackedBoundaryPolylines = [
+    { primitive: 'open-polyline', points: [[2, 95], [10, 94.5]] },
+    { primitive: 'closed-polyline', points: [[2, 98], [10, 97.5], [10, 96], [2, 96.5]] },
+  ]
   const input = { ...baseInput, sectionStylePack: styledPack }
   const result = compileGeologySection(input)
   assert.equal(result.evidence.parameters.elevationTickCount, 3)
   assert.equal(result.evidence.parameters.elevationScaleSolidCount, 3)
   assert.equal(result.evidence.parameters.sourceBackedPatternSymbolCount, 1)
   assert.equal(result.evidence.parameters.sourceBackedPatternEntityCount, 3)
+  assert.equal(result.evidence.parameters.sourceBackedBoundaryPolylineCount, 2)
+  assert.equal(result.commandArgs.entities.filter(entity => entity.type === 'LWPOLYLINE' && entity.payload.vertices.length === 2 && !entity.payload.closed).length >= 1, true)
   assert.equal(result.commandArgs.entities.filter(entity => entity.type === 'SOLID').length, 3)
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', result.commandArgs, { document })
@@ -505,6 +512,7 @@ test('host-bound scale-rail and source-backed pattern facts preserve native SOLI
     assert.equal(reopened.validate().valid, true)
     assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
     assert.equal(reopened.listEntities({ type: 'SOLID' }).length, 3)
+    assert.ok(reopened.listEntities({ type: 'LWPOLYLINE' }).some(entity => entity.payload.closed && entity.payload.vertices.length === 4))
   }
   const invalidRail = structuredClone(input)
   invalidRail.sectionStylePack.rules['geology-section-layout'].elevationScaleRailStyle.tickCellYOffset = [-4, -1]
@@ -519,4 +527,14 @@ test('host-bound scale-rail and source-backed pattern facts preserve native SOLI
     { primitive: 'triangle-lines', points: [[-100, 90], [-99.8, 90], [-99.9, 90.2]] },
   ]
   assert.throws(() => compileGeologySection(escaped), /leaves the bounded section body/u)
+  const degenerateBoundary = structuredClone(input)
+  degenerateBoundary.sectionStylePack.rules['geology-section-layout'].sourceBackedBoundaryPolylines = [
+    { primitive: 'closed-polyline', points: [[2, 95], [4, 95], [6, 95]] },
+  ]
+  assert.throws(() => compileGeologySection(degenerateBoundary), /boundary polyline is degenerate/u)
+  const escapedBoundary = structuredClone(input)
+  escapedBoundary.sectionStylePack.rules['geology-section-layout'].sourceBackedBoundaryPolylines = [
+    { primitive: 'open-polyline', points: [[-100, 90], [-99, 90]] },
+  ]
+  assert.throws(() => compileGeologySection(escapedBoundary), /leaves the bounded section region/u)
 })

@@ -368,6 +368,7 @@ type SectionElevationScaleRailStyle = {
   tickCellYOffset: [number, number]
 }
 type SectionSourceBackedPatternSymbol = { primitive: 'triangle-lines'; points: [[number, number], [number, number], [number, number]] }
+type SectionSourceBackedBoundaryPolyline = { primitive: 'open-polyline' | 'closed-polyline'; points: [number, number][] }
 
 interface SectionLayout {
   paperWidth: number
@@ -384,6 +385,7 @@ interface SectionLayout {
   boreholeProfileStyle?: SectionBoreholeProfileStyle
   elevationScaleRailStyle?: SectionElevationScaleRailStyle
   sourceBackedPatternSymbols?: SectionSourceBackedPatternSymbol[]
+  sourceBackedBoundaryPolylines?: SectionSourceBackedBoundaryPolyline[]
   plotLeft: number
   sectionReferenceStyle?: { start: KJGeologyFieldHeaderTextPlacement; end: KJGeologyFieldHeaderTextPlacement }
   observationSymbolStyle?: KJGeologySectionObservationSymbolStyle
@@ -1401,6 +1403,7 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     ...(value.boreholeProfileStyle == null ? [] : ['boreholeProfileStyle']),
     ...(value.elevationScaleRailStyle == null ? [] : ['elevationScaleRailStyle']),
     ...(value.sourceBackedPatternSymbols == null ? [] : ['sourceBackedPatternSymbols']),
+    ...(value.sourceBackedBoundaryPolylines == null ? [] : ['sourceBackedBoundaryPolylines']),
     ...(value.headingTextStyle == null ? [] : ['headingTextStyle']), ...(value.footerFrameStyle == null ? [] : ['footerFrameStyle']), ...(value.sectionReferenceStyle == null ? [] : ['sectionReferenceStyle']), ...(value.observationSymbolStyle == null ? [] : ['observationSymbolStyle'])]
   if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field')
   const scalars = Object.fromEntries(scalarKeys.map(key => [key, numeric(value[key], `section ${key}`)])) as unknown as Omit<SectionLayout, 'footerGrid' | 'drawingOrigin' | 'outerMargins' | 'innerMargins' | 'frameStyle' | 'headingTextStyle'>
@@ -1550,6 +1553,38 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
       if (seenSymbols.has(identity)) throw new KJValidationError('Geology: duplicate section source-backed pattern symbol fact')
       seenSymbols.add(identity)
       return { primitive: symbol.primitive, points }
+    })
+  }
+  let sourceBackedBoundaryPolylines: SectionLayout['sourceBackedBoundaryPolylines']
+  if (value.sourceBackedBoundaryPolylines != null) {
+    if (!Array.isArray(value.sourceBackedBoundaryPolylines) || value.sourceBackedBoundaryPolylines.length < 1 || value.sourceBackedBoundaryPolylines.length > 256)
+      throw new KJValidationError('Geology: section source-backed boundary polylines need 1-256 explicit facts')
+    const seenBoundaries = new Set<string>()
+    sourceBackedBoundaryPolylines = value.sourceBackedBoundaryPolylines.map((rawBoundary, boundaryIndex) => {
+      if (!rawBoundary || typeof rawBoundary !== 'object' || Array.isArray(rawBoundary) || Object.keys(rawBoundary).sort().join(',') !== 'points,primitive')
+        throw new KJValidationError('Geology: section source-backed boundary polyline needs an exact primitive and points')
+      const boundary = rawBoundary as Record<string, unknown>
+      const closed = boundary.primitive === 'closed-polyline'
+      if (!closed && boundary.primitive !== 'open-polyline' || !Array.isArray(boundary.points) ||
+        boundary.points.length < (closed ? 3 : 2) || boundary.points.length > 32)
+        throw new KJValidationError('Geology: section source-backed boundary polyline geometry is invalid')
+      const points = boundary.points.map((rawPoint, pointIndex) => {
+        if (!Array.isArray(rawPoint) || rawPoint.length !== 2)
+          throw new KJValidationError('Geology: section source-backed boundary point needs station and elevation')
+        return [numeric(rawPoint[0], `section source-backed boundary ${boundaryIndex + 1} station ${pointIndex + 1}`),
+          numeric(rawPoint[1], `section source-backed boundary ${boundaryIndex + 1} elevation ${pointIndex + 1}`)] as [number, number]
+      })
+      const distinct = new Set(points.map(point => JSON.stringify(point)))
+      const area = closed ? Math.abs(points.reduce((sum, point, index) => {
+        const next = points[(index + 1) % points.length]!
+        return sum + point[0] * next[1] - next[0] * point[1]
+      }, 0)) / 2 : 0
+      const identity = JSON.stringify([boundary.primitive, points])
+      if (distinct.size < (closed ? 3 : 2) || closed && area < 1e-8)
+        throw new KJValidationError('Geology: section source-backed boundary polyline is degenerate')
+      if (seenBoundaries.has(identity)) throw new KJValidationError('Geology: duplicate section source-backed boundary polyline fact')
+      seenBoundaries.add(identity)
+      return { primitive: boundary.primitive, points } as SectionSourceBackedBoundaryPolyline
     })
   }
   const legacyFrameRule: SectionFrameRule = { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 }
@@ -1747,6 +1782,7 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     ...(boreholeProfileStyle ? { boreholeProfileStyle } : {}),
     ...(elevationScaleRailStyle ? { elevationScaleRailStyle } : {}),
     ...(sourceBackedPatternSymbols ? { sourceBackedPatternSymbols } : {}),
+    ...(sourceBackedBoundaryPolylines ? { sourceBackedBoundaryPolylines } : {}),
     ...(footerFrameStyle ? { footerFrameStyle } : {}), ...(sectionReferenceStyle ? { sectionReferenceStyle } : {}), ...(observationSymbolStyle ? { observationSymbolStyle } : {}) }
 }
 
@@ -3191,12 +3227,31 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
       g.line(1, start[0], start[1], end[0], end[1])
     }
   }
+  for (const [boundaryIndex, boundary] of (layout.sourceBackedBoundaryPolylines ?? []).entries()) {
+    const points = boundary.points.map(([station, elevation]) => [
+      originX + (station - holes[0]!.station!) * hs,
+      layout.plotBottom + (elevation - datum) * vs,
+    ] as [number, number])
+    if (points.some(([px, py]) => px < layout.innerMargins.left - 1e-9 || px > layout.paperWidth - layout.innerMargins.right + 1e-9 ||
+      py < layout.innerMargins.bottom - 1e-9 || py > layout.plotTop + 1e-9))
+      throw new KJValidationError(`Geology: source-backed boundary polyline ${boundaryIndex + 1} leaves the bounded section region`)
+    const closed = boundary.primitive === 'closed-polyline'
+    const length = points.reduce((sum, point, index) => {
+      if (!closed && index === points.length - 1) return sum
+      const next = points[(index + 1) % points.length]!
+      return sum + Math.hypot(point[0] - next[0], point[1] - next[1])
+    }, 0)
+    if (length < 0.2 || length > 4000)
+      throw new KJValidationError(`Geology: source-backed boundary polyline ${boundaryIndex + 1} is physically unreadable`)
+    g.poly(1, points, closed)
+  }
   return g.finish({ horizontalScaleDenominator: input.horizontalScaleDenominator, verticalScaleDenominator: input.verticalScaleDenominator,
     ...(layout.elevationTickSequence ? { elevationTickCount } : {}),
     ...(layout.elevationScaleRailStyle ? { elevationScaleSolidCount: elevationTickCount } : {}),
     ...(layout.sourceBackedBands ? { sourceBackedBandCount: layout.sourceBackedBands.length } : {}),
     ...(layout.sourceBackedPatternSymbols ? { sourceBackedPatternSymbolCount: layout.sourceBackedPatternSymbols.length,
       sourceBackedPatternEntityCount: layout.sourceBackedPatternSymbols.length * 3 } : {}),
+    ...(layout.sourceBackedBoundaryPolylines ? { sourceBackedBoundaryPolylineCount: layout.sourceBackedBoundaryPolylines.length } : {}),
     ...(layout.boreholeProfileStyle ? { boreholeProfileElementCount: holes.length * 4 } : {}),
     datumElevation: datum, styleRule: 'geology-section-layout',
     ...(topology ? { correlationMode, topologyMainCellCount: topology.mainCells.length, topologyLensCellCount: topology.lensCells.length,
