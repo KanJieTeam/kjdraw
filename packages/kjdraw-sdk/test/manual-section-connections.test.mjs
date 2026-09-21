@@ -182,6 +182,42 @@ test('section style pack preserves explicit frame primitives, start corners, win
   assert.throws(invalid(style => { style.inner.constantWidth = 5.01 }), /out of bounds/u)
 })
 
+test('section style pack preserves a bounded footer frame topology and borehole guide baseline through KJD and DXF', async () => {
+  const pack = structuredClone(KJDRAW_GEOLOGY_KNOWLEDGE_PACK)
+  pack.id = 'test.section.footer-frame-topology'
+  pack.version = '1.0.0'
+  pack.rules['geology-section-layout'].footerFrameStyle = {
+    left: 20, right: 400, bottom: 18, top: 30, guideY: 18,
+    primitive: 'line-segments', cellMode: 'none',
+  }
+  const input = { holes, correlations: [], sectionStylePack: pack,
+    horizontalScaleDenominator: 100, verticalScaleDenominator: 100, datumElevation: 80,
+    surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 }
+  const result = compileGeologySection(input)
+  const entities = result.commandArgs.entities
+  const expected = [
+    [[20, 18, 0], [400, 18, 0]], [[400, 18, 0], [400, 30, 0]],
+    [[400, 30, 0], [20, 30, 0]], [[20, 30, 0], [20, 18, 0]],
+  ]
+  assert.deepEqual(entities.filter(entity => entity.type === 'LINE').filter(entity => expected.some(([start, end]) =>
+    JSON.stringify(entity.payload.start) === JSON.stringify(start) && JSON.stringify(entity.payload.end) === JSON.stringify(end)))
+    .map(entity => [entity.payload.start, entity.payload.end]), expected)
+  assert.ok(entities.some(entity => entity.type === 'LINE' && entity.payload.start[0] === 52 && entity.payload.start[1] === 18 && entity.payload.end[0] === 52))
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', result.commandArgs, { document })
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await sdk.readDocument(bytes, { format })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+    assert.equal(reopened.listEntities({ type: 'LINE' }).filter(entity => expected.some(([start, end]) =>
+      JSON.stringify(entity.payload.start) === JSON.stringify(start) && JSON.stringify(entity.payload.end) === JSON.stringify(end))).length, 4)
+  }
+  const invalid = structuredClone(input)
+  invalid.sectionStylePack.rules['geology-section-layout'].footerFrameStyle.top = 36
+  assert.throws(() => compileGeologySection(invalid), /footer frame style is unreadable/u)
+})
+
 test('section preserves caller-supplied references and native measured-observation symbols through KJD and DXF', async () => {
   const pack = structuredClone(KJDRAW_GEOLOGY_KNOWLEDGE_PACK)
   pack.id = 'test.section.references-and-observation-symbols'

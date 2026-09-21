@@ -1493,6 +1493,9 @@ function sectionLayout(input) {
         ...value.headingTextStyle == null ? [] : [
             'headingTextStyle'
         ],
+        ...value.footerFrameStyle == null ? [] : [
+            'footerFrameStyle'
+        ],
         ...value.sectionReferenceStyle == null ? [] : [
             'sectionReferenceStyle'
         ],
@@ -1619,6 +1622,30 @@ function sectionLayout(input) {
             numeric(value.drawingOrigin[1], 'section drawing origin Y')
         ];
     }
+    let footerFrameStyle;
+    if (value.footerFrameStyle != null) {
+        if (!value.footerFrameStyle || typeof value.footerFrameStyle !== 'object' || Array.isArray(value.footerFrameStyle) || Object.keys(value.footerFrameStyle).sort().join(',') !== 'bottom,cellMode,guideY,left,primitive,right,top') throw new KJValidationError('Geology: section footer frame style needs exact bounds, primitive, cell mode and guide Y');
+        const supplied = value.footerFrameStyle;
+        const left = numeric(supplied.left, 'section footer left'), right = numeric(supplied.right, 'section footer right');
+        const bottom = numeric(supplied.bottom, 'section footer bottom'), top = numeric(supplied.top, 'section footer top');
+        const guideY = numeric(supplied.guideY, 'section footer guide Y');
+        if (![
+            'line-segments',
+            'closed-polyline'
+        ].includes(supplied.primitive) || ![
+            'declared-grid',
+            'none'
+        ].includes(supplied.cellMode) || left < outerMargins.left || right > scalars.paperWidth - outerMargins.right || right - left < 100 || bottom < outerMargins.bottom || top - bottom < 5 || top - bottom > 50 || top > scalars.plotBottom - 8 || guideY < bottom || guideY > top) throw new KJValidationError('Geology: section footer frame style is unreadable');
+        footerFrameStyle = {
+            left,
+            right,
+            bottom,
+            top,
+            guideY,
+            primitive: supplied.primitive,
+            cellMode: supplied.cellMode
+        };
+    }
     let sectionReferenceStyle;
     if (value.sectionReferenceStyle != null) {
         if (!value.sectionReferenceStyle || typeof value.sectionReferenceStyle !== 'object' || Array.isArray(value.sectionReferenceStyle) || Object.keys(value.sectionReferenceStyle).sort().join(',') !== 'end,start') throw new KJValidationError('Geology: section reference style needs exact start and end placements');
@@ -1702,7 +1729,7 @@ function sectionLayout(input) {
             }
         };
     }
-    if (scalars.paperWidth < 210 || scalars.paperWidth > 1600 || scalars.paperHeight < 210 || scalars.paperHeight > 1600 || Object.values(outerMargins).some((margin)=>margin < 0) || !hasOuterMargins && outerMargins.left < 3 || Object.values(innerMargins).some((margin)=>margin < 0) || innerMargins.left <= outerMargins.left || innerMargins.right <= outerMargins.right || innerMargins.bottom <= outerMargins.bottom || innerMargins.top <= outerMargins.top || innerMargins.left + innerMargins.right >= scalars.paperWidth || innerMargins.bottom + innerMargins.top >= scalars.paperHeight || headingTextStyle && Object.values(headingTextStyle).some((rule)=>rule.anchorX < innerMargins.left || rule.anchorX > scalars.paperWidth - innerMargins.right) || scalars.plotLeft <= innerMargins.left || scalars.plotRight >= scalars.paperWidth - innerMargins.right || scalars.plotRight - scalars.plotLeft < 250 || scalars.plotBottom < innerMargins.bottom + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop || scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 || scalars.elevationTickStep < 0.5 || scalars.elevationTickStep > 20) throw new KJValidationError('Geology: section layout geometry is unreadable');
+    if (scalars.paperWidth < 210 || scalars.paperWidth > 1600 || scalars.paperHeight < 210 || scalars.paperHeight > 1600 || Object.values(outerMargins).some((margin)=>margin < 0) || !hasOuterMargins && outerMargins.left < 3 || Object.values(innerMargins).some((margin)=>margin < 0) || innerMargins.left <= outerMargins.left || innerMargins.right <= outerMargins.right || innerMargins.bottom <= outerMargins.bottom || innerMargins.top <= outerMargins.top || innerMargins.left + innerMargins.right >= scalars.paperWidth || innerMargins.bottom + innerMargins.top >= scalars.paperHeight || headingTextStyle && Object.values(headingTextStyle).some((rule)=>rule.anchorX < innerMargins.left || rule.anchorX > scalars.paperWidth - innerMargins.right) || scalars.plotLeft <= innerMargins.left || scalars.plotRight >= scalars.paperWidth - innerMargins.right || scalars.plotRight - scalars.plotLeft < 250 || scalars.plotBottom < (footerFrameStyle?.top ?? innerMargins.bottom + scalars.footerHeight) + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop || scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 || scalars.elevationTickStep < 0.5 || scalars.elevationTickStep > 20) throw new KJValidationError('Geology: section layout geometry is unreadable');
     if (!Array.isArray(value.footerGrid) || value.footerGrid.length < 3 || value.footerGrid.length > 8) throw new KJValidationError('Geology: section footer grid is invalid');
     const seen = new Set(), footerGrid = value.footerGrid.map((rawCell, index)=>{
         if (!rawCell || typeof rawCell !== 'object' || Array.isArray(rawCell) || Object.keys(rawCell).sort().join(',') !== 'key,label,start') throw new KJValidationError('Geology: section footer cell needs an exact key, label and start');
@@ -1717,8 +1744,10 @@ function sectionLayout(input) {
         };
     });
     for (const [index, cell] of footerGrid.entries()){
-        const end = footerGrid[index + 1]?.start ?? scalars.paperWidth - innerMargins.right;
-        if (index === 0 && Math.abs(cell.start - innerMargins.left) > 1e-6 || index && cell.start <= footerGrid[index - 1].start || end - cell.start < 28) throw new KJValidationError('Geology: section footer cell is out of bounds or unreadable');
+        const declaredGrid = footerFrameStyle?.cellMode !== 'none';
+        const left = footerFrameStyle?.left ?? innerMargins.left, right = footerFrameStyle?.right ?? scalars.paperWidth - innerMargins.right;
+        const gridEnd = footerGrid[index + 1]?.start ?? right;
+        if (declaredGrid && (index === 0 && Math.abs(cell.start - left) > 1e-6 || index && cell.start <= footerGrid[index - 1].start || gridEnd - cell.start < 28)) throw new KJValidationError('Geology: section footer cell is out of bounds or unreadable');
     }
     return {
         ...scalars,
@@ -1730,6 +1759,9 @@ function sectionLayout(input) {
             headingTextStyle
         } : {},
         footerGrid,
+        ...footerFrameStyle ? {
+            footerFrameStyle
+        } : {},
         ...sectionReferenceStyle ? {
             sectionReferenceStyle
         } : {},
@@ -3386,21 +3418,31 @@ export function compileGeologySection(input) {
         g.line(1, layout.plotLeft - 1.8, tickY, layout.plotLeft + 2.2, tickY);
         g.text(3, layout.plotLeft - 13, tickY - 0.7, Number.isInteger(elevation) ? elevation.toFixed(0) : metres(elevation), 1.6);
     }
-    const footerBottom = layout.innerMargins.bottom, footerTop = footerBottom + layout.footerHeight;
-    g.rect(0, layout.innerMargins.left, footerBottom, layout.paperWidth - layout.innerMargins.right, footerTop);
+    const footerBottom = layout.footerFrameStyle?.bottom ?? layout.innerMargins.bottom;
+    const footerTop = layout.footerFrameStyle?.top ?? footerBottom + layout.footerHeight;
+    const footerLeft = layout.footerFrameStyle?.left ?? layout.innerMargins.left;
+    const footerRight = layout.footerFrameStyle?.right ?? layout.paperWidth - layout.innerMargins.right;
+    if (layout.footerFrameStyle?.primitive === 'line-segments') {
+        g.line(0, footerLeft, footerBottom, footerRight, footerBottom);
+        g.line(0, footerRight, footerBottom, footerRight, footerTop);
+        g.line(0, footerRight, footerTop, footerLeft, footerTop);
+        g.line(0, footerLeft, footerTop, footerLeft, footerBottom);
+    } else g.rect(0, footerLeft, footerBottom, footerRight, footerTop);
     const footerValues = {
         projectName: input.projectName,
         ...documentFacts
     };
-    for (const [index, cell] of layout.footerGrid.entries()){
-        const end = layout.footerGrid[index + 1]?.start ?? layout.paperWidth - layout.innerMargins.right;
-        if (index) g.line(0, cell.start, footerBottom, cell.start, footerTop);
-        const split = cell.start + Math.min((end - cell.start) * 0.42, 3 + [
-            ...cell.label
-        ].length * 1.75);
-        g.line(1, split, footerBottom, split, footerTop);
-        g.text(3, cell.start + 1.2, footerBottom + 2.8, cell.label, 1.6);
-        if (footerValues[cell.key]) g.text(3, split + 1.2, footerBottom + 2.8, footerValues[cell.key], 1.6);
+    if (layout.footerFrameStyle?.cellMode !== 'none') {
+        for (const [index, cell] of layout.footerGrid.entries()){
+            const end = layout.footerGrid[index + 1]?.start ?? footerRight;
+            if (index) g.line(0, cell.start, footerBottom, cell.start, footerTop);
+            const split = cell.start + Math.min((end - cell.start) * 0.42, 3 + [
+                ...cell.label
+            ].length * 1.75);
+            g.line(1, split, footerBottom, split, footerTop);
+            g.text(3, cell.start + 1.2, footerBottom + 2.8, cell.label, 1.6);
+            if (footerValues[cell.key]) g.text(3, split + 1.2, footerBottom + 2.8, footerValues[cell.key], 1.6);
+        }
     }
     const surface = holes.map((hole)=>[
             x(hole),
@@ -3410,7 +3452,7 @@ export function compileGeologySection(input) {
     for (const hole of holes){
         const center = x(hole), top = y(hole, 0), bottom = y(hole, hole.depth);
         const half = layout.boreholeWidth / 2;
-        g.line(4, center, footerTop, center, top);
+        g.line(4, center, layout.footerFrameStyle?.guideY ?? footerTop, center, top);
         g.rect(1, center - half, bottom, center + half, top);
         g.line(1, center - 5, top + 1.5, center + 5, top + 1.5);
         g.text(3, center, top + 6.2, hole.id, 2.1, true);

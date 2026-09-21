@@ -351,6 +351,8 @@ interface SectionLayout {
   observationSymbolStyle?: KJGeologySectionObservationSymbolStyle
   plotRight: number
   plotBottom: number
+  footerFrameStyle?: { left: number; right: number; bottom: number; top: number; guideY: number;
+    primitive: 'line-segments' | 'closed-polyline'; cellMode: 'declared-grid' | 'none' }
   plotTop: number
   titleY: number
   scaleY: number
@@ -1354,7 +1356,7 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
   const hasOuterMargins = value.outerMargins != null, hasInnerMargins = value.innerMargins != null
   const expectedKeys = [...scalarKeys, 'footerGrid', hasOuterMargins ? 'outerMargins' : 'outerMargin',
     hasInnerMargins ? 'innerMargins' : 'innerMargin', ...(value.drawingOrigin == null ? [] : ['drawingOrigin']), ...(value.frameStyle == null ? [] : ['frameStyle']),
-    ...(value.headingTextStyle == null ? [] : ['headingTextStyle']), ...(value.sectionReferenceStyle == null ? [] : ['sectionReferenceStyle']), ...(value.observationSymbolStyle == null ? [] : ['observationSymbolStyle'])]
+    ...(value.headingTextStyle == null ? [] : ['headingTextStyle']), ...(value.footerFrameStyle == null ? [] : ['footerFrameStyle']), ...(value.sectionReferenceStyle == null ? [] : ['sectionReferenceStyle']), ...(value.observationSymbolStyle == null ? [] : ['observationSymbolStyle'])]
   if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field')
   const scalars = Object.fromEntries(scalarKeys.map(key => [key, numeric(value[key], `section ${key}`)])) as unknown as Omit<SectionLayout, 'footerGrid' | 'drawingOrigin' | 'outerMargins' | 'innerMargins' | 'frameStyle' | 'headingTextStyle'>
   const parseHeadingTextRule = (raw: unknown, label: string): SectionHeadingTextRule => {
@@ -1415,6 +1417,21 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     if (!Array.isArray(value.drawingOrigin) || value.drawingOrigin.length !== 2)
       throw new KJValidationError('Geology: section drawing origin needs two coordinates')
     drawingOrigin = [numeric(value.drawingOrigin[0], 'section drawing origin X'), numeric(value.drawingOrigin[1], 'section drawing origin Y')]
+  }
+  let footerFrameStyle: SectionLayout['footerFrameStyle']
+  if (value.footerFrameStyle != null) {
+    if (!value.footerFrameStyle || typeof value.footerFrameStyle !== 'object' || Array.isArray(value.footerFrameStyle) ||
+      Object.keys(value.footerFrameStyle).sort().join(',') !== 'bottom,cellMode,guideY,left,primitive,right,top')
+      throw new KJValidationError('Geology: section footer frame style needs exact bounds, primitive, cell mode and guide Y')
+    const supplied = value.footerFrameStyle as Record<string, unknown>
+    const left = numeric(supplied.left, 'section footer left'), right = numeric(supplied.right, 'section footer right')
+    const bottom = numeric(supplied.bottom, 'section footer bottom'), top = numeric(supplied.top, 'section footer top')
+    const guideY = numeric(supplied.guideY, 'section footer guide Y')
+    if (!['line-segments', 'closed-polyline'].includes(supplied.primitive as string) || !['declared-grid', 'none'].includes(supplied.cellMode as string) ||
+      left < outerMargins.left || right > scalars.paperWidth - outerMargins.right || right - left < 100 ||
+      bottom < outerMargins.bottom || top - bottom < 5 || top - bottom > 50 || top > scalars.plotBottom - 8 || guideY < bottom || guideY > top)
+      throw new KJValidationError('Geology: section footer frame style is unreadable')
+    footerFrameStyle = { left, right, bottom, top, guideY, primitive: supplied.primitive as 'line-segments' | 'closed-polyline', cellMode: supplied.cellMode as 'declared-grid' | 'none' }
   }
   let sectionReferenceStyle: SectionLayout['sectionReferenceStyle']
   if (value.sectionReferenceStyle != null) {
@@ -1479,7 +1496,8 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     innerMargins.left + innerMargins.right >= scalars.paperWidth || innerMargins.bottom + innerMargins.top >= scalars.paperHeight ||
     headingTextStyle && Object.values(headingTextStyle).some(rule => rule.anchorX < innerMargins.left || rule.anchorX > scalars.paperWidth - innerMargins.right) ||
     scalars.plotLeft <= innerMargins.left || scalars.plotRight >= scalars.paperWidth - innerMargins.right || scalars.plotRight - scalars.plotLeft < 250 ||
-    scalars.plotBottom < innerMargins.bottom + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop ||
+    scalars.plotBottom < (footerFrameStyle?.top ?? innerMargins.bottom + scalars.footerHeight) + 8 ||
+    scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop ||
     scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 ||
     scalars.elevationTickStep < 0.5 || scalars.elevationTickStep > 20) throw new KJValidationError('Geology: section layout geometry is unreadable')
   if (!Array.isArray(value.footerGrid) || value.footerGrid.length < 3 || value.footerGrid.length > 8) throw new KJValidationError('Geology: section footer grid is invalid')
@@ -1492,12 +1510,14 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     return { start, key, label }
   })
   for (const [index, cell] of footerGrid.entries()) {
-    const end = footerGrid[index + 1]?.start ?? scalars.paperWidth - innerMargins.right
-    if (index === 0 && Math.abs(cell.start - innerMargins.left) > 1e-6 || index && cell.start <= footerGrid[index - 1]!.start || end - cell.start < 28)
+    const declaredGrid = footerFrameStyle?.cellMode !== 'none'
+    const left = footerFrameStyle?.left ?? innerMargins.left, right = footerFrameStyle?.right ?? scalars.paperWidth - innerMargins.right
+    const gridEnd = footerGrid[index + 1]?.start ?? right
+    if (declaredGrid && (index === 0 && Math.abs(cell.start - left) > 1e-6 || index && cell.start <= footerGrid[index - 1]!.start || gridEnd - cell.start < 28))
       throw new KJValidationError('Geology: section footer cell is out of bounds or unreadable')
   }
   return { ...scalars, drawingOrigin, outerMargins, innerMargins, frameStyle, ...(headingTextStyle ? { headingTextStyle } : {}), footerGrid,
-    ...(sectionReferenceStyle ? { sectionReferenceStyle } : {}), ...(observationSymbolStyle ? { observationSymbolStyle } : {}) }
+    ...(footerFrameStyle ? { footerFrameStyle } : {}), ...(sectionReferenceStyle ? { sectionReferenceStyle } : {}), ...(observationSymbolStyle ? { observationSymbolStyle } : {}) }
 }
 
 function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
@@ -2670,23 +2690,33 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     g.line(1, layout.plotLeft - 1.8, tickY, layout.plotLeft + 2.2, tickY)
     g.text(3, layout.plotLeft - 13, tickY - 0.7, Number.isInteger(elevation) ? elevation.toFixed(0) : metres(elevation), 1.6)
   }
-  const footerBottom = layout.innerMargins.bottom, footerTop = footerBottom + layout.footerHeight
-  g.rect(0, layout.innerMargins.left, footerBottom, layout.paperWidth - layout.innerMargins.right, footerTop)
+  const footerBottom = layout.footerFrameStyle?.bottom ?? layout.innerMargins.bottom
+  const footerTop = layout.footerFrameStyle?.top ?? footerBottom + layout.footerHeight
+  const footerLeft = layout.footerFrameStyle?.left ?? layout.innerMargins.left
+  const footerRight = layout.footerFrameStyle?.right ?? layout.paperWidth - layout.innerMargins.right
+  if (layout.footerFrameStyle?.primitive === 'line-segments') {
+    g.line(0, footerLeft, footerBottom, footerRight, footerBottom)
+    g.line(0, footerRight, footerBottom, footerRight, footerTop)
+    g.line(0, footerRight, footerTop, footerLeft, footerTop)
+    g.line(0, footerLeft, footerTop, footerLeft, footerBottom)
+  } else g.rect(0, footerLeft, footerBottom, footerRight, footerTop)
   const footerValues: Record<string, string | undefined> = { projectName: input.projectName, ...documentFacts }
-  for (const [index, cell] of layout.footerGrid.entries()) {
-    const end = layout.footerGrid[index + 1]?.start ?? layout.paperWidth - layout.innerMargins.right
-    if (index) g.line(0, cell.start, footerBottom, cell.start, footerTop)
-    const split = cell.start + Math.min((end - cell.start) * 0.42, 3 + [...cell.label].length * 1.75)
-    g.line(1, split, footerBottom, split, footerTop)
-    g.text(3, cell.start + 1.2, footerBottom + 2.8, cell.label, 1.6)
-    if (footerValues[cell.key]) g.text(3, split + 1.2, footerBottom + 2.8, footerValues[cell.key]!, 1.6)
+  if (layout.footerFrameStyle?.cellMode !== 'none') {
+    for (const [index, cell] of layout.footerGrid.entries()) {
+      const end = layout.footerGrid[index + 1]?.start ?? footerRight
+      if (index) g.line(0, cell.start, footerBottom, cell.start, footerTop)
+      const split = cell.start + Math.min((end - cell.start) * 0.42, 3 + [...cell.label].length * 1.75)
+      g.line(1, split, footerBottom, split, footerTop)
+      g.text(3, cell.start + 1.2, footerBottom + 2.8, cell.label, 1.6)
+      if (footerValues[cell.key]) g.text(3, split + 1.2, footerBottom + 2.8, footerValues[cell.key]!, 1.6)
+    }
   }
   const surface = holes.map(hole => [x(hole), y(hole, 0)] as [number, number])
   g.poly(1, surface)
   for (const hole of holes) {
     const center = x(hole), top = y(hole, 0), bottom = y(hole, hole.depth)
     const half = layout.boreholeWidth / 2
-    g.line(4, center, footerTop, center, top)
+    g.line(4, center, layout.footerFrameStyle?.guideY ?? footerTop, center, top)
     g.rect(1, center - half, bottom, center + half, top)
     g.line(1, center - 5, top + 1.5, center + 5, top + 1.5)
     g.text(3, center, top + 6.2, hole.id, 2.1, true)
