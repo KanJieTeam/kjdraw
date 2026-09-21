@@ -2002,6 +2002,97 @@ const geologyPlanRoadPathSchema = objectWithOptional({
 }, [
     'closed'
 ]);
+const geologyPlanBaseMapStyleSchema = object({
+    id: {
+        ...text,
+        maxLength: 40
+    },
+    color: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 255
+    },
+    lineweight: {
+        type: 'integer',
+        minimum: -1,
+        maximum: 211
+    },
+    pattern: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 16,
+        items: number
+    }
+});
+const geologyPlanBaseMapLineworkSchema = objectWithOptional({
+    id: {
+        ...text,
+        maxLength: 40
+    },
+    styleId: {
+        ...text,
+        maxLength: 40
+    },
+    kind: {
+        type: 'string',
+        enum: [
+            'line',
+            'arc',
+            'circle',
+            'polyline'
+        ]
+    },
+    start: numericTuple(2),
+    end: numericTuple(2),
+    center: numericTuple(2),
+    radius,
+    startAngleDegrees: {
+        type: 'number',
+        minimum: -360_000,
+        maximum: 360_000
+    },
+    endAngleDegrees: {
+        type: 'number',
+        minimum: -360_000,
+        maximum: 360_000
+    },
+    clockwise: {
+        type: 'boolean'
+    },
+    points: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 256,
+        items: numericTuple(2)
+    },
+    closed: {
+        type: 'boolean'
+    },
+    startWidths: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 256,
+        items: nonnegative
+    },
+    endWidths: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 256,
+        items: nonnegative
+    }
+}, [
+    'start',
+    'end',
+    'center',
+    'radius',
+    'startAngleDegrees',
+    'endAngleDegrees',
+    'clockwise',
+    'points',
+    'closed',
+    'startWidths',
+    'endWidths'
+]);
 const geologyPlanSchema = objectWithOptional({
     version: {
         type: 'string',
@@ -2092,6 +2183,18 @@ const geologyPlanSchema = objectWithOptional({
         maxItems: 128,
         items: geologyPlanRoadPathSchema
     },
+    baseMapStyles: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 64,
+        items: geologyPlanBaseMapStyleSchema
+    },
+    baseMapLinework: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 1024,
+        items: geologyPlanBaseMapLineworkSchema
+    },
     northAngleDegrees: {
         type: 'number',
         minimum: -360,
@@ -2106,6 +2209,8 @@ const geologyPlanSchema = objectWithOptional({
     'dimensions',
     'buildingFootprints',
     'roadPaths',
+    'baseMapStyles',
+    'baseMapLinework',
     'northAngleDegrees'
 ]);
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
@@ -3839,23 +3944,21 @@ export class KJAgentToolSession {
                         }
                         const definition = this.#sdk.commands.resolve(command);
                         if (!definition || definition.owner !== '@kanjieteam/kjdraw') throw new KJValidationError('Agent preview requires the built-in core command');
-                        const preview = await createAgentGeometryPreview(document, command, commandArgs, name === 'cad_propose_component_insert' ? {
-                            maxCreatedEntities: 65
-                        } : [
+                        const maxCreatedEntities = name === 'cad_propose_component_insert' ? 65 : name === 'cad_propose_geology_plan' ? 2048 : [
                             'cad_propose_drawing_pattern',
                             'cad_propose_drawing_annotated',
                             'cad_propose_manufacturing_sheet',
                             'cad_propose_architecture_plan',
                             'cad_propose_site_plan',
-                            'cad_propose_geology_plan',
                             'cad_propose_cartesian_chart',
                             'cad_propose_geology_column',
                             'cad_propose_geology_section',
                             'cad_propose_road_drawing',
                             'cad_propose_road_drawing_from_asset'
-                        ].includes(name) ? {
-                            maxCreatedEntities: 512
-                        } : {});
+                        ].includes(name) ? 512 : undefined;
+                        const preview = await createAgentGeometryPreview(document, command, commandArgs, maxCreatedEntities === undefined ? {} : {
+                            maxCreatedEntities
+                        });
                         const envelope = this.#sdk.createCommandEnvelope(command, commandArgs, {
                             document,
                             mode: 'plan',

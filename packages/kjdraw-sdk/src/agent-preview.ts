@@ -354,7 +354,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   if (command === 'LENGTHEN') validateLengthenPreview(document, args)
   const structuralIds = command === 'STRUCTURALEDIT' ? validateStructuralEditPreview(document, args) : undefined
   const maxCreatedEntities = options.maxCreatedEntities ?? 64
-  if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 512) throw new KJValidationError('Preview creation budget must be an integer from 1 to 512')
+  if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 2048) throw new KJValidationError('Preview creation budget must be an integer from 1 to 2048')
   if (command === 'CREATEBATCH') {
     if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some(spec => !spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} supported drawing and annotation entities`)
   } else if (command !== 'COMPONENTINSERT' && command !== 'STRUCTURALEDIT') {

@@ -218,8 +218,8 @@ test('preview creation budget is opt-in and bounded, does not widen MOVE, and pr
   const preview = await createAgentGeometryPreview(document, 'CREATEBATCH', { entities }, { maxCreatedEntities: 512 })
   assert.equal(preview.after.length, 65)
   assert.equal(document.serialize(), source)
-  for (const maxCreatedEntities of [0, 513, 1.5, NaN, Infinity]) {
-    await assert.rejects(createAgentGeometryPreview(document, 'CREATEBATCH', { entities }, { maxCreatedEntities }), /integer from 1 to 512/)
+  for (const maxCreatedEntities of [0, 2049, 1.5, NaN, Infinity]) {
+    await assert.rejects(createAgentGeometryPreview(document, 'CREATEBATCH', { entities }, { maxCreatedEntities }), /integer from 1 to 2048/)
   }
   await assert.rejects(createAgentGeometryPreview(document, 'CREATEBATCH', { entities: Array.from({ length: 513 }, (_, i) => ({ ...entities[0], options: { id: `extra-${i}` } })) }, { maxCreatedEntities: 512 }), /1–512/)
   await assert.rejects(createAgentGeometryPreview(document, 'CREATEBATCH', { entities: [{ ...entities[0], payload: { ...entities[0].payload, note: 'x'.repeat(2200000) } }] }, { maxCreatedEntities: 512 }), /4 MiB/)

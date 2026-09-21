@@ -70,6 +70,42 @@ export interface KJGeologyPlanRoadPath {
     segments: KJGeologyPlanRoadSegment[];
     closed?: boolean;
 }
+export interface KJGeologyPlanBaseMapStyle {
+    id: string;
+    color: number;
+    lineweight: number;
+    pattern: number[];
+}
+export type KJGeologyPlanBaseMapLinework = {
+    id: string;
+    styleId: string;
+    kind: 'line';
+    start: Point2;
+    end: Point2;
+} | {
+    id: string;
+    styleId: string;
+    kind: 'arc';
+    center: Point2;
+    radius: number;
+    startAngleDegrees: number;
+    endAngleDegrees: number;
+    clockwise?: boolean;
+} | {
+    id: string;
+    styleId: string;
+    kind: 'circle';
+    center: Point2;
+    radius: number;
+} | {
+    id: string;
+    styleId: string;
+    kind: 'polyline';
+    points: Point2[];
+    closed?: boolean;
+    startWidths?: number[];
+    endWidths?: number[];
+};
 export interface KJAgentGeologyPlanInput {
     version: typeof KJDRAW_GEOLOGY_PLAN_VERSION;
     expectedRevision: number;
@@ -87,6 +123,8 @@ export interface KJAgentGeologyPlanInput {
     dimensions?: KJGeologyPlanAlignedDimension[];
     buildingFootprints?: KJGeologyPlanBuildingFootprint[];
     roadPaths?: KJGeologyPlanRoadPath[];
+    baseMapStyles?: KJGeologyPlanBaseMapStyle[];
+    baseMapLinework?: KJGeologyPlanBaseMapLinework[];
     northAngleDegrees?: number;
 }
 interface GeologyPlanDocument {
@@ -115,61 +153,13 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
                 name: string;
                 pattern: number[];
             }[];
-            layers: ({
-                id: `${string}-layer-boundary`;
-                color: 7;
-                linetypeId: string;
-                lineweight: 50;
+            layers: {
+                id: string;
                 name: string;
-            } | {
-                id: `${string}-layer-buildings`;
-                color: 8;
+                color: number;
                 linetypeId: string;
-                lineweight: 25;
-                name: string;
-            } | {
-                id: `${string}-layer-roads`;
-                color: 3;
-                linetypeId: string;
-                lineweight: 25;
-                name: string;
-            } | {
-                id: `${string}-layer-grid`;
-                color: 8;
-                linetypeId: string;
-                lineweight: 13;
-                name: string;
-            } | {
-                id: `${string}-layer-coordinates`;
-                color: 2;
-                linetypeId: string;
-                lineweight: 18;
-                name: string;
-            } | {
-                id: `${string}-layer-dimensions`;
-                color: 3;
-                linetypeId: string;
-                lineweight: 18;
-                name: string;
-            } | {
-                id: `${string}-layer-points`;
-                color: 1;
-                linetypeId: string;
-                lineweight: 35;
-                name: string;
-            } | {
-                id: `${string}-layer-sections`;
-                color: 2;
-                linetypeId: string;
-                lineweight: 35;
-                name: string;
-            } | {
-                id: `${string}-layer-annotation`;
-                color: 7;
-                linetypeId: string;
-                lineweight: 18;
-                name: string;
-            })[];
+                lineweight: number;
+            }[];
         };
         layout: {
             id: string;
@@ -235,6 +225,11 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
         buildingFootprintCount: number;
         roadPathCount: number;
         roadSegmentCount: number;
+        baseMapStyleCount: number;
+        baseMapLineworkCount: number;
+        baseMapLineworkTypeCounts: {
+            [k: string]: number;
+        };
         sectionReferences: {
             id: string;
             label: string;

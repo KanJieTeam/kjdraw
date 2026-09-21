@@ -432,6 +432,18 @@ const geologyPlanRoadSegmentSchema = objectWithOptional({
 const geologyPlanRoadPathSchema = objectWithOptional({
   id: { ...text, maxLength: 40 }, start: numericTuple(2), segments: { type: 'array', minItems: 1, maxItems: 64, items: geologyPlanRoadSegmentSchema }, closed: { type: 'boolean' },
 }, ['closed'])
+const geologyPlanBaseMapStyleSchema = object({
+  id: { ...text, maxLength: 40 }, color: { type: 'integer', minimum: 1, maximum: 255 },
+  lineweight: { type: 'integer', minimum: -1, maximum: 211 }, pattern: { type: 'array', minItems: 0, maxItems: 16, items: number },
+})
+const geologyPlanBaseMapLineworkSchema = objectWithOptional({
+  id: { ...text, maxLength: 40 }, styleId: { ...text, maxLength: 40 }, kind: { type: 'string', enum: ['line', 'arc', 'circle', 'polyline'] },
+  start: numericTuple(2), end: numericTuple(2), center: numericTuple(2), radius,
+  startAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, endAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, clockwise: { type: 'boolean' },
+  points: { type: 'array', minItems: 2, maxItems: 256, items: numericTuple(2) }, closed: { type: 'boolean' },
+  startWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative },
+  endWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative },
+}, ['start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'closed', 'startWidths', 'endWidths'])
 const geologyPlanSchema = objectWithOptional({
   version: { type: 'string', enum: ['1.0.0'] }, expectedRevision: revision, units: { type: 'string', enum: ['meter'] },
   locale: { type: 'string', enum: ['zh-CN', 'en'] }, drawingId: { ...text, maxLength: 64 }, title: { ...text, maxLength: 96 }, revision: { ...text, maxLength: 32 },
@@ -443,8 +455,10 @@ const geologyPlanSchema = objectWithOptional({
   coordinateCallouts: { type: 'array', minItems: 0, maxItems: 64, items: geologyPlanCoordinateCalloutSchema },
   dimensions: { type: 'array', minItems: 0, maxItems: 64, items: geologyPlanAlignedDimensionSchema },
   buildingFootprints: { type: 'array', minItems: 0, maxItems: 128, items: geologyPlanBuildingFootprintSchema },
-  roadPaths: { type: 'array', minItems: 0, maxItems: 128, items: geologyPlanRoadPathSchema }, northAngleDegrees: { type: 'number', minimum: -360, maximum: 360 },
-}, ['locale', 'title', 'revision', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'northAngleDegrees'])
+  roadPaths: { type: 'array', minItems: 0, maxItems: 128, items: geologyPlanRoadPathSchema },
+  baseMapStyles: { type: 'array', minItems: 0, maxItems: 64, items: geologyPlanBaseMapStyleSchema },
+  baseMapLinework: { type: 'array', minItems: 0, maxItems: 1024, items: geologyPlanBaseMapLineworkSchema }, northAngleDegrees: { type: 'number', minimum: -360, maximum: 360 },
+}, ['locale', 'title', 'revision', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'baseMapStyles', 'baseMapLinework', 'northAngleDegrees'])
 
 export const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[] = deepFreeze([
   { name: 'cad_propose_text_edit', effect: 'propose', description: 'Propose one atomic batch of 1–64 exact native TEXT/MTEXT content replacements. Query existing object IDs and complete text first. Each change supplies id, expectedText and text; every expectedText must match exactly at expectedRevision. Preserves IDs, handles, positions, layers, styles, ownership and references. Raw MTEXT formatting is part of the text; preserve it unless explicitly asked to change it. No regex, inferred targets, blank replacement, dynamic field expressions, dimension text overrides, block attributes or paper/block-space editing. Hidden, frozen, locked or stale objects reject the whole batch. Review the complete before/after text before host approval; approval is one undoable TEXTEDIT transaction.', inputSchema: object({ expectedRevision: revision, units: text, changes: collection(object({ id: text, expectedText: { type: 'string', maxLength: 16384 }, text: { type: 'string', minLength: 1, maxLength: 16384 } })) }) },
@@ -1121,7 +1135,9 @@ export class KJAgentToolSession {
             }
             const definition = this.#sdk.commands.resolve(command)
             if (!definition || definition.owner !== '@kanjieteam/kjdraw') throw new KJValidationError('Agent preview requires the built-in core command')
-            const preview = await createAgentGeometryPreview(document, command, commandArgs, name === 'cad_propose_component_insert' ? { maxCreatedEntities: 65 } : ['cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_site_plan', 'cad_propose_geology_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) ? { maxCreatedEntities: 512 } : {})
+            const maxCreatedEntities = name === 'cad_propose_component_insert' ? 65 : name === 'cad_propose_geology_plan' ? 2048
+              : ['cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_site_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) ? 512 : undefined
+            const preview = await createAgentGeometryPreview(document, command, commandArgs, maxCreatedEntities === undefined ? {} : { maxCreatedEntities })
             const envelope = this.#sdk.createCommandEnvelope(command, commandArgs, { document, mode: 'plan', origin: 'ai', expectedRevision: preview.revision })
             value = { planId: envelope.id, documentId: document.id, expectedRevision: envelope.expectedRevision, units: args.units, command, arguments: structuredClone(commandArgs), status: 'awaiting-host-approval', previewKind: 'geometry', preview, ...(engineeringEvidence ? { engineeringEvidence } : {}), ...(sourceAsset ? { sourceAsset } : {}), ...(selectionSet ? { selectionSet: structuredClone(selectionSet) } : {}), ...(unchangedIds ? { unchangedIds: [...unchangedIds] } : {}), ...(layerChange ? { layerChange: structuredClone(layerChange) } : {}), ...(structuralEdit ? { structuralEdit } : {}) }
             if (['cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 1048576) throw new KJValidationError('Road tool proposal exceeds the 1 MiB output limit')
