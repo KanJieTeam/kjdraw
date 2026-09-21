@@ -143,7 +143,7 @@ interface DxfHatchEllipseEdge { type: 'ELLIPSE'; center: Point3; majorAxis: Poin
 interface DxfHatchSplineEdge { type:'SPLINE';degree:number;periodic:boolean;controlPoints:Point3[];knots:number[];weights:number[];fitPoints:Point3[];startTangent?:Point3;endTangent?:Point3 }
 interface DxfHatchRawEdge { type: 'UNKNOWN'; dxfEdgeType: number; rawTags: DxfTag[] }
 type DxfHatchEdge = DxfHatchLineEdge | DxfHatchArcEdge | DxfHatchEllipseEdge | DxfHatchSplineEdge | DxfHatchRawEdge
-interface DxfHatchLoop { external: boolean; flags: number; closed?: boolean; vertices?: DxfVertex[]; edges?: DxfHatchEdge[] }
+interface DxfHatchLoop { external: boolean; flags: number; closed?: boolean; vertices?: DxfVertex[]; edges?: DxfHatchEdge[]; sourceIds?: string[]; sourceHandles?: string[] }
 interface DxfEntitySpec { type: string; payload: Record<string, unknown> }
 
 interface DxfPayload extends KJObjectPayload {
@@ -189,6 +189,7 @@ interface DxfPayload extends KJObjectPayload {
   patternAngle?: number
   patternScale?: number
   rawTags?: readonly DxfTag[]
+  seedPoints?: readonly (readonly number[])[]
   originalType?: string
   annotationHandle?: string | null
   annotationId?: string | null
@@ -749,7 +750,14 @@ function hatchBoundaryLoops(record: DxfRecord): DxfHatchLoop[] {
     }
     if (tags[cursor]?.code === 97) {
       const sourceCount = Number(tags[cursor++]!.value)
-      cursor += Math.min(sourceCount, tags.slice(cursor).filter(tag => tag.code === 330).length)
+      if (!Number.isSafeInteger(sourceCount) || sourceCount < 0 || sourceCount > 4096) throw new KJValidationError('DXF HATCH boundary source count is invalid')
+      const sourceHandles: string[] = []
+      for (let sourceIndex = 0; sourceIndex < sourceCount; sourceIndex += 1) {
+        const tag = tags[cursor++]
+        if (tag?.code !== 330 || !String(tag.value).trim()) throw new KJValidationError('DXF HATCH boundary source list is incomplete')
+        sourceHandles.push(String(tag.value).trim().toUpperCase())
+      }
+      if (sourceHandles.length) loops[loops.length - 1]!.sourceHandles = sourceHandles
     }
   }
   if (!loops.length) throw new KJValidationError('DXF HATCH contains no boundary loops')
@@ -782,6 +790,27 @@ function importedHatchPatternLines(record: DxfRecord): { angle: number; base: [n
     lines.push({ angle, base, offset, dashes })
   }
   return lines
+}
+
+function importedHatchSeedPoints(record: DxfRecord): [number, number][] {
+  const tags = record.tags
+  const start = tags.findIndex(tag => tag.code === 98)
+  if (start < 0) return []
+  const count = Number(tags[start]!.value)
+  if (!Number.isSafeInteger(count) || count < 0 || count > 4096) throw new KJValidationError('DXF HATCH seed count is invalid')
+  const seeds: [number, number][] = []
+  let cursor = start + 1
+  while (seeds.length < count) {
+    while (cursor < tags.length && tags[cursor]!.code !== 10) cursor += 1
+    if (cursor >= tags.length) throw new KJValidationError('DXF HATCH seed list is incomplete')
+    const x = Number(tags[cursor++]!.value)
+    while (cursor < tags.length && tags[cursor]!.code !== 20) cursor += 1
+    if (cursor >= tags.length) throw new KJValidationError('DXF HATCH seed list is incomplete')
+    const y = Number(tags[cursor++]!.value)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) throw new KJValidationError('DXF HATCH seed point is invalid')
+    seeds.push([x, y])
+  }
+  return seeds
 }
 
 function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>, resources: DxfImportResources = {}): DxfEntitySpec {
@@ -817,7 +846,7 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
       const patternLines = importedHatchPatternLines(record)
       const patternAngle = number(record, 52, 0) * Math.PI / 180
       const patternScale = number(record, 41, 1)
-      return { type: 'HATCH', payload: { boundaryLoops: hatchBoundaryLoops(record), patternName: first(record, 2, 'SOLID'), solid: number(record, 70, 0) === 1, associative: number(record, 71, 0) === 1, patternAngle, patternScale, ...(patternLines ? { patternLines, patternDefinitionAngle: patternAngle, patternDefinitionScale: patternScale } : {}), rawTags: record.tags } }
+      return { type: 'HATCH', payload: { boundaryLoops: hatchBoundaryLoops(record), patternName: first(record, 2, 'SOLID'), solid: number(record, 70, 0) === 1, associative: number(record, 71, 0) === 1, patternAngle, patternScale, seedPoints: importedHatchSeedPoints(record), ...(patternLines ? { patternLines, patternDefinitionAngle: patternAngle, patternDefinitionScale: patternScale } : {}), rawTags: record.tags } }
     }
     case 'LEADER': return { type: 'LEADER', payload: {
       vertices: repeatedPoints(record), annotationHandle: first(record, 340) || null,
@@ -1593,11 +1622,12 @@ function hasUnchangedHatchGeometry(payload: DxfPayload): payload is DxfPayload &
     normalizeName(value.patternName), Boolean(value.solid), Boolean(value.associative),
     Number(value.patternScale ?? 1), Number(value.patternAngle ?? 0), value.boundaryLoops,
     value.patternLines, value.patternDefinitionAngle, value.patternDefinitionScale,
+    value.seedPoints,
   ])
   return state(payload) === state(normalized)
 }
 
-function emitHatch(output: string[], entity: DxfEntity, layerName: string, ownerHandle: string | null, space: DxfSpace | null, context: DxfWriteContext): void {
+function emitHatch(output: string[], entity: DxfEntity, layerName: string, ownerHandle: string | null, space: DxfSpace | null, context: DxfWriteContext, resources: DxfExportResources): void {
   const { version } = context
   const p = entity.payload ?? {}
   if (hasUnchangedHatchGeometry(p)) {
@@ -1618,6 +1648,29 @@ function emitHatch(output: string[], entity: DxfEntity, layerName: string, owner
   }
   const requireXY = (value: readonly number[]): void => {
     if (value.some(component => !Number.isFinite(component)) || (value[2] ?? 0) !== 0) throw new KJValidationError('Native DXF HATCH geometry must use finite XY points at Z=0')
+  }
+  const boundaryTypes = new Set(['LINE', 'ARC', 'CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE', 'SPLINE'])
+  const resolvedSourceHandles = (p.boundaryLoops ?? []).map((loop, loopIndex) => {
+    if (loop.sourceIds && loop.sourceHandles) throw new KJValidationError(`Native DXF HATCH loop ${loopIndex} cannot supply both sourceIds and sourceHandles`)
+    const values = loop.sourceIds ?? loop.sourceHandles ?? []
+    if (!Array.isArray(values) || values.length > 4096 || values.some(value => typeof value !== 'string' || !value.trim())) throw new KJValidationError(`Native DXF HATCH loop ${loopIndex} has invalid boundary references`)
+    const handles = values.map(value => {
+      const source = loop.sourceIds
+        ? resources.objects?.get(value)
+        : [...(resources.objects?.values() ?? [])].find(record => record.handle.toUpperCase() === value.toUpperCase())
+      if (!source || source.kind !== 'entity' || source.erased || source.ownerId !== entity.ownerId || !boundaryTypes.has(source.type)) throw new KJValidationError(`Native DXF HATCH loop ${loopIndex} boundary references must resolve to live same-owner geometry`)
+      return source.handle.toUpperCase()
+    })
+    if (new Set(handles).size !== handles.length) throw new KJValidationError(`Native DXF HATCH loop ${loopIndex} contains duplicate boundary references`)
+    return handles
+  })
+  const associative = resolvedSourceHandles.some(handles => handles.length > 0)
+  if (Boolean(p.associative) !== associative) throw new KJValidationError('Native DXF HATCH associative flag must exactly match its boundary references')
+  const seedPoints = p.seedPoints ?? []
+  if (!Array.isArray(seedPoints) || seedPoints.length > 4096) throw new KJValidationError('Native DXF HATCH seed points exceed the supported bound')
+  for (const seed of seedPoints) {
+    if (!Array.isArray(seed) || seed.length !== 2) throw new KJValidationError('Native DXF HATCH seed points must be finite XY pairs')
+    requireXY(seed)
   }
   for (const loop of p.boundaryLoops ?? []) {
     for (const vertex of loop.vertices ?? []) requireXY(vertexPoint(vertex))
@@ -1640,7 +1693,7 @@ function emitHatch(output: string[], entity: DxfEntity, layerName: string, owner
   emitSubclass(output, version, 'AcDbHatch')
   emitPoint(output, [0, 0, 0]); emit(output, 2, p.patternName ?? 'SOLID'); emit(output, 70, p.solid ? 1 : 0); emit(output, 71, p.associative ? 1 : 0)
   emit(output, 91, p.boundaryLoops?.length ?? 0)
-  for (const loop of p.boundaryLoops ?? []) {
+  for (const [loopIndex, loop] of (p.boundaryLoops ?? []).entries()) {
     const pathFlags = (Number(loop.flags ?? 0) & ~1) | (loop.external === false ? 0 : 1)
     if (loop.vertices?.length) {
       emit(output, 92, pathFlags | 2); emit(output, 72, loop.vertices.some(vertex => Number(vertex.bulge)) ? 1 : 0); emit(output, 73, loop.closed === false ? 0 : 1); emit(output, 93, loop.vertices.length)
@@ -1661,7 +1714,8 @@ function emitHatch(output: string[], entity: DxfEntity, layerName: string, owner
         else throw new KJValidationError(`DXF HATCH writer does not support ${edge.type} boundary edges`)
       }
     }
-    emit(output, 97, 0)
+    emit(output, 97, resolvedSourceHandles[loopIndex]!.length)
+    for (const handle of resolvedSourceHandles[loopIndex]!) emit(output, 330, handle)
   }
   emit(output, 75, 0); emit(output, 76, 1)
   if (!p.solid) {
@@ -1672,6 +1726,8 @@ function emitHatch(output: string[], entity: DxfEntity, layerName: string, owner
       for (const dash of line.dashes) emit(output, 49, dash)
     }
   }
+  emit(output, 98, seedPoints.length)
+  for (const seed of seedPoints) { emit(output, 10, seed[0]); emit(output, 20, seed[1]) }
 }
 
 /** Autodesk VPCLIP supports closed polylines, circles, ellipses, closed splines
@@ -1820,7 +1876,7 @@ function emitEntity(
     emitLegacyPolyline(output, entity, layerName, ownerHandle, space, context)
     return
   }
-  if (entity.type === 'HATCH') { emitHatch(output, entity, layerName, ownerHandle, space, context); return }
+  if (entity.type === 'HATCH') { emitHatch(output, entity, layerName, ownerHandle, space, context, resources); return }
   if (entity.type === 'DIMENSION' && p.rawTags?.length && resources.dimensions?.get(entity.handle)?.preserveRaw) { emitRawEntity(output, entity, layerName, ownerHandle, space, context); return }
   if (entity.type === 'PROXY_ENTITY') {
     emitRawEntity(output, { ...entity, type: p.originalType ?? 'PROXY_ENTITY' }, layerName, ownerHandle, space, context)

@@ -123,6 +123,26 @@ export interface KJGeologyPlanBaseMapAttributeDefinition extends KJGeologyPlanBa
   prompt: string
 }
 
+export interface KJGeologyPlanBaseMapHatch {
+  id: string
+  styleId: string
+  kind: 'hatch'
+  patternName: string
+  solid: boolean
+  associative: boolean
+  patternAngleDegrees: number
+  patternScale: number
+  patternLines: { angleDegrees: number; base: Point2; offset: Point2; dashes: number[] }[]
+  seedPoints: Point2[]
+  boundaryLoops: {
+    external: boolean
+    flags: number
+    closed: true
+    vertices: { point: Point2; bulge: number }[]
+    sourceMemberIds: string[]
+  }[]
+}
+
 export type KJGeologyPlanBaseMapLinework =
   | { id: string; styleId: string; kind: 'line'; start: Point2; end: Point2 }
   | { id: string; styleId: string; kind: 'arc'; center: Point2; radius: number; startAngleDegrees: number; endAngleDegrees: number; clockwise?: boolean }
@@ -144,7 +164,7 @@ export interface KJGeologyPlanBaseMapBlock {
   extrusion?: Point3
   attributes?: KJGeologyPlanBaseMapAttribute[]
   basePoint: Point2
-  entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapAttributeDefinition | KJGeologyPlanBaseMapInsert)[]
+  entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapHatch | KJGeologyPlanBaseMapAttributeDefinition | KJGeologyPlanBaseMapInsert)[]
 }
 
 
@@ -187,10 +207,11 @@ type NormalizedBaseMapEntity =
   | { id: string; styleId: string; kind: 'circle'; center: Point2; radius: number }
   | { id: string; styleId: string; kind: 'polyline'; points: Point2[]; closed: boolean; bulges: number[] | undefined; startWidths: number[] | undefined; endWidths: number[] | undefined }
   | { id: string; styleId: string; kind: 'legacyPolyline'; points: Point3[]; closed: boolean; elevation: number; dxfFlags: number; vertexFlags: number[]; bulges: number[]; startWidths: number[]; endWidths: number[] }
+  | KJGeologyPlanBaseMapHatch
   | ({ id: string; kind: 'attributeDefinition'; prompt: string } & NormalizedBaseMapAttribute)
   | { id: string; styleId: string; kind: 'insert'; blockId: string; position: Point2; scale: Point3; rotation: number; extrusion: Point3; attributes: NormalizedBaseMapAttribute[] }
 
-type NormalizedBaseMapLinework = Exclude<NormalizedBaseMapEntity, { kind: 'insert' } | { kind: 'attributeDefinition' }>
+type NormalizedBaseMapLinework = Exclude<NormalizedBaseMapEntity, { kind: 'insert' } | { kind: 'attributeDefinition' } | { kind: 'hatch' }>
 const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'baseMapStyles', 'baseMapTextStyles', 'baseMapLinework', 'baseMapBlocks', 'baseMapInserts', 'northAngleDegrees']
 const BOREHOLE_KEYS = ['id', 'position', 'collarElevation', 'depth', 'kind', 'labelLayout']
 const BOREHOLE_LABEL_LAYOUT_KEYS = ['idPosition', 'collarElevationPosition', 'depthPosition', 'textHeight', 'rotationDegrees', 'precision']
@@ -208,6 +229,10 @@ const BASE_MAP_ARC_KEYS = ['id', 'styleId', 'kind', 'center', 'radius', 'startAn
 const BASE_MAP_CIRCLE_KEYS = ['id', 'styleId', 'kind', 'center', 'radius']
 const BASE_MAP_POLYLINE_KEYS = ['id', 'styleId', 'kind', 'points', 'closed', 'bulges', 'startWidths', 'endWidths']
 const BASE_MAP_LEGACY_POLYLINE_KEYS = ['id', 'styleId', 'kind', 'legacyPoints', 'closed', 'elevation', 'dxfFlags', 'vertexFlags', 'bulges', 'startWidths', 'endWidths']
+const BASE_MAP_HATCH_KEYS = ['id', 'styleId', 'kind', 'patternName', 'solid', 'associative', 'patternAngleDegrees', 'patternScale', 'patternLines', 'seedPoints', 'boundaryLoops']
+const BASE_MAP_HATCH_PATTERN_LINE_KEYS = ['angleDegrees', 'base', 'offset', 'dashes']
+const BASE_MAP_HATCH_LOOP_KEYS = ['external', 'flags', 'closed', 'vertices', 'sourceMemberIds']
+const BASE_MAP_HATCH_VERTEX_KEYS = ['point', 'bulge']
 const BASE_MAP_BLOCK_KEYS = ['id', 'basePoint', 'entities']
 const BASE_MAP_TEXT_STYLE_KEYS = ['id', 'fontFamily', 'fontFile', 'bigFontFile', 'fixedHeight', 'widthFactor', 'obliqueAngleDegrees', 'dxfFlags', 'generationFlags', 'lastHeight']
 const BASE_MAP_ATTRIBUTE_KEYS = ['id', 'styleId', 'textStyleId', 'tag', 'text', 'position', 'alignmentPoint', 'height', 'rotationDegrees', 'widthFactor', 'obliqueAngleDegrees', 'horizontalAlignment', 'verticalAlignment', 'generationFlags', 'flags', 'lockPosition', 'extrusion']
@@ -779,10 +804,50 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
       return { ...attribute, kind: 'attributeDefinition' as const, prompt: typeof value.prompt === 'string' && value.prompt.length <= 256 && !/[\u0000-\u001f\u007f]/u.test(value.prompt) ? value.prompt : (() => { throw new KJValidationError(`${label}.prompt must be bounded printable text`) })() }
     }
     const kind = value.kind
-    if (kind !== 'line' && kind !== 'arc' && kind !== 'circle' && kind !== 'polyline' && kind !== 'legacyPolyline') throw new KJValidationError(`${label}.kind must be line, arc, circle, polyline, legacyPolyline or an explicit block insert`)
-    exactKeys(value, kind === 'line' ? BASE_MAP_LINE_KEYS : kind === 'arc' ? BASE_MAP_ARC_KEYS : kind === 'circle' ? BASE_MAP_CIRCLE_KEYS : kind === 'legacyPolyline' ? BASE_MAP_LEGACY_POLYLINE_KEYS : BASE_MAP_POLYLINE_KEYS, label)
+    if (kind !== 'line' && kind !== 'arc' && kind !== 'circle' && kind !== 'polyline' && kind !== 'legacyPolyline' && kind !== 'hatch') throw new KJValidationError(`${label}.kind must be line, arc, circle, polyline, legacyPolyline, hatch or an explicit block insert`)
+    exactKeys(value, kind === 'line' ? BASE_MAP_LINE_KEYS : kind === 'arc' ? BASE_MAP_ARC_KEYS : kind === 'circle' ? BASE_MAP_CIRCLE_KEYS : kind === 'legacyPolyline' ? BASE_MAP_LEGACY_POLYLINE_KEYS : kind === 'hatch' ? BASE_MAP_HATCH_KEYS : BASE_MAP_POLYLINE_KEYS, label)
     const id = text(value.id, `${label}.id`, 40), styleId = text(value.styleId, `${label}.styleId`, 40)
     if (!baseMapStyleIds.has(styleId)) throw new KJValidationError(`${label}.styleId references unknown base-map style ${styleId}`)
+    if (kind === 'hatch') {
+      if (topLevel) throw new KJValidationError(`${label} hatch is valid only inside an explicit source-backed block`)
+      if (typeof value.solid !== 'boolean' || value.solid) throw new KJValidationError(`${label}.solid must be false for an explicit source-backed pattern`)
+      if (typeof value.associative !== 'boolean') throw new KJValidationError(`${label}.associative must be boolean`)
+      if (!Array.isArray(value.patternLines) || value.patternLines.length < 1 || value.patternLines.length > 64) throw new KJValidationError(`${label}.patternLines must contain 1-64 supplied line families`)
+      const patternLines = value.patternLines.map((rawLine, lineIndex) => {
+        const lineLabel = `${label}.patternLines[${lineIndex}]`, line = plain(rawLine, lineLabel); exactKeys(line, BASE_MAP_HATCH_PATTERN_LINE_KEYS, lineLabel)
+        if (!Array.isArray(line.dashes) || line.dashes.length > 64) throw new KJValidationError(`${lineLabel}.dashes must contain at most 64 supplied values`)
+        const dashes = line.dashes.map((dash, dashIndex) => finite(dash, `${lineLabel}.dashes[${dashIndex}]`, -1_000_000, 1_000_000))
+        if (dashes.length && dashes.reduce((sum, dash) => sum + Math.abs(dash), 0) <= EPSILON) throw new KJValidationError(`${lineLabel}.dashes must describe a positive cycle`)
+        return { angleDegrees: finite(line.angleDegrees, `${lineLabel}.angleDegrees`, -360_000, 360_000), base: point(line.base, `${lineLabel}.base`), offset: point(line.offset, `${lineLabel}.offset`), dashes }
+      })
+      if (!Array.isArray(value.seedPoints) || value.seedPoints.length > 64) throw new KJValidationError(`${label}.seedPoints must contain at most 64 supplied points`)
+      const seedPoints = value.seedPoints.map((seed, seedIndex) => point(seed, `${label}.seedPoints[${seedIndex}]`))
+      if (!Array.isArray(value.boundaryLoops) || value.boundaryLoops.length < 1 || value.boundaryLoops.length > 64) throw new KJValidationError(`${label}.boundaryLoops must contain 1-64 supplied loops`)
+      const boundaryLoops = value.boundaryLoops.map((rawLoop, loopIndex) => {
+        const loopLabel = `${label}.boundaryLoops[${loopIndex}]`, loop = plain(rawLoop, loopLabel); exactKeys(loop, BASE_MAP_HATCH_LOOP_KEYS, loopLabel)
+        if (typeof loop.external !== 'boolean') throw new KJValidationError(`${loopLabel}.external must be boolean`)
+        const flags = integer(loop.flags, `${loopLabel}.flags`, 0, 255)
+        if (Boolean(flags & 1) !== loop.external || (flags & 2) === 0) throw new KJValidationError(`${loopLabel}.flags must exactly identify its external polyline path`)
+        if (loop.closed !== true) throw new KJValidationError(`${loopLabel}.closed must be true`)
+        if (!Array.isArray(loop.vertices) || loop.vertices.length < 3 || loop.vertices.length > 256) throw new KJValidationError(`${loopLabel}.vertices must contain 3-256 supplied vertices`)
+        const vertices = loop.vertices.map((rawVertex, vertexIndex) => {
+          const vertexLabel = `${loopLabel}.vertices[${vertexIndex}]`, vertex = plain(rawVertex, vertexLabel); exactKeys(vertex, BASE_MAP_HATCH_VERTEX_KEYS, vertexLabel)
+          return { point: point(vertex.point, `${vertexLabel}.point`), bulge: finite(vertex.bulge, `${vertexLabel}.bulge`, -1_000_000, 1_000_000) }
+        })
+        for (let vertexIndex = 0; vertexIndex < vertices.length; vertexIndex += 1) {
+          const first = vertices[vertexIndex]!, second = vertices[(vertexIndex + 1) % vertices.length]!
+          if (Math.hypot(second.point[0] - first.point[0], second.point[1] - first.point[1]) <= EPSILON) throw new KJValidationError(`${loopLabel} contains a zero-length segment`)
+        }
+        if (!Array.isArray(loop.sourceMemberIds) || loop.sourceMemberIds.length > 256) throw new KJValidationError(`${loopLabel}.sourceMemberIds must contain at most 256 supplied member IDs`)
+        const sourceMemberIds = loop.sourceMemberIds.map((sourceId, sourceIndex) => text(sourceId, `${loopLabel}.sourceMemberIds[${sourceIndex}]`, 40))
+        if (new Set(sourceMemberIds).size !== sourceMemberIds.length) throw new KJValidationError(`${loopLabel}.sourceMemberIds must be unique`)
+        return { external: loop.external, flags, closed: true as const, vertices, sourceMemberIds }
+      })
+      const hasSources = boundaryLoops.some(loop => loop.sourceMemberIds.length > 0)
+      if (value.associative !== hasSources) throw new KJValidationError(`${label}.associative must exactly match supplied boundary sources`)
+      return { id, styleId, kind, patternName: text(value.patternName, `${label}.patternName`, 80), solid: false, associative: value.associative,
+        patternAngleDegrees: finite(value.patternAngleDegrees, `${label}.patternAngleDegrees`, -360_000, 360_000), patternScale: finite(value.patternScale, `${label}.patternScale`, 0.000001, 1_000_000), patternLines, seedPoints, boundaryLoops }
+    }
     if (kind === 'legacyPolyline') return { id, styleId, ...legacyPolyline(value, label, false) }
     if (kind === 'line') {
       const start = point(value.start, `${label}.start`), end = point(value.end, `${label}.end`)
@@ -840,6 +905,23 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
       if (entity.kind === 'insert' && !baseMapBlockIds.has(entity.blockId)) throw new KJValidationError(`input.baseMapBlocks[${blockIndex}].entities[${memberIndex}].blockId references unknown base-map block ${entity.blockId}`)
       return entity
     })
+    const membersById = new Map(entities.map(entity => [entity.id, entity]))
+    for (const [memberIndex, entity] of entities.entries()) if (entity.kind === 'hatch') for (const [loopIndex, loop] of entity.boundaryLoops.entries()) {
+      if (!loop.sourceMemberIds.length) continue
+      if (loop.sourceMemberIds.length !== loop.vertices.length || loop.vertices.some(vertex => Math.abs(vertex.bulge) > EPSILON)) throw new KJValidationError(`input.baseMapBlocks[${blockIndex}].entities[${memberIndex}].boundaryLoops[${loopIndex}] line sources must match every straight boundary segment`)
+      const unused = loop.sourceMemberIds.map(sourceId => {
+        const source = membersById.get(sourceId)
+        if (!source || source.kind !== 'line') throw new KJValidationError(`input.baseMapBlocks[${blockIndex}].entities[${memberIndex}].boundaryLoops[${loopIndex}] sourceMemberIds must reference LINE members in the same block`)
+        return source
+      })
+      const samePoint = (first: Point2, second: Point2) => Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON
+      for (let vertexIndex = 0; vertexIndex < loop.vertices.length; vertexIndex += 1) {
+        const start = loop.vertices[vertexIndex]!.point, end = loop.vertices[(vertexIndex + 1) % loop.vertices.length]!.point
+        const matchIndex = unused.findIndex(source => (samePoint(source.start, start) && samePoint(source.end, end)) || (samePoint(source.start, end) && samePoint(source.end, start)))
+        if (matchIndex < 0) throw new KJValidationError(`input.baseMapBlocks[${blockIndex}].entities[${memberIndex}].boundaryLoops[${loopIndex}] source geometry must exactly match the supplied boundary`)
+        unused.splice(matchIndex, 1)
+      }
+    }
     return { id: block.id, basePoint: block.basePoint, entities }
   })
   if (input.baseMapInserts !== undefined && (!Array.isArray(input.baseMapInserts) || input.baseMapInserts.length > BASE_MAP_INSERT_LIMIT)) throw new KJValidationError(`input.baseMapInserts must contain at most ${BASE_MAP_INSERT_LIMIT} supplied instances`)
@@ -950,7 +1032,7 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
       semanticRole: 'source-backed-base-map-attribute', sourceId: item.id, sourceBacked: true,
     }
   }
-  const baseMapEntitySpec = (item: (typeof input.baseMapBlocks)[number]['entities'][number], id: string): EntitySpec => {
+  const baseMapEntitySpec = (item: (typeof input.baseMapBlocks)[number]['entities'][number], id: string, memberIds: ReadonlyMap<string, string>): EntitySpec => {
     const style = baseMapStylesById.get(item.styleId)!
     const common = { layerId: style.layerId, semanticRole: item.kind === 'insert' ? 'source-backed-base-map-block-insert' : 'source-backed-base-map-block-member', sourceId: item.id, sourceBacked: true }
     if (item.kind === 'attributeDefinition') return { type: 'ATTDEF', payload: baseMapAttributePayload(item, item.prompt), options: { id } }
@@ -962,15 +1044,25 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
       vertices: item.points.map((point, index) => ({ point, bulge: item.bulges[index], startWidth: item.startWidths[index], endWidth: item.endWidths[index], dxfFlags: item.vertexFlags[index] })),
       closed: item.closed, elevation: item.elevation, dxfFlags: item.dxfFlags, ...common,
     }, options: { id } }
+    if (item.kind === 'hatch') return { type: 'HATCH', payload: {
+      patternName: item.patternName, solid: item.solid, associative: item.associative,
+      patternAngle: item.patternAngleDegrees * Math.PI / 180, patternScale: item.patternScale,
+      patternDefinitionAngle: item.patternAngleDegrees * Math.PI / 180, patternDefinitionScale: item.patternScale,
+      patternLines: item.patternLines.map(line => ({ angle: line.angleDegrees * Math.PI / 180, base: line.base, offset: line.offset, dashes: line.dashes })),
+      seedPoints: item.seedPoints,
+      boundaryLoops: item.boundaryLoops.map(loop => ({ external: loop.external, flags: loop.flags, closed: loop.closed,
+        vertices: loop.vertices.map(vertex => ({ point: p3(vertex.point), bulge: vertex.bulge })),
+        sourceIds: loop.sourceMemberIds.map(sourceId => memberIds.get(sourceId)!),
+      })), ...common,
+    }, options: { id } }
     const vertices = item.points.map((value, index) => item.bulges || item.startWidths || item.endWidths ? { point: p3(value), bulge: item.bulges?.[index] ?? 0, startWidth: item.startWidths?.[index] ?? 0, endWidth: item.endWidths?.[index] ?? 0 } : p3(value))
     return { type: 'LWPOLYLINE', payload: { vertices, closed: item.closed, ...common }, options: { id } }
   }
-  const baseMapBlockResources = input.baseMapBlocks.map((block, blockIndex) => ({
-    id: baseMapBlockRecordIds.get(block.id)!,
-    name: `BASEMAP_BLOCK_${String(blockIndex + 1).padStart(2, '0')}`,
-    basePoint: p3(block.basePoint),
-    entities: block.entities.map((item, memberIndex) => baseMapEntitySpec(item, `${prefix}-block-${String(blockIndex + 1).padStart(2, '0')}-member-${String(memberIndex + 1).padStart(4, '0')}`)),
-  }))
+  const baseMapBlockResources = input.baseMapBlocks.map((block, blockIndex) => {
+    const memberIds = new Map(block.entities.map((item, memberIndex) => [item.id, `${prefix}-block-${String(blockIndex + 1).padStart(2, '0')}-member-${String(memberIndex + 1).padStart(4, '0')}`]))
+    return { id: baseMapBlockRecordIds.get(block.id)!, name: `BASEMAP_BLOCK_${String(blockIndex + 1).padStart(2, '0')}`, basePoint: p3(block.basePoint),
+      entities: block.entities.map(item => baseMapEntitySpec(item, memberIds.get(item.id)!, memberIds)) }
+  })
   const textHeight = 2.5 * input.scale / 1000, markerRadius = 2.2 * input.scale / 1000
   for (const item of input.baseMapLinework) {
     const style = baseMapStylesById.get(item.styleId)!
@@ -1147,12 +1239,13 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
       modelEntityCount: entities.length, entityCount: entities.length + 1, boreholeCount: input.boreholes.length, sectionLineCount: input.sectionLines.length, alignedDimensionCount: input.dimensions.length, buildingFootprintCount: input.buildingFootprints.length, roadPathCount: input.roadPaths.length, roadSegmentCount: input.roadSegmentCount,
       baseMapStyleCount: input.baseMapStyles.length, baseMapTextStyleCount: input.baseMapTextStyles.length, baseMapLineworkCount: input.baseMapLinework.length,
       baseMapAttributeDefinitionCount: input.baseMapBlocks.reduce((sum, block) => sum + block.entities.filter(entity => entity.kind === 'attributeDefinition').length, 0), baseMapAttributeCount: input.baseMapInserts.reduce((sum, insert) => sum + insert.attributes.length, 0),
+      baseMapHatchCount: input.baseMapBlocks.reduce((sum, block) => sum + block.entities.filter(entity => entity.kind === 'hatch').length, 0),
       baseMapLineworkTypeCounts: Object.fromEntries(['line', 'arc', 'circle', 'polyline', 'legacyPolyline'].map(kind => [kind, input.baseMapLinework.filter(value => value.kind === kind).length])),
       baseMapBlockCount: input.baseMapBlocks.length, baseMapBlockMemberCount: input.baseMapBlocks.reduce((sum, block) => sum + block.entities.length, 0),
       baseMapInsertCount: input.baseMapInserts.length,
       sectionReferences: input.sectionLines.map(value => ({ id: value.id, label: value.label, holeIds: [...value.holeIds], endpointLabels: value.endpointLabels ? [...value.endpointLabels] : [value.label, value.label], markerClearance: value.markerClearance ? [...value.markerClearance] : undefined, endpointTailLengths: value.endpointTailLengths ? [...value.endpointTailLengths] : undefined, endpointLabelPositions: value.endpointLabelPositions ? value.endpointLabelPositions.map(position => [...position]) : undefined, segmentCount: sectionSegmentCounts.get(value.id) })), gridLineCount: gridXs.length + gridYs.length, coordinateCalloutCount: input.coordinateCallouts.length, coordinateConvention: 'engineering X=northing, Y=easting' as const,
       coordinateBounds: { minimum, maximum }, scaleDenominator: input.scale, northAngleDegrees: input.northAngleDegrees,
       externalBaseMapDependencies: input.roadPaths.length ? ['terrain', 'landscaping', 'other-context'] : ['roads', 'terrain', 'landscaping', 'other-context'],
-      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Coordinate graphics are compiled only from an explicit grid or explicit point callouts; engineering X is northing and Y is easting, and label placement is never inferred', 'Aligned dimensions are compiled only from supplied definition points, numeric display values and bounded unit suffixes; KJDraw does not infer measurements or arbitrary dimension text', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred', 'Base-map linework is compiled only from explicit source-backed line, arc, circle, lightweight-polyline and native 2D POLYLINE facts with supplied styles', 'Reusable blocks and attached attributes are compiled only from complete explicit source-backed native definitions, sequences, transforms and supplied styles', 'Unsupplied roads, terrain, landscaping, symbols, text, fills and other base-map context remain external source-backed dependencies and are never inferred'] },
+      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Coordinate graphics are compiled only from an explicit grid or explicit point callouts; engineering X is northing and Y is easting, and label placement is never inferred', 'Aligned dimensions are compiled only from supplied definition points, numeric display values and bounded unit suffixes; KJDraw does not infer measurements or arbitrary dimension text', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred', 'Base-map linework is compiled only from explicit source-backed line, arc, circle, lightweight-polyline and native 2D POLYLINE facts with supplied styles', 'Reusable blocks, attached attributes and associative patterned fills are compiled only from complete explicit source-backed native definitions, sequences, transforms, boundaries and supplied styles', 'Unsupplied roads, terrain, landscaping, symbols, text, fills and other base-map context remain external source-backed dependencies and are never inferred'] },
   }
 }

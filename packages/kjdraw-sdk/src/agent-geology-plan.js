@@ -148,6 +148,36 @@ const BASE_MAP_LEGACY_POLYLINE_KEYS = [
     'startWidths',
     'endWidths'
 ];
+const BASE_MAP_HATCH_KEYS = [
+    'id',
+    'styleId',
+    'kind',
+    'patternName',
+    'solid',
+    'associative',
+    'patternAngleDegrees',
+    'patternScale',
+    'patternLines',
+    'seedPoints',
+    'boundaryLoops'
+];
+const BASE_MAP_HATCH_PATTERN_LINE_KEYS = [
+    'angleDegrees',
+    'base',
+    'offset',
+    'dashes'
+];
+const BASE_MAP_HATCH_LOOP_KEYS = [
+    'external',
+    'flags',
+    'closed',
+    'vertices',
+    'sourceMemberIds'
+];
+const BASE_MAP_HATCH_VERTEX_KEYS = [
+    'point',
+    'bulge'
+];
 const BASE_MAP_BLOCK_KEYS = [
     'id',
     'basePoint',
@@ -958,10 +988,78 @@ function validateInput(document, source) {
             };
         }
         const kind = value.kind;
-        if (kind !== 'line' && kind !== 'arc' && kind !== 'circle' && kind !== 'polyline' && kind !== 'legacyPolyline') throw new KJValidationError(`${label}.kind must be line, arc, circle, polyline, legacyPolyline or an explicit block insert`);
-        exactKeys(value, kind === 'line' ? BASE_MAP_LINE_KEYS : kind === 'arc' ? BASE_MAP_ARC_KEYS : kind === 'circle' ? BASE_MAP_CIRCLE_KEYS : kind === 'legacyPolyline' ? BASE_MAP_LEGACY_POLYLINE_KEYS : BASE_MAP_POLYLINE_KEYS, label);
+        if (kind !== 'line' && kind !== 'arc' && kind !== 'circle' && kind !== 'polyline' && kind !== 'legacyPolyline' && kind !== 'hatch') throw new KJValidationError(`${label}.kind must be line, arc, circle, polyline, legacyPolyline, hatch or an explicit block insert`);
+        exactKeys(value, kind === 'line' ? BASE_MAP_LINE_KEYS : kind === 'arc' ? BASE_MAP_ARC_KEYS : kind === 'circle' ? BASE_MAP_CIRCLE_KEYS : kind === 'legacyPolyline' ? BASE_MAP_LEGACY_POLYLINE_KEYS : kind === 'hatch' ? BASE_MAP_HATCH_KEYS : BASE_MAP_POLYLINE_KEYS, label);
         const id = text(value.id, `${label}.id`, 40), styleId = text(value.styleId, `${label}.styleId`, 40);
         if (!baseMapStyleIds.has(styleId)) throw new KJValidationError(`${label}.styleId references unknown base-map style ${styleId}`);
+        if (kind === 'hatch') {
+            if (topLevel) throw new KJValidationError(`${label} hatch is valid only inside an explicit source-backed block`);
+            if (typeof value.solid !== 'boolean' || value.solid) throw new KJValidationError(`${label}.solid must be false for an explicit source-backed pattern`);
+            if (typeof value.associative !== 'boolean') throw new KJValidationError(`${label}.associative must be boolean`);
+            if (!Array.isArray(value.patternLines) || value.patternLines.length < 1 || value.patternLines.length > 64) throw new KJValidationError(`${label}.patternLines must contain 1-64 supplied line families`);
+            const patternLines = value.patternLines.map((rawLine, lineIndex)=>{
+                const lineLabel = `${label}.patternLines[${lineIndex}]`, line = plain(rawLine, lineLabel);
+                exactKeys(line, BASE_MAP_HATCH_PATTERN_LINE_KEYS, lineLabel);
+                if (!Array.isArray(line.dashes) || line.dashes.length > 64) throw new KJValidationError(`${lineLabel}.dashes must contain at most 64 supplied values`);
+                const dashes = line.dashes.map((dash, dashIndex)=>finite(dash, `${lineLabel}.dashes[${dashIndex}]`, -1_000_000, 1_000_000));
+                if (dashes.length && dashes.reduce((sum, dash)=>sum + Math.abs(dash), 0) <= EPSILON) throw new KJValidationError(`${lineLabel}.dashes must describe a positive cycle`);
+                return {
+                    angleDegrees: finite(line.angleDegrees, `${lineLabel}.angleDegrees`, -360_000, 360_000),
+                    base: point(line.base, `${lineLabel}.base`),
+                    offset: point(line.offset, `${lineLabel}.offset`),
+                    dashes
+                };
+            });
+            if (!Array.isArray(value.seedPoints) || value.seedPoints.length > 64) throw new KJValidationError(`${label}.seedPoints must contain at most 64 supplied points`);
+            const seedPoints = value.seedPoints.map((seed, seedIndex)=>point(seed, `${label}.seedPoints[${seedIndex}]`));
+            if (!Array.isArray(value.boundaryLoops) || value.boundaryLoops.length < 1 || value.boundaryLoops.length > 64) throw new KJValidationError(`${label}.boundaryLoops must contain 1-64 supplied loops`);
+            const boundaryLoops = value.boundaryLoops.map((rawLoop, loopIndex)=>{
+                const loopLabel = `${label}.boundaryLoops[${loopIndex}]`, loop = plain(rawLoop, loopLabel);
+                exactKeys(loop, BASE_MAP_HATCH_LOOP_KEYS, loopLabel);
+                if (typeof loop.external !== 'boolean') throw new KJValidationError(`${loopLabel}.external must be boolean`);
+                const flags = integer(loop.flags, `${loopLabel}.flags`, 0, 255);
+                if (Boolean(flags & 1) !== loop.external || (flags & 2) === 0) throw new KJValidationError(`${loopLabel}.flags must exactly identify its external polyline path`);
+                if (loop.closed !== true) throw new KJValidationError(`${loopLabel}.closed must be true`);
+                if (!Array.isArray(loop.vertices) || loop.vertices.length < 3 || loop.vertices.length > 256) throw new KJValidationError(`${loopLabel}.vertices must contain 3-256 supplied vertices`);
+                const vertices = loop.vertices.map((rawVertex, vertexIndex)=>{
+                    const vertexLabel = `${loopLabel}.vertices[${vertexIndex}]`, vertex = plain(rawVertex, vertexLabel);
+                    exactKeys(vertex, BASE_MAP_HATCH_VERTEX_KEYS, vertexLabel);
+                    return {
+                        point: point(vertex.point, `${vertexLabel}.point`),
+                        bulge: finite(vertex.bulge, `${vertexLabel}.bulge`, -1_000_000, 1_000_000)
+                    };
+                });
+                for(let vertexIndex = 0; vertexIndex < vertices.length; vertexIndex += 1){
+                    const first = vertices[vertexIndex], second = vertices[(vertexIndex + 1) % vertices.length];
+                    if (Math.hypot(second.point[0] - first.point[0], second.point[1] - first.point[1]) <= EPSILON) throw new KJValidationError(`${loopLabel} contains a zero-length segment`);
+                }
+                if (!Array.isArray(loop.sourceMemberIds) || loop.sourceMemberIds.length > 256) throw new KJValidationError(`${loopLabel}.sourceMemberIds must contain at most 256 supplied member IDs`);
+                const sourceMemberIds = loop.sourceMemberIds.map((sourceId, sourceIndex)=>text(sourceId, `${loopLabel}.sourceMemberIds[${sourceIndex}]`, 40));
+                if (new Set(sourceMemberIds).size !== sourceMemberIds.length) throw new KJValidationError(`${loopLabel}.sourceMemberIds must be unique`);
+                return {
+                    external: loop.external,
+                    flags,
+                    closed: true,
+                    vertices,
+                    sourceMemberIds
+                };
+            });
+            const hasSources = boundaryLoops.some((loop)=>loop.sourceMemberIds.length > 0);
+            if (value.associative !== hasSources) throw new KJValidationError(`${label}.associative must exactly match supplied boundary sources`);
+            return {
+                id,
+                styleId,
+                kind,
+                patternName: text(value.patternName, `${label}.patternName`, 80),
+                solid: false,
+                associative: value.associative,
+                patternAngleDegrees: finite(value.patternAngleDegrees, `${label}.patternAngleDegrees`, -360_000, 360_000),
+                patternScale: finite(value.patternScale, `${label}.patternScale`, 0.000001, 1_000_000),
+                patternLines,
+                seedPoints,
+                boundaryLoops
+            };
+        }
         if (kind === 'legacyPolyline') return {
             id,
             styleId,
@@ -1058,6 +1156,26 @@ function validateInput(document, source) {
             if (entity.kind === 'insert' && !baseMapBlockIds.has(entity.blockId)) throw new KJValidationError(`input.baseMapBlocks[${blockIndex}].entities[${memberIndex}].blockId references unknown base-map block ${entity.blockId}`);
             return entity;
         });
+        const membersById = new Map(entities.map((entity)=>[
+                entity.id,
+                entity
+            ]));
+        for (const [memberIndex, entity] of entities.entries())if (entity.kind === 'hatch') for (const [loopIndex, loop] of entity.boundaryLoops.entries()){
+            if (!loop.sourceMemberIds.length) continue;
+            if (loop.sourceMemberIds.length !== loop.vertices.length || loop.vertices.some((vertex)=>Math.abs(vertex.bulge) > EPSILON)) throw new KJValidationError(`input.baseMapBlocks[${blockIndex}].entities[${memberIndex}].boundaryLoops[${loopIndex}] line sources must match every straight boundary segment`);
+            const unused = loop.sourceMemberIds.map((sourceId)=>{
+                const source = membersById.get(sourceId);
+                if (!source || source.kind !== 'line') throw new KJValidationError(`input.baseMapBlocks[${blockIndex}].entities[${memberIndex}].boundaryLoops[${loopIndex}] sourceMemberIds must reference LINE members in the same block`);
+                return source;
+            });
+            const samePoint = (first, second)=>Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON;
+            for(let vertexIndex = 0; vertexIndex < loop.vertices.length; vertexIndex += 1){
+                const start = loop.vertices[vertexIndex].point, end = loop.vertices[(vertexIndex + 1) % loop.vertices.length].point;
+                const matchIndex = unused.findIndex((source)=>samePoint(source.start, start) && samePoint(source.end, end) || samePoint(source.start, end) && samePoint(source.end, start));
+                if (matchIndex < 0) throw new KJValidationError(`input.baseMapBlocks[${blockIndex}].entities[${memberIndex}].boundaryLoops[${loopIndex}] source geometry must exactly match the supplied boundary`);
+                unused.splice(matchIndex, 1);
+            }
+        }
         return {
             id: block.id,
             basePoint: block.basePoint,
@@ -1313,7 +1431,7 @@ export function buildAgentGeologyPlan(document, source) {
             sourceBacked: true
         };
     };
-    const baseMapEntitySpec = (item, id)=>{
+    const baseMapEntitySpec = (item, id, memberIds)=>{
         const style = baseMapStylesById.get(item.styleId);
         const common = {
             layerId: style.layerId,
@@ -1398,6 +1516,39 @@ export function buildAgentGeologyPlan(document, source) {
                 id
             }
         };
+        if (item.kind === 'hatch') return {
+            type: 'HATCH',
+            payload: {
+                patternName: item.patternName,
+                solid: item.solid,
+                associative: item.associative,
+                patternAngle: item.patternAngleDegrees * Math.PI / 180,
+                patternScale: item.patternScale,
+                patternDefinitionAngle: item.patternAngleDegrees * Math.PI / 180,
+                patternDefinitionScale: item.patternScale,
+                patternLines: item.patternLines.map((line)=>({
+                        angle: line.angleDegrees * Math.PI / 180,
+                        base: line.base,
+                        offset: line.offset,
+                        dashes: line.dashes
+                    })),
+                seedPoints: item.seedPoints,
+                boundaryLoops: item.boundaryLoops.map((loop)=>({
+                        external: loop.external,
+                        flags: loop.flags,
+                        closed: loop.closed,
+                        vertices: loop.vertices.map((vertex)=>({
+                                point: p3(vertex.point),
+                                bulge: vertex.bulge
+                            })),
+                        sourceIds: loop.sourceMemberIds.map((sourceId)=>memberIds.get(sourceId))
+                    })),
+                ...common
+            },
+            options: {
+                id
+            }
+        };
         const vertices = item.points.map((value, index)=>item.bulges || item.startWidths || item.endWidths ? {
                 point: p3(value),
                 bulge: item.bulges?.[index] ?? 0,
@@ -1416,12 +1567,18 @@ export function buildAgentGeologyPlan(document, source) {
             }
         };
     };
-    const baseMapBlockResources = input.baseMapBlocks.map((block, blockIndex)=>({
+    const baseMapBlockResources = input.baseMapBlocks.map((block, blockIndex)=>{
+        const memberIds = new Map(block.entities.map((item, memberIndex)=>[
+                item.id,
+                `${prefix}-block-${String(blockIndex + 1).padStart(2, '0')}-member-${String(memberIndex + 1).padStart(4, '0')}`
+            ]));
+        return {
             id: baseMapBlockRecordIds.get(block.id),
             name: `BASEMAP_BLOCK_${String(blockIndex + 1).padStart(2, '0')}`,
             basePoint: p3(block.basePoint),
-            entities: block.entities.map((item, memberIndex)=>baseMapEntitySpec(item, `${prefix}-block-${String(blockIndex + 1).padStart(2, '0')}-member-${String(memberIndex + 1).padStart(4, '0')}`))
-        }));
+            entities: block.entities.map((item)=>baseMapEntitySpec(item, memberIds.get(item.id), memberIds))
+        };
+    });
     const textHeight = 2.5 * input.scale / 1000, markerRadius = 2.2 * input.scale / 1000;
     for (const item of input.baseMapLinework){
         const style = baseMapStylesById.get(item.styleId);
@@ -2036,6 +2193,7 @@ export function buildAgentGeologyPlan(document, source) {
             baseMapLineworkCount: input.baseMapLinework.length,
             baseMapAttributeDefinitionCount: input.baseMapBlocks.reduce((sum, block)=>sum + block.entities.filter((entity)=>entity.kind === 'attributeDefinition').length, 0),
             baseMapAttributeCount: input.baseMapInserts.reduce((sum, insert)=>sum + insert.attributes.length, 0),
+            baseMapHatchCount: input.baseMapBlocks.reduce((sum, block)=>sum + block.entities.filter((entity)=>entity.kind === 'hatch').length, 0),
             baseMapLineworkTypeCounts: Object.fromEntries([
                 'line',
                 'arc',
@@ -2099,7 +2257,7 @@ export function buildAgentGeologyPlan(document, source) {
                 'Building footprints are compiled only from supplied closed outlines and are never inferred',
                 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred',
                 'Base-map linework is compiled only from explicit source-backed line, arc, circle, lightweight-polyline and native 2D POLYLINE facts with supplied styles',
-                'Reusable blocks and attached attributes are compiled only from complete explicit source-backed native definitions, sequences, transforms and supplied styles',
+                'Reusable blocks, attached attributes and associative patterned fills are compiled only from complete explicit source-backed native definitions, sequences, transforms, boundaries and supplied styles',
                 'Unsupplied roads, terrain, landscaping, symbols, text, fills and other base-map context remain external source-backed dependencies and are never inferred'
             ]
         }

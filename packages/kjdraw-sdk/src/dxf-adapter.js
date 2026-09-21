@@ -943,7 +943,14 @@ function hatchBoundaryLoops(record) {
         }
         if (tags[cursor]?.code === 97) {
             const sourceCount = Number(tags[cursor++].value);
-            cursor += Math.min(sourceCount, tags.slice(cursor).filter((tag)=>tag.code === 330).length);
+            if (!Number.isSafeInteger(sourceCount) || sourceCount < 0 || sourceCount > 4096) throw new KJValidationError('DXF HATCH boundary source count is invalid');
+            const sourceHandles = [];
+            for(let sourceIndex = 0; sourceIndex < sourceCount; sourceIndex += 1){
+                const tag = tags[cursor++];
+                if (tag?.code !== 330 || !String(tag.value).trim()) throw new KJValidationError('DXF HATCH boundary source list is incomplete');
+                sourceHandles.push(String(tag.value).trim().toUpperCase());
+            }
+            if (sourceHandles.length) loops[loops.length - 1].sourceHandles = sourceHandles;
         }
     }
     if (!loops.length) throw new KJValidationError('DXF HATCH contains no boundary loops');
@@ -987,6 +994,29 @@ function importedHatchPatternLines(record) {
         });
     }
     return lines;
+}
+function importedHatchSeedPoints(record) {
+    const tags = record.tags;
+    const start = tags.findIndex((tag)=>tag.code === 98);
+    if (start < 0) return [];
+    const count = Number(tags[start].value);
+    if (!Number.isSafeInteger(count) || count < 0 || count > 4096) throw new KJValidationError('DXF HATCH seed count is invalid');
+    const seeds = [];
+    let cursor = start + 1;
+    while(seeds.length < count){
+        while(cursor < tags.length && tags[cursor].code !== 10)cursor += 1;
+        if (cursor >= tags.length) throw new KJValidationError('DXF HATCH seed list is incomplete');
+        const x = Number(tags[cursor++].value);
+        while(cursor < tags.length && tags[cursor].code !== 20)cursor += 1;
+        if (cursor >= tags.length) throw new KJValidationError('DXF HATCH seed list is incomplete');
+        const y = Number(tags[cursor++].value);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) throw new KJValidationError('DXF HATCH seed point is invalid');
+        seeds.push([
+            x,
+            y
+        ]);
+    }
+    return seeds;
 }
 function entityPayload(record, blockIds, resources = {}) {
     switch(record.type){
@@ -1170,6 +1200,7 @@ function entityPayload(record, blockIds, resources = {}) {
                         associative: number(record, 71, 0) === 1,
                         patternAngle,
                         patternScale,
+                        seedPoints: importedHatchSeedPoints(record),
                         ...patternLines ? {
                             patternLines,
                             patternDefinitionAngle: patternAngle,
@@ -2592,11 +2623,12 @@ function hasUnchangedHatchGeometry(payload) {
             value.boundaryLoops,
             value.patternLines,
             value.patternDefinitionAngle,
-            value.patternDefinitionScale
+            value.patternDefinitionScale,
+            value.seedPoints
         ]);
     return state(payload) === state(normalized);
 }
-function emitHatch(output, entity, layerName, ownerHandle, space, context) {
+function emitHatch(output, entity, layerName, ownerHandle, space, context, resources) {
     const { version } = context;
     const p = entity.payload ?? {};
     if (hasUnchangedHatchGeometry(p)) {
@@ -2643,6 +2675,37 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
     const requireXY = (value)=>{
         if (value.some((component)=>!Number.isFinite(component)) || (value[2] ?? 0) !== 0) throw new KJValidationError('Native DXF HATCH geometry must use finite XY points at Z=0');
     };
+    const boundaryTypes = new Set([
+        'LINE',
+        'ARC',
+        'CIRCLE',
+        'ELLIPSE',
+        'LWPOLYLINE',
+        'POLYLINE',
+        'SPLINE'
+    ]);
+    const resolvedSourceHandles = (p.boundaryLoops ?? []).map((loop, loopIndex)=>{
+        if (loop.sourceIds && loop.sourceHandles) throw new KJValidationError(`Native DXF HATCH loop ${loopIndex} cannot supply both sourceIds and sourceHandles`);
+        const values = loop.sourceIds ?? loop.sourceHandles ?? [];
+        if (!Array.isArray(values) || values.length > 4096 || values.some((value)=>typeof value !== 'string' || !value.trim())) throw new KJValidationError(`Native DXF HATCH loop ${loopIndex} has invalid boundary references`);
+        const handles = values.map((value)=>{
+            const source = loop.sourceIds ? resources.objects?.get(value) : [
+                ...resources.objects?.values() ?? []
+            ].find((record)=>record.handle.toUpperCase() === value.toUpperCase());
+            if (!source || source.kind !== 'entity' || source.erased || source.ownerId !== entity.ownerId || !boundaryTypes.has(source.type)) throw new KJValidationError(`Native DXF HATCH loop ${loopIndex} boundary references must resolve to live same-owner geometry`);
+            return source.handle.toUpperCase();
+        });
+        if (new Set(handles).size !== handles.length) throw new KJValidationError(`Native DXF HATCH loop ${loopIndex} contains duplicate boundary references`);
+        return handles;
+    });
+    const associative = resolvedSourceHandles.some((handles)=>handles.length > 0);
+    if (Boolean(p.associative) !== associative) throw new KJValidationError('Native DXF HATCH associative flag must exactly match its boundary references');
+    const seedPoints = p.seedPoints ?? [];
+    if (!Array.isArray(seedPoints) || seedPoints.length > 4096) throw new KJValidationError('Native DXF HATCH seed points exceed the supported bound');
+    for (const seed of seedPoints){
+        if (!Array.isArray(seed) || seed.length !== 2) throw new KJValidationError('Native DXF HATCH seed points must be finite XY pairs');
+        requireXY(seed);
+    }
     for (const loop of p.boundaryLoops ?? []){
         for (const vertex of loop.vertices ?? [])requireXY(vertexPoint(vertex));
         for (const edge of loop.edges ?? []){
@@ -2678,7 +2741,7 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
     emit(output, 70, p.solid ? 1 : 0);
     emit(output, 71, p.associative ? 1 : 0);
     emit(output, 91, p.boundaryLoops?.length ?? 0);
-    for (const loop of p.boundaryLoops ?? []){
+    for (const [loopIndex, loop] of (p.boundaryLoops ?? []).entries()){
         const pathFlags = Number(loop.flags ?? 0) & ~1 | (loop.external === false ? 0 : 1);
         if (loop.vertices?.length) {
             emit(output, 92, pathFlags | 2);
@@ -2748,7 +2811,8 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
                 } else throw new KJValidationError(`DXF HATCH writer does not support ${edge.type} boundary edges`);
             }
         }
-        emit(output, 97, 0);
+        emit(output, 97, resolvedSourceHandles[loopIndex].length);
+        for (const handle of resolvedSourceHandles[loopIndex])emit(output, 330, handle);
     }
     emit(output, 75, 0);
     emit(output, 76, 1);
@@ -2767,6 +2831,11 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
             emit(output, 79, line.dashes.length);
             for (const dash of line.dashes)emit(output, 49, dash);
         }
+    }
+    emit(output, 98, seedPoints.length);
+    for (const seed of seedPoints){
+        emit(output, 10, seed[0]);
+        emit(output, 20, seed[1]);
     }
 }
 function validateViewportBoundary(boundary) {
@@ -2997,7 +3066,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         return;
     }
     if (entity.type === 'HATCH') {
-        emitHatch(output, entity, layerName, ownerHandle, space, context);
+        emitHatch(output, entity, layerName, ownerHandle, space, context, resources);
         return;
     }
     if (entity.type === 'DIMENSION' && p.rawTags?.length && resources.dimensions?.get(entity.handle)?.preserveRaw) {

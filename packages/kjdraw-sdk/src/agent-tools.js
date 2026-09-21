@@ -2306,6 +2306,7 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
             'circle',
             'polyline',
             'legacyPolyline',
+            'hatch',
             'attributeDefinition'
         ]
     },
@@ -2318,6 +2319,97 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
     end: numericTuple(2),
     center: numericTuple(2),
     radius,
+    patternName: {
+        type: 'string',
+        minLength: 1,
+        maxLength: 80
+    },
+    solid: {
+        type: 'boolean'
+    },
+    associative: {
+        type: 'boolean'
+    },
+    patternAngleDegrees: {
+        type: 'number',
+        minimum: -360_000,
+        maximum: 360_000
+    },
+    patternScale: {
+        type: 'number',
+        exclusiveMinimum: 0,
+        maximum: 1_000_000
+    },
+    patternLines: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 64,
+        items: object({
+            angleDegrees: {
+                type: 'number',
+                minimum: -360_000,
+                maximum: 360_000
+            },
+            base: numericTuple(2),
+            offset: numericTuple(2),
+            dashes: {
+                type: 'array',
+                minItems: 0,
+                maxItems: 64,
+                items: {
+                    type: 'number',
+                    minimum: -1_000_000,
+                    maximum: 1_000_000
+                }
+            }
+        })
+    },
+    seedPoints: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 64,
+        items: numericTuple(2)
+    },
+    boundaryLoops: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 64,
+        items: object({
+            external: {
+                type: 'boolean'
+            },
+            flags: {
+                type: 'integer',
+                minimum: 0,
+                maximum: 255
+            },
+            closed: {
+                type: 'boolean'
+            },
+            vertices: {
+                type: 'array',
+                minItems: 3,
+                maxItems: 256,
+                items: object({
+                    point: numericTuple(2),
+                    bulge: {
+                        type: 'number',
+                        minimum: -1_000_000,
+                        maximum: 1_000_000
+                    }
+                })
+            },
+            sourceMemberIds: {
+                type: 'array',
+                minItems: 0,
+                maxItems: 256,
+                items: {
+                    ...text,
+                    maxLength: 40
+                }
+            }
+        })
+    },
     startAngleDegrees: {
         type: 'number',
         minimum: -360_000,
@@ -2441,7 +2533,15 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
     'flags',
     'lockPosition',
     'extrusion',
-    'prompt'
+    'prompt',
+    'patternName',
+    'solid',
+    'associative',
+    'patternAngleDegrees',
+    'patternScale',
+    'patternLines',
+    'seedPoints',
+    'boundaryLoops'
 ]);
 const geologyPlanBaseMapBlockSchema = object({
     id: {

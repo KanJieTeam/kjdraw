@@ -111,6 +111,33 @@ export interface KJGeologyPlanBaseMapAttributeDefinition extends KJGeologyPlanBa
     kind: 'attributeDefinition';
     prompt: string;
 }
+export interface KJGeologyPlanBaseMapHatch {
+    id: string;
+    styleId: string;
+    kind: 'hatch';
+    patternName: string;
+    solid: boolean;
+    associative: boolean;
+    patternAngleDegrees: number;
+    patternScale: number;
+    patternLines: {
+        angleDegrees: number;
+        base: Point2;
+        offset: Point2;
+        dashes: number[];
+    }[];
+    seedPoints: Point2[];
+    boundaryLoops: {
+        external: boolean;
+        flags: number;
+        closed: true;
+        vertices: {
+            point: Point2;
+            bulge: number;
+        }[];
+        sourceMemberIds: string[];
+    }[];
+}
 export type KJGeologyPlanBaseMapLinework = {
     id: string;
     styleId: string;
@@ -167,7 +194,7 @@ export interface KJGeologyPlanBaseMapBlock {
     extrusion?: Point3;
     attributes?: KJGeologyPlanBaseMapAttribute[];
     basePoint: Point2;
-    entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapAttributeDefinition | KJGeologyPlanBaseMapInsert)[];
+    entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapHatch | KJGeologyPlanBaseMapAttributeDefinition | KJGeologyPlanBaseMapInsert)[];
 }
 export interface KJAgentGeologyPlanInput {
     version: typeof KJDRAW_GEOLOGY_PLAN_VERSION;
@@ -320,6 +347,7 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
         baseMapLineworkCount: number;
         baseMapAttributeDefinitionCount: number;
         baseMapAttributeCount: number;
+        baseMapHatchCount: number;
         baseMapLineworkTypeCounts: {
             [k: string]: number;
         };

@@ -472,8 +472,20 @@ const geologyPlanBaseMapInsertSchema = objectWithOptional({
 }, ['extrusion', 'attributes'])
 const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
   ...geologyPlanBaseMapAttributeFields,
-  kind: { type: 'string', enum: ['line', 'arc', 'circle', 'polyline', 'legacyPolyline', 'attributeDefinition'] }, prompt: { type: 'string', minLength: 0, maxLength: 256 },
+  kind: { type: 'string', enum: ['line', 'arc', 'circle', 'polyline', 'legacyPolyline', 'hatch', 'attributeDefinition'] }, prompt: { type: 'string', minLength: 0, maxLength: 256 },
   start: numericTuple(2), end: numericTuple(2), center: numericTuple(2), radius,
+  patternName: { type: 'string', minLength: 1, maxLength: 80 }, solid: { type: 'boolean' }, associative: { type: 'boolean' },
+  patternAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, patternScale: { type: 'number', exclusiveMinimum: 0, maximum: 1_000_000 },
+  patternLines: { type: 'array', minItems: 1, maxItems: 64, items: object({
+    angleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, base: numericTuple(2), offset: numericTuple(2),
+    dashes: { type: 'array', minItems: 0, maxItems: 64, items: { type: 'number', minimum: -1_000_000, maximum: 1_000_000 } },
+  }) },
+  seedPoints: { type: 'array', minItems: 0, maxItems: 64, items: numericTuple(2) },
+  boundaryLoops: { type: 'array', minItems: 1, maxItems: 64, items: object({
+    external: { type: 'boolean' }, flags: { type: 'integer', minimum: 0, maximum: 255 }, closed: { type: 'boolean' },
+    vertices: { type: 'array', minItems: 3, maxItems: 256, items: object({ point: numericTuple(2), bulge: { type: 'number', minimum: -1_000_000, maximum: 1_000_000 } }) },
+    sourceMemberIds: { type: 'array', minItems: 0, maxItems: 256, items: { ...text, maxLength: 40 } },
+  }) },
   startAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, endAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, clockwise: { type: 'boolean' },
   points: { type: 'array', minItems: 2, maxItems: 256, items: numericTuple(2) }, closed: { type: 'boolean' },
   legacyPoints: { type: 'array', minItems: 2, maxItems: 256, items: numericTuple(3) },
@@ -483,7 +495,7 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
   startWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative }, endWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative },
   bulges: { type: 'array', minItems: 2, maxItems: 256, items: { type: 'number', minimum: -1_000_000, maximum: 1_000_000 } },
   blockId: { ...text, maxLength: 40 }, position: { type: 'array', items: number, minItems: 2, maxItems: 3 }, scale: numericTuple(3), attributes: { type: 'array', minItems: 1, maxItems: 64, items: geologyPlanBaseMapAttributeSchema },
-}, ['kind', 'start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'legacyPoints', 'closed', 'elevation', 'dxfFlags', 'vertexFlags', 'bulges', 'startWidths', 'endWidths', 'blockId', 'scale', 'attributes', 'textStyleId', 'tag', 'text', 'position', 'alignmentPoint', 'height', 'rotationDegrees', 'widthFactor', 'obliqueAngleDegrees', 'horizontalAlignment', 'verticalAlignment', 'generationFlags', 'flags', 'lockPosition', 'extrusion', 'prompt'])
+}, ['kind', 'start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'legacyPoints', 'closed', 'elevation', 'dxfFlags', 'vertexFlags', 'bulges', 'startWidths', 'endWidths', 'blockId', 'scale', 'attributes', 'textStyleId', 'tag', 'text', 'position', 'alignmentPoint', 'height', 'rotationDegrees', 'widthFactor', 'obliqueAngleDegrees', 'horizontalAlignment', 'verticalAlignment', 'generationFlags', 'flags', 'lockPosition', 'extrusion', 'prompt', 'patternName', 'solid', 'associative', 'patternAngleDegrees', 'patternScale', 'patternLines', 'seedPoints', 'boundaryLoops'])
 const geologyPlanBaseMapBlockSchema = object({
   id: { ...text, maxLength: 40 }, basePoint: numericTuple(2),
   entities: { type: 'array', minItems: 1, maxItems: 1024, items: geologyPlanBaseMapBlockMemberSchema },
