@@ -350,3 +350,64 @@ test('section style pack preserves bounded title and scale TEXT placement throug
   assert.throws(invalid(style => { style.scale.height = 12.01 }), /out of bounds/u)
   assert.throws(invalid(style => { style.title.anchorX = 2 }), /geometry is unreadable/u)
 })
+
+test('section style pack preserves bounded text roles, composite interval labels and distinct column/band hatch presentation', async () => {
+  const pack = structuredClone(KJDRAW_GEOLOGY_KNOWLEDGE_PACK)
+  pack.id = 'test.section.text-and-hatch-roles'
+  pack.version = '1.0.0'
+  const placement = (offset, height, horizontalAlignment = 0) => ({
+    offset, height, textWidthFactor: 1, horizontalAlignment, verticalAlignment: 0,
+  })
+  pack.rules['geology-section-layout'].sectionTextStyle = {
+    elevationTick: placement([-12, -0.5], 2, 2),
+    holeIdentifier: placement([0, 10], 3, 4),
+    collarElevation: placement([0, 5], 3, 4),
+    intervalBottom: { ...placement([2, -1], 2.2), format: 'depth-elevation', precision: 2 },
+    station: { ...placement([0, 5], 3, 4), mode: 'adjacent-spacing-between-holes', precision: 1 },
+    holeDepth: { ...placement([0, -12], 2), visibility: 'omitted', precision: 2 },
+    stationLabel: { ...placement([-8, 4], 2.5), visibility: 'shown' },
+  }
+  pack.rules['geology-section-layout'].sectionHatchPresentation = {
+    boreholeColumn: { patternScale: 0.75, patternAngle: 0.25 },
+    stratigraphicBand: { patternScale: 1.25, patternAngle: 0 },
+  }
+  const input = { holes, correlations: [{ fromHoleId: 'ZK1', toHoleId: 'ZK2', fromStratumCode: '1', toStratumCode: '1' }], sectionStylePack: pack,
+    horizontalScaleDenominator: 100, verticalScaleDenominator: 100, datumElevation: 80,
+    surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 }
+  const result = compileGeologySection(input)
+  const texts = result.commandArgs.entities.filter(entity => entity.type === 'TEXT')
+  const composite = texts.find(entity => entity.payload.text === '10.00-90.00')
+  assert.ok(composite)
+  assert.deepEqual([composite.payload.height, composite.payload.position, composite.payload.horizontalAlignment ?? 0], [2.2, [54, 142, 0], 0])
+  const holeIdentifier = texts.find(entity => entity.payload.text === 'ZK1')
+  assert.deepEqual([holeIdentifier.payload.height, holeIdentifier.payload.horizontalAlignment], [3, 4])
+  const spacing = texts.find(entity => entity.payload.text === '20.0')
+  assert.deepEqual([spacing.payload.height, spacing.payload.horizontalAlignment], [3, 4])
+  assert.equal(texts.some(entity => /^(?:STA|DEPTH) /u.test(entity.payload.text)), false)
+  const hatches = result.commandArgs.entities.filter(entity => entity.type === 'HATCH' && entity.payload.solid !== true)
+  const width = entity => {
+    const xs = entity.payload.boundaryLoops[0].vertices.map(vertex => vertex[0])
+    return Math.max(...xs) - Math.min(...xs)
+  }
+  const columns = hatches.filter(entity => width(entity) < 10), bands = hatches.filter(entity => width(entity) > 10)
+  assert.equal(columns.length, 2)
+  assert.equal(bands.length, 1)
+  assert.ok(columns.every(entity => entity.payload.patternScale === 0.75 && entity.payload.patternAngle === 0.25))
+  assert.ok(bands.every(entity => entity.payload.patternScale === 1.25 && entity.payload.patternAngle === 0))
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', result.commandArgs, { document })
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await sdk.readDocument(bytes, { format })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+    assert.equal(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === '10.00-90.00'), true)
+    assert.equal(reopened.listEntities({ type: 'HATCH' }).filter(entity => entity.payload.solid !== true).length, 3)
+  }
+  const invalidText = structuredClone(input)
+  invalidText.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.intervalBottom.precision = 5
+  assert.throws(() => compileGeologySection(invalidText), /precision is out of bounds/u)
+  const invalidHatch = structuredClone(input)
+  invalidHatch.sectionStylePack.rules['geology-section-layout'].sectionHatchPresentation.stratigraphicBand.patternScale = 0
+  assert.throws(() => compileGeologySection(invalidHatch), /hatch presentation is out of bounds/u)
+})

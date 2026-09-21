@@ -43,6 +43,18 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
       paperWidth: 420, paperHeight: 297, outerMargins: { left: 5, right: 5, bottom: 5, top: 5 },
       innerMargins: { left: 12, right: 12, bottom: 12, top: 12 },
       frameStyle: { outer: { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 }, inner: { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 } },
+      sectionTextStyle: {
+        elevationTick: { offset: [-12, -0.5], height: 2, textWidthFactor: 1, horizontalAlignment: 2, verticalAlignment: 0 },
+        holeIdentifier: { offset: [0, 10], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 },
+        collarElevation: { offset: [0, 5], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 },
+        intervalBottom: { offset: [2, -1], height: 2.2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0, format: 'depth-elevation', precision: 2 },
+        station: { offset: [0, 5], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0, mode: 'adjacent-spacing-between-holes', precision: 1 },
+        holeDepth: { offset: [0, -12], height: 2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0, visibility: 'omitted', precision: 2 },
+        stationLabel: { offset: [-8, 4], height: 2.5, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0, visibility: 'shown' },
+      },
+      sectionHatchPresentation: {
+        boreholeColumn: { patternScale: 0.75, patternAngle: 0.25 }, stratigraphicBand: { patternScale: 1.25, patternAngle: 0 },
+      },
       footerFrameStyle: { left: 12, right: 408, bottom: 12, top: 22, guideY: 12, primitive: 'line-segments', cellMode: 'none' },
       headingTextStyle: { title: { anchorX: 210, height: 6, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 }, scale: { anchorX: 210, height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
       sectionReferenceStyle: { start: { offset: [150, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'right', verticalAlignment: 'baseline' }, end: { offset: [270, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
@@ -59,6 +71,10 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
   const proposal = accepted(await session.call('cad_propose_geology_section', request))
   assert.deepEqual(session.geologySectionKnowledge, { id: pack.id, version: pack.version, sha256: digest })
   assert.deepEqual(proposal.engineeringEvidence.knowledgePack, { id: pack.id, version: pack.version, sha256: digest })
+  assert.equal(proposal.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === '3.00-102.25'), true)
+  const roleHatches = proposal.arguments.entities.filter(entity => entity.type === 'HATCH' && entity.payload.solid !== true)
+  assert.equal(roleHatches.some(entity => entity.payload.patternScale === 0.75 && entity.payload.patternAngle === 0.25), true)
+  assert.equal(roleHatches.some(entity => entity.payload.patternScale === 1.25 && entity.payload.patternAngle === 0), true)
   const footerEdges = [
     [[12, 12, 0], [408, 12, 0]], [[408, 12, 0], [408, 22, 0]],
     [[408, 22, 0], [12, 22, 0]], [[12, 22, 0], [12, 12, 0]],

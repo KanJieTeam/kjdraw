@@ -1490,6 +1490,12 @@ function sectionLayout(input) {
         ...value.frameStyle == null ? [] : [
             'frameStyle'
         ],
+        ...value.sectionTextStyle == null ? [] : [
+            'sectionTextStyle'
+        ],
+        ...value.sectionHatchPresentation == null ? [] : [
+            'sectionHatchPresentation'
+        ],
         ...value.headingTextStyle == null ? [] : [
             'headingTextStyle'
         ],
@@ -1539,6 +1545,125 @@ function sectionLayout(input) {
         headingTextStyle = {
             title: parseHeadingTextRule(supplied.title, 'title'),
             scale: parseHeadingTextRule(supplied.scale, 'scale')
+        };
+    }
+    const placementKeys = [
+        'height',
+        'horizontalAlignment',
+        'offset',
+        'textWidthFactor',
+        'verticalAlignment'
+    ];
+    const parseSectionTextPlacement = (raw, label, extras = [])=>{
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== [
+            ...placementKeys,
+            ...extras
+        ].sort().join(',')) throw new KJValidationError(`Geology: section ${label} text role needs an exact placement schema`);
+        const rule = raw;
+        if (!Array.isArray(rule.offset) || rule.offset.length !== 2) throw new KJValidationError(`Geology: section ${label} text offset needs two millimetre coordinates`);
+        const offset = rule.offset.map((value, index)=>numeric(value, `section ${label} text offset ${index + 1}`));
+        const height = numeric(rule.height, `section ${label} text height`);
+        const textWidthFactor = numeric(rule.textWidthFactor, `section ${label} text width factor`);
+        if (offset.some((value)=>Math.abs(value) > 80) || height < 0.5 || height > 8 || textWidthFactor < 0.2 || textWidthFactor > 2 || ![
+            0,
+            1,
+            2,
+            4
+        ].includes(rule.horizontalAlignment) || ![
+            0,
+            1,
+            2,
+            3
+        ].includes(rule.verticalAlignment)) throw new KJValidationError(`Geology: section ${label} text role is out of bounds`);
+        return {
+            offset,
+            height,
+            textWidthFactor,
+            horizontalAlignment: rule.horizontalAlignment,
+            verticalAlignment: rule.verticalAlignment
+        };
+    };
+    const precision = (raw, label)=>{
+        const value = numeric(raw, `section ${label} precision`);
+        if (!Number.isInteger(value) || value < 0 || value > 4) throw new KJValidationError(`Geology: section ${label} precision is out of bounds`);
+        return value;
+    };
+    let sectionTextStyle;
+    if (value.sectionTextStyle != null) {
+        if (!value.sectionTextStyle || typeof value.sectionTextStyle !== 'object' || Array.isArray(value.sectionTextStyle) || Object.keys(value.sectionTextStyle).sort().join(',') !== 'collarElevation,elevationTick,holeDepth,holeIdentifier,intervalBottom,station,stationLabel') throw new KJValidationError('Geology: section text style needs every declared text role');
+        const supplied = value.sectionTextStyle;
+        const interval = supplied.intervalBottom, station = supplied.station;
+        const holeDepth = supplied.holeDepth, stationLabel = supplied.stationLabel;
+        const intervalPlacement = parseSectionTextPlacement(interval, 'interval bottom', [
+            'format',
+            'precision'
+        ]);
+        const stationPlacement = parseSectionTextPlacement(station, 'station', [
+            'mode',
+            'precision'
+        ]);
+        const holeDepthPlacement = parseSectionTextPlacement(holeDepth, 'hole depth', [
+            'precision',
+            'visibility'
+        ]);
+        const stationLabelPlacement = parseSectionTextPlacement(stationLabel, 'station label', [
+            'visibility'
+        ]);
+        if (![
+            'depth',
+            'depth-elevation'
+        ].includes(interval.format) || ![
+            'cumulative-at-hole',
+            'adjacent-spacing-between-holes'
+        ].includes(station.mode) || ![
+            'shown',
+            'omitted'
+        ].includes(holeDepth.visibility) || ![
+            'shown',
+            'omitted'
+        ].includes(stationLabel.visibility)) throw new KJValidationError('Geology: section text presentation mode is invalid');
+        sectionTextStyle = {
+            elevationTick: parseSectionTextPlacement(supplied.elevationTick, 'elevation tick'),
+            holeIdentifier: parseSectionTextPlacement(supplied.holeIdentifier, 'hole identifier'),
+            collarElevation: parseSectionTextPlacement(supplied.collarElevation, 'collar elevation'),
+            intervalBottom: {
+                ...intervalPlacement,
+                format: interval.format,
+                precision: precision(interval.precision, 'interval bottom')
+            },
+            station: {
+                ...stationPlacement,
+                mode: station.mode,
+                precision: precision(station.precision, 'station')
+            },
+            holeDepth: {
+                ...holeDepthPlacement,
+                visibility: holeDepth.visibility,
+                precision: precision(holeDepth.precision, 'hole depth')
+            },
+            stationLabel: {
+                ...stationLabelPlacement,
+                visibility: stationLabel.visibility
+            }
+        };
+    }
+    const parseHatchPresentation = (raw, label)=>{
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'patternAngle,patternScale') throw new KJValidationError(`Geology: section ${label} hatch presentation needs exact angle and scale`);
+        const rule = raw, patternScale = numeric(rule.patternScale, `section ${label} hatch scale`);
+        const patternAngle = numeric(rule.patternAngle, `section ${label} hatch angle`);
+        if (patternScale < 0.01 || patternScale > 100 || patternAngle < -360 || patternAngle > 360) throw new KJValidationError(`Geology: section ${label} hatch presentation is out of bounds`);
+        return {
+            patternScale,
+            patternAngle
+        };
+    };
+    let sectionHatchPresentation;
+    if (value.sectionHatchPresentation != null) {
+        if (!value.sectionHatchPresentation || typeof value.sectionHatchPresentation !== 'object' || Array.isArray(value.sectionHatchPresentation) || Object.keys(value.sectionHatchPresentation).sort().join(',') !== 'boreholeColumn,stratigraphicBand') throw new KJValidationError('Geology: section hatch presentation needs column and band roles');
+        const supplied = value.sectionHatchPresentation;
+        sectionHatchPresentation = {
+            boreholeColumn: parseHatchPresentation(supplied.boreholeColumn, 'borehole column'),
+            stratigraphicBand: parseHatchPresentation(supplied.stratigraphicBand, 'stratigraphic band')
         };
     }
     const legacyFrameRule = {
@@ -1759,6 +1884,12 @@ function sectionLayout(input) {
             headingTextStyle
         } : {},
         footerGrid,
+        ...sectionTextStyle ? {
+            sectionTextStyle
+        } : {},
+        ...sectionHatchPresentation ? {
+            sectionHatchPresentation
+        } : {},
         ...footerFrameStyle ? {
             footerFrameStyle
         } : {},
@@ -2119,7 +2250,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
             patternScale: 1,
             patternAngle: 0
         });
-    const hatch = (points, layer)=>add('HATCH', 2, {
+    const hatch = (points, layer, presentation)=>add('HATCH', 2, {
             boundaryLoops: [
                 {
                     external: true,
@@ -2131,7 +2262,8 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
             solid: false,
             patternScale: 0.6,
             patternAngle: 0,
-            ...hatches[layer.patternKey ?? layer.lithology] ?? {}
+            ...hatches[layer.patternKey ?? layer.lithology] ?? {},
+            ...presentation ?? {}
         });
     const finish = (parameters)=>deepFreeze({
             commandArgs: {
@@ -3348,6 +3480,8 @@ export function compileGeologySection(input) {
         ...byId.values()
     ].flatMap((value)=>value.strata)), undefined, undefined, layout.drawingOrigin);
     const emitPlaced = (baseX, baseY, value, placement)=>g.placedText(3, baseX + placement.offset[0], baseY + placement.offset[1], value, placement.height, placement.textWidthFactor, placement.horizontalAlignment === 'center' ? 1 : placement.horizontalAlignment === 'right' ? 2 : 0, placement.verticalAlignment === 'middle' ? 2 : 0, 0);
+    const emitTextRole = (baseX, baseY, value, placement)=>g.placedText(3, baseX + placement.offset[0], baseY + placement.offset[1], value, placement.height, placement.textWidthFactor, placement.horizontalAlignment, placement.verticalAlignment, 0);
+    const fixed = (value, precision)=>value.toFixed(precision);
     const frame = (margins, rule)=>{
         const left = margins.left, right = layout.paperWidth - margins.right;
         const bottom = margins.bottom, top = layout.paperHeight - margins.top;
@@ -3416,7 +3550,9 @@ export function compileGeologySection(input) {
         const tickY = layout.plotBottom + (elevation - datum) * vs;
         if (tickY > layout.plotTop) break;
         g.line(1, layout.plotLeft - 1.8, tickY, layout.plotLeft + 2.2, tickY);
-        g.text(3, layout.plotLeft - 13, tickY - 0.7, Number.isInteger(elevation) ? elevation.toFixed(0) : metres(elevation), 1.6);
+        const visible = Number.isInteger(elevation) ? elevation.toFixed(0) : metres(elevation);
+        if (layout.sectionTextStyle) emitTextRole(layout.plotLeft, tickY, visible, layout.sectionTextStyle.elevationTick);
+        else g.text(3, layout.plotLeft - 13, tickY - 0.7, visible, 1.6);
     }
     const footerBottom = layout.footerFrameStyle?.bottom ?? layout.innerMargins.bottom;
     const footerTop = layout.footerFrameStyle?.top ?? footerBottom + layout.footerHeight;
@@ -3448,6 +3584,14 @@ export function compileGeologySection(input) {
             x(hole),
             y(hole, 0)
         ]);
+    const sectionText = layout.sectionTextStyle;
+    if (sectionText?.station.mode === 'adjacent-spacing-between-holes') {
+        if (sectionText.stationLabel.visibility === 'shown') emitTextRole(layout.plotLeft, footerBottom, locale === 'zh-CN' ? '勘探点间距(m)' : 'POINT SPACING (m)', sectionText.stationLabel);
+        for(let index = 1; index < holes.length; index++){
+            const left = holes[index - 1], right = holes[index];
+            emitTextRole((x(left) + x(right)) / 2, footerBottom, fixed(right.station - left.station, sectionText.station.precision), sectionText.station);
+        }
+    } else if (sectionText?.stationLabel.visibility === 'shown') emitTextRole(layout.plotLeft, footerBottom, locale === 'zh-CN' ? '里程' : 'STATION', sectionText.stationLabel);
     g.poly(1, surface);
     for (const hole of holes){
         const center = x(hole), top = y(hole, 0), bottom = y(hole, hole.depth);
@@ -3455,10 +3599,17 @@ export function compileGeologySection(input) {
         g.line(4, center, layout.footerFrameStyle?.guideY ?? footerTop, center, top);
         g.rect(1, center - half, bottom, center + half, top);
         g.line(1, center - 5, top + 1.5, center + 5, top + 1.5);
-        g.text(3, center, top + 6.2, hole.id, 2.1, true);
-        g.text(3, center, top + 3.2, metres(hole.collarElevation), 1.5, true);
-        g.text(3, center - 9, layout.plotBottom - 8, `${locale === 'zh-CN' ? '里程' : 'STA'} ${metres(hole.station)}`, 1.7);
-        g.text(3, center - 9, layout.plotBottom - 13, `${locale === 'zh-CN' ? '孔深' : 'DEPTH'} ${metres(hole.depth)}`, 1.7);
+        if (sectionText) {
+            emitTextRole(center, top, hole.id, sectionText.holeIdentifier);
+            emitTextRole(center, top, metres(hole.collarElevation), sectionText.collarElevation);
+            if (sectionText.station.mode === 'cumulative-at-hole') emitTextRole(center, layout.plotBottom, `${locale === 'zh-CN' ? '里程' : 'STA'} ${fixed(hole.station, sectionText.station.precision)}`, sectionText.station);
+            if (sectionText.holeDepth.visibility === 'shown') emitTextRole(center, layout.plotBottom, `${locale === 'zh-CN' ? '孔深' : 'DEPTH'} ${fixed(hole.depth, sectionText.holeDepth.precision)}`, sectionText.holeDepth);
+        } else {
+            g.text(3, center, top + 6.2, hole.id, 2.1, true);
+            g.text(3, center, top + 3.2, metres(hole.collarElevation), 1.5, true);
+            g.text(3, center - 9, layout.plotBottom - 8, `${locale === 'zh-CN' ? '里程' : 'STA'} ${metres(hole.station)}`, 1.7);
+            g.text(3, center - 9, layout.plotBottom - 13, `${locale === 'zh-CN' ? '孔深' : 'DEPTH'} ${metres(hole.depth)}`, 1.7);
+        }
         for (const layer of byId.get(hole.id).strata){
             const a = y(hole, layer.top), b = y(hole, layer.bottom);
             g.line(1, center - half - 1, b, center + half + 5, b);
@@ -3479,8 +3630,12 @@ export function compileGeologySection(input) {
                     center - half,
                     a
                 ]
-            ], layer);
-            g.text(3, center + half + 1.5, b + 0.5, metres(layer.bottom), 1.35);
+            ], layer, layout.sectionHatchPresentation?.boreholeColumn);
+            if (sectionText) {
+                const role = sectionText.intervalBottom, depth = fixed(layer.bottom, role.precision);
+                const visible = role.format === 'depth-elevation' ? `${depth}-${fixed(hole.collarElevation - layer.bottom, role.precision)}` : depth;
+                emitTextRole(center, b, visible, role);
+            } else g.text(3, center + half + 1.5, b + 0.5, metres(layer.bottom), 1.35);
         }
         if (hole.stableWaterDepth != null) {
             const waterY = y(hole, hole.stableWaterDepth);
@@ -3641,7 +3796,7 @@ export function compileGeologySection(input) {
                 xl,
                 topL
             ]
-        ], a);
+        ], a, layout.sectionHatchPresentation?.stratigraphicBand);
         g.line(1, xl, bottomL, xr, bottomR);
         g.line(1, xl, topL, xr, topR);
         g.text(3, (xl + xr) / 2, (topL + topR + bottomL + bottomR) / 4, a.code, 1.8, true);
@@ -3654,7 +3809,7 @@ export function compileGeologySection(input) {
         for (const cell of [
             ...topology.mainCells,
             ...topology.lensCells
-        ])g.hatch(cell.points.map(topologyPoint), cell.source);
+        ])g.hatch(cell.points.map(topologyPoint), cell.source, layout.sectionHatchPresentation?.stratigraphicBand);
         for (const boundary of topology.mainBoundaries){
             const [start, end] = boundary.points.map(topologyPoint);
             g.semanticLine(1, start[0], start[1], end[0], end[1], {
