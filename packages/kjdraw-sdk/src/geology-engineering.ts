@@ -348,6 +348,10 @@ type SectionHeadingTextRule = { anchorX: number; height: number; textWidthFactor
 
 type SectionTextPlacementRule = { offset: [number, number]; height: number; textWidthFactor: number;
   horizontalAlignment: 0 | 1 | 2 | 4; verticalAlignment: 0 | 1 | 2 | 3 }
+type SectionHoleIdentifierLabelOverride = {
+  holeId: string
+  placement: SectionTextPlacementRule
+}
 type SectionCollarElevationLabelOverride = {
   holeId: string
   elevation: number
@@ -362,7 +366,7 @@ type SectionIntervalBottomLabelOverride = {
 }
 type SectionTextStyle = {
   elevationTick: SectionTextPlacementRule
-  holeIdentifier: SectionTextPlacementRule
+  holeIdentifier: SectionTextPlacementRule & { labelOverrides?: SectionHoleIdentifierLabelOverride[] }
   collarElevation: SectionTextPlacementRule & { labelOverrides?: SectionCollarElevationLabelOverride[] }
   intervalBottom: SectionTextPlacementRule & { format: 'depth' | 'depth-elevation'; precision: 0 | 1 | 2 | 3 | 4;
     labelOverrides?: SectionIntervalBottomLabelOverride[] }
@@ -1526,9 +1530,12 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
       Object.keys(value.sectionTextStyle).sort().join(',') !== 'collarElevation,elevationTick,holeDepth,holeIdentifier,intervalBottom,station,stationLabel')
       throw new KJValidationError('Geology: section text style needs every declared text role')
     const supplied = value.sectionTextStyle as Record<string, unknown>
+    const holeIdentifier = supplied.holeIdentifier as Record<string, unknown>
     const collar = supplied.collarElevation as Record<string, unknown>, interval = supplied.intervalBottom as Record<string, unknown>
     const station = supplied.station as Record<string, unknown>
     const holeDepth = supplied.holeDepth as Record<string, unknown>, stationLabel = supplied.stationLabel as Record<string, unknown>
+    const holeIdentifierPlacement = parseSectionTextPlacement(holeIdentifier, 'hole identifier',
+      holeIdentifier?.labelOverrides == null ? [] : ['labelOverrides'])
     const collarPlacement = parseSectionTextPlacement(collar, 'collar elevation',
       collar?.labelOverrides == null ? [] : ['labelOverrides'])
     const intervalPlacement = parseSectionTextPlacement(interval, 'interval bottom', ['format', 'precision',
@@ -1540,6 +1547,21 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
       !['cumulative-at-hole', 'adjacent-spacing-between-holes'].includes(station.mode as string) ||
       !['shown', 'omitted'].includes(holeDepth.visibility as string) || !['shown', 'omitted'].includes(stationLabel.visibility as string))
       throw new KJValidationError('Geology: section text presentation mode is invalid')
+    let holeIdentifierLabelOverrides: SectionHoleIdentifierLabelOverride[] | undefined
+    if (holeIdentifier.labelOverrides != null) {
+      if (!Array.isArray(holeIdentifier.labelOverrides) || holeIdentifier.labelOverrides.length < 1 || holeIdentifier.labelOverrides.length > 256)
+        throw new KJValidationError('Geology: section hole identifier label overrides need bounded source facts')
+      const identities = new Set<string>()
+      holeIdentifierLabelOverrides = holeIdentifier.labelOverrides.map((raw, index) => {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'holeId,placement')
+          throw new KJValidationError(`Geology: section hole identifier label override ${index + 1} needs an exact fact schema`)
+        const item = raw as Record<string, unknown>
+        const holeId = bounded(item.holeId, `section hole identifier label override ${index + 1} hole id`)
+        if (identities.has(holeId)) throw new KJValidationError('Geology: section hole identifier label overrides must be unique')
+        identities.add(holeId)
+        return { holeId, placement: parseSectionTextPlacement(item.placement, `hole identifier label override ${index + 1}`) }
+      })
+    }
     let collarLabelOverrides: SectionCollarElevationLabelOverride[] | undefined
     if (collar.labelOverrides != null) {
       if (!Array.isArray(collar.labelOverrides) || collar.labelOverrides.length < 1 || collar.labelOverrides.length > 256)
@@ -1590,7 +1612,7 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     }
     sectionTextStyle = {
       elevationTick: parseSectionTextPlacement(supplied.elevationTick, 'elevation tick'),
-      holeIdentifier: parseSectionTextPlacement(supplied.holeIdentifier, 'hole identifier'),
+      holeIdentifier: { ...holeIdentifierPlacement, ...(holeIdentifierLabelOverrides ? { labelOverrides: holeIdentifierLabelOverrides } : {}) },
       collarElevation: { ...collarPlacement, ...(collarLabelOverrides ? { labelOverrides: collarLabelOverrides } : {}) },
       intervalBottom: { ...intervalPlacement, format: interval.format as 'depth' | 'depth-elevation', precision: precision(interval.precision, 'interval bottom'),
         ...(labelOverrides ? { labelOverrides } : {}) },
@@ -3197,6 +3219,12 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   g.poly(1, surface)
   const intervalBottomLabelOverrides = new Map((sectionText?.intervalBottom.labelOverrides ?? []).map(item =>
     [`${item.holeId}\u0000${item.intervalId}`, item]))
+  const holeIdentifierLabelOverrides = new Map((sectionText?.holeIdentifier.labelOverrides ?? []).map(item =>
+    [item.holeId, item.placement]))
+  for (const item of sectionText?.holeIdentifier.labelOverrides ?? []) {
+    if (!byId.has(item.holeId))
+      throw new KJValidationError('Geology: section hole identifier label override references an unknown supplied hole')
+  }
   const collarElevationLabelOverrides = new Map((sectionText?.collarElevation.labelOverrides ?? []).map(item =>
     [item.holeId, item]))
   for (const item of sectionText?.collarElevation.labelOverrides ?? []) {
@@ -3259,7 +3287,7 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     }
     if (sectionText) {
       const collarLabelOverride = collarElevationLabelOverrides.get(hole.id)
-      emitTextRole(center, top, hole.id, sectionText.holeIdentifier)
+      emitTextRole(center, top, hole.id, holeIdentifierLabelOverrides.get(hole.id) ?? sectionText.holeIdentifier)
       emitTextRole(center, top, metres(collarLabelOverride?.elevation ?? hole.collarElevation),
         collarLabelOverride?.placement ?? sectionText.collarElevation)
       if (sectionText.station.mode === 'cumulative-at-hole') emitTextRole(center, layout.plotBottom,
@@ -3486,6 +3514,8 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
       sourceBackedPatternEntityCount: layout.sourceBackedPatternSymbols.length * 3 } : {}),
     ...(sectionText?.intervalBottom.labelOverrides ?
       { sourceBackedIntervalBottomLabelOverrideCount: sectionText.intervalBottom.labelOverrides.length } : {}),
+    ...(sectionText?.holeIdentifier.labelOverrides ?
+      { sourceBackedHoleIdentifierLabelOverrideCount: sectionText.holeIdentifier.labelOverrides.length } : {}),
     ...(sectionText?.collarElevation.labelOverrides ?
       { sourceBackedCollarElevationLabelOverrideCount: sectionText.collarElevation.labelOverrides.length } : {}),
     ...(groundwaterStyle?.labelOverrides ?

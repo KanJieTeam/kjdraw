@@ -388,7 +388,9 @@ test('section style pack preserves bounded text roles, composite interval labels
   })
   pack.rules['geology-section-layout'].sectionTextStyle = {
     elevationTick: placement([-12, -0.5], 2, 2),
-    holeIdentifier: placement([0, 10], 3, 4),
+    holeIdentifier: { ...placement([0, 10], 3, 4), labelOverrides: [
+      { holeId: 'ZK1', placement: placement([0.5, 10.5], 3, 4) },
+    ] },
     collarElevation: { ...placement([0, 5], 3, 4), labelOverrides: [
       { holeId: 'ZK1', elevation: 100.004, placement: placement([0.25, 5.25], 3, 4) },
     ] },
@@ -421,7 +423,8 @@ test('section style pack preserves bounded text roles, composite interval labels
   assert.deepEqual([holeIdentifier.payload.height, holeIdentifier.payload.horizontalAlignment], [3, 4])
   const collarElevation = texts.find(entity => entity.payload.text === '100.00')
   assert.deepEqual([collarElevation.payload.position[0] - holeIdentifier.payload.position[0],
-    collarElevation.payload.position[1] - holeIdentifier.payload.position[1]], [0.25, -4.75])
+    collarElevation.payload.position[1] - holeIdentifier.payload.position[1]], [-0.25, -5.25])
+  assert.equal(result.evidence.parameters.sourceBackedHoleIdentifierLabelOverrideCount, 1)
   assert.equal(result.evidence.parameters.sourceBackedCollarElevationLabelOverrideCount, 1)
   const spacing = texts.find(entity => entity.payload.text === '20.0')
   assert.deepEqual([spacing.payload.height, spacing.payload.horizontalAlignment], [3, 4])
@@ -455,6 +458,12 @@ test('section style pack preserves bounded text roles, composite interval labels
   const mismatchedDepth = structuredClone(input)
   mismatchedDepth.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.intervalBottom.labelOverrides[0].depth = 9
   assert.throws(() => compileGeologySection(mismatchedDepth), /depth does not match its supplied interval/u)
+  const unknownHoleIdentifier = structuredClone(input)
+  unknownHoleIdentifier.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.holeIdentifier.labelOverrides[0].holeId = 'absent'
+  assert.throws(() => compileGeologySection(unknownHoleIdentifier), /hole identifier label override references an unknown supplied hole/u)
+  const unknownHoleIdentifierField = structuredClone(input)
+  unknownHoleIdentifierField.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.holeIdentifier.labelOverrides[0].invented = true
+  assert.throws(() => compileGeologySection(unknownHoleIdentifierField), /needs an exact fact schema/u)
   const unknownCollar = structuredClone(input)
   unknownCollar.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.collarElevation.labelOverrides[0].holeId = 'absent'
   assert.throws(() => compileGeologySection(unknownCollar), /references an unknown supplied hole/u)

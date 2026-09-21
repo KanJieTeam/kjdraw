@@ -45,7 +45,9 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
       frameStyle: { outer: { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 }, inner: { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 } },
       sectionTextStyle: {
         elevationTick: { offset: [-12, -0.5], height: 2, textWidthFactor: 1, horizontalAlignment: 2, verticalAlignment: 0 },
-        holeIdentifier: { offset: [0, 10], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 },
+        holeIdentifier: { offset: [0, 10], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0, labelOverrides: [
+          { holeId: 'SYN-01', placement: { offset: [0.5, 10.5], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
+        ] },
         collarElevation: { offset: [0, 5], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0, labelOverrides: [
           { holeId: 'SYN-01', elevation: 105.254, placement: { offset: [0.25, 5.25], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
         ] },
@@ -106,7 +108,8 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
   const collarElevation = proposal.arguments.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === '105.25')
   const holeIdentifier = proposal.arguments.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'SYN-01')
   assert.deepEqual([collarElevation.payload.position[0] - holeIdentifier.payload.position[0],
-    collarElevation.payload.position[1] - holeIdentifier.payload.position[1]], [0.25, -4.75])
+    collarElevation.payload.position[1] - holeIdentifier.payload.position[1]], [-0.25, -5.25])
+  assert.equal(proposal.engineeringEvidence.parameters.sourceBackedHoleIdentifierLabelOverrideCount, 1)
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedCollarElevationLabelOverrideCount, 1)
   const stableWaterLabel = proposal.arguments.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === '6.00-99.13')
   assert.deepEqual(stableWaterLabel.payload.position, [40.5, 189.75, 0])
