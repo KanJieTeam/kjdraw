@@ -181,3 +181,56 @@ test('section style pack preserves explicit frame primitives, start corners, win
   assert.throws(invalid(style => { style.outer.winding = 'inside-out' }), /winding is invalid/u)
   assert.throws(invalid(style => { style.inner.constantWidth = 5.01 }), /out of bounds/u)
 })
+
+test('section style pack preserves bounded title and scale TEXT placement through KJD and DXF', async () => {
+  const pack = JSON.parse(JSON.stringify(KJDRAW_GEOLOGY_KNOWLEDGE_PACK))
+  pack.id = 'test.section.heading-text-placement'
+  pack.version = '1.0.0'
+  const rule = pack.rules['geology-section-layout']
+  rule.headingTextStyle = {
+    title: { anchorX: 233, height: 6.25, textWidthFactor: 0.8, horizontalAlignment: 4, verticalAlignment: 0 },
+    scale: { anchorX: 237, height: 3.75, textWidthFactor: 0.7, horizontalAlignment: 2, verticalAlignment: 3 },
+  }
+  const input = { holes, correlations: [], sectionStylePack: pack, title: 'SYNTHETIC SECTION TITLE',
+    horizontalScaleDenominator: 100, verticalScaleDenominator: 100, datumElevation: 80,
+    surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 }
+  const result = compileGeologySection(input)
+  const texts = result.commandArgs.entities.filter(entity => entity.type === 'TEXT')
+  const title = texts.find(entity => entity.payload.text === input.title)
+  const scale = texts.find(entity => String(entity.payload.text).startsWith('HORIZONTAL'))
+  assert.deepEqual([title.payload.position, title.payload.alignmentPoint, title.payload.height, title.payload.widthFactor,
+    title.payload.horizontalAlignment, title.payload.verticalAlignment ?? 0], [[233, 277, 0], [233, 277, 0], 6.25, 0.8, 4, 0])
+  assert.deepEqual([scale.payload.position, scale.payload.alignmentPoint, scale.payload.height, scale.payload.widthFactor,
+    scale.payload.horizontalAlignment, scale.payload.verticalAlignment], [[237, 268, 0], [237, 268, 0], 3.75, 0.7, 2, 3])
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', result.commandArgs, { document })
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await sdk.readDocument(bytes, { format })
+    const reopenedTitle = reopened.listEntities({ type: 'TEXT' }).find(entity => entity.payload.text === input.title)
+    const reopenedScale = reopened.listEntities({ type: 'TEXT' }).find(entity => String(entity.payload.text).startsWith('HORIZONTAL'))
+    for (const [actual, expected] of [[reopenedTitle, title], [reopenedScale, scale]]) {
+      assert.equal(actual.payload.height, expected.payload.height)
+      assert.equal(actual.payload.widthFactor, expected.payload.widthFactor)
+      assert.equal(actual.payload.horizontalAlignment, expected.payload.horizontalAlignment)
+      assert.equal(actual.payload.verticalAlignment ?? 0, expected.payload.verticalAlignment ?? 0)
+      assert.deepEqual(actual.payload.alignmentPoint, expected.payload.alignmentPoint)
+    }
+    assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+  }
+  const legacy = structuredClone(input)
+  delete legacy.sectionStylePack.rules['geology-section-layout'].headingTextStyle
+  const legacyTitle = compileGeologySection(legacy).commandArgs.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === input.title)
+  assert.deepEqual([legacyTitle.payload.height, legacyTitle.payload.horizontalAlignment, legacyTitle.payload.position,
+    legacyTitle.payload.widthFactor, legacyTitle.payload.rotation], [5, 1, [210, 277, 0], undefined, undefined])
+  const invalid = mutate => {
+    const changed = structuredClone(input)
+    mutate(changed.sectionStylePack.rules['geology-section-layout'].headingTextStyle)
+    return () => compileGeologySection(changed)
+  }
+  assert.throws(invalid(style => { style.title.extra = true }), /exact placement schema/u)
+  assert.throws(invalid(style => { delete style.scale.height }), /exact placement schema/u)
+  assert.throws(invalid(style => { style.title.horizontalAlignment = 3 }), /out of bounds/u)
+  assert.throws(invalid(style => { style.title.anchorX = 2 }), /geometry is unreadable/u)
+  assert.throws(invalid(style => { style.scale.height = 12.01 }), /out of bounds/u)
+})

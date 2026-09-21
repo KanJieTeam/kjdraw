@@ -299,6 +299,9 @@ type SectionFrameRule =
   | { primitive: 'line-segments'; startCorner: SectionFrameCorner; winding: SectionFrameWinding }
   | { primitive: 'closed-polyline'; startCorner: SectionFrameCorner; winding: SectionFrameWinding; constantWidth: number }
 
+type SectionHeadingTextRule = { anchorX: number; height: number; textWidthFactor: number;
+  horizontalAlignment: 0 | 1 | 2 | 4; verticalAlignment: 0 | 1 | 2 | 3 }
+
 interface SectionLayout {
   paperWidth: number
   paperHeight: number
@@ -306,6 +309,7 @@ interface SectionLayout {
   outerMargins: { left: number; right: number; bottom: number; top: number }
   innerMargins: { left: number; right: number; bottom: number; top: number }
   frameStyle: { outer: SectionFrameRule; inner: SectionFrameRule }
+  headingTextStyle?: { title: SectionHeadingTextRule; scale: SectionHeadingTextRule }
   plotLeft: number
   plotRight: number
   plotBottom: number
@@ -1247,9 +1251,29 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
   const scalarKeys = ['paperWidth', 'paperHeight', 'plotLeft', 'plotRight', 'plotBottom', 'plotTop', 'titleY', 'scaleY', 'footerHeight', 'boreholeWidth', 'elevationTickStep'] as const
   const hasOuterMargins = value.outerMargins != null, hasInnerMargins = value.innerMargins != null
   const expectedKeys = [...scalarKeys, 'footerGrid', hasOuterMargins ? 'outerMargins' : 'outerMargin',
-    hasInnerMargins ? 'innerMargins' : 'innerMargin', ...(value.drawingOrigin == null ? [] : ['drawingOrigin']), ...(value.frameStyle == null ? [] : ['frameStyle'])]
+    hasInnerMargins ? 'innerMargins' : 'innerMargin', ...(value.drawingOrigin == null ? [] : ['drawingOrigin']), ...(value.frameStyle == null ? [] : ['frameStyle']),
+    ...(value.headingTextStyle == null ? [] : ['headingTextStyle'])]
   if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field')
-  const scalars = Object.fromEntries(scalarKeys.map(key => [key, numeric(value[key], `section ${key}`)])) as unknown as Omit<SectionLayout, 'footerGrid' | 'drawingOrigin' | 'outerMargins' | 'innerMargins' | 'frameStyle'>
+  const scalars = Object.fromEntries(scalarKeys.map(key => [key, numeric(value[key], `section ${key}`)])) as unknown as Omit<SectionLayout, 'footerGrid' | 'drawingOrigin' | 'outerMargins' | 'innerMargins' | 'frameStyle' | 'headingTextStyle'>
+  const parseHeadingTextRule = (raw: unknown, label: string): SectionHeadingTextRule => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'anchorX,height,horizontalAlignment,textWidthFactor,verticalAlignment')
+      throw new KJValidationError(`Geology: section ${label} heading style needs an exact placement schema`)
+    const rule = raw as Record<string, unknown>, anchorX = numeric(rule.anchorX, `section ${label} heading anchor X`)
+    const height = numeric(rule.height, `section ${label} heading height`)
+    const textWidthFactor = numeric(rule.textWidthFactor, `section ${label} heading text width factor`)
+    if (height < 0.5 || height > 12 || textWidthFactor < 0.2 || textWidthFactor > 2 ||
+      ![0, 1, 2, 4].includes(rule.horizontalAlignment as number) || ![0, 1, 2, 3].includes(rule.verticalAlignment as number))
+      throw new KJValidationError(`Geology: section ${label} heading style is out of bounds`)
+    return { anchorX, height, textWidthFactor, horizontalAlignment: rule.horizontalAlignment as SectionHeadingTextRule['horizontalAlignment'],
+      verticalAlignment: rule.verticalAlignment as SectionHeadingTextRule['verticalAlignment'] }
+  }
+  let headingTextStyle: SectionLayout['headingTextStyle']
+  if (value.headingTextStyle != null) {
+    if (!value.headingTextStyle || typeof value.headingTextStyle !== 'object' || Array.isArray(value.headingTextStyle) || Object.keys(value.headingTextStyle).sort().join(',') !== 'scale,title')
+      throw new KJValidationError('Geology: section heading text style needs exact title and scale rules')
+    const supplied = value.headingTextStyle as Record<string, unknown>
+    headingTextStyle = { title: parseHeadingTextRule(supplied.title, 'title'), scale: parseHeadingTextRule(supplied.scale, 'scale') }
+  }
   const legacyFrameRule: SectionFrameRule = { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 }
   const parseFrameRule = (raw: unknown, label: string): SectionFrameRule => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError(`Geology: section ${label} frame rule must be an object`)
@@ -1296,6 +1320,7 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     innerMargins.left <= outerMargins.left || innerMargins.right <= outerMargins.right ||
     innerMargins.bottom <= outerMargins.bottom || innerMargins.top <= outerMargins.top ||
     innerMargins.left + innerMargins.right >= scalars.paperWidth || innerMargins.bottom + innerMargins.top >= scalars.paperHeight ||
+    headingTextStyle && Object.values(headingTextStyle).some(rule => rule.anchorX < innerMargins.left || rule.anchorX > scalars.paperWidth - innerMargins.right) ||
     scalars.plotLeft <= innerMargins.left || scalars.plotRight >= scalars.paperWidth - innerMargins.right || scalars.plotRight - scalars.plotLeft < 250 ||
     scalars.plotBottom < innerMargins.bottom + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop ||
     scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 ||
@@ -1314,7 +1339,7 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     if (index === 0 && Math.abs(cell.start - innerMargins.left) > 1e-6 || index && cell.start <= footerGrid[index - 1]!.start || end - cell.start < 28)
       throw new KJValidationError('Geology: section footer cell is out of bounds or unreadable')
   }
-  return { ...scalars, drawingOrigin, outerMargins, innerMargins, frameStyle, footerGrid }
+  return { ...scalars, drawingOrigin, outerMargins, innerMargins, frameStyle, ...(headingTextStyle ? { headingTextStyle } : {}), footerGrid }
 }
 
 function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
@@ -1500,7 +1525,7 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     ...(centered || verticalAlignment != null ? { alignmentPoint: shifted(x, y) } : {}),
   })
   const placedText = (layer: number, x: number, y: number, value: string, height: number, widthFactor: number,
-    horizontalAlignment: 0 | 1 | 2, verticalAlignment: 0 | 2, rotation: number, styleRole?: KJGeologyRoleTextStyleRole) => add('TEXT', layer, {
+    horizontalAlignment: 0 | 1 | 2 | 4, verticalAlignment: 0 | 1 | 2 | 3, rotation: number, styleRole?: KJGeologyRoleTextStyleRole) => add('TEXT', layer, {
     position: shifted(x, y), text: value, height, widthFactor, rotation,
     ...(textStyleFor(styleRole) ? { styleId: textStyleFor(styleRole) } : {}),
     ...(horizontalAlignment === 0 ? {} : { horizontalAlignment }), ...(verticalAlignment === 0 ? {} : { verticalAlignment }),
@@ -2407,10 +2432,20 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   frame(layout.outerMargins, layout.frameStyle.outer)
   frame(layout.innerMargins, layout.frameStyle.inner)
   const locale = geologyLocale(input)
-  g.text(3, layout.paperWidth / 2, layout.titleY, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质剖面图' : 'ENGINEERING GEOLOGICAL SECTION'), 'title'), 5, true)
-  g.text(3, layout.paperWidth / 2, layout.scaleY, locale === 'zh-CN'
+  const titleValue = bounded(input.title ?? (locale === 'zh-CN' ? '工程地质剖面图' : 'ENGINEERING GEOLOGICAL SECTION'), 'title')
+  const scaleValue = locale === 'zh-CN'
     ? `水平比例尺 1:${scaleDenominator(input.horizontalScaleDenominator)}   垂直比例尺 1:${scaleDenominator(input.verticalScaleDenominator)}`
-    : `HORIZONTAL 1:${scaleDenominator(input.horizontalScaleDenominator)}   VERTICAL 1:${scaleDenominator(input.verticalScaleDenominator)}`, 2.5, true)
+    : `HORIZONTAL 1:${scaleDenominator(input.horizontalScaleDenominator)}   VERTICAL 1:${scaleDenominator(input.verticalScaleDenominator)}`
+  if (layout.headingTextStyle) {
+    const titleStyle = layout.headingTextStyle.title, scaleStyle = layout.headingTextStyle.scale
+    g.placedText(3, titleStyle.anchorX, layout.titleY, titleValue, titleStyle.height, titleStyle.textWidthFactor,
+      titleStyle.horizontalAlignment, titleStyle.verticalAlignment, 0)
+    g.placedText(3, scaleStyle.anchorX, layout.scaleY, scaleValue, scaleStyle.height, scaleStyle.textWidthFactor,
+      scaleStyle.horizontalAlignment, scaleStyle.verticalAlignment, 0)
+  } else {
+    g.text(3, layout.paperWidth / 2, layout.titleY, titleValue, 5, true)
+    g.text(3, layout.paperWidth / 2, layout.scaleY, scaleValue, 2.5, true)
+  }
   g.line(1, layout.plotLeft, layout.plotBottom, layout.plotLeft, layout.plotTop)
   g.line(1, layout.plotLeft, layout.plotBottom, layout.plotRight, layout.plotBottom)
   const maximumElevation = Math.max(...holes.map(hole => hole.collarElevation))

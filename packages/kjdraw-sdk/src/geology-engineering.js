@@ -1389,6 +1389,9 @@ function sectionLayout(input) {
         ],
         ...value.frameStyle == null ? [] : [
             'frameStyle'
+        ],
+        ...value.headingTextStyle == null ? [] : [
+            'headingTextStyle'
         ]
     ];
     if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field');
@@ -1396,6 +1399,39 @@ function sectionLayout(input) {
             key,
             numeric(value[key], `section ${key}`)
         ]));
+    const parseHeadingTextRule = (raw, label)=>{
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'anchorX,height,horizontalAlignment,textWidthFactor,verticalAlignment') throw new KJValidationError(`Geology: section ${label} heading style needs an exact placement schema`);
+        const rule = raw, anchorX = numeric(rule.anchorX, `section ${label} heading anchor X`);
+        const height = numeric(rule.height, `section ${label} heading height`);
+        const textWidthFactor = numeric(rule.textWidthFactor, `section ${label} heading text width factor`);
+        if (height < 0.5 || height > 12 || textWidthFactor < 0.2 || textWidthFactor > 2 || ![
+            0,
+            1,
+            2,
+            4
+        ].includes(rule.horizontalAlignment) || ![
+            0,
+            1,
+            2,
+            3
+        ].includes(rule.verticalAlignment)) throw new KJValidationError(`Geology: section ${label} heading style is out of bounds`);
+        return {
+            anchorX,
+            height,
+            textWidthFactor,
+            horizontalAlignment: rule.horizontalAlignment,
+            verticalAlignment: rule.verticalAlignment
+        };
+    };
+    let headingTextStyle;
+    if (value.headingTextStyle != null) {
+        if (!value.headingTextStyle || typeof value.headingTextStyle !== 'object' || Array.isArray(value.headingTextStyle) || Object.keys(value.headingTextStyle).sort().join(',') !== 'scale,title') throw new KJValidationError('Geology: section heading text style needs exact title and scale rules');
+        const supplied = value.headingTextStyle;
+        headingTextStyle = {
+            title: parseHeadingTextRule(supplied.title, 'title'),
+            scale: parseHeadingTextRule(supplied.scale, 'scale')
+        };
+    }
     const legacyFrameRule = {
         primitive: 'closed-polyline',
         startCorner: 'bottom-left',
@@ -1477,7 +1513,7 @@ function sectionLayout(input) {
             numeric(value.drawingOrigin[1], 'section drawing origin Y')
         ];
     }
-    if (scalars.paperWidth < 210 || scalars.paperWidth > 1600 || scalars.paperHeight < 210 || scalars.paperHeight > 1600 || Object.values(outerMargins).some((margin)=>margin < 0) || !hasOuterMargins && outerMargins.left < 3 || Object.values(innerMargins).some((margin)=>margin < 0) || innerMargins.left <= outerMargins.left || innerMargins.right <= outerMargins.right || innerMargins.bottom <= outerMargins.bottom || innerMargins.top <= outerMargins.top || innerMargins.left + innerMargins.right >= scalars.paperWidth || innerMargins.bottom + innerMargins.top >= scalars.paperHeight || scalars.plotLeft <= innerMargins.left || scalars.plotRight >= scalars.paperWidth - innerMargins.right || scalars.plotRight - scalars.plotLeft < 250 || scalars.plotBottom < innerMargins.bottom + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop || scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 || scalars.elevationTickStep < 0.5 || scalars.elevationTickStep > 20) throw new KJValidationError('Geology: section layout geometry is unreadable');
+    if (scalars.paperWidth < 210 || scalars.paperWidth > 1600 || scalars.paperHeight < 210 || scalars.paperHeight > 1600 || Object.values(outerMargins).some((margin)=>margin < 0) || !hasOuterMargins && outerMargins.left < 3 || Object.values(innerMargins).some((margin)=>margin < 0) || innerMargins.left <= outerMargins.left || innerMargins.right <= outerMargins.right || innerMargins.bottom <= outerMargins.bottom || innerMargins.top <= outerMargins.top || innerMargins.left + innerMargins.right >= scalars.paperWidth || innerMargins.bottom + innerMargins.top >= scalars.paperHeight || headingTextStyle && Object.values(headingTextStyle).some((rule)=>rule.anchorX < innerMargins.left || rule.anchorX > scalars.paperWidth - innerMargins.right) || scalars.plotLeft <= innerMargins.left || scalars.plotRight >= scalars.paperWidth - innerMargins.right || scalars.plotRight - scalars.plotLeft < 250 || scalars.plotBottom < innerMargins.bottom + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop || scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 || scalars.elevationTickStep < 0.5 || scalars.elevationTickStep > 20) throw new KJValidationError('Geology: section layout geometry is unreadable');
     if (!Array.isArray(value.footerGrid) || value.footerGrid.length < 3 || value.footerGrid.length > 8) throw new KJValidationError('Geology: section footer grid is invalid');
     const seen = new Set(), footerGrid = value.footerGrid.map((rawCell, index)=>{
         if (!rawCell || typeof rawCell !== 'object' || Array.isArray(rawCell) || Object.keys(rawCell).sort().join(',') !== 'key,label,start') throw new KJValidationError('Geology: section footer cell needs an exact key, label and start');
@@ -1501,6 +1537,9 @@ function sectionLayout(input) {
         outerMargins,
         innerMargins,
         frameStyle,
+        ...headingTextStyle ? {
+            headingTextStyle
+        } : {},
         footerGrid
     };
 }
@@ -3056,8 +3095,16 @@ export function compileGeologySection(input) {
     frame(layout.outerMargins, layout.frameStyle.outer);
     frame(layout.innerMargins, layout.frameStyle.inner);
     const locale = geologyLocale(input);
-    g.text(3, layout.paperWidth / 2, layout.titleY, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质剖面图' : 'ENGINEERING GEOLOGICAL SECTION'), 'title'), 5, true);
-    g.text(3, layout.paperWidth / 2, layout.scaleY, locale === 'zh-CN' ? `水平比例尺 1:${scaleDenominator(input.horizontalScaleDenominator)}   垂直比例尺 1:${scaleDenominator(input.verticalScaleDenominator)}` : `HORIZONTAL 1:${scaleDenominator(input.horizontalScaleDenominator)}   VERTICAL 1:${scaleDenominator(input.verticalScaleDenominator)}`, 2.5, true);
+    const titleValue = bounded(input.title ?? (locale === 'zh-CN' ? '工程地质剖面图' : 'ENGINEERING GEOLOGICAL SECTION'), 'title');
+    const scaleValue = locale === 'zh-CN' ? `水平比例尺 1:${scaleDenominator(input.horizontalScaleDenominator)}   垂直比例尺 1:${scaleDenominator(input.verticalScaleDenominator)}` : `HORIZONTAL 1:${scaleDenominator(input.horizontalScaleDenominator)}   VERTICAL 1:${scaleDenominator(input.verticalScaleDenominator)}`;
+    if (layout.headingTextStyle) {
+        const titleStyle = layout.headingTextStyle.title, scaleStyle = layout.headingTextStyle.scale;
+        g.placedText(3, titleStyle.anchorX, layout.titleY, titleValue, titleStyle.height, titleStyle.textWidthFactor, titleStyle.horizontalAlignment, titleStyle.verticalAlignment, 0);
+        g.placedText(3, scaleStyle.anchorX, layout.scaleY, scaleValue, scaleStyle.height, scaleStyle.textWidthFactor, scaleStyle.horizontalAlignment, scaleStyle.verticalAlignment, 0);
+    } else {
+        g.text(3, layout.paperWidth / 2, layout.titleY, titleValue, 5, true);
+        g.text(3, layout.paperWidth / 2, layout.scaleY, scaleValue, 2.5, true);
+    }
     g.line(1, layout.plotLeft, layout.plotBottom, layout.plotLeft, layout.plotTop);
     g.line(1, layout.plotLeft, layout.plotBottom, layout.plotRight, layout.plotBottom);
     const maximumElevation = Math.max(...holes.map((hole)=>hole.collarElevation));
