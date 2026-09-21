@@ -812,7 +812,7 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
       const extra = attribute === record ? [] : attribute.tags.filter(tag => ![2,3,70,73,74,280].includes(tag.code))
       return { type: record.type, payload: { ...readSingleLineText(record, resources), verticalAlignment: number(attribute, 74, 0), tag: first(attribute, 2, ''), prompt: first(attribute, 3, ''), flags: number(attribute, 70, 0), lockPosition: Number(values(attribute, 280).at(-1) ?? 0) === 1, ...(extra.length ? { dxfAttributeExtraTags: extra } : {}) } }
     }
-    case 'INSERT': return { type: 'INSERT', payload: { blockRecordId: blockIds.get(normalizeName(first(record, 2))), position: point(record), scale: [number(record, 41, 1), number(record, 42, 1), number(record, 43, 1)], rotation: number(record, 50, 0) * Math.PI / 180 } }
+    case 'INSERT': return { type: 'INSERT', payload: { blockRecordId: blockIds.get(normalizeName(first(record, 2))), position: point(record), scale: [number(record, 41, 1), number(record, 42, 1), number(record, 43, 1)], rotation: number(record, 50, 0) * Math.PI / 180, ...(optionalPoint(record, 210, 220, 230) ? { extrusion: optionalPoint(record, 210, 220, 230) } : {}) } }
     case 'HATCH': {
       const patternLines = importedHatchPatternLines(record)
       const patternAngle = number(record, 52, 0) * Math.PI / 180
@@ -1233,6 +1233,7 @@ function recordSubclass(record: DxfRecord, name: string): DxfRecord {
 function readSingleLineText(source: DxfRecord, resources: DxfImportResources): DxfPayload {
   const record = recordSubclass(source, 'AcDbText')
   const alignmentPoint = optionalPoint(record, 11, 21, 31)
+  const extrusion = optionalPoint(record, 210, 220, 230)
   const sourceWidthFactor = values(record, 41).length ? number(record, 41) : undefined
   return {
     position: point(record), ...(alignmentPoint ? { alignmentPoint } : {}),
@@ -1242,6 +1243,7 @@ function readSingleLineText(source: DxfRecord, resources: DxfImportResources): D
     ...(values(record, 51).length ? { obliqueAngle: number(record, 51) * Math.PI / 180 } : {}),
     ...(values(record, 71).length ? { generationFlags: number(record, 71) } : {}),
     styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null,
+    ...(extrusion ? { extrusion } : {}),
   }
 }
 function writeDxfText(payload: DxfPayload): unknown {
@@ -1909,7 +1911,7 @@ function emitEntity(
     if (!blockName) throw new KJValidationError(`DXF INSERT references an unavailable block record: ${p.blockRecordId}`)
     emitSubclass(output, version, 'AcDbBlockReference')
     if (p.sequenceEndId) emit(output, 66, 1)
-    emit(output, 2, blockName); emitPoint(output, p.position!); emit(output, 41, p.scale?.[0] ?? 1); emit(output, 42, p.scale?.[1] ?? 1); emit(output, 43, p.scale?.[2] ?? 1); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
+    emit(output, 2, blockName); emitPoint(output, p.position!); emit(output, 41, p.scale?.[0] ?? 1); emit(output, 42, p.scale?.[1] ?? 1); emit(output, 43, p.scale?.[2] ?? 1); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI); if (p.extrusion) emitPoint(output, p.extrusion as readonly number[], 210)
   }
   else if (entity.type === 'SOLID') { emitSubclass(output, version, 'AcDbTrace'); entityVertices.forEach((value, index) => emitPoint(output, vertexPoint(value), 10 + index)) }
   else if (entity.type === 'LEADER') {
@@ -2040,6 +2042,7 @@ function emitSingleLineText(output: string[], p: DxfPayload, version: DxfVersion
   if (p.generationFlags) emit(output, 71, p.generationFlags)
   if (p.horizontalAlignment) emit(output, 72, p.horizontalAlignment)
   if (p.alignmentPoint) emitPoint(output, p.alignmentPoint, 11)
+  if (p.extrusion) emitPoint(output, p.extrusion as readonly number[], 210)
 }
 
 function isDxfVersion(value: string): value is DxfVersion { return (VERSIONS as readonly string[]).includes(value) }

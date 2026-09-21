@@ -1150,7 +1150,10 @@ function entityPayload(record, blockIds, resources = {}) {
                         number(record, 42, 1),
                         number(record, 43, 1)
                     ],
-                    rotation: number(record, 50, 0) * Math.PI / 180
+                    rotation: number(record, 50, 0) * Math.PI / 180,
+                    ...optionalPoint(record, 210, 220, 230) ? {
+                        extrusion: optionalPoint(record, 210, 220, 230)
+                    } : {}
                 }
             };
         case 'HATCH':
@@ -2064,6 +2067,7 @@ function recordSubclass(record, name) {
 function readSingleLineText(source, resources) {
     const record = recordSubclass(source, 'AcDbText');
     const alignmentPoint = optionalPoint(record, 11, 21, 31);
+    const extrusion = optionalPoint(record, 210, 220, 230);
     const sourceWidthFactor = values(record, 41).length ? number(record, 41) : undefined;
     return {
         position: point(record),
@@ -2083,7 +2087,10 @@ function readSingleLineText(source, resources) {
         ...values(record, 71).length ? {
             generationFlags: number(record, 71)
         } : {},
-        styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null
+        styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null,
+        ...extrusion ? {
+            extrusion
+        } : {}
     };
 }
 function writeDxfText(payload) {
@@ -3194,6 +3201,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emit(output, 42, p.scale?.[1] ?? 1);
         emit(output, 43, p.scale?.[2] ?? 1);
         if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI);
+        if (p.extrusion) emitPoint(output, p.extrusion, 210);
     } else if (entity.type === 'SOLID') {
         emitSubclass(output, version, 'AcDbTrace');
         entityVertices.forEach((value, index)=>emitPoint(output, vertexPoint(value), 10 + index));
@@ -3463,6 +3471,7 @@ function emitSingleLineText(output, p, version, resources) {
     if (p.generationFlags) emit(output, 71, p.generationFlags);
     if (p.horizontalAlignment) emit(output, 72, p.horizontalAlignment);
     if (p.alignmentPoint) emitPoint(output, p.alignmentPoint, 11);
+    if (p.extrusion) emitPoint(output, p.extrusion, 210);
 }
 function isDxfVersion(value) {
     return VERSIONS.includes(value);

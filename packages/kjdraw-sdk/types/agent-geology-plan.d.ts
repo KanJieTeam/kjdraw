@@ -76,6 +76,41 @@ export interface KJGeologyPlanBaseMapStyle {
     lineweight: number;
     pattern: number[];
 }
+export interface KJGeologyPlanBaseMapTextStyle {
+    id: string;
+    fontFamily?: string | null;
+    fontFile?: string | null;
+    bigFontFile?: string | null;
+    fixedHeight?: number;
+    widthFactor?: number;
+    obliqueAngleDegrees?: number;
+    dxfFlags?: number;
+    generationFlags?: number;
+    lastHeight?: number;
+}
+export interface KJGeologyPlanBaseMapAttribute {
+    id: string;
+    styleId: string;
+    textStyleId: string;
+    tag: string;
+    text: string;
+    position: Point3;
+    alignmentPoint?: Point3;
+    height: number;
+    rotationDegrees: number;
+    widthFactor: number;
+    obliqueAngleDegrees: number;
+    horizontalAlignment: number;
+    verticalAlignment: number;
+    generationFlags: number;
+    flags: number;
+    lockPosition: boolean;
+    extrusion: Point3;
+}
+export interface KJGeologyPlanBaseMapAttributeDefinition extends KJGeologyPlanBaseMapAttribute {
+    kind: 'attributeDefinition';
+    prompt: string;
+}
 export type KJGeologyPlanBaseMapLinework = {
     id: string;
     styleId: string;
@@ -129,8 +164,10 @@ export interface KJGeologyPlanBaseMapInsert {
 }
 export interface KJGeologyPlanBaseMapBlock {
     id: string;
+    extrusion?: Point3;
+    attributes?: KJGeologyPlanBaseMapAttribute[];
     basePoint: Point2;
-    entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapInsert)[];
+    entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapAttributeDefinition | KJGeologyPlanBaseMapInsert)[];
 }
 export interface KJAgentGeologyPlanInput {
     version: typeof KJDRAW_GEOLOGY_PLAN_VERSION;
@@ -150,6 +187,7 @@ export interface KJAgentGeologyPlanInput {
     buildingFootprints?: KJGeologyPlanBuildingFootprint[];
     roadPaths?: KJGeologyPlanRoadPath[];
     baseMapStyles?: KJGeologyPlanBaseMapStyle[];
+    baseMapTextStyles?: KJGeologyPlanBaseMapTextStyle[];
     baseMapLinework?: KJGeologyPlanBaseMapLinework[];
     baseMapBlocks?: KJGeologyPlanBaseMapBlock[];
     baseMapInserts?: KJGeologyPlanBaseMapInsert[];
@@ -171,6 +209,17 @@ type EntitySpec = {
     options: {
         id: string;
     };
+    attributeSequence?: {
+        attributes: {
+            id: string;
+            payload: Record<string, unknown>;
+        }[];
+        sequenceEnd: {
+            id: string;
+            dxfOwnerMode: 'insert' | 'space';
+            layerId?: string;
+        };
+    };
 };
 export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJAgentGeologyPlanInput): {
     commandArgs: {
@@ -187,6 +236,13 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
                 color: number;
                 linetypeId: string;
                 lineweight: number;
+            }[];
+            textStyles: {
+                id: string;
+                name: string;
+                payload: {
+                    [k: string]: string | number | null | undefined;
+                };
             }[];
             blocks: {
                 id: string;
@@ -260,7 +316,10 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
         roadPathCount: number;
         roadSegmentCount: number;
         baseMapStyleCount: number;
+        baseMapTextStyleCount: number;
         baseMapLineworkCount: number;
+        baseMapAttributeDefinitionCount: number;
+        baseMapAttributeCount: number;
         baseMapLineworkTypeCounts: {
             [k: string]: number;
         };

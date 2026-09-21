@@ -436,6 +436,22 @@ const geologyPlanBaseMapStyleSchema = object({
   id: { ...text, maxLength: 40 }, color: { type: 'integer', minimum: 1, maximum: 255 },
   lineweight: { type: 'integer', minimum: -1, maximum: 211 }, pattern: { type: 'array', minItems: 0, maxItems: 16, items: number },
 })
+const geologyPlanBaseMapTextStyleSchema = objectWithOptional({
+  id: { ...text, maxLength: 40 }, fontFamily: { type: 'string', maxLength: 512 }, fontFile: { type: 'string', maxLength: 512 }, bigFontFile: { type: 'string', maxLength: 512 },
+  fixedHeight: { type: 'number', minimum: 0, maximum: 1e12 }, widthFactor: { type: 'number', exclusiveMinimum: 0, maximum: 1e12 },
+  obliqueAngleDegrees: { type: 'number', minimum: -360, maximum: 360 }, dxfFlags: { type: 'integer', minimum: 0, maximum: 65535 },
+  generationFlags: { type: 'integer', minimum: 0, maximum: 65535 }, lastHeight: { type: 'number', minimum: 0, maximum: 1e12 },
+}, ['fontFamily', 'fontFile', 'bigFontFile', 'fixedHeight', 'widthFactor', 'obliqueAngleDegrees', 'dxfFlags', 'generationFlags', 'lastHeight'])
+const geologyPlanBaseMapAttributeFields = {
+  id: { ...text, maxLength: 40 }, styleId: { ...text, maxLength: 40 }, textStyleId: { ...text, maxLength: 40 },
+  tag: { type: 'string', minLength: 1, maxLength: 64 }, text: { type: 'string', maxLength: 512 },
+  position: numericTuple(3), alignmentPoint: numericTuple(3), height: { type: 'number', exclusiveMinimum: 0, maximum: 1_000_000 },
+  rotationDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, widthFactor: { type: 'number', exclusiveMinimum: 0, maximum: 1_000_000 },
+  obliqueAngleDegrees: { type: 'number', minimum: -360, maximum: 360 }, horizontalAlignment: { type: 'integer', minimum: 0, maximum: 5 },
+  verticalAlignment: { type: 'integer', minimum: 0, maximum: 4 }, generationFlags: { type: 'integer', minimum: 0, maximum: 65535 },
+  flags: { type: 'integer', minimum: 0, maximum: 65535 }, lockPosition: { type: 'boolean' }, extrusion: numericTuple(3),
+} as const
+const geologyPlanBaseMapAttributeSchema = objectWithOptional(geologyPlanBaseMapAttributeFields, ['alignmentPoint'])
 const geologyPlanBaseMapLineworkSchema = objectWithOptional({
   id: { ...text, maxLength: 40 }, styleId: { ...text, maxLength: 40 }, kind: { type: 'string', enum: ['line', 'arc', 'circle', 'polyline', 'legacyPolyline'] },
   start: numericTuple(2), end: numericTuple(2), center: numericTuple(2), radius,
@@ -449,12 +465,14 @@ const geologyPlanBaseMapLineworkSchema = objectWithOptional({
   bulges: { type: 'array', minItems: 2, maxItems: 256, items: { type: 'number', minimum: -1_000_000, maximum: 1_000_000 } },
   endWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative },
 }, ['start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'legacyPoints', 'closed', 'elevation', 'dxfFlags', 'vertexFlags', 'bulges', 'startWidths', 'endWidths'])
-const geologyPlanBaseMapInsertSchema = object({
+const geologyPlanBaseMapInsertSchema = objectWithOptional({
   id: { ...text, maxLength: 40 }, styleId: { ...text, maxLength: 40 }, blockId: { ...text, maxLength: 40 },
-  position: numericTuple(2), scale: numericTuple(3), rotationDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 },
-})
+  position: numericTuple(2), scale: numericTuple(3), rotationDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, extrusion: numericTuple(3),
+  attributes: { type: 'array', minItems: 1, maxItems: 64, items: geologyPlanBaseMapAttributeSchema },
+}, ['extrusion', 'attributes'])
 const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
-  id: { ...text, maxLength: 40 }, styleId: { ...text, maxLength: 40 }, kind: { type: 'string', enum: ['line', 'arc', 'circle', 'polyline', 'legacyPolyline'] },
+  ...geologyPlanBaseMapAttributeFields,
+  kind: { type: 'string', enum: ['line', 'arc', 'circle', 'polyline', 'legacyPolyline', 'attributeDefinition'] }, prompt: { type: 'string', minLength: 0, maxLength: 256 },
   start: numericTuple(2), end: numericTuple(2), center: numericTuple(2), radius,
   startAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, endAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, clockwise: { type: 'boolean' },
   points: { type: 'array', minItems: 2, maxItems: 256, items: numericTuple(2) }, closed: { type: 'boolean' },
@@ -464,8 +482,8 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
   vertexFlags: { type: 'array', minItems: 2, maxItems: 256, items: { type: 'integer', minimum: 0, maximum: 31 } },
   startWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative }, endWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative },
   bulges: { type: 'array', minItems: 2, maxItems: 256, items: { type: 'number', minimum: -1_000_000, maximum: 1_000_000 } },
-  blockId: { ...text, maxLength: 40 }, position: numericTuple(2), scale: numericTuple(3), rotationDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 },
-}, ['kind', 'start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'legacyPoints', 'closed', 'elevation', 'dxfFlags', 'vertexFlags', 'bulges', 'startWidths', 'endWidths', 'blockId', 'position', 'scale', 'rotationDegrees'])
+  blockId: { ...text, maxLength: 40 }, position: { type: 'array', items: number, minItems: 2, maxItems: 3 }, scale: numericTuple(3), attributes: { type: 'array', minItems: 1, maxItems: 64, items: geologyPlanBaseMapAttributeSchema },
+}, ['kind', 'start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'legacyPoints', 'closed', 'elevation', 'dxfFlags', 'vertexFlags', 'bulges', 'startWidths', 'endWidths', 'blockId', 'scale', 'attributes', 'textStyleId', 'tag', 'text', 'position', 'alignmentPoint', 'height', 'rotationDegrees', 'widthFactor', 'obliqueAngleDegrees', 'horizontalAlignment', 'verticalAlignment', 'generationFlags', 'flags', 'lockPosition', 'extrusion', 'prompt'])
 const geologyPlanBaseMapBlockSchema = object({
   id: { ...text, maxLength: 40 }, basePoint: numericTuple(2),
   entities: { type: 'array', minItems: 1, maxItems: 1024, items: geologyPlanBaseMapBlockMemberSchema },
@@ -483,10 +501,11 @@ const geologyPlanSchema = objectWithOptional({
   buildingFootprints: { type: 'array', minItems: 0, maxItems: 128, items: geologyPlanBuildingFootprintSchema },
   roadPaths: { type: 'array', minItems: 0, maxItems: 128, items: geologyPlanRoadPathSchema },
   baseMapStyles: { type: 'array', minItems: 0, maxItems: 64, items: geologyPlanBaseMapStyleSchema },
+  baseMapTextStyles: { type: 'array', minItems: 0, maxItems: 64, items: geologyPlanBaseMapTextStyleSchema },
   baseMapLinework: { type: 'array', minItems: 0, maxItems: 1024, items: geologyPlanBaseMapLineworkSchema }, northAngleDegrees: { type: 'number', minimum: -360, maximum: 360 },
   baseMapBlocks: { type: 'array', minItems: 0, maxItems: 64, items: geologyPlanBaseMapBlockSchema },
   baseMapInserts: { type: 'array', minItems: 0, maxItems: 512, items: geologyPlanBaseMapInsertSchema },
-}, ['locale', 'title', 'revision', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'baseMapStyles', 'baseMapLinework', 'baseMapBlocks', 'baseMapInserts', 'northAngleDegrees'])
+}, ['locale', 'title', 'revision', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'baseMapStyles', 'baseMapTextStyles', 'baseMapLinework', 'baseMapBlocks', 'baseMapInserts', 'northAngleDegrees'])
 
 export const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[] = deepFreeze([
   { name: 'cad_propose_text_edit', effect: 'propose', description: 'Propose one atomic batch of 1–64 exact native TEXT/MTEXT content replacements. Query existing object IDs and complete text first. Each change supplies id, expectedText and text; every expectedText must match exactly at expectedRevision. Preserves IDs, handles, positions, layers, styles, ownership and references. Raw MTEXT formatting is part of the text; preserve it unless explicitly asked to change it. No regex, inferred targets, blank replacement, dynamic field expressions, dimension text overrides, block attributes or paper/block-space editing. Hidden, frozen, locked or stale objects reject the whole batch. Review the complete before/after text before host approval; approval is one undoable TEXTEDIT transaction.', inputSchema: object({ expectedRevision: revision, units: text, changes: collection(object({ id: text, expectedText: { type: 'string', maxLength: 16384 }, text: { type: 'string', minLength: 1, maxLength: 16384 } })) }) },
@@ -591,7 +610,8 @@ function validate(schema: KJAgentToolSchema, value: unknown, path = 'arguments')
       validate(schema.items!, descriptor!.value, `${path}[${index}]`)
     }
   } else if (schema.type === 'string') {
-    if (typeof value !== 'string' || value.length < (schema.minLength ?? 0) || value.length > (schema.maxLength ?? 256) || !value.trim()) fail('expected a nonempty bounded string')
+    const minimumLength = schema.minLength ?? 1
+    if (typeof value !== 'string' || value.length < minimumLength || value.length > (schema.maxLength ?? 256) || minimumLength > 0 && !value.trim()) fail(minimumLength === 0 ? 'expected a bounded string' : 'expected a nonempty bounded string')
     if (schema.enum && !schema.enum.includes(value as string)) fail(`expected one of: ${schema.enum.join(', ')}`)
   } else if (schema.type === 'boolean') {
     if (typeof value !== 'boolean') fail('expected a boolean')

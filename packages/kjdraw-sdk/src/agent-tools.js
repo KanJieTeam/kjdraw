@@ -2024,6 +2024,136 @@ const geologyPlanBaseMapStyleSchema = object({
         items: number
     }
 });
+const geologyPlanBaseMapTextStyleSchema = objectWithOptional({
+    id: {
+        ...text,
+        maxLength: 40
+    },
+    fontFamily: {
+        type: 'string',
+        maxLength: 512
+    },
+    fontFile: {
+        type: 'string',
+        maxLength: 512
+    },
+    bigFontFile: {
+        type: 'string',
+        maxLength: 512
+    },
+    fixedHeight: {
+        type: 'number',
+        minimum: 0,
+        maximum: 1e12
+    },
+    widthFactor: {
+        type: 'number',
+        exclusiveMinimum: 0,
+        maximum: 1e12
+    },
+    obliqueAngleDegrees: {
+        type: 'number',
+        minimum: -360,
+        maximum: 360
+    },
+    dxfFlags: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 65535
+    },
+    generationFlags: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 65535
+    },
+    lastHeight: {
+        type: 'number',
+        minimum: 0,
+        maximum: 1e12
+    }
+}, [
+    'fontFamily',
+    'fontFile',
+    'bigFontFile',
+    'fixedHeight',
+    'widthFactor',
+    'obliqueAngleDegrees',
+    'dxfFlags',
+    'generationFlags',
+    'lastHeight'
+]);
+const geologyPlanBaseMapAttributeFields = {
+    id: {
+        ...text,
+        maxLength: 40
+    },
+    styleId: {
+        ...text,
+        maxLength: 40
+    },
+    textStyleId: {
+        ...text,
+        maxLength: 40
+    },
+    tag: {
+        type: 'string',
+        minLength: 1,
+        maxLength: 64
+    },
+    text: {
+        type: 'string',
+        maxLength: 512
+    },
+    position: numericTuple(3),
+    alignmentPoint: numericTuple(3),
+    height: {
+        type: 'number',
+        exclusiveMinimum: 0,
+        maximum: 1_000_000
+    },
+    rotationDegrees: {
+        type: 'number',
+        minimum: -360_000,
+        maximum: 360_000
+    },
+    widthFactor: {
+        type: 'number',
+        exclusiveMinimum: 0,
+        maximum: 1_000_000
+    },
+    obliqueAngleDegrees: {
+        type: 'number',
+        minimum: -360,
+        maximum: 360
+    },
+    horizontalAlignment: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 5
+    },
+    verticalAlignment: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 4
+    },
+    generationFlags: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 65535
+    },
+    flags: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 65535
+    },
+    lockPosition: {
+        type: 'boolean'
+    },
+    extrusion: numericTuple(3)
+};
+const geologyPlanBaseMapAttributeSchema = objectWithOptional(geologyPlanBaseMapAttributeFields, [
+    'alignmentPoint'
+]);
 const geologyPlanBaseMapLineworkSchema = objectWithOptional({
     id: {
         ...text,
@@ -2135,7 +2265,7 @@ const geologyPlanBaseMapLineworkSchema = objectWithOptional({
     'startWidths',
     'endWidths'
 ]);
-const geologyPlanBaseMapInsertSchema = object({
+const geologyPlanBaseMapInsertSchema = objectWithOptional({
     id: {
         ...text,
         maxLength: 40
@@ -2154,17 +2284,20 @@ const geologyPlanBaseMapInsertSchema = object({
         type: 'number',
         minimum: -360_000,
         maximum: 360_000
+    },
+    extrusion: numericTuple(3),
+    attributes: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 64,
+        items: geologyPlanBaseMapAttributeSchema
     }
-});
+}, [
+    'extrusion',
+    'attributes'
+]);
 const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
-    id: {
-        ...text,
-        maxLength: 40
-    },
-    styleId: {
-        ...text,
-        maxLength: 40
-    },
+    ...geologyPlanBaseMapAttributeFields,
     kind: {
         type: 'string',
         enum: [
@@ -2172,8 +2305,14 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
             'arc',
             'circle',
             'polyline',
-            'legacyPolyline'
+            'legacyPolyline',
+            'attributeDefinition'
         ]
+    },
+    prompt: {
+        type: 'string',
+        minLength: 0,
+        maxLength: 256
     },
     start: numericTuple(2),
     end: numericTuple(2),
@@ -2253,12 +2392,18 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
         ...text,
         maxLength: 40
     },
-    position: numericTuple(2),
+    position: {
+        type: 'array',
+        items: number,
+        minItems: 2,
+        maxItems: 3
+    },
     scale: numericTuple(3),
-    rotationDegrees: {
-        type: 'number',
-        minimum: -360_000,
-        maximum: 360_000
+    attributes: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 64,
+        items: geologyPlanBaseMapAttributeSchema
     }
 }, [
     'kind',
@@ -2279,9 +2424,24 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
     'startWidths',
     'endWidths',
     'blockId',
-    'position',
     'scale',
-    'rotationDegrees'
+    'attributes',
+    'textStyleId',
+    'tag',
+    'text',
+    'position',
+    'alignmentPoint',
+    'height',
+    'rotationDegrees',
+    'widthFactor',
+    'obliqueAngleDegrees',
+    'horizontalAlignment',
+    'verticalAlignment',
+    'generationFlags',
+    'flags',
+    'lockPosition',
+    'extrusion',
+    'prompt'
 ]);
 const geologyPlanBaseMapBlockSchema = object({
     id: {
@@ -2392,6 +2552,12 @@ const geologyPlanSchema = objectWithOptional({
         maxItems: 64,
         items: geologyPlanBaseMapStyleSchema
     },
+    baseMapTextStyles: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 64,
+        items: geologyPlanBaseMapTextStyleSchema
+    },
     baseMapLinework: {
         type: 'array',
         minItems: 0,
@@ -2425,6 +2591,7 @@ const geologyPlanSchema = objectWithOptional({
     'buildingFootprints',
     'roadPaths',
     'baseMapStyles',
+    'baseMapTextStyles',
     'baseMapLinework',
     'baseMapBlocks',
     'baseMapInserts',
@@ -3008,7 +3175,8 @@ function validate(schema, value, path = 'arguments') {
             validate(schema.items, descriptor.value, `${path}[${index}]`);
         }
     } else if (schema.type === 'string') {
-        if (typeof value !== 'string' || value.length < (schema.minLength ?? 0) || value.length > (schema.maxLength ?? 256) || !value.trim()) fail('expected a nonempty bounded string');
+        const minimumLength = schema.minLength ?? 1;
+        if (typeof value !== 'string' || value.length < minimumLength || value.length > (schema.maxLength ?? 256) || minimumLength > 0 && !value.trim()) fail(minimumLength === 0 ? 'expected a bounded string' : 'expected a nonempty bounded string');
         if (schema.enum && !schema.enum.includes(value)) fail(`expected one of: ${schema.enum.join(', ')}`);
     } else if (schema.type === 'boolean') {
         if (typeof value !== 'boolean') fail('expected a boolean');
