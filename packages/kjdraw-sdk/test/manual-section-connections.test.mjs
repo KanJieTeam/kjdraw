@@ -419,3 +419,55 @@ test('section style pack preserves bounded text roles, composite interval labels
     { sourceHoleId: 'ZK1', sourceIntervalId: 'absent', points: [[0, 95], [10, 95], [10, 97]] }]
   assert.throws(() => compileGeologySection(unknownBand), /references an unknown supplied interval/u)
 })
+
+test('host-bound borehole profile facts emit bounded centerlines, split guides, bottom ticks and collar bars while legacy packs stay unchanged', async () => {
+  const pack = structuredClone(KJDRAW_GEOLOGY_KNOWLEDGE_PACK)
+  pack.id = 'test.section.borehole-profile'
+  pack.version = '1.0.0'
+  const baseInput = { holes, correlations: [], sectionStylePack: pack,
+    horizontalScaleDenominator: 100, verticalScaleDenominator: 100, datumElevation: 80,
+    surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 }
+  const styledPack = structuredClone(pack)
+  const legacy = compileGeologySection(baseInput)
+  assert.equal(Object.hasOwn(legacy.evidence.parameters, 'boreholeProfileElementCount'), false)
+  const legacyColumns = legacy.commandArgs.entities.filter(entity => entity.type === 'LWPOLYLINE' && entity.payload.closed &&
+    entity.payload.vertices.length === 4 && Math.abs(Math.max(...entity.payload.vertices.map(point => point[0])) - Math.min(...entity.payload.vertices.map(point => point[0])) - pack.rules['geology-section-layout'].boreholeWidth) < 1e-9)
+  assert.equal(legacyColumns.length, holes.length)
+
+  styledPack.rules['geology-section-layout'].boreholeProfileStyle = {
+    primitive: 'centerline', guideEndOffset: -5, bottomTickOffsets: [0, 1.5], collarBarHalfWidth: 9, collarBarYOffset: 1.5,
+  }
+  const result = compileGeologySection({ ...baseInput, sectionStylePack: styledPack })
+  assert.equal(result.evidence.parameters.boreholeProfileElementCount, holes.length * 4)
+  const centerlines = result.commandArgs.entities.filter(entity => entity.type === 'LWPOLYLINE' && !entity.payload.closed && entity.payload.vertices.length === 2 && entity.payload.vertices[0][0] === entity.payload.vertices[1][0])
+  assert.equal(centerlines.length, holes.length)
+  const centers = centerlines.map(entity => entity.payload.vertices[0][0])
+  const profileLines = result.commandArgs.entities.filter(entity => entity.type === 'LINE')
+  for (const [index, centerline] of centerlines.entries()) {
+    const [[center, bottom], [, top]] = centerline.payload.vertices
+    assert.ok(profileLines.some(entity => entity.payload.start[0] === center && entity.payload.end[0] === center && entity.payload.end[1] === bottom - 5))
+    assert.ok(profileLines.some(entity => entity.payload.start[0] === center && entity.payload.start[1] === bottom && entity.payload.end[0] === center + 1.5 && entity.payload.end[1] === bottom))
+    assert.ok(profileLines.some(entity => entity.payload.start[0] === center - 9 && entity.payload.start[1] === top + 1.5 && entity.payload.end[0] === center + 9 && entity.payload.end[1] === top + 1.5), `missing collar bar ${index + 1}`)
+  }
+  assert.equal(new Set(centers).size, holes.length)
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', result.commandArgs, { document })
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await sdk.readDocument(bytes, { format })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+    assert.ok(reopened.listEntities({ type: 'LWPOLYLINE' }).filter(entity => !entity.payload.closed && entity.payload.vertices.length === 2 &&
+      entity.payload.vertices[0][0] === entity.payload.vertices[1][0]).length >= holes.length)
+  }
+  const invalid = structuredClone(baseInput)
+  invalid.sectionStylePack.rules['geology-section-layout'].boreholeProfileStyle = {
+    primitive: 'centerline', guideEndOffset: 1, bottomTickOffsets: [0, 1.5], collarBarHalfWidth: 9, collarBarYOffset: 1.5,
+  }
+  assert.throws(() => compileGeologySection(invalid), /profile style is out of bounds/u)
+  const undeclared = structuredClone(baseInput)
+  undeclared.sectionStylePack.rules['geology-section-layout'].boreholeProfileStyle = {
+    primitive: 'centerline', guideEndOffset: -5, bottomTickOffsets: [0, 1.5], collarBarHalfWidth: 9, collarBarYOffset: 1.5, inferred: true,
+  }
+  assert.throws(() => compileGeologySection(undeclared), /exact source-backed geometry facts/u)
+})

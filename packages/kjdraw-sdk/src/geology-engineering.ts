@@ -355,6 +355,13 @@ type SectionHatchPresentation = {
 }
 type SectionElevationTickSequence = { startElevation: number; step: number; minimumElevation: number; maximumElevation: number }
 type SectionSourceBackedBand = { sourceHoleId: string; sourceIntervalId: string; points: [number, number][] }
+type SectionBoreholeProfileStyle = {
+  primitive: 'centerline'
+  guideEndOffset: number
+  bottomTickOffsets: [number, number]
+  collarBarHalfWidth: number
+  collarBarYOffset: number
+}
 
 interface SectionLayout {
   paperWidth: number
@@ -368,6 +375,7 @@ interface SectionLayout {
   sectionHatchPresentation?: SectionHatchPresentation
   elevationTickSequence?: SectionElevationTickSequence
   sourceBackedBands?: SectionSourceBackedBand[]
+  boreholeProfileStyle?: SectionBoreholeProfileStyle
   plotLeft: number
   sectionReferenceStyle?: { start: KJGeologyFieldHeaderTextPlacement; end: KJGeologyFieldHeaderTextPlacement }
   observationSymbolStyle?: KJGeologySectionObservationSymbolStyle
@@ -1382,6 +1390,7 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     ...(value.sectionHatchPresentation == null ? [] : ['sectionHatchPresentation']),
     ...(value.elevationTickSequence == null ? [] : ['elevationTickSequence']),
     ...(value.sourceBackedBands == null ? [] : ['sourceBackedBands']),
+    ...(value.boreholeProfileStyle == null ? [] : ['boreholeProfileStyle']),
     ...(value.headingTextStyle == null ? [] : ['headingTextStyle']), ...(value.footerFrameStyle == null ? [] : ['footerFrameStyle']), ...(value.sectionReferenceStyle == null ? [] : ['sectionReferenceStyle']), ...(value.observationSymbolStyle == null ? [] : ['observationSymbolStyle'])]
   if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field')
   const scalars = Object.fromEntries(scalarKeys.map(key => [key, numeric(value[key], `section ${key}`)])) as unknown as Omit<SectionLayout, 'footerGrid' | 'drawingOrigin' | 'outerMargins' | 'innerMargins' | 'frameStyle' | 'headingTextStyle'>
@@ -1469,6 +1478,25 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     const supplied = value.sectionHatchPresentation as Record<string, unknown>
     sectionHatchPresentation = { boreholeColumn: parseHatchPresentation(supplied.boreholeColumn, 'borehole column'),
       stratigraphicBand: parseHatchPresentation(supplied.stratigraphicBand, 'stratigraphic band') }
+  }
+  let boreholeProfileStyle: SectionLayout['boreholeProfileStyle']
+  if (value.boreholeProfileStyle != null) {
+    if (!value.boreholeProfileStyle || typeof value.boreholeProfileStyle !== 'object' || Array.isArray(value.boreholeProfileStyle) ||
+      Object.keys(value.boreholeProfileStyle).sort().join(',') !== 'bottomTickOffsets,collarBarHalfWidth,collarBarYOffset,guideEndOffset,primitive')
+      throw new KJValidationError('Geology: section borehole profile style needs exact source-backed geometry facts')
+    const supplied = value.boreholeProfileStyle as Record<string, unknown>
+    if (supplied.primitive !== 'centerline' || !Array.isArray(supplied.bottomTickOffsets) || supplied.bottomTickOffsets.length !== 2)
+      throw new KJValidationError('Geology: section borehole profile style geometry is invalid')
+    const guideEndOffset = numeric(supplied.guideEndOffset, 'section borehole guide end offset')
+    const bottomTickOffsets = supplied.bottomTickOffsets.map((offset, index) =>
+      numeric(offset, `section borehole bottom tick offset ${index + 1}`)) as [number, number]
+    const collarBarHalfWidth = numeric(supplied.collarBarHalfWidth, 'section borehole collar bar half width')
+    const collarBarYOffset = numeric(supplied.collarBarYOffset, 'section borehole collar bar Y offset')
+    if (guideEndOffset < -50 || guideEndOffset > -0.1 || bottomTickOffsets.some(offset => Math.abs(offset) > 20) ||
+      Math.abs(bottomTickOffsets[1] - bottomTickOffsets[0]) < 0.2 || collarBarHalfWidth < 0.5 || collarBarHalfWidth > 30 ||
+      Math.abs(collarBarYOffset) > 10)
+      throw new KJValidationError('Geology: section borehole profile style is out of bounds')
+    boreholeProfileStyle = { primitive: supplied.primitive, guideEndOffset, bottomTickOffsets, collarBarHalfWidth, collarBarYOffset }
   }
   const legacyFrameRule: SectionFrameRule = { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 }
   let elevationTickSequence: SectionLayout['elevationTickSequence']
@@ -1662,6 +1690,7 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     ...(sectionHatchPresentation ? { sectionHatchPresentation } : {}),
     ...(elevationTickSequence ? { elevationTickSequence } : {}),
     ...(sourceBackedBands ? { sourceBackedBands } : {}),
+    ...(boreholeProfileStyle ? { boreholeProfileStyle } : {}),
     ...(footerFrameStyle ? { footerFrameStyle } : {}), ...(sectionReferenceStyle ? { sectionReferenceStyle } : {}), ...(observationSymbolStyle ? { observationSymbolStyle } : {}) }
 }
 
@@ -2887,9 +2916,26 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   for (const hole of holes) {
     const center = x(hole), top = y(hole, 0), bottom = y(hole, hole.depth)
     const half = layout.boreholeWidth / 2
-    g.line(4, center, layout.footerFrameStyle?.guideY ?? footerTop, center, top)
-    g.rect(1, center - half, bottom, center + half, top)
-    g.line(1, center - 5, top + 1.5, center + 5, top + 1.5)
+    const profile = layout.boreholeProfileStyle
+    if (profile) {
+      const guideStart = layout.footerFrameStyle?.guideY ?? footerTop
+      const guideEnd = bottom + profile.guideEndOffset
+      const tickStart = center + profile.bottomTickOffsets[0], tickEnd = center + profile.bottomTickOffsets[1]
+      const collarLeft = center - profile.collarBarHalfWidth, collarRight = center + profile.collarBarHalfWidth
+      const collarY = top + profile.collarBarYOffset
+      if (guideEnd <= guideStart || guideEnd >= bottom || Math.min(tickStart, tickEnd, collarLeft) < layout.innerMargins.left ||
+        Math.max(tickStart, tickEnd, collarRight) > layout.paperWidth - layout.innerMargins.right ||
+        collarY < layout.plotBottom || collarY > layout.plotTop)
+        throw new KJValidationError(`Geology: borehole profile geometry for ${hole.id} is physically unreadable`)
+      g.line(4, center, guideStart, center, guideEnd)
+      g.poly(1, [[center, bottom], [center, top]])
+      g.line(1, tickStart, bottom, tickEnd, bottom)
+      g.line(1, collarLeft, collarY, collarRight, collarY)
+    } else {
+      g.line(4, center, layout.footerFrameStyle?.guideY ?? footerTop, center, top)
+      g.rect(1, center - half, bottom, center + half, top)
+      g.line(1, center - 5, top + 1.5, center + 5, top + 1.5)
+    }
     if (sectionText) {
       emitTextRole(center, top, hole.id, sectionText.holeIdentifier)
       emitTextRole(center, top, metres(hole.collarElevation), sectionText.collarElevation)
@@ -3062,6 +3108,7 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   return g.finish({ horizontalScaleDenominator: input.horizontalScaleDenominator, verticalScaleDenominator: input.verticalScaleDenominator,
     ...(layout.elevationTickSequence ? { elevationTickCount } : {}),
     ...(layout.sourceBackedBands ? { sourceBackedBandCount: layout.sourceBackedBands.length } : {}),
+    ...(layout.boreholeProfileStyle ? { boreholeProfileElementCount: holes.length * 4 } : {}),
     datumElevation: datum, styleRule: 'geology-section-layout',
     ...(topology ? { correlationMode, topologyMainCellCount: topology.mainCells.length, topologyLensCellCount: topology.lensCells.length,
       topologyMainBoundaryCount: topology.mainBoundaries.length } : {}) })

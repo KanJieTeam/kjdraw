@@ -628,6 +628,8 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
       frameStyle: { outer: { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 }, inner: { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 } },
       headingTextStyle: { title: { anchorX: 210, height: 6, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 }, scale: { anchorX: 210, height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
       sectionReferenceStyle: { start: { offset: [150, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'right', verticalAlignment: 'baseline' }, end: { offset: [270, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
+      boreholeProfileStyle: { primitive: 'centerline', guideEndOffset: -2, bottomTickOffsets: [0, 1.5],
+        collarBarHalfWidth: 9, collarBarYOffset: 1.5 },
       observationSymbolStyle: { sample: { centerOffset: [-4, 0], radius: 0.7, fill: 'solid' }, spt: { topRightOffset: [-7, 0], width: 10, height: 3, labelPlacement: { offset: [-12, -1.5], height: 2, textWidthFactor: 1, horizontalAlignment: 'center', verticalAlignment: 'baseline' } } },
       plotLeft: 30, plotRight: 390, plotBottom: 35, plotTop: 245, titleY: 275, scaleY: 262, footerHeight: 10, boreholeWidth: 3, elevationTickStep: 2,
       footerGrid: [{ start: 12, key: 'projectName', label: 'Project' }, { start: 140, key: 'organization', label: 'Organization' }, { start: 260, key: 'drawingNumber', label: 'Drawing' }],
@@ -674,6 +676,9 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
   assert.deepEqual(ledger.knowledge.geologySection, { id: pack.id, version: pack.version, sha256: sha256(packBytes), path: 'section.json', byteLength: packBytes.byteLength })
   assert.equal(ledger.proposals[0].result.engineeringEvidence.knowledgePack.sha256, sha256(packBytes))
   assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'CIRCLE').length, 1)
+  assert.equal(ledger.proposals[0].result.engineeringEvidence.parameters.boreholeProfileElementCount, 8)
+  assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'LWPOLYLINE' && !entity.payload.closed && entity.payload.vertices.length === 2 &&
+    entity.payload.vertices[0][0] === entity.payload.vertices[1][0]).length, 2)
   assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'TEXT' && ['A', "A'"].includes(entity.payload.text)).length, 2)
   assert.deepEqual(await readFile(drawingPath), drawingBytes)
   assert.deepEqual(await readFile(join(directory, 'section.json')), packBytes)
