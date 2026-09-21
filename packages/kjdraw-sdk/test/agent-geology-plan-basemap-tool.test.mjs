@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import { createKJDrawSDK, KJAgentToolSession } from '../src/index.js'
@@ -35,4 +39,32 @@ test('ordinary geology-plan MCP accepts a reviewed source-backed base map beyond
   assert.equal(result.value.preview.after.length, result.value.engineeringEvidence.entityCount)
   assert.equal(document.revision, 0)
   assert.equal(document.listEntities().length, 0)
+
+  const receipt = await session.approve(result.value.planId, 'host-reviewer')
+  assert.equal(receipt.ok, true, JSON.stringify(receipt))
+  assert.equal(document.revision, 1)
+  assert.equal(document.listEntities().filter(entity => entity.payload.semanticRole === 'source-backed-base-map-linework').length, 600)
+  const kjd = await sdk.writeDocument(document, { format: 'KJD' })
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  for (const reopened of [await sdk.readDocument(kjd, { format: 'KJD' }), await sdk.readDocument(dxf, { format: 'DXF' })]) {
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+  }
+
+  const python = process.env.KJDRAW_PYTHON, pythonPath = process.env.KJDRAW_EZDXF_PATH
+  if (python && pythonPath) {
+    const root = await mkdtemp(join(tmpdir(), 'kjdraw-geology-plan-large-basemap-'))
+    try {
+      const dxfPath = join(root, 'plan.dxf'), auditPath = join(root, 'audit.py')
+      await writeFile(dxfPath, dxf)
+      await writeFile(auditPath, 'import ezdxf,json,sys\nd=ezdxf.readfile(sys.argv[1]);a=d.audit();m=d.modelspace();print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"lines":len(m.query("LINE")),"proxies":len(m.query("ACAD_PROXY_ENTITY"))}))\n')
+      const audit = spawnSync(python, [auditPath, dxfPath], { encoding: 'utf8', env: { ...process.env, PYTHONPATH: pythonPath } })
+      assert.equal(audit.status, 0, audit.stderr)
+      const report = JSON.parse(audit.stdout)
+      assert.equal(report.errors, 0)
+      assert.equal(report.fixes, 0)
+      assert.ok(report.lines >= 600)
+      assert.equal(report.proxies, 0)
+    } finally { await rm(root, { recursive: true, force: true }) }
+  }
 })
