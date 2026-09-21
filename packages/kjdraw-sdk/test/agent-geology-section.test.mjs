@@ -34,6 +34,35 @@ function intent(expectedRevision = 0) {
   }
 }
 
+test('host-bound section knowledge is reachable through the ordinary proposal tool without model-supplied layout facts', async () => {
+  const pack = {
+    schema: 'kjdraw.knowledge-pack.v1', id: 'synthetic-host-section-layout', version: '1.0.0', title: 'Synthetic host section layout',
+    domain: 'geology', license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'synthetic-layout', title: 'Synthetic layout', license: 'MIT', contentHash: sha('synthetic-section-layout') }],
+    ontology: { objectKinds: ['section'], relationKinds: [] }, rules: { 'geology-section-layout': {
+      paperWidth: 420, paperHeight: 297, outerMargins: { left: 5, right: 5, bottom: 5, top: 5 },
+      innerMargins: { left: 12, right: 12, bottom: 12, top: 12 },
+      frameStyle: { outer: { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 }, inner: { primitive: 'closed-polyline', startCorner: 'bottom-left', winding: 'counter-clockwise', constantWidth: 0 } },
+      headingTextStyle: { title: { anchorX: 210, height: 6, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 }, scale: { anchorX: 210, height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
+      sectionReferenceStyle: { start: { offset: [150, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'right', verticalAlignment: 'baseline' }, end: { offset: [270, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
+      observationSymbolStyle: { sample: { centerOffset: [-4, 0], radius: 0.7, fill: 'solid' }, spt: { topRightOffset: [-7, 0], width: 10, height: 3, labelPlacement: { offset: [-12, -1.5], height: 2, textWidthFactor: 1, horizontalAlignment: 'center', verticalAlignment: 'baseline' } } },
+      plotLeft: 30, plotRight: 390, plotBottom: 35, plotTop: 245, titleY: 275, scaleY: 262, footerHeight: 10, boreholeWidth: 3, elevationTickStep: 2,
+      footerGrid: [{ start: 12, key: 'projectName', label: 'Project' }, { start: 140, key: 'organization', label: 'Organization' }, { start: 260, key: 'drawingNumber', label: 'Drawing' }],
+    } },
+  }
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const digest = sha(JSON.stringify(pack)), session = new KJAgentToolSession(sdk, document, { geologySectionKnowledge: { pack, sha256: digest } })
+  const request = intent()
+  request.sectionReference = { start: 'A', end: "A'" }
+  request.holes[0].observations = [{ kind: 'sample', id: 'S1', depth: 4 }, { kind: 'spt', id: 'N1', depth: 8, value: 12 }]
+  const proposal = accepted(await session.call('cad_propose_geology_section', request))
+  assert.deepEqual(session.geologySectionKnowledge, { id: pack.id, version: pack.version, sha256: digest })
+  assert.deepEqual(proposal.engineeringEvidence.knowledgePack, { id: pack.id, version: pack.version, sha256: digest })
+  assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'CIRCLE').length, 1)
+  assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'TEXT' && [request.sectionReference.start, request.sectionReference.end].includes(entity.payload.text)).length, 2)
+  assert.equal(Object.hasOwn(session.definitions.find(tool => tool.name === 'cad_propose_geology_section').inputSchema.properties, 'sectionStylePack'), false)
+})
+
 test('explicit correlated strata become a review-only A3 section proposal; host approval is one undoable transaction with KJD/DXF reopen', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), session = new KJAgentToolSession(sdk, document)
   const schema = session.definitions.find(tool => tool.name === 'cad_propose_geology_section')

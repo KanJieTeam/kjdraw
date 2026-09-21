@@ -47,6 +47,11 @@ export interface KJAgentGeologyColumnKnowledgeBinding {
   sha256: string
 }
 
+export interface KJAgentGeologySectionKnowledgeBinding {
+  pack: unknown
+  sha256: string
+}
+
 export interface KJAgentPatternDrawingInput extends KJAgentCompactDrawingInput {
   arrays: (KJRectangularDrawingPattern & { sources: string[] })[]
   polarArrays?: { sources: string[]; center: { x: number; y: number }; count: number; angleDegrees: number }[]
@@ -388,8 +393,9 @@ const geologySectionSchema = objectWithOptional({
   manualConnections: { type: 'array', minItems: 0, maxItems: 200, items: geologySectionConnectionSchema },
   horizontalScaleDenominator: radius, verticalScaleDenominator: radius, datumElevation: number,
   surfaceRule: { type: 'string', enum: ['straight-between-supplied-collars'] }, projectName: { ...text, maxLength: 64 }, title: { ...text, maxLength: 64 },
+  sectionReference: object({ start: { ...text, maxLength: 24 }, end: { ...text, maxLength: 24 } }),
   documentFacts: geologyColumnSchema.properties!.documentFacts!,
-}, ['locale', 'manualConnections', 'projectName', 'title', 'documentFacts'])
+}, ['locale', 'manualConnections', 'projectName', 'title', 'sectionReference', 'documentFacts'])
 
 const geologyPlanBoreholeLabelLayoutSchema = objectWithOptional({
   idPosition: numericTuple(2), collarElevationPosition: numericTuple(2), depthPosition: numericTuple(2),
@@ -697,6 +703,10 @@ export class KJAgentToolSession {
     return binding ? Object.freeze({ id: binding.pack.id, version: binding.pack.version, sha256: binding.sha256 }) : undefined
   }
   /** Exact instance/SDK attachment check for trusted host orchestration. */
+  get geologySectionKnowledge(): Readonly<{ id: string; version: string; sha256: string }> | undefined {
+    const binding = this.#geologySectionKnowledge
+    return binding ? Object.freeze({ id: binding.pack.id, version: binding.pack.version, sha256: binding.sha256 }) : undefined
+  }
   isBoundTo(document: KJDocument): boolean {
     return document === this.#document && this.#sdk.documents.get(this.#document.id) === this.#document
   }
@@ -716,10 +726,14 @@ export class KJAgentToolSession {
   #roadRecipes = new Map<string, ReadonlyDeep<KJRestoredRoadDrawingRecipe>>()
   #roadPending = new Map<string, ReadonlyDeep<KJAgentRoadRevisionProposal> & { envelope: Readonly<KJCommandEnvelope>; definition: KJRegisteredCommand }>()
   #geologyColumnKnowledge?: { pack: ReadonlyDeep<KJKnowledgePack>; sha256: string }
+  #geologySectionKnowledge?: { pack: ReadonlyDeep<KJKnowledgePack>; sha256: string }
   #busy = false
   #proposals = 0
 
-  constructor(sdk: KJDrawSDK, document: KJDocument, options: { geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding } = {}) {
+  constructor(sdk: KJDrawSDK, document: KJDocument, options: {
+    geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding
+    geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding
+  } = {}) {
     if (sdk.documents.get(document.id) !== document) throw new KJValidationError('Agent tools require an attached document')
     this.#sdk = sdk
     this.#document = document
@@ -729,6 +743,13 @@ export class KJAgentToolSession {
       const pack = validateKnowledgePack(source)
       if (pack.domain !== 'geology' || !pack.rules?.['geology-column-layout']) throw new KJValidationError('Host geology column knowledge must declare the geology domain and geology-column-layout rule')
       this.#geologyColumnKnowledge = { pack, sha256 }
+    }
+    if (options.geologySectionKnowledge) {
+      const { sha256, pack: source } = options.geologySectionKnowledge
+      if (typeof sha256 !== 'string' || !/^[a-f0-9]{64}$/u.test(sha256)) throw new KJValidationError('Host geology section knowledge requires an exact lowercase SHA-256')
+      const pack = validateKnowledgePack(source)
+      if (pack.domain !== 'geology' || !pack.rules?.['geology-section-layout']) throw new KJValidationError('Host geology section knowledge must declare the geology domain and geology-section-layout rule')
+      this.#geologySectionKnowledge = { pack, sha256 }
     }
   }
 
@@ -911,10 +932,10 @@ export class KJAgentToolSession {
                   documentFacts[fact.key] = fact.value
                 }
               }
-              const compiled = compileGeologySection({ ...intent, ...(documentFacts ? { documentFacts } : {}) } as unknown as KJGeologySectionInput)
+              const compiled = compileGeologySection({ ...intent, ...(documentFacts ? { documentFacts } : {}), ...(this.#geologySectionKnowledge ? { sectionStylePack: this.#geologySectionKnowledge.pack } : {}) } as unknown as KJGeologySectionInput)
               if (compiled.commandArgs.entities.length > 512 || compiled.commandArgs.resources.layers.length + compiled.commandArgs.resources.linetypes.length > 32) throw new KJValidationError('Geology section exceeds the bounded Agent proposal budget')
               commandArgs = structuredClone(compiled.commandArgs)
-              engineeringEvidence = compiled.evidence
+              engineeringEvidence = { ...compiled.evidence, ...(this.geologySectionKnowledge ? { knowledgePack: this.geologySectionKnowledge } : {}) }
             } else if (name === 'cad_propose_road_drawing' || name === 'cad_propose_road_drawing_from_asset') {
               let roadInput = args
               if (name === 'cad_propose_road_drawing_from_asset') {

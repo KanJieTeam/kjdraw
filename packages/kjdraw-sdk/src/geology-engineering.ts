@@ -250,6 +250,38 @@ export interface KJGeologySectionConnection {
   kind?: 'continuity' | 'pinchout' | 'lens' | 'manualBoundary'
   layerCode?: string
 }
+
+/** Explicit visible identifiers for the two ends of a geological section.
+ * Values come from the caller; the compiler never infers an identifier. */
+export interface KJGeologySectionReference {
+  start: string
+  end: string
+}
+
+/** Source-backed native geometry for measured observations in a section.
+ * Every coordinate is a bounded millimetre offset from the supplied borehole
+ * and observation depth. */
+export interface KJGeologySectionObservationSymbolStyle {
+  sample: {
+    centerOffset: [number, number]
+    radius: number
+    fill: 'solid' | 'none'
+    labelPlacement?: KJGeologyFieldHeaderTextPlacement
+  }
+  spt: {
+    topRightOffset: [number, number]
+    width: number
+    height: number
+    labelPlacement: KJGeologyFieldHeaderTextPlacement
+  }
+  groundwater?: {
+    insertOffset: [number, number]
+    lineSegments: [[number, number], [number, number]][]
+    markerPolygon: [number, number][]
+    fill: 'solid' | 'none'
+    labelPlacement?: KJGeologyFieldHeaderTextPlacement
+  }
+}
 export interface KJGeologyColumnInput {
   /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */
   locale?: 'zh-CN' | 'en'
@@ -281,6 +313,8 @@ export interface KJGeologySectionInput {
   correlationMode?: 'explicit-correlations' | 'source-group-topology'
   /** Explicit source-backed boundaries are rendered before inferred correlations. */
   manualConnections?: KJGeologySectionConnection[]
+  /** Exact source-backed identifiers shown at the two ends of the section. */
+  sectionReference?: KJGeologySectionReference
   horizontalScaleDenominator: number
   verticalScaleDenominator: number
   datumElevation: number
@@ -313,6 +347,8 @@ interface SectionLayout {
   frameStyle: { outer: SectionFrameRule; inner: SectionFrameRule }
   headingTextStyle?: { title: SectionHeadingTextRule; scale: SectionHeadingTextRule }
   plotLeft: number
+  sectionReferenceStyle?: { start: KJGeologyFieldHeaderTextPlacement; end: KJGeologyFieldHeaderTextPlacement }
+  observationSymbolStyle?: KJGeologySectionObservationSymbolStyle
   plotRight: number
   plotBottom: number
   plotTop: number
@@ -1318,7 +1354,7 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
   const hasOuterMargins = value.outerMargins != null, hasInnerMargins = value.innerMargins != null
   const expectedKeys = [...scalarKeys, 'footerGrid', hasOuterMargins ? 'outerMargins' : 'outerMargin',
     hasInnerMargins ? 'innerMargins' : 'innerMargin', ...(value.drawingOrigin == null ? [] : ['drawingOrigin']), ...(value.frameStyle == null ? [] : ['frameStyle']),
-    ...(value.headingTextStyle == null ? [] : ['headingTextStyle'])]
+    ...(value.headingTextStyle == null ? [] : ['headingTextStyle']), ...(value.sectionReferenceStyle == null ? [] : ['sectionReferenceStyle']), ...(value.observationSymbolStyle == null ? [] : ['observationSymbolStyle'])]
   if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field')
   const scalars = Object.fromEntries(scalarKeys.map(key => [key, numeric(value[key], `section ${key}`)])) as unknown as Omit<SectionLayout, 'footerGrid' | 'drawingOrigin' | 'outerMargins' | 'innerMargins' | 'frameStyle' | 'headingTextStyle'>
   const parseHeadingTextRule = (raw: unknown, label: string): SectionHeadingTextRule => {
@@ -1380,6 +1416,61 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
       throw new KJValidationError('Geology: section drawing origin needs two coordinates')
     drawingOrigin = [numeric(value.drawingOrigin[0], 'section drawing origin X'), numeric(value.drawingOrigin[1], 'section drawing origin Y')]
   }
+  let sectionReferenceStyle: SectionLayout['sectionReferenceStyle']
+  if (value.sectionReferenceStyle != null) {
+    if (!value.sectionReferenceStyle || typeof value.sectionReferenceStyle !== 'object' || Array.isArray(value.sectionReferenceStyle) || Object.keys(value.sectionReferenceStyle).sort().join(',') !== 'end,start')
+      throw new KJValidationError('Geology: section reference style needs exact start and end placements')
+    const supplied = value.sectionReferenceStyle as Record<string, unknown>
+    sectionReferenceStyle = { start: sourceTextPlacement(supplied.start, 'section reference start'), end: sourceTextPlacement(supplied.end, 'section reference end') }
+  }
+  const offsetPair = (raw: unknown, label: string): [number, number] => {
+    if (!Array.isArray(raw) || raw.length !== 2) throw new KJValidationError(`Geology: ${label} needs two millimetre offsets`)
+    const result: [number, number] = [numeric(raw[0], `${label} X`), numeric(raw[1], `${label} Y`)]
+    if (result.some(coordinate => Math.abs(coordinate) > 50)) throw new KJValidationError(`Geology: ${label} is outside the bounded symbol area`)
+    return result
+  }
+  let observationSymbolStyle: SectionLayout['observationSymbolStyle']
+  if (value.observationSymbolStyle != null) {
+    if (!value.observationSymbolStyle || typeof value.observationSymbolStyle !== 'object' || Array.isArray(value.observationSymbolStyle) || !['sample,spt', 'groundwater,sample,spt'].includes(Object.keys(value.observationSymbolStyle).sort().join(',')))
+      throw new KJValidationError('Geology: section observation symbol style needs exact sample, SPT and optional groundwater rules')
+    const supplied = value.observationSymbolStyle as Record<string, unknown>
+    if (!supplied.sample || typeof supplied.sample !== 'object' || Array.isArray(supplied.sample) || !['centerOffset,fill,radius', 'centerOffset,fill,labelPlacement,radius'].includes(Object.keys(supplied.sample).sort().join(',')))
+      throw new KJValidationError('Geology: section sample symbol rule is invalid')
+    if (!supplied.spt || typeof supplied.spt !== 'object' || Array.isArray(supplied.spt) || Object.keys(supplied.spt).sort().join(',') !== 'height,labelPlacement,topRightOffset,width')
+      throw new KJValidationError('Geology: section SPT symbol rule is invalid')
+    const sample = supplied.sample as Record<string, unknown>, spt = supplied.spt as Record<string, unknown>
+    let groundwater: KJGeologySectionObservationSymbolStyle['groundwater']
+    if (supplied.groundwater != null) {
+      if (!supplied.groundwater || typeof supplied.groundwater !== 'object' || Array.isArray(supplied.groundwater) ||
+        !['fill,insertOffset,lineSegments,markerPolygon', 'fill,insertOffset,labelPlacement,lineSegments,markerPolygon'].includes(Object.keys(supplied.groundwater).sort().join(',')))
+        throw new KJValidationError('Geology: section groundwater symbol rule is invalid')
+      const rule = supplied.groundwater as Record<string, unknown>
+      if (!Array.isArray(rule.lineSegments) || rule.lineSegments.length < 1 || rule.lineSegments.length > 8 ||
+        !Array.isArray(rule.markerPolygon) || rule.markerPolygon.length < 3 || rule.markerPolygon.length > 12 ||
+        rule.fill !== 'solid' && rule.fill !== 'none') throw new KJValidationError('Geology: section groundwater symbol geometry is unreadable')
+      const point = (raw: unknown, label: string): [number, number] => {
+        const result = offsetPair(raw, label)
+        if (result.some(coordinate => Math.abs(coordinate) > 20)) throw new KJValidationError(`Geology: ${label} is outside the bounded local marker`)
+        return result
+      }
+      groundwater = { insertOffset: offsetPair(rule.insertOffset, 'section groundwater symbol insertion'),
+        lineSegments: rule.lineSegments.map((segment, index) => {
+          if (!Array.isArray(segment) || segment.length !== 2) throw new KJValidationError('Geology: section groundwater line segment needs two endpoints')
+          return [point(segment[0], `section groundwater line ${index + 1} start`), point(segment[1], `section groundwater line ${index + 1} end`)]
+        }), markerPolygon: rule.markerPolygon.map((item, index) => point(item, `section groundwater marker vertex ${index + 1}`)), fill: rule.fill,
+        ...(rule.labelPlacement == null ? {} : { labelPlacement: sourceTextPlacement(rule.labelPlacement, 'section groundwater label') }) }
+    }
+    const radius = numeric(sample.radius, 'section sample symbol radius')
+    const width = numeric(spt.width, 'section SPT symbol width'), height = numeric(spt.height, 'section SPT symbol height')
+    if (sample.fill !== 'solid' && sample.fill !== 'none' || radius < 0.2 || radius > 5 || width < 2 || width > 30 || height < 1 || height > 10)
+      throw new KJValidationError('Geology: section observation symbol geometry is unreadable')
+    observationSymbolStyle = {
+      ...(groundwater ? { groundwater } : {}),
+      sample: { centerOffset: offsetPair(sample.centerOffset, 'section sample symbol offset'), radius, fill: sample.fill,
+        ...(sample.labelPlacement == null ? {} : { labelPlacement: sourceTextPlacement(sample.labelPlacement, 'section sample label') }) },
+      spt: { topRightOffset: offsetPair(spt.topRightOffset, 'section SPT symbol offset'), width, height, labelPlacement: sourceTextPlacement(spt.labelPlacement, 'section SPT label') },
+    }
+  }
   if (scalars.paperWidth < 210 || scalars.paperWidth > 1600 || scalars.paperHeight < 210 || scalars.paperHeight > 1600 ||
     Object.values(outerMargins).some(margin => margin < 0) || !hasOuterMargins && outerMargins.left < 3 ||
     Object.values(innerMargins).some(margin => margin < 0) ||
@@ -1405,7 +1496,8 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     if (index === 0 && Math.abs(cell.start - innerMargins.left) > 1e-6 || index && cell.start <= footerGrid[index - 1]!.start || end - cell.start < 28)
       throw new KJValidationError('Geology: section footer cell is out of bounds or unreadable')
   }
-  return { ...scalars, drawingOrigin, outerMargins, innerMargins, frameStyle, ...(headingTextStyle ? { headingTextStyle } : {}), footerGrid }
+  return { ...scalars, drawingOrigin, outerMargins, innerMargins, frameStyle, ...(headingTextStyle ? { headingTextStyle } : {}), footerGrid,
+    ...(sectionReferenceStyle ? { sectionReferenceStyle } : {}), ...(observationSymbolStyle ? { observationSymbolStyle } : {}) }
 }
 
 function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
@@ -1608,6 +1700,14 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
   const rect = (layer: number, x1: number, y1: number, x2: number, y2: number, constantWidth?: number) =>
     poly(layer, [[x1, y1], [x2, y1], [x2, y2], [x1, y2]], true, constantWidth)
   const circle = (layer: number, x: number, y: number, radius: number) => add('CIRCLE', layer, { center: shifted(x, y), radius })
+  const circularHatch = (x: number, y: number, radius: number) => add('HATCH', 2, {
+    boundaryLoops: [{ external: true, closed: true, edges: [{ type: 'ARC', center: shifted(x, y), radius, startAngle: 0, endAngle: Math.PI * 2, counterClockwise: true }] }],
+    patternName: 'SOLID', solid: true, patternScale: 1, patternAngle: 0,
+  })
+  const solidPolygonHatch = (points: [number, number][]) => add('HATCH', 2, {
+    boundaryLoops: [{ external: true, closed: true, vertices: points.map(([x, y]) => shifted(x, y)) }],
+    patternName: 'SOLID', solid: true, patternScale: 1, patternAngle: 0,
+  })
   const hatch = (points: [number, number][], layer: Pick<KJGeologyStratum, 'lithology' | 'patternKey'>) => add('HATCH', 2, {
     boundaryLoops: [{ external: true, closed: true, vertices: points.map(([x, y]) => shifted(x, y)) }],
     patternName: pattern[layer.lithology], solid: false, patternScale: 0.6, patternAngle: 0,
@@ -1619,7 +1719,7 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     evidence: { packId: 'geology.core', packVersion: '1.0.0', packHash: stableHash({ pattern, hatches }), intentHash: stableHash(input), templateId, rootObjectId: prefix, expectedRevision, entityCount: entities.length,
       ...(parameters ? { parameters } : {}) },
   })
-  return { line, semanticLine, text, placedText, mtext, poly, rect, circle, hatch, finish }
+  return { line, semanticLine, text, placedText, mtext, poly, rect, circle, circularHatch, solidPolygonHatch, hatch, finish }
 }
 
 export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<KJKnowledgeCompileResult> {
@@ -2482,6 +2582,16 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     throw new KJValidationError('Geology: source-group topology conflicts with explicit correlations or manual connections')
   const layout = sectionLayout(input)
   const documentFacts = documentFactRecord(input.documentFacts)
+  let sectionReference: KJGeologySectionReference | undefined
+  if (input.sectionReference != null) {
+    if (!input.sectionReference || typeof input.sectionReference !== 'object' || Array.isArray(input.sectionReference) || Object.keys(input.sectionReference).sort().join(',') !== 'end,start')
+      throw new KJValidationError('Geology: section reference needs exact start and end identifiers')
+    if (!layout.sectionReferenceStyle) throw new KJValidationError('Geology: section reference needs a declared source-backed placement')
+    sectionReference = {
+      start: bounded(input.sectionReference.start, 'section reference start', 24),
+      end: bounded(input.sectionReference.end, 'section reference end', 24),
+    }
+  }
   if (input.projectName != null) bounded(input.projectName, 'project name', 96)
   if (Object.hasOwn(documentFacts, 'projectName')) throw new KJValidationError('Geology: section projectName must use its dedicated field')
   const declaredFacts = new Set(layout.footerGrid.map(cell => cell.key).filter(key => key !== 'projectName'))
@@ -2507,6 +2617,11 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   if (x(holes.at(-1)!) > layout.plotRight - 4 || holes.some(hole => y(hole, 0) > layout.plotTop || y(hole, hole.depth) < layout.plotBottom)) throw new KJValidationError('Geology: section does not fit A3 at the declared scales and datum')
   const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision,
     patternDefinitions(input.hatchPack, [...byId.values()].flatMap(value => value.strata)), undefined, undefined, layout.drawingOrigin)
+  const emitPlaced = (baseX: number, baseY: number, value: string, placement: KJGeologyFieldHeaderTextPlacement) =>
+    g.placedText(3, baseX + placement.offset[0], baseY + placement.offset[1], value, placement.height, placement.textWidthFactor,
+      placement.horizontalAlignment === 'center' ? 1 : placement.horizontalAlignment === 'right' ? 2 : 0,
+      placement.verticalAlignment === 'middle' ? 2 : 0, 0)
+
   const frame = (margins: SectionLayout['outerMargins'], rule: SectionFrameRule) => {
     const left = margins.left, right = layout.paperWidth - margins.right
     const bottom = margins.bottom, top = layout.paperHeight - margins.top
@@ -2543,6 +2658,11 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   }
   g.line(1, layout.plotLeft, layout.plotBottom, layout.plotLeft, layout.plotTop)
   g.line(1, layout.plotLeft, layout.plotBottom, layout.plotRight, layout.plotBottom)
+  if (sectionReference) {
+    const style = layout.sectionReferenceStyle!
+    emitPlaced(0, 0, sectionReference.start, style.start)
+    emitPlaced(0, 0, sectionReference.end, style.end)
+  }
   const maximumElevation = Math.max(...holes.map(hole => hole.collarElevation))
   for (let elevation = Math.ceil(datum / layout.elevationTickStep) * layout.elevationTickStep; elevation <= maximumElevation + 1e-9; elevation += layout.elevationTickStep) {
     const tickY = layout.plotBottom + (elevation - datum) * vs
@@ -2581,12 +2701,41 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     }
     if (hole.stableWaterDepth != null) {
       const waterY = y(hole, hole.stableWaterDepth)
-      g.line(1, center - 5, waterY, center + 5, waterY)
-      g.poly(1, [[center - 2, waterY + 1.2], [center, waterY - 1], [center + 2, waterY + 1.2]])
-      g.text(3, center + 6, waterY - 0.7, `${locale === 'zh-CN' ? '水位' : 'WL'} ${metres(hole.stableWaterDepth)}`, 1.5)
+      const style = layout.observationSymbolStyle?.groundwater
+      if (style) {
+        const insertX = center + style.insertOffset[0], insertY = waterY + style.insertOffset[1]
+        for (const [[x1, y1], [x2, y2]] of style.lineSegments) g.line(1, insertX + x1, insertY + y1, insertX + x2, insertY + y2)
+        const marker = style.markerPolygon.map(([x, y]) => [insertX + x, insertY + y] as [number, number])
+        g.poly(1, marker, true)
+        if (style.fill === 'solid') g.solidPolygonHatch(marker)
+        if (style.labelPlacement) emitPlaced(center, waterY, `${locale === 'zh-CN' ? '水位' : 'WL'} ${metres(hole.stableWaterDepth)}`, style.labelPlacement)
+      } else {
+        g.line(1, center - 5, waterY, center + 5, waterY)
+        g.poly(1, [[center - 2, waterY + 1.2], [center, waterY - 1], [center + 2, waterY + 1.2]])
+        g.text(3, center + 6, waterY - 0.7, `${locale === 'zh-CN' ? '水位' : 'WL'} ${metres(hole.stableWaterDepth)}`, 1.5)
+      }
     }
     for (const observation of hole.observations ?? []) {
       const observationY = y(hole, observation.depth), markerX = center + half + 5
+      const symbolStyle = layout.observationSymbolStyle
+      if (symbolStyle) {
+        if (observation.kind === 'sample') {
+          const style = symbolStyle.sample, symbolX = center + style.centerOffset[0], symbolY = observationY + style.centerOffset[1]
+          g.circle(1, symbolX, symbolY, style.radius)
+          if (style.fill === 'solid' && observation.sampleMarker !== 'open-circle') g.circularHatch(symbolX, symbolY, style.radius)
+          if (style.labelPlacement) emitPlaced(center, observationY, observation.displayLabel ?? observation.id, style.labelPlacement)
+        } else {
+          const style = symbolStyle.spt, right = center + style.topRightOffset[0], top = observationY + style.topRightOffset[1]
+          const left = right - style.width, bottom = top - style.height
+          g.line(1, right, top, left, top)
+          g.line(1, left, top, left, bottom)
+          g.line(1, left, bottom, right, bottom)
+          g.line(1, right, bottom, right, top)
+          const shown = Number.isInteger(observation.value) ? observation.value!.toString() : metres(observation.value!)
+          emitPlaced(center, observationY, observation.displayLabel ?? `N=${shown}`, style.labelPlacement)
+        }
+        continue
+      }
       if (observation.kind === 'sample') {
         g.rect(1, markerX, observationY - 1.2, markerX + 2.2, observationY + 1.2)
         g.text(3, markerX + 3.2, observationY - 0.7, observation.displayLabel ?? observation.id, 1.5)

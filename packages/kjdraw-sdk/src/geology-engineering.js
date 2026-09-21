@@ -1492,6 +1492,12 @@ function sectionLayout(input) {
         ],
         ...value.headingTextStyle == null ? [] : [
             'headingTextStyle'
+        ],
+        ...value.sectionReferenceStyle == null ? [] : [
+            'sectionReferenceStyle'
+        ],
+        ...value.observationSymbolStyle == null ? [] : [
+            'observationSymbolStyle'
         ]
     ];
     if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field');
@@ -1613,6 +1619,89 @@ function sectionLayout(input) {
             numeric(value.drawingOrigin[1], 'section drawing origin Y')
         ];
     }
+    let sectionReferenceStyle;
+    if (value.sectionReferenceStyle != null) {
+        if (!value.sectionReferenceStyle || typeof value.sectionReferenceStyle !== 'object' || Array.isArray(value.sectionReferenceStyle) || Object.keys(value.sectionReferenceStyle).sort().join(',') !== 'end,start') throw new KJValidationError('Geology: section reference style needs exact start and end placements');
+        const supplied = value.sectionReferenceStyle;
+        sectionReferenceStyle = {
+            start: sourceTextPlacement(supplied.start, 'section reference start'),
+            end: sourceTextPlacement(supplied.end, 'section reference end')
+        };
+    }
+    const offsetPair = (raw, label)=>{
+        if (!Array.isArray(raw) || raw.length !== 2) throw new KJValidationError(`Geology: ${label} needs two millimetre offsets`);
+        const result = [
+            numeric(raw[0], `${label} X`),
+            numeric(raw[1], `${label} Y`)
+        ];
+        if (result.some((coordinate)=>Math.abs(coordinate) > 50)) throw new KJValidationError(`Geology: ${label} is outside the bounded symbol area`);
+        return result;
+    };
+    let observationSymbolStyle;
+    if (value.observationSymbolStyle != null) {
+        if (!value.observationSymbolStyle || typeof value.observationSymbolStyle !== 'object' || Array.isArray(value.observationSymbolStyle) || ![
+            'sample,spt',
+            'groundwater,sample,spt'
+        ].includes(Object.keys(value.observationSymbolStyle).sort().join(','))) throw new KJValidationError('Geology: section observation symbol style needs exact sample, SPT and optional groundwater rules');
+        const supplied = value.observationSymbolStyle;
+        if (!supplied.sample || typeof supplied.sample !== 'object' || Array.isArray(supplied.sample) || ![
+            'centerOffset,fill,radius',
+            'centerOffset,fill,labelPlacement,radius'
+        ].includes(Object.keys(supplied.sample).sort().join(','))) throw new KJValidationError('Geology: section sample symbol rule is invalid');
+        if (!supplied.spt || typeof supplied.spt !== 'object' || Array.isArray(supplied.spt) || Object.keys(supplied.spt).sort().join(',') !== 'height,labelPlacement,topRightOffset,width') throw new KJValidationError('Geology: section SPT symbol rule is invalid');
+        const sample = supplied.sample, spt = supplied.spt;
+        let groundwater;
+        if (supplied.groundwater != null) {
+            if (!supplied.groundwater || typeof supplied.groundwater !== 'object' || Array.isArray(supplied.groundwater) || ![
+                'fill,insertOffset,lineSegments,markerPolygon',
+                'fill,insertOffset,labelPlacement,lineSegments,markerPolygon'
+            ].includes(Object.keys(supplied.groundwater).sort().join(','))) throw new KJValidationError('Geology: section groundwater symbol rule is invalid');
+            const rule = supplied.groundwater;
+            if (!Array.isArray(rule.lineSegments) || rule.lineSegments.length < 1 || rule.lineSegments.length > 8 || !Array.isArray(rule.markerPolygon) || rule.markerPolygon.length < 3 || rule.markerPolygon.length > 12 || rule.fill !== 'solid' && rule.fill !== 'none') throw new KJValidationError('Geology: section groundwater symbol geometry is unreadable');
+            const point = (raw, label)=>{
+                const result = offsetPair(raw, label);
+                if (result.some((coordinate)=>Math.abs(coordinate) > 20)) throw new KJValidationError(`Geology: ${label} is outside the bounded local marker`);
+                return result;
+            };
+            groundwater = {
+                insertOffset: offsetPair(rule.insertOffset, 'section groundwater symbol insertion'),
+                lineSegments: rule.lineSegments.map((segment, index)=>{
+                    if (!Array.isArray(segment) || segment.length !== 2) throw new KJValidationError('Geology: section groundwater line segment needs two endpoints');
+                    return [
+                        point(segment[0], `section groundwater line ${index + 1} start`),
+                        point(segment[1], `section groundwater line ${index + 1} end`)
+                    ];
+                }),
+                markerPolygon: rule.markerPolygon.map((item, index)=>point(item, `section groundwater marker vertex ${index + 1}`)),
+                fill: rule.fill,
+                ...rule.labelPlacement == null ? {} : {
+                    labelPlacement: sourceTextPlacement(rule.labelPlacement, 'section groundwater label')
+                }
+            };
+        }
+        const radius = numeric(sample.radius, 'section sample symbol radius');
+        const width = numeric(spt.width, 'section SPT symbol width'), height = numeric(spt.height, 'section SPT symbol height');
+        if (sample.fill !== 'solid' && sample.fill !== 'none' || radius < 0.2 || radius > 5 || width < 2 || width > 30 || height < 1 || height > 10) throw new KJValidationError('Geology: section observation symbol geometry is unreadable');
+        observationSymbolStyle = {
+            ...groundwater ? {
+                groundwater
+            } : {},
+            sample: {
+                centerOffset: offsetPair(sample.centerOffset, 'section sample symbol offset'),
+                radius,
+                fill: sample.fill,
+                ...sample.labelPlacement == null ? {} : {
+                    labelPlacement: sourceTextPlacement(sample.labelPlacement, 'section sample label')
+                }
+            },
+            spt: {
+                topRightOffset: offsetPair(spt.topRightOffset, 'section SPT symbol offset'),
+                width,
+                height,
+                labelPlacement: sourceTextPlacement(spt.labelPlacement, 'section SPT label')
+            }
+        };
+    }
     if (scalars.paperWidth < 210 || scalars.paperWidth > 1600 || scalars.paperHeight < 210 || scalars.paperHeight > 1600 || Object.values(outerMargins).some((margin)=>margin < 0) || !hasOuterMargins && outerMargins.left < 3 || Object.values(innerMargins).some((margin)=>margin < 0) || innerMargins.left <= outerMargins.left || innerMargins.right <= outerMargins.right || innerMargins.bottom <= outerMargins.bottom || innerMargins.top <= outerMargins.top || innerMargins.left + innerMargins.right >= scalars.paperWidth || innerMargins.bottom + innerMargins.top >= scalars.paperHeight || headingTextStyle && Object.values(headingTextStyle).some((rule)=>rule.anchorX < innerMargins.left || rule.anchorX > scalars.paperWidth - innerMargins.right) || scalars.plotLeft <= innerMargins.left || scalars.plotRight >= scalars.paperWidth - innerMargins.right || scalars.plotRight - scalars.plotLeft < 250 || scalars.plotBottom < innerMargins.bottom + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop || scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 || scalars.elevationTickStep < 0.5 || scalars.elevationTickStep > 20) throw new KJValidationError('Geology: section layout geometry is unreadable');
     if (!Array.isArray(value.footerGrid) || value.footerGrid.length < 3 || value.footerGrid.length > 8) throw new KJValidationError('Geology: section footer grid is invalid');
     const seen = new Set(), footerGrid = value.footerGrid.map((rawCell, index)=>{
@@ -1640,7 +1729,13 @@ function sectionLayout(input) {
         ...headingTextStyle ? {
             headingTextStyle
         } : {},
-        footerGrid
+        footerGrid,
+        ...sectionReferenceStyle ? {
+            sectionReferenceStyle
+        } : {},
+        ...observationSymbolStyle ? {
+            observationSymbolStyle
+        } : {}
     };
 }
 function checkHole(hole) {
@@ -1957,6 +2052,41 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
             center: shifted(x, y),
             radius
         });
+    const circularHatch = (x, y, radius)=>add('HATCH', 2, {
+            boundaryLoops: [
+                {
+                    external: true,
+                    closed: true,
+                    edges: [
+                        {
+                            type: 'ARC',
+                            center: shifted(x, y),
+                            radius,
+                            startAngle: 0,
+                            endAngle: Math.PI * 2,
+                            counterClockwise: true
+                        }
+                    ]
+                }
+            ],
+            patternName: 'SOLID',
+            solid: true,
+            patternScale: 1,
+            patternAngle: 0
+        });
+    const solidPolygonHatch = (points)=>add('HATCH', 2, {
+            boundaryLoops: [
+                {
+                    external: true,
+                    closed: true,
+                    vertices: points.map(([x, y])=>shifted(x, y))
+                }
+            ],
+            patternName: 'SOLID',
+            solid: true,
+            patternScale: 1,
+            patternAngle: 0
+        });
     const hatch = (points, layer)=>add('HATCH', 2, {
             boundaryLoops: [
                 {
@@ -2014,6 +2144,8 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
         poly,
         rect,
         circle,
+        circularHatch,
+        solidPolygonHatch,
         hatch,
         finish
     };
@@ -3140,6 +3272,15 @@ export function compileGeologySection(input) {
     if (correlationMode === 'source-group-topology' && (input.correlations.length || manualConnections.length)) throw new KJValidationError('Geology: source-group topology conflicts with explicit correlations or manual connections');
     const layout = sectionLayout(input);
     const documentFacts = documentFactRecord(input.documentFacts);
+    let sectionReference;
+    if (input.sectionReference != null) {
+        if (!input.sectionReference || typeof input.sectionReference !== 'object' || Array.isArray(input.sectionReference) || Object.keys(input.sectionReference).sort().join(',') !== 'end,start') throw new KJValidationError('Geology: section reference needs exact start and end identifiers');
+        if (!layout.sectionReferenceStyle) throw new KJValidationError('Geology: section reference needs a declared source-backed placement');
+        sectionReference = {
+            start: bounded(input.sectionReference.start, 'section reference start', 24),
+            end: bounded(input.sectionReference.end, 'section reference end', 24)
+        };
+    }
     if (input.projectName != null) bounded(input.projectName, 'project name', 96);
     if (Object.hasOwn(documentFacts, 'projectName')) throw new KJValidationError('Geology: section projectName must use its dedicated field');
     const declaredFacts = new Set(layout.footerGrid.map((cell)=>cell.key).filter((key)=>key !== 'projectName'));
@@ -3174,6 +3315,7 @@ export function compileGeologySection(input) {
     const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, [
         ...byId.values()
     ].flatMap((value)=>value.strata)), undefined, undefined, layout.drawingOrigin);
+    const emitPlaced = (baseX, baseY, value, placement)=>g.placedText(3, baseX + placement.offset[0], baseY + placement.offset[1], value, placement.height, placement.textWidthFactor, placement.horizontalAlignment === 'center' ? 1 : placement.horizontalAlignment === 'right' ? 2 : 0, placement.verticalAlignment === 'middle' ? 2 : 0, 0);
     const frame = (margins, rule)=>{
         const left = margins.left, right = layout.paperWidth - margins.right;
         const bottom = margins.bottom, top = layout.paperHeight - margins.top;
@@ -3232,6 +3374,11 @@ export function compileGeologySection(input) {
     }
     g.line(1, layout.plotLeft, layout.plotBottom, layout.plotLeft, layout.plotTop);
     g.line(1, layout.plotLeft, layout.plotBottom, layout.plotRight, layout.plotBottom);
+    if (sectionReference) {
+        const style = layout.sectionReferenceStyle;
+        emitPlaced(0, 0, sectionReference.start, style.start);
+        emitPlaced(0, 0, sectionReference.end, style.end);
+    }
     const maximumElevation = Math.max(...holes.map((hole)=>hole.collarElevation));
     for(let elevation = Math.ceil(datum / layout.elevationTickStep) * layout.elevationTickStep; elevation <= maximumElevation + 1e-9; elevation += layout.elevationTickStep){
         const tickY = layout.plotBottom + (elevation - datum) * vs;
@@ -3295,25 +3442,57 @@ export function compileGeologySection(input) {
         }
         if (hole.stableWaterDepth != null) {
             const waterY = y(hole, hole.stableWaterDepth);
-            g.line(1, center - 5, waterY, center + 5, waterY);
-            g.poly(1, [
-                [
-                    center - 2,
-                    waterY + 1.2
-                ],
-                [
-                    center,
-                    waterY - 1
-                ],
-                [
-                    center + 2,
-                    waterY + 1.2
-                ]
-            ]);
-            g.text(3, center + 6, waterY - 0.7, `${locale === 'zh-CN' ? '水位' : 'WL'} ${metres(hole.stableWaterDepth)}`, 1.5);
+            const style = layout.observationSymbolStyle?.groundwater;
+            if (style) {
+                const insertX = center + style.insertOffset[0], insertY = waterY + style.insertOffset[1];
+                for (const [[x1, y1], [x2, y2]] of style.lineSegments)g.line(1, insertX + x1, insertY + y1, insertX + x2, insertY + y2);
+                const marker = style.markerPolygon.map(([x, y])=>[
+                        insertX + x,
+                        insertY + y
+                    ]);
+                g.poly(1, marker, true);
+                if (style.fill === 'solid') g.solidPolygonHatch(marker);
+                if (style.labelPlacement) emitPlaced(center, waterY, `${locale === 'zh-CN' ? '水位' : 'WL'} ${metres(hole.stableWaterDepth)}`, style.labelPlacement);
+            } else {
+                g.line(1, center - 5, waterY, center + 5, waterY);
+                g.poly(1, [
+                    [
+                        center - 2,
+                        waterY + 1.2
+                    ],
+                    [
+                        center,
+                        waterY - 1
+                    ],
+                    [
+                        center + 2,
+                        waterY + 1.2
+                    ]
+                ]);
+                g.text(3, center + 6, waterY - 0.7, `${locale === 'zh-CN' ? '水位' : 'WL'} ${metres(hole.stableWaterDepth)}`, 1.5);
+            }
         }
         for (const observation of hole.observations ?? []){
             const observationY = y(hole, observation.depth), markerX = center + half + 5;
+            const symbolStyle = layout.observationSymbolStyle;
+            if (symbolStyle) {
+                if (observation.kind === 'sample') {
+                    const style = symbolStyle.sample, symbolX = center + style.centerOffset[0], symbolY = observationY + style.centerOffset[1];
+                    g.circle(1, symbolX, symbolY, style.radius);
+                    if (style.fill === 'solid' && observation.sampleMarker !== 'open-circle') g.circularHatch(symbolX, symbolY, style.radius);
+                    if (style.labelPlacement) emitPlaced(center, observationY, observation.displayLabel ?? observation.id, style.labelPlacement);
+                } else {
+                    const style = symbolStyle.spt, right = center + style.topRightOffset[0], top = observationY + style.topRightOffset[1];
+                    const left = right - style.width, bottom = top - style.height;
+                    g.line(1, right, top, left, top);
+                    g.line(1, left, top, left, bottom);
+                    g.line(1, left, bottom, right, bottom);
+                    g.line(1, right, bottom, right, top);
+                    const shown = Number.isInteger(observation.value) ? observation.value.toString() : metres(observation.value);
+                    emitPlaced(center, observationY, observation.displayLabel ?? `N=${shown}`, style.labelPlacement);
+                }
+                continue;
+            }
             if (observation.kind === 'sample') {
                 g.rect(1, markerX, observationY - 1.2, markerX + 2.2, observationY + 1.2);
                 g.text(3, markerX + 3.2, observationY - 0.7, observation.displayLabel ?? observation.id, 1.5);

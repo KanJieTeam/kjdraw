@@ -260,6 +260,36 @@ export interface KJGeologySectionConnection {
     kind?: 'continuity' | 'pinchout' | 'lens' | 'manualBoundary';
     layerCode?: string;
 }
+/** Explicit visible identifiers for the two ends of a geological section.
+ * Values come from the caller; the compiler never infers an identifier. */
+export interface KJGeologySectionReference {
+    start: string;
+    end: string;
+}
+/** Source-backed native geometry for measured observations in a section.
+ * Every coordinate is a bounded millimetre offset from the supplied borehole
+ * and observation depth. */
+export interface KJGeologySectionObservationSymbolStyle {
+    sample: {
+        centerOffset: [number, number];
+        radius: number;
+        fill: 'solid' | 'none';
+        labelPlacement?: KJGeologyFieldHeaderTextPlacement;
+    };
+    spt: {
+        topRightOffset: [number, number];
+        width: number;
+        height: number;
+        labelPlacement: KJGeologyFieldHeaderTextPlacement;
+    };
+    groundwater?: {
+        insertOffset: [number, number];
+        lineSegments: [[number, number], [number, number]][];
+        markerPolygon: [number, number][];
+        fill: 'solid' | 'none';
+        labelPlacement?: KJGeologyFieldHeaderTextPlacement;
+    };
+}
 export interface KJGeologyColumnInput {
     /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */
     locale?: 'zh-CN' | 'en';
@@ -298,6 +328,8 @@ export interface KJGeologySectionInput {
     correlationMode?: 'explicit-correlations' | 'source-group-topology';
     /** Explicit source-backed boundaries are rendered before inferred correlations. */
     manualConnections?: KJGeologySectionConnection[];
+    /** Exact source-backed identifiers shown at the two ends of the section. */
+    sectionReference?: KJGeologySectionReference;
     horizontalScaleDenominator: number;
     verticalScaleDenominator: number;
     datumElevation: number;

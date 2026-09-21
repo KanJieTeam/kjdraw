@@ -182,8 +182,88 @@ test('section style pack preserves explicit frame primitives, start corners, win
   assert.throws(invalid(style => { style.inner.constantWidth = 5.01 }), /out of bounds/u)
 })
 
+test('section preserves caller-supplied references and native measured-observation symbols through KJD and DXF', async () => {
+  const pack = structuredClone(KJDRAW_GEOLOGY_KNOWLEDGE_PACK)
+  pack.id = 'test.section.references-and-observation-symbols'
+  pack.version = '1.0.0'
+  const rule = pack.rules['geology-section-layout']
+  const placement = (offset, height, horizontalAlignment = 'center') => ({
+    offset, height, textWidthFactor: 1, horizontalAlignment, verticalAlignment: 'baseline',
+  })
+  rule.sectionReferenceStyle = {
+    start: placement([190, 315], 4, 'right'),
+    end: placement([230, 315], 4, 'left'),
+  }
+  rule.observationSymbolStyle = {
+    sample: { centerOffset: [6, -1], radius: 1, fill: 'solid' },
+    spt: { topRightOffset: [0, 0], width: 10, height: 3, labelPlacement: placement([-5, -2], 2) },
+    groundwater: { insertOffset: [-8, 0], lineSegments: [
+      [[0, -2], [4, -2]],
+      [[0, -1], [4, -1]],
+    ], markerPolygon: [[1, 2], [3, 2], [2, 0]], fill: 'solid' },
+  }
+  const measured = structuredClone(holes)
+  measured[0].stableWaterDepth = 6
+  measured[0].observations = [
+    { kind: 'sample', id: 'sample-1', depth: 2, sampleMarker: 'filled-circle' },
+    { kind: 'spt', id: 'spt-1', depth: 4, value: 8 },
+  ]
+  const input = {
+    holes: measured, correlations: [], sectionReference: { start: 'S1', end: "S1'" }, sectionStylePack: pack,
+    horizontalScaleDenominator: 100, verticalScaleDenominator: 100, datumElevation: 80,
+    surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0,
+  }
+  const result = compileGeologySection(input)
+  const entities = result.commandArgs.entities
+  const references = entities.filter(entity => entity.type === 'TEXT' && ['S1', "S1'"].includes(entity.payload.text))
+  assert.deepEqual(references.map(entity => ({ position: entity.payload.position, alignmentPoint: entity.payload.alignmentPoint,
+    height: entity.payload.height, horizontalAlignment: entity.payload.horizontalAlignment ?? 0 })), [
+    { position: [190, 315, 0], alignmentPoint: [190, 315, 0], height: 4, horizontalAlignment: 2 },
+    { position: [230, 315, 0], alignmentPoint: undefined, height: 4, horizontalAlignment: 0 },
+  ])
+  const circle = entities.find(entity => entity.type === 'CIRCLE' && entity.payload.radius === 1)
+  assert.deepEqual(circle.payload.center, [58, 222, 0])
+  const solid = entities.find(entity => entity.type === 'HATCH' && entity.payload.solid === true && entity.payload.boundaryLoops[0].edges)
+  assert.equal(solid.payload.boundaryLoops[0].edges[0].type, 'ARC')
+  assert.deepEqual(solid.payload.boundaryLoops[0].edges[0].center, circle.payload.center)
+  const box = entities.filter(entity => entity.type === 'LINE').filter(entity => {
+    const points = [entity.payload.start, entity.payload.end]
+    return points.every(point => point[0] >= 42 && point[0] <= 52 && point[1] >= 200 && point[1] <= 203)
+  })
+  assert.equal(box.length, 4)
+  const groundwaterMarker = entities.find(entity => entity.type === 'LWPOLYLINE' && entity.payload.closed === true && entity.payload.vertices.length === 3)
+  assert.deepEqual(groundwaterMarker.payload.vertices, [[45, 185, 0], [47, 185, 0], [46, 183, 0]])
+  assert.equal(entities.filter(entity => entity.type === 'HATCH' && entity.payload.solid === true).length, 2)
+  assert.equal(entities.filter(entity => entity.type === 'TEXT' && String(entity.payload.text).startsWith('WL ')).length, 0)
+  const spt = entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'N=8')
+  assert.deepEqual(spt.payload.alignmentPoint, [47, 201, 0])
+  assert.equal(spt.payload.height, 2)
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', result.commandArgs, { document })
+  for (const [format, version] of [['KJD', '1'], ['DXF', '2018']]) {
+    const bytes = await sdk.writeDocument(document, { format, version })
+    const reopened = await sdk.readDocument(bytes, { format, version })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+    assert.equal(reopened.listEntities({ type: 'CIRCLE' }).length, document.listEntities({ type: 'CIRCLE' }).length)
+    assert.equal(reopened.listEntities({ type: 'HATCH' }).filter(entity => entity.payload.solid === true).length, 2)
+  }
+  const missingPlacement = structuredClone(input)
+  delete missingPlacement.sectionStylePack.rules['geology-section-layout'].sectionReferenceStyle
+  assert.throws(() => compileGeologySection(missingPlacement), /reference needs a declared source-backed placement/u)
+  const oversized = structuredClone(input)
+  oversized.sectionStylePack.rules['geology-section-layout'].observationSymbolStyle.spt.width = 31
+  assert.throws(() => compileGeologySection(oversized), /symbol geometry is unreadable/u)
+  const undeclared = structuredClone(input)
+  undeclared.sectionReference.middle = 'invented'
+  const invalidGroundwater = structuredClone(input)
+  invalidGroundwater.sectionStylePack.rules['geology-section-layout'].observationSymbolStyle.groundwater.lineSegments = []
+  assert.throws(() => compileGeologySection(invalidGroundwater), /groundwater symbol geometry is unreadable/u)
+  assert.throws(() => compileGeologySection(undeclared), /exact start and end identifiers/u)
+})
+
 test('section style pack preserves bounded title and scale TEXT placement through KJD and DXF', async () => {
-  const pack = JSON.parse(JSON.stringify(KJDRAW_GEOLOGY_KNOWLEDGE_PACK))
+  const pack = structuredClone(KJDRAW_GEOLOGY_KNOWLEDGE_PACK)
   pack.id = 'test.section.heading-text-placement'
   pack.version = '1.0.0'
   const rule = pack.rules['geology-section-layout']
@@ -231,6 +311,6 @@ test('section style pack preserves bounded title and scale TEXT placement throug
   assert.throws(invalid(style => { style.title.extra = true }), /exact placement schema/u)
   assert.throws(invalid(style => { delete style.scale.height }), /exact placement schema/u)
   assert.throws(invalid(style => { style.title.horizontalAlignment = 3 }), /out of bounds/u)
-  assert.throws(invalid(style => { style.title.anchorX = 2 }), /geometry is unreadable/u)
   assert.throws(invalid(style => { style.scale.height = 12.01 }), /out of bounds/u)
+  assert.throws(invalid(style => { style.title.anchorX = 2 }), /geometry is unreadable/u)
 })
