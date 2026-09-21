@@ -5,13 +5,13 @@ import test from 'node:test'
 
 const root = new URL('../../../', import.meta.url)
 const read = path => readFile(new URL(path, root), 'utf8')
-const pinned = '03d170d88a31bc90f90adfadec9a6c5efc914b28'
+const pinned = '81e1bc0387023c3f96bffd8a17cb5a5ea3202db2'
 
 test('one-line AI bootstraps pin one public candidate and connect all clients without npx or force', async () => {
   const [powerShell, shell] = await Promise.all([read('scripts/install-ai.ps1'), read('scripts/install-ai.sh')])
   for (const source of [powerShell, shell]) {
     assert.match(source, new RegExp(pinned))
-    assert.match(source, /source-03d170d/)
+    assert.match(source, /source-81e1bc0/)
     assert.match(source, /kjdraw-connect\.mjs/)
     assert.match(source, /kjdraw-mcp\.mjs/)
     assert.match(source, /--check-tool-schemas/)
@@ -29,7 +29,7 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
     assert.match(source, /com\.kanjie\.kjdraw\.install-current@1/)
     assert.match(source, /kjdraw-installed-mcp\.mjs/)
     assert.match(source, /in-place upgrades/)
-    for (const previous of ['source-000d7f7', 'source-ddb0b53', 'source-bb17394', 'source-734a7f4', 'source-4c7124e', 'source-0c2d86e', 'source-57e0697', 'source-1854240', 'source-5f655c2', 'source-69bec87', 'source-7b25cf4', 'source-b022932', 'source-6da40b2', 'source-85d750e', 'source-c526aa7', 'source-a3c1bca', 'source-71df822', 'source-616133e', 'source-2a793ad', 'source-be1e4b5', 'source-6977028', 'source-1a6ff8c', 'source-87cf874', 'source-e74812f']) assert.match(source, new RegExp(previous))
+    for (const previous of ['source-000d7f7', 'source-ddb0b53', 'source-bb17394', 'source-734a7f4', 'source-4c7124e', 'source-0c2d86e', 'source-57e0697', 'source-1854240', 'source-5f655c2', 'source-69bec87', 'source-7b25cf4', 'source-b022932', 'source-6da40b2', 'source-85d750e', 'source-c526aa7', 'source-a3c1bca', 'source-71df822', 'source-616133e', 'source-2a793ad', 'source-be1e4b5', 'source-6977028', 'source-1a6ff8c', 'source-87cf874', 'source-e74812f', 'source-03d170d']) assert.match(source, new RegExp(previous))
     assert.doesNotMatch(source, /KJDRAW_PROJECT|Get-Location|\$PWD/)
     assert.doesNotMatch(source, /\bnpx\b|git clone|push|--force|reset --hard/)
   }
