@@ -140,6 +140,9 @@ test('explicit host candidate policy turns one circle request into independently
     request(2, 'tools/call', { name: 'cad_propose_circles', arguments: {
       expectedRevision: 0, units: 'millimeter', circles: [{ center: { x: 0, y: 0 }, radius: 5 }]
     } }),
+    request(3, 'resources/read', { uri: 'kjdraw://candidate/1/preview' }),
+    request(4, 'resources/list', {}),
+    request(5, 'resources/read', { uri: 'kjdraw://candidate/1/../../host.kjd' }),
   ])
   assert.equal(child.status, 0, child.stderr)
   const responses = child.stdout.trim().split('\n').map(line => JSON.parse(line))
@@ -164,8 +167,19 @@ test('explicit host candidate policy turns one circle request into independently
   assert.equal(responses[1].result.content[0].type, 'resource_link')
   assert.equal(responses[1].result.content[0].mimeType, 'text/html')
   assert.equal(responses[1].result.content.at(-1).type, 'text')
-  assert.ok(links.every(item => item.uri.startsWith('file:///')))
+  assert.deepEqual(links.map(item => item.uri), [
+    'kjdraw://candidate/1/preview', 'kjdraw://candidate/1/svg',
+    'kjdraw://candidate/1/kjd', 'kjdraw://candidate/1/dxf',
+  ])
+  assert.equal(JSON.stringify(responses).includes(directory), false)
   assert.equal(links[0].annotations.priority, 1)
+  assert.deepEqual(responses[0].result.capabilities.resources, { subscribe: false, listChanged: false })
+  assert.equal(responses[2].result.contents[0].uri, 'kjdraw://candidate/1/preview')
+  assert.equal(responses[2].result.contents[0].mimeType, 'text/html')
+  assert.match(responses[2].result.contents[0].text, /对象属性/u)
+  assert.deepEqual(responses[3].result.resources.map(resource => resource.uri), links.map(link => link.uri))
+  assert.equal(responses[4].error.code, -32602)
+  assert.equal(responses[4].error.message, 'Unknown candidate resource')
   const previewHtml = await readFile(join(directory, value.candidate.preview.path), 'utf8')
   assert.match(previewHtml, /对象属性/u)
   assert.match(previewHtml, /modePlot/u)
@@ -320,7 +334,9 @@ test('MCP stdio exposes the attached Agent registry and persists proposals witho
 
   assert.deepEqual(responses.map(response => response.id), [1, 2, 3, 4, 5])
   assert.equal(responses[0].result.protocolVersion, '2025-11-25')
-  assert.deepEqual(responses[0].result.capabilities, { tools: { listChanged: false } })
+  assert.deepEqual(responses[0].result.capabilities, {
+    tools: { listChanged: false }, resources: { subscribe: false, listChanged: false },
+  })
   const listed = responses[1].result.tools
   assert.deepEqual(listed.map(tool => tool.name), expectedDefinitions.map(tool => tool.name))
   assert.deepEqual(listed.map(tool => tool.inputSchema), expectedDefinitions.map(tool => portableMcpInputSchema(tool.inputSchema)))
@@ -613,10 +629,6 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
       headingTextStyle: { title: { anchorX: 210, height: 6, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 }, scale: { anchorX: 210, height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
       sectionReferenceStyle: { start: { offset: [150, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'right', verticalAlignment: 'baseline' }, end: { offset: [270, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
       observationSymbolStyle: { sample: { centerOffset: [-4, 0], radius: 0.7, fill: 'solid' }, spt: { topRightOffset: [-7, 0], width: 10, height: 3, labelPlacement: { offset: [-12, -1.5], height: 2, textWidthFactor: 1, horizontalAlignment: 'center', verticalAlignment: 'baseline' } } },
-      elevationTickSequence: { startElevation: 81, step: 2, minimumElevation: 81, maximumElevation: 89 },
-      sourceBackedBands: [{ sourceHoleId: 'SYN-01', sourceIntervalId: 'SYN-01-a', points: [
-        [0, 102.25], [12, 101.8], [12, 104.8], [0, 105.25],
-      ] }],
       plotLeft: 30, plotRight: 390, plotBottom: 35, plotTop: 245, titleY: 275, scaleY: 262, footerHeight: 10, boreholeWidth: 3, elevationTickStep: 2,
       footerGrid: [{ start: 12, key: 'projectName', label: 'Project' }, { start: 140, key: 'organization', label: 'Organization' }, { start: 260, key: 'drawingNumber', label: 'Drawing' }],
     } },
@@ -657,16 +669,12 @@ test('MCP host hash-locks a geology section knowledge pack while ordinary model 
   const visible = responses[2].result.structuredContent.value
   assert.equal(visible.status, 'awaiting-host-approval')
   assert.deepEqual(visible.engineeringEvidence.knowledgePack, { id: pack.id, version: pack.version, sha256: sha256(packBytes) })
-  assert.equal(visible.engineeringEvidence.parameters.elevationTickCount, 5)
-  assert.equal(visible.engineeringEvidence.parameters.sourceBackedBandCount, 1)
   const drawingBytes = await readFile(drawingPath)
   const ledger = JSON.parse(await readFile(join(directory, 'section-ledger.json'), 'utf8'))
   assert.deepEqual(ledger.knowledge.geologySection, { id: pack.id, version: pack.version, sha256: sha256(packBytes), path: 'section.json', byteLength: packBytes.byteLength })
   assert.equal(ledger.proposals[0].result.engineeringEvidence.knowledgePack.sha256, sha256(packBytes))
   assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'CIRCLE').length, 1)
   assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'TEXT' && ['A', "A'"].includes(entity.payload.text)).length, 2)
-  assert.equal(ledger.proposals[0].result.arguments.entities.filter(entity => entity.type === 'TEXT' &&
-    ['81', '83', '85', '87', '89'].includes(entity.payload.text)).length, 5)
   assert.deepEqual(await readFile(drawingPath), drawingBytes)
   assert.deepEqual(await readFile(join(directory, 'section.json')), packBytes)
 

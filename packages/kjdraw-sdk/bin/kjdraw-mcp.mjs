@@ -3,7 +3,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { link, lstat, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { KJDRAW_VERSION } from '../src/version.js'
@@ -251,18 +250,22 @@ function rpcError(id, code, message, data) {
   send({ jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data === undefined ? {} : { data }) } })
 }
 
-function toolResponse(id, result, isError = false, workspace = null) {
-  const candidate = !isError && workspace ? result?.value?.candidate : null
+function toolResponse(id, result, isError = false, host = null) {
+  const candidate = !isError && host ? result?.value?.candidate : null
   const resources = candidate ? [
-    candidate.preview?.path ? { path: candidate.preview.path, name: 'KJDraw interactive preview', title: 'KJDraw drawing preview (zoom and pan)', description: 'Open the reviewable drawing preview with fit, zoom and pan controls.', mimeType: 'text/html' } : null,
-    candidate.svg?.path ? { path: candidate.svg.path, name: 'KJDraw SVG preview', title: 'KJDraw drawing preview', description: 'Reviewable drawing preview generated from the exact candidate.', mimeType: 'image/svg+xml' } : null,
-    candidate.kjd ? { path: candidate.kjd, name: 'KJDraw editable drawing', title: 'KJDraw editable KJD candidate', description: 'Editable native KJDraw candidate; the attached source drawing was not overwritten.', mimeType: 'application/vnd.kanjie.kjdraw+json' } : null,
-    candidate.dxf ? { path: candidate.dxf, name: 'KJDraw DXF drawing', title: 'KJDraw DXF candidate', description: 'Interchange DXF reopened and validated by KJDraw.', mimeType: 'application/dxf' } : null,
-  ].filter(Boolean).map(resource => ({
-    type: 'resource_link', uri: pathToFileURL(resolve(workspace, resource.path)).href,
-    name: resource.name, title: resource.title, description: resource.description, mimeType: resource.mimeType,
-    annotations: { audience: ['user'], priority: ['text/html', 'image/svg+xml'].includes(resource.mimeType) ? 1 : 0.8 },
-  })) : []
+    candidate.preview?.path ? { key: 'preview', path: candidate.preview.path, name: 'KJDraw interactive preview', title: 'KJDraw drawing preview (zoom and pan)', description: 'Open the reviewable drawing preview with fit, zoom and pan controls.', mimeType: 'text/html' } : null,
+    candidate.svg?.path ? { key: 'svg', path: candidate.svg.path, name: 'KJDraw SVG preview', title: 'KJDraw drawing preview', description: 'Reviewable drawing preview generated from the exact candidate.', mimeType: 'image/svg+xml' } : null,
+    candidate.kjd ? { key: 'kjd', path: candidate.kjd, name: 'KJDraw editable drawing', title: 'KJDraw editable KJD candidate', description: 'Editable native KJDraw candidate; the attached source drawing was not overwritten.', mimeType: 'application/vnd.kanjie.kjdraw+json' } : null,
+    candidate.dxf ? { key: 'dxf', path: candidate.dxf, name: 'KJDraw DXF drawing', title: 'KJDraw DXF candidate', description: 'Interchange DXF reopened and validated by KJDraw.', mimeType: 'application/dxf' } : null,
+  ].filter(Boolean).map(resource => {
+    const uri = `kjdraw://candidate/${host.ledger.proposals.length}/${resource.key}`
+    host.resources.set(uri, { path: resource.path, name: resource.name, title: resource.title, description: resource.description, mimeType: resource.mimeType })
+    return {
+      type: 'resource_link', uri,
+      name: resource.name, title: resource.title, description: resource.description, mimeType: resource.mimeType,
+      annotations: { audience: ['user'], priority: ['text/html', 'image/svg+xml'].includes(resource.mimeType) ? 1 : 0.8 },
+    }
+  }) : []
   send({
     jsonrpc: '2.0', id,
     result: {
@@ -557,7 +560,7 @@ async function openHost(options) {
     }
   } else await exclusiveAtomicJsonCreate(proposals, ledger)
   const sessionReceipt = sessionId ? { ledgerPath: ledger.session.ledgerPath, sessionId, sourceFingerprint, sourceRevision: document.revision, sourceDocumentId: document.id } : null
-  return { workspace, sdk, document, session, sourceFingerprint, proposals, ledger, sessionReceipt, candidateDir, toolProfile: options['tool-profile'] }
+  return { workspace, sdk, document, session, sourceFingerprint, proposals, ledger, sessionReceipt, candidateDir, toolProfile: options['tool-profile'], resources: new Map() }
 }
 
 async function main() {
@@ -598,7 +601,7 @@ async function main() {
         initialized = true
         send({ jsonrpc: '2.0', id: request.id, result: {
           protocolVersion,
-          capabilities: { tools: { listChanged: false } },
+          capabilities: { tools: { listChanged: false }, resources: { subscribe: false, listChanged: false } },
           serverInfo: { name: SERVER_NAME, version: KJDRAW_VERSION },
           ...(host.sessionReceipt ? { _meta: { 'com.kanjie.kjdraw/session': host.sessionReceipt } } : {}),
           instructions: 'Inspect the attached drawing and create proposals for host review. No tool approves a proposal or saves a CAD file.'
@@ -626,6 +629,27 @@ async function main() {
         }) } })
         continue
       }
+      if (request.method === 'resources/list') {
+        if (!notification) send({ jsonrpc: '2.0', id: request.id, result: { resources: [...host.resources].map(([uri, resource]) => ({
+          uri, name: resource.name, title: resource.title, description: resource.description, mimeType: resource.mimeType,
+        })) } })
+        continue
+      }
+      if (request.method === 'resources/read') {
+        if (notification) continue
+        const uri = request.params?.uri
+        const resource = typeof uri === 'string' ? host.resources.get(uri) : null
+        if (!resource) { rpcError(request.id, -32602, 'Unknown candidate resource'); continue }
+        const resourcePath = await resolveRegularFileWithoutLinks(host.workspace, resource.path, 'Candidate resource')
+        const metadata = await stat(resourcePath)
+        if (metadata.size > MAX_DRAWING_BYTES) throw new Error(`Candidate resource must be no larger than ${MAX_DRAWING_BYTES} bytes`)
+        const bytes = await readFile(resourcePath)
+        let text
+        try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes) }
+        catch { throw new Error('Candidate resource must be strict UTF-8 text') }
+        send({ jsonrpc: '2.0', id: request.id, result: { contents: [{ uri, mimeType: resource.mimeType, text }] } })
+        continue
+      }
       if (request.method === 'tools/call') {
         if (notification) continue
         const name = request.params?.name, input = request.params?.arguments ?? {}
@@ -651,7 +675,7 @@ async function main() {
           if (delivery) {
             proposal.delivery = delivery
             await atomicJsonWrite(host.proposals, host.ledger)
-            toolResponse(request.id, modelVisibleProposal(name, result, host, delivery), false, host.workspace)
+            toolResponse(request.id, modelVisibleProposal(name, result, host, delivery), false, host)
             continue
           }
         }
