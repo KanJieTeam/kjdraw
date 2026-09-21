@@ -106,6 +106,18 @@ export type KJGeologyPlanBaseMapLinework = {
     bulges?: number[];
     startWidths?: number[];
     endWidths?: number[];
+} | {
+    id: string;
+    styleId: string;
+    kind: 'legacyPolyline';
+    legacyPoints: Point3[];
+    closed: boolean;
+    elevation: number;
+    dxfFlags: number;
+    vertexFlags: number[];
+    bulges: number[];
+    startWidths: number[];
+    endWidths: number[];
 };
 export interface KJGeologyPlanBaseMapInsert {
     id: string;

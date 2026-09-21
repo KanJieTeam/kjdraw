@@ -13,7 +13,7 @@ test('ordinary geology-plan MCP accepts a reviewed source-backed base map beyond
   assert.equal(definition.inputSchema.properties.baseMapStyles.maxItems, 64)
   assert.equal(definition.inputSchema.properties.baseMapLinework.maxItems, 1024)
   assert.deepEqual(definition.inputSchema.properties.baseMapLinework.items.required, ['id', 'styleId', 'kind'])
-  assert.deepEqual(definition.inputSchema.properties.baseMapLinework.items.properties.kind.enum, ['line', 'arc', 'circle', 'polyline'])
+  assert.deepEqual(definition.inputSchema.properties.baseMapLinework.items.properties.kind.enum, ['line', 'arc', 'circle', 'polyline', 'legacyPolyline'])
 
   const baseMapLinework = Array.from({ length: 600 }, (_, index) => {
     const row = Math.floor(index / 30), column = index % 30

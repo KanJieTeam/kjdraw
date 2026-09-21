@@ -437,27 +437,35 @@ const geologyPlanBaseMapStyleSchema = object({
   lineweight: { type: 'integer', minimum: -1, maximum: 211 }, pattern: { type: 'array', minItems: 0, maxItems: 16, items: number },
 })
 const geologyPlanBaseMapLineworkSchema = objectWithOptional({
-  id: { ...text, maxLength: 40 }, styleId: { ...text, maxLength: 40 }, kind: { type: 'string', enum: ['line', 'arc', 'circle', 'polyline'] },
+  id: { ...text, maxLength: 40 }, styleId: { ...text, maxLength: 40 }, kind: { type: 'string', enum: ['line', 'arc', 'circle', 'polyline', 'legacyPolyline'] },
   start: numericTuple(2), end: numericTuple(2), center: numericTuple(2), radius,
   startAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, endAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, clockwise: { type: 'boolean' },
   points: { type: 'array', minItems: 2, maxItems: 256, items: numericTuple(2) }, closed: { type: 'boolean' },
+  legacyPoints: { type: 'array', minItems: 2, maxItems: 256, items: numericTuple(3) },
+  elevation: { type: 'number', minimum: -1_000_000, maximum: 1_000_000 },
+  dxfFlags: { type: 'integer', minimum: 0, maximum: 7 },
+  vertexFlags: { type: 'array', minItems: 2, maxItems: 256, items: { type: 'integer', minimum: 0, maximum: 31 } },
   startWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative },
   bulges: { type: 'array', minItems: 2, maxItems: 256, items: { type: 'number', minimum: -1_000_000, maximum: 1_000_000 } },
   endWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative },
-}, ['start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'closed', 'bulges', 'startWidths', 'endWidths'])
+}, ['start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'legacyPoints', 'closed', 'elevation', 'dxfFlags', 'vertexFlags', 'bulges', 'startWidths', 'endWidths'])
 const geologyPlanBaseMapInsertSchema = object({
   id: { ...text, maxLength: 40 }, styleId: { ...text, maxLength: 40 }, blockId: { ...text, maxLength: 40 },
   position: numericTuple(2), scale: numericTuple(3), rotationDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 },
 })
 const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
-  id: { ...text, maxLength: 40 }, styleId: { ...text, maxLength: 40 }, kind: { type: 'string', enum: ['line', 'arc', 'circle', 'polyline'] },
+  id: { ...text, maxLength: 40 }, styleId: { ...text, maxLength: 40 }, kind: { type: 'string', enum: ['line', 'arc', 'circle', 'polyline', 'legacyPolyline'] },
   start: numericTuple(2), end: numericTuple(2), center: numericTuple(2), radius,
   startAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, endAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, clockwise: { type: 'boolean' },
   points: { type: 'array', minItems: 2, maxItems: 256, items: numericTuple(2) }, closed: { type: 'boolean' },
+  legacyPoints: { type: 'array', minItems: 2, maxItems: 256, items: numericTuple(3) },
+  elevation: { type: 'number', minimum: -1_000_000, maximum: 1_000_000 },
+  dxfFlags: { type: 'integer', minimum: 0, maximum: 7 },
+  vertexFlags: { type: 'array', minItems: 2, maxItems: 256, items: { type: 'integer', minimum: 0, maximum: 31 } },
   startWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative }, endWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative },
   bulges: { type: 'array', minItems: 2, maxItems: 256, items: { type: 'number', minimum: -1_000_000, maximum: 1_000_000 } },
   blockId: { ...text, maxLength: 40 }, position: numericTuple(2), scale: numericTuple(3), rotationDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 },
-}, ['kind', 'start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'closed', 'bulges', 'startWidths', 'endWidths', 'blockId', 'position', 'scale', 'rotationDegrees'])
+}, ['kind', 'start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'legacyPoints', 'closed', 'elevation', 'dxfFlags', 'vertexFlags', 'bulges', 'startWidths', 'endWidths', 'blockId', 'position', 'scale', 'rotationDegrees'])
 const geologyPlanBaseMapBlockSchema = object({
   id: { ...text, maxLength: 40 }, basePoint: numericTuple(2),
   entities: { type: 'array', minItems: 1, maxItems: 1024, items: geologyPlanBaseMapBlockMemberSchema },

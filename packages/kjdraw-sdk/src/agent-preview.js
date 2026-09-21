@@ -37,6 +37,7 @@ export const KJDRAW_AGENT_MOVABLE_TYPES = Object.freeze([
 ]);
 const creatable = [
     ...supported,
+    'POLYLINE',
     'ELLIPSE',
     'SPLINE',
     'HATCH',

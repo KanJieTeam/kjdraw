@@ -34,7 +34,7 @@ test('geology plan compiles only explicit source-backed base-map linework with e
   const compiled = buildAgentGeologyPlan(document, input())
   assert.equal(compiled.evidence.baseMapStyleCount, 2)
   assert.equal(compiled.evidence.baseMapLineworkCount, 4)
-  assert.deepEqual(compiled.evidence.baseMapLineworkTypeCounts, { line: 1, arc: 1, circle: 1, polyline: 1 })
+  assert.deepEqual(compiled.evidence.baseMapLineworkTypeCounts, { line: 1, arc: 1, circle: 1, polyline: 1, legacyPolyline: 0 })
   assert.ok(compiled.evidence.limitations.some(value => value.includes('explicit source-backed line')))
   await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
   const linework = document.listEntities().filter(entity => entity.payload.semanticRole === 'source-backed-base-map-linework')

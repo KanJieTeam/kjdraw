@@ -2039,7 +2039,8 @@ const geologyPlanBaseMapLineworkSchema = objectWithOptional({
             'line',
             'arc',
             'circle',
-            'polyline'
+            'polyline',
+            'legacyPolyline'
         ]
     },
     start: numericTuple(2),
@@ -2067,6 +2068,32 @@ const geologyPlanBaseMapLineworkSchema = objectWithOptional({
     },
     closed: {
         type: 'boolean'
+    },
+    legacyPoints: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 256,
+        items: numericTuple(3)
+    },
+    elevation: {
+        type: 'number',
+        minimum: -1_000_000,
+        maximum: 1_000_000
+    },
+    dxfFlags: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 7
+    },
+    vertexFlags: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 256,
+        items: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 31
+        }
     },
     startWidths: {
         type: 'array',
@@ -2099,7 +2126,11 @@ const geologyPlanBaseMapLineworkSchema = objectWithOptional({
     'endAngleDegrees',
     'clockwise',
     'points',
+    'legacyPoints',
     'closed',
+    'elevation',
+    'dxfFlags',
+    'vertexFlags',
     'bulges',
     'startWidths',
     'endWidths'
@@ -2140,7 +2171,8 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
             'line',
             'arc',
             'circle',
-            'polyline'
+            'polyline',
+            'legacyPolyline'
         ]
     },
     start: numericTuple(2),
@@ -2168,6 +2200,32 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
     },
     closed: {
         type: 'boolean'
+    },
+    legacyPoints: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 256,
+        items: numericTuple(3)
+    },
+    elevation: {
+        type: 'number',
+        minimum: -1_000_000,
+        maximum: 1_000_000
+    },
+    dxfFlags: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 7
+    },
+    vertexFlags: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 256,
+        items: {
+            type: 'integer',
+            minimum: 0,
+            maximum: 31
+        }
     },
     startWidths: {
         type: 'array',
@@ -2212,7 +2270,11 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
     'endAngleDegrees',
     'clockwise',
     'points',
+    'legacyPoints',
     'closed',
+    'elevation',
+    'dxfFlags',
+    'vertexFlags',
     'bulges',
     'startWidths',
     'endWidths',

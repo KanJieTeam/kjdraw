@@ -90,6 +90,7 @@ export type KJGeologyPlanBaseMapLinework =
   | { id: string; styleId: string; kind: 'arc'; center: Point2; radius: number; startAngleDegrees: number; endAngleDegrees: number; clockwise?: boolean }
   | { id: string; styleId: string; kind: 'circle'; center: Point2; radius: number }
   | { id: string; styleId: string; kind: 'polyline'; points: Point2[]; closed?: boolean; bulges?: number[]; startWidths?: number[]; endWidths?: number[] }
+  | { id: string; styleId: string; kind: 'legacyPolyline'; legacyPoints: Point3[]; closed: boolean; elevation: number; dxfFlags: number; vertexFlags: number[]; bulges: number[]; startWidths: number[]; endWidths: number[] }
 
 export interface KJGeologyPlanBaseMapInsert {
   id: string
@@ -143,8 +144,10 @@ type NormalizedBaseMapEntity =
   | { id: string; styleId: string; kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise: boolean }
   | { id: string; styleId: string; kind: 'circle'; center: Point2; radius: number }
   | { id: string; styleId: string; kind: 'polyline'; points: Point2[]; closed: boolean; bulges: number[] | undefined; startWidths: number[] | undefined; endWidths: number[] | undefined }
+  | { id: string; styleId: string; kind: 'legacyPolyline'; points: Point3[]; closed: boolean; elevation: number; dxfFlags: number; vertexFlags: number[]; bulges: number[]; startWidths: number[]; endWidths: number[] }
   | { id: string; styleId: string; kind: 'insert'; blockId: string; position: Point2; scale: Point3; rotation: number }
 
+type NormalizedBaseMapLinework = Exclude<NormalizedBaseMapEntity, { kind: 'insert' }>
 const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'baseMapStyles', 'baseMapLinework', 'baseMapBlocks', 'baseMapInserts', 'northAngleDegrees']
 const BOREHOLE_KEYS = ['id', 'position', 'collarElevation', 'depth', 'kind', 'labelLayout']
 const BOREHOLE_LABEL_LAYOUT_KEYS = ['idPosition', 'collarElevationPosition', 'depthPosition', 'textHeight', 'rotationDegrees', 'precision']
@@ -161,6 +164,7 @@ const BASE_MAP_LINE_KEYS = ['id', 'styleId', 'kind', 'start', 'end']
 const BASE_MAP_ARC_KEYS = ['id', 'styleId', 'kind', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise']
 const BASE_MAP_CIRCLE_KEYS = ['id', 'styleId', 'kind', 'center', 'radius']
 const BASE_MAP_POLYLINE_KEYS = ['id', 'styleId', 'kind', 'points', 'closed', 'bulges', 'startWidths', 'endWidths']
+const BASE_MAP_LEGACY_POLYLINE_KEYS = ['id', 'styleId', 'kind', 'legacyPoints', 'closed', 'elevation', 'dxfFlags', 'vertexFlags', 'bulges', 'startWidths', 'endWidths']
 const BASE_MAP_BLOCK_KEYS = ['id', 'basePoint', 'entities']
 const BASE_MAP_INSERT_KEYS = ['id', 'styleId', 'blockId', 'position', 'scale', 'rotationDegrees']
 const BASE_MAP_BLOCK_LIMIT = 64, BASE_MAP_BLOCK_MEMBER_LIMIT = 2048, BASE_MAP_INSERT_LIMIT = 512
@@ -205,6 +209,11 @@ function point(value: unknown, label: string): Point2 {
   if (!Array.isArray(value) || value.length !== 2) throw new KJValidationError(`${label} must contain exactly two coordinates`)
   return [finite(value[0], `${label}[0]`), finite(value[1], `${label}[1]`)]
 }
+function point3(value: unknown, label: string): Point3 {
+  if (!Array.isArray(value) || value.length !== 3) throw new KJValidationError(`${label} must contain exactly three coordinates`)
+  return [finite(value[0], `${label}[0]`), finite(value[1], `${label}[1]`), finite(value[2], `${label}[2]`)]
+}
+
 
 function pair(value: unknown, label: string, minimum: number, maximum: number): [number, number] {
   if (!Array.isArray(value) || value.length !== 2) throw new KJValidationError(`${label} must contain exactly two values`)
@@ -309,6 +318,46 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
     return [start, end, ...[0, Math.PI / 2, Math.PI, Math.PI * 3 / 2].filter(onSweep).map(angle => [center[0] + Math.cos(angle) * radius, center[1] + Math.sin(angle) * radius] as Point2)].every(insideModelViewport)
   }
   if (!Array.isArray(input.boreholes) || input.boreholes.length < 2 || input.boreholes.length > 128) throw new KJValidationError('input.boreholes must contain 2-128 points')
+  const legacyPolyline = (value: Record<string, unknown>, label: string, modelSpace: boolean) => {
+    if (!Array.isArray(value.legacyPoints) || value.legacyPoints.length < 2 || value.legacyPoints.length > 256) throw new KJValidationError(`${label}.legacyPoints must contain 2-256 supplied points`)
+    const points = value.legacyPoints.map((rawPoint, pointIndex) => point3(rawPoint, `${label}.legacyPoints[${pointIndex}]`))
+    if (points.some(value => Math.abs(value[2]) > EPSILON)) throw new KJValidationError(`${label}.points must remain in the ordinary 2D POLYLINE plane`)
+    if (modelSpace && !points.every(value => insideModelViewport([value[0], value[1]]))) throw new KJValidationError(`${label} geometry must lie inside the declared model viewport`)
+    const closed = value.closed
+    if (typeof closed !== 'boolean') throw new KJValidationError(`${label}.closed must be boolean`)
+    if (closed && points.length < 3) throw new KJValidationError(`${label}.points must contain at least 3 points when closed`)
+    const elevation = finite(value.elevation, `${label}.elevation`, -1_000_000, 1_000_000)
+    const dxfFlags = integer(value.dxfFlags, `${label}.dxfFlags`, 0, 7)
+    if (Boolean(dxfFlags & 1) !== closed) throw new KJValidationError(`${label}.closed must match dxfFlags bit 1`)
+    if (modelSpace && (dxfFlags & 6)) throw new KJValidationError(`${label} fitted legacyPolyline geometry is supported only inside explicit source-backed blocks`)
+    if (!Array.isArray(value.vertexFlags) || value.vertexFlags.length !== points.length) throw new KJValidationError(`${label}.vertexFlags must contain one value per point`)
+    const vertexFlags = value.vertexFlags.map((entry, entryIndex) => integer(entry, `${label}.vertexFlags[${entryIndex}]`, 0, 31))
+    for (let pointIndex = 0; pointIndex < points.length - (closed ? 0 : 1); pointIndex += 1) {
+      const first = points[pointIndex]!, second = points[(pointIndex + 1) % points.length]!
+      if (Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON) throw new KJValidationError(`${label} contains a zero-length segment`)
+    }
+    const perVertex = (key: 'bulges' | 'startWidths' | 'endWidths', minimum: number) => {
+      const rawValues = value[key]
+      if (!Array.isArray(rawValues) || rawValues.length !== points.length) throw new KJValidationError(`${label}.${key} must contain one value per point`)
+      return rawValues.map((entry, entryIndex) => finite(entry, `${label}.${key}[${entryIndex}]`, minimum, 1_000_000))
+    }
+    const bulges = perVertex('bulges', -1_000_000)
+    if (modelSpace) for (let pointIndex = 0; pointIndex < points.length - (closed ? 0 : 1); pointIndex += 1) {
+      const first = points[pointIndex]!, second = points[(pointIndex + 1) % points.length]!
+      if (!bulgeSegmentInsideModelViewport([first[0], first[1]], [second[0], second[1]], bulges[pointIndex]!)) throw new KJValidationError(`${label} geometry must lie inside the declared model viewport`)
+    }
+    return {
+      kind: 'legacyPolyline' as const,
+      points,
+      closed,
+      elevation,
+      dxfFlags,
+      vertexFlags,
+      bulges,
+      startWidths: perVertex('startWidths', 0),
+      endWidths: perVertex('endWidths', 0),
+    }
+  }
   const boreholes = input.boreholes.map((raw, index) => {
     const value = plain(raw, `input.boreholes[${index}]`); exactKeys(value, BOREHOLE_KEYS, `input.boreholes[${index}]`)
     const position = point(value.position, `input.boreholes[${index}].position`)
@@ -528,15 +577,16 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
   if (input.baseMapLinework !== undefined && (!Array.isArray(input.baseMapLinework) || input.baseMapLinework.length > 1024))
     throw new KJValidationError('input.baseMapLinework must contain at most 1024 supplied entities')
   const baseMapLineworkIds = new Set<string>()
-  const baseMapLinework = (input.baseMapLinework ?? []).map((raw, index) => {
+  const baseMapLinework: NormalizedBaseMapLinework[] = (input.baseMapLinework ?? []).map((raw, index) => {
     const label = `input.baseMapLinework[${index}]`, value = plain(raw, label)
     const kind = value.kind
-    if (kind !== 'line' && kind !== 'arc' && kind !== 'circle' && kind !== 'polyline') throw new KJValidationError(`${label}.kind must be line, arc, circle or polyline`)
-    exactKeys(value, kind === 'line' ? BASE_MAP_LINE_KEYS : kind === 'arc' ? BASE_MAP_ARC_KEYS : kind === 'circle' ? BASE_MAP_CIRCLE_KEYS : BASE_MAP_POLYLINE_KEYS, label)
+    if (kind !== 'line' && kind !== 'arc' && kind !== 'circle' && kind !== 'polyline' && kind !== 'legacyPolyline') throw new KJValidationError(`${label}.kind must be line, arc, circle, polyline or legacyPolyline`)
+    exactKeys(value, kind === 'line' ? BASE_MAP_LINE_KEYS : kind === 'arc' ? BASE_MAP_ARC_KEYS : kind === 'circle' ? BASE_MAP_CIRCLE_KEYS : kind === 'legacyPolyline' ? BASE_MAP_LEGACY_POLYLINE_KEYS : BASE_MAP_POLYLINE_KEYS, label)
     const id = text(value.id, `${label}.id`, 40), styleId = text(value.styleId, `${label}.styleId`, 40)
     if (baseMapLineworkIds.has(id)) throw new KJValidationError(`input.baseMapLinework contains duplicate id ${id}`)
     baseMapLineworkIds.add(id)
     if (!baseMapStyleIds.has(styleId)) throw new KJValidationError(`${label}.styleId references unknown base-map style ${styleId}`)
+    if (kind === 'legacyPolyline') return { id, styleId, ...legacyPolyline(value, label, true) }
     if (kind === 'line') {
       const start = point(value.start, `${label}.start`), end = point(value.end, `${label}.end`)
       if (![start, end].every(insideModelViewport)) throw new KJValidationError(`${label} geometry must lie inside the declared model viewport`)
@@ -603,10 +653,11 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
       return { id, styleId, kind: 'insert' as const, blockId, position: point(value.position, `${label}.position`), scale, rotation: finite(value.rotationDegrees, `${label}.rotationDegrees`, -360_000, 360_000) * Math.PI / 180 }
     }
     const kind = value.kind
-    if (kind !== 'line' && kind !== 'arc' && kind !== 'circle' && kind !== 'polyline') throw new KJValidationError(`${label}.kind must be line, arc, circle, polyline or an explicit block insert`)
-    exactKeys(value, kind === 'line' ? BASE_MAP_LINE_KEYS : kind === 'arc' ? BASE_MAP_ARC_KEYS : kind === 'circle' ? BASE_MAP_CIRCLE_KEYS : BASE_MAP_POLYLINE_KEYS, label)
+    if (kind !== 'line' && kind !== 'arc' && kind !== 'circle' && kind !== 'polyline' && kind !== 'legacyPolyline') throw new KJValidationError(`${label}.kind must be line, arc, circle, polyline, legacyPolyline or an explicit block insert`)
+    exactKeys(value, kind === 'line' ? BASE_MAP_LINE_KEYS : kind === 'arc' ? BASE_MAP_ARC_KEYS : kind === 'circle' ? BASE_MAP_CIRCLE_KEYS : kind === 'legacyPolyline' ? BASE_MAP_LEGACY_POLYLINE_KEYS : BASE_MAP_POLYLINE_KEYS, label)
     const id = text(value.id, `${label}.id`, 40), styleId = text(value.styleId, `${label}.styleId`, 40)
     if (!baseMapStyleIds.has(styleId)) throw new KJValidationError(`${label}.styleId references unknown base-map style ${styleId}`)
+    if (kind === 'legacyPolyline') return { id, styleId, ...legacyPolyline(value, label, false) }
     if (kind === 'line') {
       const start = point(value.start, `${label}.start`), end = point(value.end, `${label}.end`)
       return { id, styleId, kind, start, end }
@@ -750,6 +801,10 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     if (item.kind === 'line') return { type: 'LINE', payload: { start: p3(item.start), end: p3(item.end), ...common }, options: { id } }
     if (item.kind === 'arc') return { type: 'ARC', payload: { center: p3(item.center), radius: item.radius, startAngle: item.startAngle, endAngle: item.endAngle, clockwise: item.clockwise, ...common }, options: { id } }
     if (item.kind === 'circle') return { type: 'CIRCLE', payload: { center: p3(item.center), radius: item.radius, ...common }, options: { id } }
+    if (item.kind === 'legacyPolyline') return { type: 'POLYLINE', payload: {
+      vertices: item.points.map((point, index) => ({ point, bulge: item.bulges[index], startWidth: item.startWidths[index], endWidth: item.endWidths[index], dxfFlags: item.vertexFlags[index] })),
+      closed: item.closed, elevation: item.elevation, dxfFlags: item.dxfFlags, ...common,
+    }, options: { id } }
     const vertices = item.points.map((value, index) => item.bulges || item.startWidths || item.endWidths ? { point: p3(value), bulge: item.bulges?.[index] ?? 0, startWidth: item.startWidths?.[index] ?? 0, endWidth: item.endWidths?.[index] ?? 0 } : p3(value))
     return { type: 'LWPOLYLINE', payload: { vertices, closed: item.closed, ...common }, options: { id } }
   }
@@ -766,6 +821,10 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     if (item.kind === 'line') addToLayer('LINE', style.layerId, { start: p3(item.start!), end: p3(item.end!), ...common })
     else if (item.kind === 'arc') addToLayer('ARC', style.layerId, { center: p3(item.center!), radius: item.radius, startAngle: item.startAngle, endAngle: item.endAngle, clockwise: item.clockwise, ...common })
     else if (item.kind === 'circle') addToLayer('CIRCLE', style.layerId, { center: p3(item.center!), radius: item.radius, ...common })
+    else if (item.kind === 'legacyPolyline') addToLayer('POLYLINE', style.layerId, {
+      vertices: item.points.map((point, index) => ({ point, bulge: item.bulges[index], startWidth: item.startWidths[index], endWidth: item.endWidths[index], dxfFlags: item.vertexFlags[index] })),
+      closed: item.closed, elevation: item.elevation, dxfFlags: item.dxfFlags, ...common,
+    })
     else {
       const vertices = item.points!.map((value, index) => item.bulges || item.startWidths || item.endWidths
         ? { point: p3(value), bulge: item.bulges?.[index] ?? 0, startWidth: item.startWidths?.[index] ?? 0, endWidth: item.endWidths?.[index] ?? 0 }
@@ -924,12 +983,12 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     evidence: { drawingId: input.drawingId, skillId: 'geology-plan', skillVersion: KJDRAW_GEOLOGY_PLAN_VERSION, expectedRevision: input.expectedRevision, units: 'meter' as const,
       modelEntityCount: entities.length, entityCount: entities.length + 1, boreholeCount: input.boreholes.length, sectionLineCount: input.sectionLines.length, alignedDimensionCount: input.dimensions.length, buildingFootprintCount: input.buildingFootprints.length, roadPathCount: input.roadPaths.length, roadSegmentCount: input.roadSegmentCount,
       baseMapStyleCount: input.baseMapStyles.length, baseMapLineworkCount: input.baseMapLinework.length,
-      baseMapLineworkTypeCounts: Object.fromEntries(['line', 'arc', 'circle', 'polyline'].map(kind => [kind, input.baseMapLinework.filter(value => value.kind === kind).length])),
+      baseMapLineworkTypeCounts: Object.fromEntries(['line', 'arc', 'circle', 'polyline', 'legacyPolyline'].map(kind => [kind, input.baseMapLinework.filter(value => value.kind === kind).length])),
       baseMapBlockCount: input.baseMapBlocks.length, baseMapBlockMemberCount: input.baseMapBlocks.reduce((sum, block) => sum + block.entities.length, 0),
       baseMapInsertCount: input.baseMapInserts.length,
       sectionReferences: input.sectionLines.map(value => ({ id: value.id, label: value.label, holeIds: [...value.holeIds], endpointLabels: value.endpointLabels ? [...value.endpointLabels] : [value.label, value.label], markerClearance: value.markerClearance ? [...value.markerClearance] : undefined, endpointTailLengths: value.endpointTailLengths ? [...value.endpointTailLengths] : undefined, endpointLabelPositions: value.endpointLabelPositions ? value.endpointLabelPositions.map(position => [...position]) : undefined, segmentCount: sectionSegmentCounts.get(value.id) })), gridLineCount: gridXs.length + gridYs.length, coordinateCalloutCount: input.coordinateCallouts.length, coordinateConvention: 'engineering X=northing, Y=easting' as const,
       coordinateBounds: { minimum, maximum }, scaleDenominator: input.scale, northAngleDegrees: input.northAngleDegrees,
       externalBaseMapDependencies: input.roadPaths.length ? ['terrain', 'landscaping', 'other-context'] : ['roads', 'terrain', 'landscaping', 'other-context'],
-      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Coordinate graphics are compiled only from an explicit grid or explicit point callouts; engineering X is northing and Y is easting, and label placement is never inferred', 'Aligned dimensions are compiled only from supplied definition points, numeric display values and bounded unit suffixes; KJDraw does not infer measurements or arbitrary dimension text', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred', 'Base-map linework is compiled only from explicit source-backed line, arc, circle and straight lightweight-polyline facts with supplied styles', 'Reusable blocks are compiled only from explicit source-backed native primitives, transforms and supplied styles', 'Block attributes and unsupplied roads, terrain, landscaping, symbols, text, fills and other base-map context remain external source-backed dependencies and are never inferred'] },
+      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Coordinate graphics are compiled only from an explicit grid or explicit point callouts; engineering X is northing and Y is easting, and label placement is never inferred', 'Aligned dimensions are compiled only from supplied definition points, numeric display values and bounded unit suffixes; KJDraw does not infer measurements or arbitrary dimension text', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred', 'Base-map linework is compiled only from explicit source-backed line, arc, circle, lightweight-polyline and native 2D POLYLINE facts with supplied styles', 'Reusable blocks are compiled only from explicit source-backed native primitives, transforms and supplied styles', 'Block attributes and unsupplied roads, terrain, landscaping, symbols, text, fills and other base-map context remain external source-backed dependencies and are never inferred'] },
   }
 }
