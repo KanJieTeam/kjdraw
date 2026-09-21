@@ -113,6 +113,8 @@ export interface KJGeologyGroundwaterAnnotationStyle {
   markerOffset: number
   dateOffset: number
   guide?: 'field-top-to-reading'
+  /** Source-measured delta from the field-right/exact-depth guide endpoint, in millimetres. */
+  guideEndpointOffset?: [number, number]
   placements?: {
     depth: KJGeologyFieldHeaderTextPlacement
     elevation: KJGeologyFieldHeaderTextPlacement
@@ -402,6 +404,9 @@ interface ColumnLayout {
   titleMarginFacts?: TitleMarginFactPlacement[]
   frameStyle?: { topMargin: number; bottomMargin: number; constantWidth: number }
   descriptionBoundaryStyle?: { inset: number; clearance: number }
+  descriptionPlacements?: { groupId: string; boundaryRole: 'top' | 'bottom' | 'midpoint'; offsetMm: number;
+    precedingBoundaryClearanceMm?: { left: number; right: number } }[]
+  hatchLayerStyle?: { color: number; lineweight: number }
   formTopology?: { containers: 'outer-frame-separators'; headerDividers: 'merge-adjacent-collinear'; patternCells: 'closed-outline' }
   verticalScaleDenominators: number[]
   sourceTemplate?: { sourceId: string; sourceSha256: string; verticalScaleDenominator: number; innerGridWidthMillimeters: number; fieldRoles: string[]; footerLabels: string[]; gridLineHandles: string[] }
@@ -503,7 +508,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'titleTextStyle', 'textFlow', 'textHeights', 'intervalDepthTextStyle', 'majorGroupValueStyle', 'defaultTextStyle', 'roleTextStyles', 'stratigraphicNotationStyle', 'descriptionTextStyle', 'sampleMarkerStyle', 'sampleAnnotationStyle', 'sampleRangeBaselineStyle', 'sampleRangeTextFormat', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'titleTextStyle', 'textFlow', 'textHeights', 'intervalDepthTextStyle', 'majorGroupValueStyle', 'defaultTextStyle', 'roleTextStyles', 'stratigraphicNotationStyle', 'descriptionTextStyle', 'sampleMarkerStyle', 'sampleAnnotationStyle', 'sampleRangeBaselineStyle', 'sampleRangeTextFormat', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'descriptionPlacements', 'hatchLayerStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -1025,13 +1030,24 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     if (!isFieldGrid || !value.groundwaterAnnotationStyle || typeof value.groundwaterAnnotationStyle !== 'object' || Array.isArray(value.groundwaterAnnotationStyle) ||
       !['dateOffset,fieldRole,gap,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset',
         'dateOffset,fieldRole,gap,guide,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset',
+        'dateOffset,fieldRole,gap,guide,guideEndpointOffset,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset',
         'dateOffset,fieldRole,gap,markerHeight,markerOffset,placements,textHeight,textWidthFactor,valueOffset',
-        'dateOffset,fieldRole,gap,guide,markerHeight,markerOffset,placements,textHeight,textWidthFactor,valueOffset'].includes(groundwaterStyleKeys))
+        'dateOffset,fieldRole,gap,guide,markerHeight,markerOffset,placements,textHeight,textWidthFactor,valueOffset',
+        'dateOffset,fieldRole,gap,guide,guideEndpointOffset,markerHeight,markerOffset,placements,textHeight,textWidthFactor,valueOffset'].includes(groundwaterStyleKeys))
       throw new KJValidationError('Geology: groundwater annotation style needs an exact declarative field-grid schema')
     const rule = value.groundwaterAnnotationStyle as Record<string, unknown>
     if (rule.fieldRole !== 'pattern') throw new KJValidationError('Geology: groundwater annotations need a declared pattern field')
     if (rule.guide != null && rule.guide !== 'field-top-to-reading')
       throw new KJValidationError('Geology: unsupported groundwater annotation guide')
+    let guideEndpointOffset: [number, number] | undefined
+    if (rule.guideEndpointOffset != null) {
+      if (rule.guide !== 'field-top-to-reading' || !Array.isArray(rule.guideEndpointOffset) || rule.guideEndpointOffset.length !== 2)
+        throw new KJValidationError('Geology: groundwater guide endpoint offset needs a declared guide and two coordinates')
+      guideEndpointOffset = rule.guideEndpointOffset.map((coordinate, index) =>
+        numeric(coordinate, `groundwater guide endpoint offset ${index + 1}`)) as [number, number]
+      if (guideEndpointOffset.some(coordinate => coordinate < -2 || coordinate > 2))
+        throw new KJValidationError('Geology: groundwater guide endpoint offset is outside its physical lane')
+    }
     const textHeight = numeric(rule.textHeight, 'groundwater annotation text height')
     const markerHeight = numeric(rule.markerHeight, 'groundwater annotation marker height')
     const textWidthFactor = numeric(rule.textWidthFactor, 'groundwater annotation text width factor')
@@ -1064,6 +1080,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     }
     groundwaterAnnotationStyle = { fieldRole: 'pattern', textHeight, markerHeight, textWidthFactor, gap, valueOffset, markerOffset, dateOffset,
       ...(placements ? { placements } : {}),
+      ...(guideEndpointOffset ? { guideEndpointOffset } : {}),
       ...(rule.guide === 'field-top-to-reading' ? { guide: rule.guide } : {}) }
   }
   let patternLabelStyle: ColumnLayout['patternLabelStyle']
@@ -1173,6 +1190,53 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: description boundary style is unreadable')
     descriptionBoundaryStyle = { inset, clearance }
   }
+  let descriptionPlacements: ColumnLayout['descriptionPlacements']
+  if (value.descriptionPlacements != null) {
+    if (!isFieldGrid || !descriptionTextStyle || !Array.isArray(value.descriptionPlacements) ||
+      value.descriptionPlacements.length < 1 || value.descriptionPlacements.length > 80)
+      throw new KJValidationError('Geology: description placements need a bounded field-grid knowledge rule')
+    descriptionPlacements = value.descriptionPlacements.map((raw, index) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+        throw new KJValidationError(`Geology: description placement rule ${index + 1} must be an object`)
+      const item = raw as Record<string, unknown>
+      if (!['boundaryRole,groupId,offsetMm', 'boundaryRole,groupId,offsetMm,precedingBoundaryClearanceMm']
+        .includes(Object.keys(item).sort().join(',')) || !['top', 'bottom', 'midpoint'].includes(String(item.boundaryRole)))
+        throw new KJValidationError('Geology: description placement rules need an exact group-boundary schema')
+      const groupId = bounded(item.groupId, 'description placement group ID', 24)
+      const offsetMm = numeric(item.offsetMm, 'description placement offset')
+      if (offsetMm < -50 || offsetMm > 50)
+        throw new KJValidationError('Geology: description placement offset is outside the readable body')
+      let precedingBoundaryClearanceMm: { left: number; right: number } | undefined
+      if (item.precedingBoundaryClearanceMm != null) {
+        const clearance = item.precedingBoundaryClearanceMm
+        if (!clearance || typeof clearance !== 'object' || Array.isArray(clearance) ||
+          Object.keys(clearance).sort().join(',') !== 'left,right')
+          throw new KJValidationError('Geology: preceding description boundary clearance needs exact left and right measurements')
+        const record = clearance as Record<string, unknown>
+        const left = numeric(record.left, 'left preceding description boundary clearance')
+        const right = numeric(record.right, 'right preceding description boundary clearance')
+        if (!descriptionBoundaryStyle || left < 0.2 || left > 5 || right < 0.2 || right > 5)
+          throw new KJValidationError('Geology: preceding description boundary clearance is unreadable')
+        precedingBoundaryClearanceMm = { left, right }
+      }
+      return { groupId, boundaryRole: item.boundaryRole as 'top' | 'bottom' | 'midpoint', offsetMm,
+        ...(precedingBoundaryClearanceMm ? { precedingBoundaryClearanceMm } : {}) }
+    })
+    if (new Set(descriptionPlacements.map(item => item.groupId)).size !== descriptionPlacements.length)
+      throw new KJValidationError('Geology: description placement group IDs must be unique')
+  }
+  let hatchLayerStyle: ColumnLayout['hatchLayerStyle']
+  if (value.hatchLayerStyle != null) {
+    if (!value.hatchLayerStyle || typeof value.hatchLayerStyle !== 'object' || Array.isArray(value.hatchLayerStyle) ||
+      Object.keys(value.hatchLayerStyle).sort().join(',') !== 'color,lineweight')
+      throw new KJValidationError('Geology: hatch layer style needs an exact declarative schema')
+    const rule = value.hatchLayerStyle as Record<string, unknown>
+    const color = numeric(rule.color, 'hatch layer color'), lineweight = numeric(rule.lineweight, 'hatch layer lineweight')
+    const lineweights = new Set([-3, -2, -1, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211])
+    if (!Number.isSafeInteger(color) || color < 1 || color > 255 || !Number.isSafeInteger(lineweight) || !lineweights.has(lineweight))
+      throw new KJValidationError('Geology: hatch layer style is outside supported CAD values')
+    hatchLayerStyle = { color, lineweight }
+  }
   let formTopology: ColumnLayout['formTopology']
   if (value.formTopology != null) {
     if (!isFieldGrid || !headerGrid || !footerGrid || !value.formTopology || typeof value.formTopology !== 'object' ||
@@ -1239,6 +1303,8 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     ...(titleMarginFacts ? { titleMarginFacts } : {}),
     ...(frameStyle ? { frameStyle } : {}), ...(descriptionTextStyle ? { descriptionTextStyle } : {}),
     ...(descriptionBoundaryStyle ? { descriptionBoundaryStyle } : {}),
+    ...(descriptionPlacements ? { descriptionPlacements } : {}),
+    ...(hatchLayerStyle ? { hatchLayerStyle } : {}),
     ...(formTopology ? { formTopology } : {}),
     ...(sourceTemplate ? { sourceTemplate } : {}) }
 }
@@ -1490,12 +1556,14 @@ function patternDefinitions(pack: ReadonlyDeep<KJKnowledgePack> | undefined, str
 }
 
 function drawingBuilder(input: unknown, templateId: string, expectedRevision: number, hatches: Record<string, Record<string, unknown>> = {}, defaultTextStyle?: KJGeologyDefaultTextStyle, roleTextStyles?: KJGeologyRoleTextStyles,
-  drawingOrigin: readonly [number, number] = [0, 0]) {
+  drawingOrigin: readonly [number, number] = [0, 0], hatchLayerStyle?: ColumnLayout['hatchLayerStyle']) {
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new KJValidationError('Geology: invalid expected revision')
   const prefix = `geo-${stableHash({ input, templateId })}`
   const linetypeId = `${prefix}-continuous`
   const names = ['GEO_FRAME', 'GEO_BOUNDARY', 'GEO_HATCH', 'GEO_TEXT', 'GEO_GUIDE']
-  const layers = names.map((name, index) => ({ id: `${prefix}-layer-${index}`, name, color: [7, 7, 8, 7, 9][index]!, linetypeId, lineweight: [35, 35, 18, 18, 9][index]! }))
+  const layers = names.map((name, index) => ({ id: `${prefix}-layer-${index}`, name,
+    color: index === 2 && hatchLayerStyle ? hatchLayerStyle.color : [7, 7, 8, 7, 9][index]!, linetypeId,
+    lineweight: index === 2 && hatchLayerStyle ? hatchLayerStyle.lineweight : [35, 35, 18, 18, 9][index]! }))
   const styleResource = (id: string, style: KJGeologyDefaultTextStyle) => ({ id, name: style.name, payload: {
     fontFamily: style.fontFamily, fontFile: style.fontFile, bigFontFile: style.bigFontFile,
     fixedHeight: style.fixedHeight, widthFactor: style.widthFactor, obliqueAngle: style.obliqueAngleDegrees * Math.PI / 180,
@@ -1559,11 +1627,11 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
     headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, titleTextStyle, textFlow, textHeights, intervalDepthTextStyle, majorGroupValueStyle,
-    defaultTextStyle, roleTextStyles, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, sampleRangeTextFormat, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology,
+    defaultTextStyle, roleTextStyles, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, sampleRangeTextFormat, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, descriptionPlacements, hatchLayerStyle, formTopology,
     layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
     throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style')
-  if (strata.some(layer => layer.descriptionPlacement != null) && !descriptionTextStyle)
+  if ((strata.some(layer => layer.descriptionPlacement != null) || descriptionPlacements) && !descriptionTextStyle)
     throw new KJValidationError('Geology: description placement facts need a declared field-grid description text style')
   if (strata.some(layer => layer.bottomBoundaryLineVisibility != null) && !fieldGrid)
     throw new KJValidationError('Geology: bottom boundary line visibility needs a declared physical field grid')
@@ -1592,7 +1660,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const scale = 1000 / verticalScaleDenominator
   const bottom = top - hole.depth * scale
   if (scale < 0.1 || scale > 100 || bottom < footerReserve) throw new KJValidationError('Geology: column does not fit the declared physical sheet at this vertical scale')
-  const g = drawingBuilder(input, 'borehole-column-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, strata), defaultTextStyle, roleTextStyles)
+  const g = drawingBuilder(input, 'borehole-column-engineering', input.expectedRevision,
+    patternDefinitions(input.hatchPack, strata), defaultTextStyle, roleTextStyles, [0, 0], hatchLayerStyle)
   const finishColumn = (): ReadonlyDeep<KJKnowledgeCompileResult> => g.finish({
     verticalScaleDenominator,
     verticalScaleSource: input.verticalScaleDenominator == null ? 'style-standard' : 'explicit',
@@ -1641,6 +1710,19 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     else groups.push({ id: layer.groupId!, top: layer.top, bottom: layer.bottom, principal: layer, intervals: [layer] })
   }
   for (const group of groups) group.principal = group.intervals.find(layer => layer.groupRole === 'principal')!
+  const descriptionPlacementRules = new Map(descriptionPlacements?.map(item => [item.groupId, item]) ?? [])
+  if (descriptionPlacementRules.size) {
+    if (!grouped) throw new KJValidationError('Geology: knowledge-pack description placements require explicit major group IDs')
+    for (const rule of descriptionPlacements!) {
+      const group = groups.find(item => item.id === rule.groupId)
+      if (!group || !group.principal.description)
+        throw new KJValidationError(`Geology: description placement group ${rule.groupId} has no supplied principal description`)
+      if (group.principal.descriptionPlacement)
+        throw new KJValidationError(`Geology: description placement group ${rule.groupId} is declared by both facts and knowledge`)
+      if (rule.precedingBoundaryClearanceMm && group === groups[0])
+        throw new KJValidationError('Geology: the first description cannot declare a preceding boundary clearance')
+    }
+  }
   const depthLabelY = new Map<KJGeologyStratum, number>()
   if (grouped) {
     const pitch = 2.3, highest = top - 2, lowest = bottom + 0.4
@@ -1880,6 +1962,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     const bandLines: { x1: number; x2: number; y: number; continuity?: 'continuous' }[] = []
     const majorBoundaries: { y: number }[] = []
     const descriptionTops = new Map<number, number>()
+    const descriptionBoundaryClearances = new Map<number, { left: number; right: number }>()
     const textBoxes: { role: FieldRole; left: number; right: number; bottom: number; top: number }[] = []
     const emitFieldText = (item: typeof fieldGrid[number], y: number, value: string, height = 1.8): void => {
       const width = estimatedWidth(value, height) * (item.textWidthFactor ?? 1)
@@ -1952,9 +2035,11 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       const style = groundwaterAnnotationStyle!
       const depthText = metres(observation.depth), elevationText = metres(observation.elevation)
       const marker = '▼'
+      const guideY = y + (style.guideEndpointOffset?.[1] ?? 0)
+      const guideEndX = gridEnd(item) + (style.guideEndpointOffset?.[0] ?? 0)
       if (style.placements) {
         if (style.guide === 'field-top-to-reading')
-          g.poly(1, [[item.start, top], [item.start, y], [gridEnd(item), y]], false)
+          g.poly(1, [[item.start, top], [item.start, guideY], [guideEndX, guideY]], false)
         emitPlacedFieldText(item, y, depthText, style.placements.depth)
         emitPlacedFieldText(item, y, elevationText, style.placements.elevation)
         emitPlacedFieldText(item, y, marker, style.placements.marker)
@@ -1984,7 +2069,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         box.left < prior.right && box.right > prior.left && box.bottom < prior.top && box.top > prior.bottom)))
         throw new KJValidationError('Geology: groundwater annotation collides with its source lane or body boundary')
       if (style.guide === 'field-top-to-reading')
-        g.poly(1, [[item.start, top], [item.start, y], [gridEnd(item), y]], false)
+        g.poly(1, [[item.start, top], [item.start, guideY], [guideEndX, guideY]], false)
       g.text(3, depthX, valueY, depthText, style.textHeight, true, style.textWidthFactor)
       g.text(3, elevationX, valueY, elevationText, style.textHeight, true, style.textWidthFactor)
       g.text(3, center, markerY, marker, style.markerHeight, true, style.textWidthFactor)
@@ -2074,7 +2159,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     const firstGroupBottom = (grouped ? groups[0]!.bottom : strata[0]!.bottom)
     const nextGroupBottom = grouped ? groups[1]?.bottom : strata[1]?.bottom
     const writeGridDescription = (description: string, yTop: number, yBottom: number, coreIndex: number, identity: string,
-      placement?: KJGeologyStratum['descriptionPlacement']): void => {
+      placement?: NonNullable<ColumnLayout['descriptionPlacements']>[number] | KJGeologyStratum['descriptionPlacement']): void => {
       const width = descriptionTextStyle?.width ?? descriptionRight - descriptionX - 4
       if (descriptionTextStyle) {
         if (!placement) throw new KJValidationError(`Geology: ${identity} lacks its declared description boundary placement`)
@@ -2088,6 +2173,10 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
           throw new KJValidationError(`Geology: ${identity} source description placement collides or exceeds the drawing body`)
         g.mtext(3, descriptionX + 2, anchorY, description.trim(), descriptionTextStyle.height, width)
         descriptionTops.set(coreIndex, anchorY)
+        if ('precedingBoundaryClearanceMm' in placement && placement.precedingBoundaryClearanceMm) {
+          if (coreIndex === 0) throw new KJValidationError('Geology: the first description cannot declare a preceding boundary clearance')
+          descriptionBoundaryClearances.set(coreIndex, placement.precedingBoundaryClearanceMm)
+        }
         previousDescriptionBottom = anchorY - occupied
         return
       }
@@ -2172,7 +2261,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       }
       if (principal.description && (grouped || principal.descriptionSource !== 'layer-definition' ||
         definitionAnchors.get(`${principal.code}\u0000${principal.description}`) === principal))
-        writeGridDescription(principal.description, yTop, yBottom, coreIndex, `major group ${id}`, principal.descriptionPlacement)
+        writeGridDescription(principal.description, yTop, yBottom, coreIndex, `major group ${id}`,
+          principal.descriptionPlacement ?? descriptionPlacementRules.get(id))
     }
     for (const layer of strata) {
       const yTop = top - layer.top * scale, yBottom = top - layer.bottom * scale
@@ -2225,12 +2315,17 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       const descriptionField = field('description'), descriptionEnd = gridEnd(descriptionField)
       for (const [index, boundary] of majorBoundaries.entries()) {
         const nextDescriptionTop = descriptionTops.get(index + 1)
-        const descriptionY = nextDescriptionTop == null ? boundary.y : Math.min(boundary.y, nextDescriptionTop + descriptionBoundaryStyle.clearance)
-        if (descriptionY < bottom - 1e-9 || descriptionY > boundary.y + 1e-9)
+        const sourceClearance = descriptionBoundaryClearances.get(index + 1)
+        const leftDescriptionY = nextDescriptionTop == null ? boundary.y :
+          Math.min(boundary.y, nextDescriptionTop + (sourceClearance?.left ?? descriptionBoundaryStyle.clearance))
+        const rightDescriptionY = nextDescriptionTop == null ? boundary.y :
+          Math.min(boundary.y, nextDescriptionTop + (sourceClearance?.right ?? descriptionBoundaryStyle.clearance))
+        if (leftDescriptionY < bottom - 1e-9 || leftDescriptionY > boundary.y + 1e-9 ||
+          rightDescriptionY < bottom - 1e-9 || rightDescriptionY > boundary.y + 1e-9)
           throw new KJValidationError('Geology: stepped description boundary exceeds the declared body')
         g.poly(1, [[left, boundary.y], [descriptionField.start, boundary.y],
-          [descriptionField.start + descriptionBoundaryStyle.inset, descriptionY],
-          [descriptionEnd - descriptionBoundaryStyle.inset, descriptionY], [descriptionEnd, boundary.y], [right, boundary.y]])
+          [descriptionField.start + descriptionBoundaryStyle.inset, leftDescriptionY],
+          [descriptionEnd - descriptionBoundaryStyle.inset, rightDescriptionY], [descriptionEnd, boundary.y], [right, boundary.y]])
       }
     }
     for (const item of observations) {

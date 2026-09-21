@@ -284,7 +284,8 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
         label: { offset: [3, 1.1], height: 2, textWidthFactor: 0.9, horizontalAlignment: 'center', verticalAlignment: 'middle' },
         marker: { offset: [7, 1.1], height: 1, textWidthFactor: 0.95, horizontalAlignment: 'center', verticalAlignment: 'middle' } },
       groundwaterAnnotationStyle: { fieldRole: 'pattern', textHeight: 2, markerHeight: 2.5,
-        textWidthFactor: 0.8, gap: 0.6, valueOffset: 3, markerOffset: 0, dateOffset: -3, guide: 'field-top-to-reading' },
+        textWidthFactor: 0.8, gap: 0.6, valueOffset: 3, markerOffset: 0, dateOffset: -3,
+        guide: 'field-top-to-reading', guideEndpointOffset: [0.4, -0.3] },
       patternLabelStyle: { height: 1.5, textWidthFactor: 1, minimumBandHeight: 2 },
       frameStyle: { topMargin: 5, bottomMargin: 5, constantWidth: 0.5 },
       formTopology: { containers: 'outer-frame-separators', headerDividers: 'merge-adjacent-collinear', patternCells: 'closed-outline' },
@@ -292,6 +293,14 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
         labelPitchMm: 5, labelHeightMm: 2, paragraphGapMm: 0.8 },
       descriptionTextStyle: { fieldRole: 'description', anchor: 'declared-major-group-boundary', height: 2.5 },
       descriptionBoundaryStyle: { inset: 2, clearance: 1.5 },
+      descriptionPlacements: [
+        { groupId: '1', boundaryRole: 'top', offsetMm: -1 },
+        { groupId: '2', boundaryRole: 'midpoint', offsetMm: 0,
+          precedingBoundaryClearanceMm: { left: 0.75, right: 1.25 } },
+        { groupId: '3', boundaryRole: 'top', offsetMm: -2,
+          precedingBoundaryClearanceMm: { left: 1.1, right: 0.9 } },
+      ],
+      hatchLayerStyle: { color: 7, lineweight: -3 },
       titleMarginFacts: [{ key: 'recordNumber', label: 'Record', separator: ':', edge: 'top', anchor: 'right', offset: [-10, -10],
         height: 3, textWidthFactor: 0.8, horizontalAlignment: 'right', verticalAlignment: 'baseline', rotationDegrees: 0,
         decoration: { kind: 'top-edge-elbow-underline', elbowOffset: [-15, -3], horizontalEnd: 'frame-right' } }],
@@ -301,9 +310,6 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   source.strata[0].name = 'Fill'; source.strata[1].name = 'Clay'; source.strata[2].name = 'Sand'
   for (const [index, layer] of source.strata.entries()) Object.assign(layer, { groupId: String(index + 1), groupRole: 'principal',
     description: ['Compact fill.', 'Stiff clay.', 'Dense sand.'][index] })
-  source.strata[0].descriptionPlacement = { boundaryRole: 'top', offsetMm: -1 }
-  source.strata[1].descriptionPlacement = { boundaryRole: 'midpoint', offsetMm: 0 }
-  source.strata[2].descriptionPlacement = { boundaryRole: 'top', offsetMm: -2 }
   source.strata[0].stratigraphicNotation = { symbol: 'Q', subscript: '4', superscript: 'ml' }
   source.strata[1].stratigraphicNotation = { symbol: 'Q', subscript: '3' }
   source.strata[1].patternLabel = 'SC'
@@ -313,6 +319,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const input = { hole: source, projectName: 'Project A', documentFacts: { projectCode: 'P-18', recordNumber: '18', drawingNumber: 'D-7' },
     verticalScaleDenominator: 100, expectedRevision: 0, columnStylePack: style }
   const compiled = compileGeologyColumn(input)
+  const hatchLayer = compiled.commandArgs.resources.layers.find(layer => layer.name === 'GEO_HATCH')
+  assert.deepEqual([hatchLayer.color, hatchLayer.lineweight], [7, -3],
+    'knowledge-pack hatch layer style reaches the native resource')
   const texts = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT')
   const declaredTextStyle = compiled.commandArgs.resources.textStyles.find(record => record.name === 'GEO-SYNTHETIC-TEXT')
   const layerTextStyle = compiled.commandArgs.resources.textStyles.find(record => record.name === 'GEO-SYNTHETIC-LAYER')
@@ -386,8 +395,8 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     entity.payload.horizontalAlignment === 2 && entity.payload.rotation === 0), 'declared title-margin document fact')
   const polylines = compiled.commandArgs.entities.filter(entity => entity.type === 'LWPOLYLINE')
   assert.ok(polylines.some(entity => entity.payload.closed !== true && entity.payload.vertices.length === 3 &&
-    JSON.stringify(entity.payload.vertices) === JSON.stringify([[65, 235, 0], [65, 202.5, 0], [85, 202.5, 0]])),
-  'declared groundwater guide connects the field top to the exact reading depth')
+    JSON.stringify(entity.payload.vertices) === JSON.stringify([[65, 235, 0], [65, 202.2, 0], [85.4, 202.2, 0]])),
+  'declared groundwater guide preserves its source-measured endpoint delta')
   assert.ok(polylines.some(entity => entity.payload.closed !== true && entity.payload.vertices.length === 3 &&
     JSON.stringify(entity.payload.vertices) === JSON.stringify([[165, 285, 0], [165, 277, 0], [185, 277, 0]])),
   'declared title-margin decoration connects the frame edge to an exact underline')
@@ -395,6 +404,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     entity.payload.vertices[0][0] === 5 && entity.payload.vertices[0][1] === 5 && entity.payload.vertices[2][1] === 285), 'source-backed wide outer frame')
   assert.equal(polylines.filter(entity => entity.payload.closed !== true && entity.payload.vertices.length === 6).length, 3,
     'each major group boundary is one stepped description-lane polyline')
+  assert.ok(polylines.some(entity => entity.payload.closed !== true &&
+    JSON.stringify(entity.payload.vertices.slice(2, 4)) === JSON.stringify([[87, 212.75, 0], [143, 213.25, 0]])),
+  'a source-measured boundary may preserve distinct left and right clearances from the following description anchor')
   assert.equal(polylines.filter(entity => entity.payload.closed === true && entity.payload.constantWidth == null &&
     entity.payload.vertices[0][0] === 65 && entity.payload.vertices[1][0] === 85).length, 3,
   'each filled pattern cell keeps one editable closed outline')
@@ -543,8 +555,29 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   malformedNotation.hole.strata[0].stratigraphicNotation.extra = 'invented'
   assert.throws(() => compileGeologyColumn(malformedNotation), /exact symbol\/qualifier schema/u)
   const incompleteDescriptionPlacement = structuredClone(input)
-  delete incompleteDescriptionPlacement.hole.strata[1].descriptionPlacement
+  incompleteDescriptionPlacement.columnStylePack.rules['geology-column-layout'].descriptionPlacements.splice(1, 1)
   assert.throws(() => compileGeologyColumn(incompleteDescriptionPlacement), /lacks its declared description boundary placement/u)
+  const incompleteBoundaryClearance = structuredClone(input)
+  delete incompleteBoundaryClearance.columnStylePack.rules['geology-column-layout'].descriptionPlacements[1].precedingBoundaryClearanceMm.right
+  assert.throws(() => compileGeologyColumn(incompleteBoundaryClearance), /needs exact left and right measurements/u)
+  const unreadableBoundaryClearance = structuredClone(input)
+  unreadableBoundaryClearance.columnStylePack.rules['geology-column-layout'].descriptionPlacements[1].precedingBoundaryClearanceMm.left = 0.1
+  assert.throws(() => compileGeologyColumn(unreadableBoundaryClearance), /boundary clearance is unreadable/u)
+  const unusedFirstBoundaryClearance = structuredClone(input)
+  unusedFirstBoundaryClearance.columnStylePack.rules['geology-column-layout'].descriptionPlacements[0].precedingBoundaryClearanceMm = { left: 1, right: 1 }
+  assert.throws(() => compileGeologyColumn(unusedFirstBoundaryClearance), /first description cannot declare/u)
+  const boundaryClearanceWithoutStyle = structuredClone(input)
+  delete boundaryClearanceWithoutStyle.columnStylePack.rules['geology-column-layout'].descriptionBoundaryStyle
+  assert.throws(() => compileGeologyColumn(boundaryClearanceWithoutStyle), /boundary clearance is unreadable/u)
+  const duplicateDescriptionPlacement = structuredClone(input)
+  duplicateDescriptionPlacement.columnStylePack.rules['geology-column-layout'].descriptionPlacements[1].groupId = '1'
+  assert.throws(() => compileGeologyColumn(duplicateDescriptionPlacement), /group IDs must be unique/u)
+  const missingDescriptionGroup = structuredClone(input)
+  missingDescriptionGroup.columnStylePack.rules['geology-column-layout'].descriptionPlacements[1].groupId = 'missing'
+  assert.throws(() => compileGeologyColumn(missingDescriptionGroup), /has no supplied principal description/u)
+  const unsupportedHatchLayerStyle = structuredClone(input)
+  unsupportedHatchLayerStyle.columnStylePack.rules['geology-column-layout'].hatchLayerStyle.lineweight = 17
+  assert.throws(() => compileGeologyColumn(unsupportedHatchLayerStyle), /outside supported CAD values/u)
   const missingMarkerStyle = structuredClone(input)
   delete missingMarkerStyle.columnStylePack.rules['geology-column-layout'].sampleMarkerStyle
   assert.throws(() => compileGeologyColumn(missingMarkerStyle), /marker facts need a declared/u)
@@ -566,6 +599,12 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const invalidGroundwaterGuide = structuredClone(input)
   invalidGroundwaterGuide.columnStylePack.rules['geology-column-layout'].groundwaterAnnotationStyle.guide = 'diagonal'
   assert.throws(() => compileGeologyColumn(invalidGroundwaterGuide), /unsupported groundwater annotation guide/u)
+  const unboundGroundwaterGuideOffset = structuredClone(input)
+  delete unboundGroundwaterGuideOffset.columnStylePack.rules['geology-column-layout'].groundwaterAnnotationStyle.guide
+  assert.throws(() => compileGeologyColumn(unboundGroundwaterGuideOffset), /exact declarative field-grid schema/u)
+  const outsideGroundwaterGuideOffset = structuredClone(input)
+  outsideGroundwaterGuideOffset.columnStylePack.rules['geology-column-layout'].groundwaterAnnotationStyle.guideEndpointOffset[0] = 2.1
+  assert.throws(() => compileGeologyColumn(outsideGroundwaterGuideOffset), /endpoint offset is outside/u)
   const mismatchedGroundwaterElevation = structuredClone(input)
   mismatchedGroundwaterElevation.hole.groundwaterObservations[0].elevation = 120.5
   assert.throws(() => compileGeologyColumn(mismatchedGroundwaterElevation), /depth and elevation disagree/u)

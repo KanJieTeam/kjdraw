@@ -122,6 +122,8 @@ export interface KJGeologyGroundwaterAnnotationStyle {
     markerOffset: number;
     dateOffset: number;
     guide?: 'field-top-to-reading';
+    /** Source-measured delta from the field-right/exact-depth guide endpoint, in millimetres. */
+    guideEndpointOffset?: [number, number];
     placements?: {
         depth: KJGeologyFieldHeaderTextPlacement;
         elevation: KJGeologyFieldHeaderTextPlacement;

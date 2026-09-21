@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 import { KJAgentToolSession } from '../src/agent-tools.js'
+import { KJDRAW_GEOLOGY_KNOWLEDGE_PACK } from '../src/knowledge-packs/geology-core.js'
 import { createKJDrawSDK } from '../src/sdk.js'
 
 function intent(expectedRevision = 0) {
@@ -105,6 +106,71 @@ test('bundled field-grid knowledge carries notation, sample markers and independ
     assert.equal(reopened.validate().valid, true)
     for (const value of ['Q', '4', 'ml', 'SC', '●', '6.25', '99.00', '▼', '2026-01-04', '记录号:18'])
       assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `${format} ${value}`)
+  }
+})
+
+test('bound column knowledge injects CAD placement and hatch style without exposing measurements to the model', async () => {
+  const pack = structuredClone(KJDRAW_GEOLOGY_KNOWLEDGE_PACK)
+  Object.assign(pack, { id: 'synthetic-agent-column-placement', version: '1.0.0', title: 'Synthetic agent column placement' })
+  const layout = pack.rules['geology-column-layout']
+  Object.assign(layout, {
+    descriptionTextStyle: { fieldRole: 'description', anchor: 'declared-major-group-boundary', height: 2.5 },
+    descriptionBoundaryStyle: { inset: 2, clearance: 1.5 },
+    descriptionPlacements: [
+      { groupId: 'A', boundaryRole: 'top', offsetMm: -1 },
+      { groupId: 'B', boundaryRole: 'midpoint', offsetMm: 0,
+        precedingBoundaryClearanceMm: { left: 0.8, right: 1.2 } },
+      { groupId: 'C', boundaryRole: 'top', offsetMm: -2,
+        precedingBoundaryClearanceMm: { left: 1.1, right: 0.9 } },
+    ],
+    hatchLayerStyle: { color: 7, lineweight: -3 },
+    groundwaterAnnotationStyle: { ...layout.groundwaterAnnotationStyle,
+      guide: 'field-top-to-reading', guideEndpointOffset: [0.4, -0.3] },
+  })
+  const request = intent()
+  request.locale = 'zh-CN'
+  request.hole.strata.forEach((layer, index) => Object.assign(layer, {
+    groupId: ['A', 'B', 'C'][index], groupRole: 'principal', description: ['First.', 'Second.', 'Third.'][index],
+  }))
+  request.hole.groundwaterObservations = [
+    { depth: 5, elevation: 100.25, observedOn: '2026-01-04', marker: 'filled-down-triangle' },
+  ]
+  const packBefore = JSON.stringify(pack), requestBefore = JSON.stringify(request)
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const session = new KJAgentToolSession(sdk, document, {
+    geologyColumnKnowledge: { pack, sha256: sha(JSON.stringify(pack)) },
+  })
+  const stratumProperties = session.definitions.find(tool => tool.name === 'cad_propose_geology_column')
+    .inputSchema.properties.hole.properties.strata.items.properties
+  assert.equal(Object.hasOwn(stratumProperties, 'descriptionPlacement'), false)
+  assert.equal(Object.hasOwn(session.definitions.find(tool => tool.name === 'cad_propose_geology_column')
+    .inputSchema.properties, 'columnStylePack'), false)
+  const proposal = accepted(await session.call('cad_propose_geology_column', request))
+  const polylines = proposal.arguments.entities.filter(entity => entity.type === 'LWPOLYLINE')
+  assert.ok(polylines.some(entity => JSON.stringify(entity.payload.vertices) ===
+    JSON.stringify([[75, 233, 0], [75, 192.7, 0], [95.4, 192.7, 0]])),
+  'the bound knowledge pack supplies the guide endpoint delta')
+  assert.ok(polylines.some(entity => entity.payload.vertices.length === 6 &&
+    JSON.stringify(entity.payload.vertices.slice(2, 4)) === JSON.stringify([[97, 185.8, 0], [143, 186.2, 0]])),
+  'the bound knowledge pack supplies asymmetric stepped-boundary clearance')
+  const hatchLayer = proposal.arguments.resources.layers.find(layer => layer.name === 'GEO_HATCH')
+  assert.deepEqual([hatchLayer.color, hatchLayer.lineweight], [7, -3])
+  assert.equal(JSON.stringify(pack), packBefore)
+  assert.equal(JSON.stringify(request), requestBefore)
+  accepted(await session.approve(proposal.planId, 'synthetic-host-reviewer'))
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await createKJDrawSDK().readDocument(bytes, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    assert.equal(reopened.validate().valid, true)
+    const reopenedHatchLayer = reopened.getTable('layers').records.find(layer => layer.name === 'GEO_HATCH')
+    assert.deepEqual([reopenedHatchLayer.payload.color, reopenedHatchLayer.payload.lineweight], [7, -3])
+    const reopenedStepped = reopened.listEntities({ type: 'LWPOLYLINE' }).filter(entity => entity.payload.vertices.length === 6)
+    assert.ok(reopenedStepped.some(entity => {
+      const left = entity.payload.vertices[2].point ?? entity.payload.vertices[2]
+      const right = entity.payload.vertices[3].point ?? entity.payload.vertices[3]
+      return Math.abs(left[0] - 97) < 1e-6 && Math.abs(left[1] - 185.8) < 1e-6 &&
+        Math.abs(right[0] - 143) < 1e-6 && Math.abs(right[1] - 186.2) < 1e-6
+    }))
   }
 })
 

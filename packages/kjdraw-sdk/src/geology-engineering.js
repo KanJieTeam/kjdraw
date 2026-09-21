@@ -300,6 +300,8 @@ function columnLayout(input) {
             'titleMarginFacts',
             'frameStyle',
             'descriptionBoundaryStyle',
+            'descriptionPlacements',
+            'hatchLayerStyle',
             'formTopology',
             'verticalScaleDenominators',
             'sourceTemplate'
@@ -1030,12 +1032,20 @@ function columnLayout(input) {
         if (!isFieldGrid || !value.groundwaterAnnotationStyle || typeof value.groundwaterAnnotationStyle !== 'object' || Array.isArray(value.groundwaterAnnotationStyle) || ![
             'dateOffset,fieldRole,gap,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset',
             'dateOffset,fieldRole,gap,guide,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset',
+            'dateOffset,fieldRole,gap,guide,guideEndpointOffset,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset',
             'dateOffset,fieldRole,gap,markerHeight,markerOffset,placements,textHeight,textWidthFactor,valueOffset',
-            'dateOffset,fieldRole,gap,guide,markerHeight,markerOffset,placements,textHeight,textWidthFactor,valueOffset'
+            'dateOffset,fieldRole,gap,guide,markerHeight,markerOffset,placements,textHeight,textWidthFactor,valueOffset',
+            'dateOffset,fieldRole,gap,guide,guideEndpointOffset,markerHeight,markerOffset,placements,textHeight,textWidthFactor,valueOffset'
         ].includes(groundwaterStyleKeys)) throw new KJValidationError('Geology: groundwater annotation style needs an exact declarative field-grid schema');
         const rule = value.groundwaterAnnotationStyle;
         if (rule.fieldRole !== 'pattern') throw new KJValidationError('Geology: groundwater annotations need a declared pattern field');
         if (rule.guide != null && rule.guide !== 'field-top-to-reading') throw new KJValidationError('Geology: unsupported groundwater annotation guide');
+        let guideEndpointOffset;
+        if (rule.guideEndpointOffset != null) {
+            if (rule.guide !== 'field-top-to-reading' || !Array.isArray(rule.guideEndpointOffset) || rule.guideEndpointOffset.length !== 2) throw new KJValidationError('Geology: groundwater guide endpoint offset needs a declared guide and two coordinates');
+            guideEndpointOffset = rule.guideEndpointOffset.map((coordinate, index)=>numeric(coordinate, `groundwater guide endpoint offset ${index + 1}`));
+            if (guideEndpointOffset.some((coordinate)=>coordinate < -2 || coordinate > 2)) throw new KJValidationError('Geology: groundwater guide endpoint offset is outside its physical lane');
+        }
         const textHeight = numeric(rule.textHeight, 'groundwater annotation text height');
         const markerHeight = numeric(rule.markerHeight, 'groundwater annotation marker height');
         const textWidthFactor = numeric(rule.textWidthFactor, 'groundwater annotation text width factor');
@@ -1078,6 +1088,9 @@ function columnLayout(input) {
             dateOffset,
             ...placements ? {
                 placements
+            } : {},
+            ...guideEndpointOffset ? {
+                guideEndpointOffset
             } : {},
             ...rule.guide === 'field-top-to-reading' ? {
                 guide: rule.guide
@@ -1211,6 +1224,87 @@ function columnLayout(input) {
         descriptionBoundaryStyle = {
             inset,
             clearance
+        };
+    }
+    let descriptionPlacements;
+    if (value.descriptionPlacements != null) {
+        if (!isFieldGrid || !descriptionTextStyle || !Array.isArray(value.descriptionPlacements) || value.descriptionPlacements.length < 1 || value.descriptionPlacements.length > 80) throw new KJValidationError('Geology: description placements need a bounded field-grid knowledge rule');
+        descriptionPlacements = value.descriptionPlacements.map((raw, index)=>{
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError(`Geology: description placement rule ${index + 1} must be an object`);
+            const item = raw;
+            if (![
+                'boundaryRole,groupId,offsetMm',
+                'boundaryRole,groupId,offsetMm,precedingBoundaryClearanceMm'
+            ].includes(Object.keys(item).sort().join(',')) || ![
+                'top',
+                'bottom',
+                'midpoint'
+            ].includes(String(item.boundaryRole))) throw new KJValidationError('Geology: description placement rules need an exact group-boundary schema');
+            const groupId = bounded(item.groupId, 'description placement group ID', 24);
+            const offsetMm = numeric(item.offsetMm, 'description placement offset');
+            if (offsetMm < -50 || offsetMm > 50) throw new KJValidationError('Geology: description placement offset is outside the readable body');
+            let precedingBoundaryClearanceMm;
+            if (item.precedingBoundaryClearanceMm != null) {
+                const clearance = item.precedingBoundaryClearanceMm;
+                if (!clearance || typeof clearance !== 'object' || Array.isArray(clearance) || Object.keys(clearance).sort().join(',') !== 'left,right') throw new KJValidationError('Geology: preceding description boundary clearance needs exact left and right measurements');
+                const record = clearance;
+                const left = numeric(record.left, 'left preceding description boundary clearance');
+                const right = numeric(record.right, 'right preceding description boundary clearance');
+                if (!descriptionBoundaryStyle || left < 0.2 || left > 5 || right < 0.2 || right > 5) throw new KJValidationError('Geology: preceding description boundary clearance is unreadable');
+                precedingBoundaryClearanceMm = {
+                    left,
+                    right
+                };
+            }
+            return {
+                groupId,
+                boundaryRole: item.boundaryRole,
+                offsetMm,
+                ...precedingBoundaryClearanceMm ? {
+                    precedingBoundaryClearanceMm
+                } : {}
+            };
+        });
+        if (new Set(descriptionPlacements.map((item)=>item.groupId)).size !== descriptionPlacements.length) throw new KJValidationError('Geology: description placement group IDs must be unique');
+    }
+    let hatchLayerStyle;
+    if (value.hatchLayerStyle != null) {
+        if (!value.hatchLayerStyle || typeof value.hatchLayerStyle !== 'object' || Array.isArray(value.hatchLayerStyle) || Object.keys(value.hatchLayerStyle).sort().join(',') !== 'color,lineweight') throw new KJValidationError('Geology: hatch layer style needs an exact declarative schema');
+        const rule = value.hatchLayerStyle;
+        const color = numeric(rule.color, 'hatch layer color'), lineweight = numeric(rule.lineweight, 'hatch layer lineweight');
+        const lineweights = new Set([
+            -3,
+            -2,
+            -1,
+            0,
+            5,
+            9,
+            13,
+            15,
+            18,
+            20,
+            25,
+            30,
+            35,
+            40,
+            50,
+            53,
+            60,
+            70,
+            80,
+            90,
+            100,
+            106,
+            120,
+            140,
+            158,
+            200,
+            211
+        ]);
+        if (!Number.isSafeInteger(color) || color < 1 || color > 255 || !Number.isSafeInteger(lineweight) || !lineweights.has(lineweight)) throw new KJValidationError('Geology: hatch layer style is outside supported CAD values');
+        hatchLayerStyle = {
+            color,
+            lineweight
         };
     }
     let formTopology;
@@ -1351,6 +1445,12 @@ function columnLayout(input) {
         } : {},
         ...descriptionBoundaryStyle ? {
             descriptionBoundaryStyle
+        } : {},
+        ...descriptionPlacements ? {
+            descriptionPlacements
+        } : {},
+        ...hatchLayerStyle ? {
+            hatchLayerStyle
         } : {},
         ...formTopology ? {
             formTopology
@@ -1692,7 +1792,7 @@ function patternDefinitions(pack, strata) {
 function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defaultTextStyle, roleTextStyles, drawingOrigin = [
     0,
     0
-]) {
+], hatchLayerStyle) {
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new KJValidationError('Geology: invalid expected revision');
     const prefix = `geo-${stableHash({
         input,
@@ -1709,7 +1809,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
     const layers = names.map((name, index)=>({
             id: `${prefix}-layer-${index}`,
             name,
-            color: [
+            color: index === 2 && hatchLayerStyle ? hatchLayerStyle.color : [
                 7,
                 7,
                 8,
@@ -1717,7 +1817,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
                 9
             ][index],
             linetypeId,
-            lineweight: [
+            lineweight: index === 2 && hatchLayerStyle ? hatchLayerStyle.lineweight : [
                 35,
                 35,
                 18,
@@ -1921,9 +2021,9 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
 export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
-    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, titleTextStyle, textFlow, textHeights, intervalDepthTextStyle, majorGroupValueStyle, defaultTextStyle, roleTextStyles, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, sampleRangeTextFormat, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
+    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, titleTextStyle, textFlow, textHeights, intervalDepthTextStyle, majorGroupValueStyle, defaultTextStyle, roleTextStyles, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, sampleRangeTextFormat, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, descriptionPlacements, hatchLayerStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
     if (strata.some((layer)=>layer.stratigraphicNotation != null) && !stratigraphicNotationStyle) throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style');
-    if (strata.some((layer)=>layer.descriptionPlacement != null) && !descriptionTextStyle) throw new KJValidationError('Geology: description placement facts need a declared field-grid description text style');
+    if ((strata.some((layer)=>layer.descriptionPlacement != null) || descriptionPlacements) && !descriptionTextStyle) throw new KJValidationError('Geology: description placement facts need a declared field-grid description text style');
     if (strata.some((layer)=>layer.bottomBoundaryLineVisibility != null) && !fieldGrid) throw new KJValidationError('Geology: bottom boundary line visibility needs a declared physical field grid');
     const documentFacts = documentFactRecord(input.documentFacts);
     const declaredDocumentFactKeys = new Set([
@@ -1949,7 +2049,10 @@ export function compileGeologyColumn(input) {
     const scale = 1000 / verticalScaleDenominator;
     const bottom = top - hole.depth * scale;
     if (scale < 0.1 || scale > 100 || bottom < footerReserve) throw new KJValidationError('Geology: column does not fit the declared physical sheet at this vertical scale');
-    const g = drawingBuilder(input, 'borehole-column-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, strata), defaultTextStyle, roleTextStyles);
+    const g = drawingBuilder(input, 'borehole-column-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, strata), defaultTextStyle, roleTextStyles, [
+        0,
+        0
+    ], hatchLayerStyle);
     const finishColumn = ()=>g.finish({
             verticalScaleDenominator,
             verticalScaleSource: input.verticalScaleDenominator == null ? 'style-standard' : 'explicit',
@@ -2023,6 +2126,19 @@ export function compileGeologyColumn(input) {
         });
     }
     for (const group of groups)group.principal = group.intervals.find((layer)=>layer.groupRole === 'principal');
+    const descriptionPlacementRules = new Map(descriptionPlacements?.map((item)=>[
+            item.groupId,
+            item
+        ]) ?? []);
+    if (descriptionPlacementRules.size) {
+        if (!grouped) throw new KJValidationError('Geology: knowledge-pack description placements require explicit major group IDs');
+        for (const rule of descriptionPlacements){
+            const group = groups.find((item)=>item.id === rule.groupId);
+            if (!group || !group.principal.description) throw new KJValidationError(`Geology: description placement group ${rule.groupId} has no supplied principal description`);
+            if (group.principal.descriptionPlacement) throw new KJValidationError(`Geology: description placement group ${rule.groupId} is declared by both facts and knowledge`);
+            if (rule.precedingBoundaryClearanceMm && group === groups[0]) throw new KJValidationError('Geology: the first description cannot declare a preceding boundary clearance');
+        }
+    }
     const depthLabelY = new Map();
     if (grouped) {
         const pitch = 2.3, highest = top - 2, lowest = bottom + 0.4;
@@ -2323,6 +2439,7 @@ export function compileGeologyColumn(input) {
         const bandLines = [];
         const majorBoundaries = [];
         const descriptionTops = new Map();
+        const descriptionBoundaryClearances = new Map();
         const textBoxes = [];
         const emitFieldText = (item, y, value, height = 1.8)=>{
             const width = estimatedWidth(value, height) * (item.textWidthFactor ?? 1);
@@ -2410,6 +2527,8 @@ export function compileGeologyColumn(input) {
             const style = groundwaterAnnotationStyle;
             const depthText = metres(observation.depth), elevationText = metres(observation.elevation);
             const marker = '▼';
+            const guideY = y + (style.guideEndpointOffset?.[1] ?? 0);
+            const guideEndX = gridEnd(item) + (style.guideEndpointOffset?.[0] ?? 0);
             if (style.placements) {
                 if (style.guide === 'field-top-to-reading') g.poly(1, [
                     [
@@ -2418,11 +2537,11 @@ export function compileGeologyColumn(input) {
                     ],
                     [
                         item.start,
-                        y
+                        guideY
                     ],
                     [
-                        gridEnd(item),
-                        y
+                        guideEndX,
+                        guideY
                     ]
                 ], false);
                 emitPlacedFieldText(item, y, depthText, style.placements.depth);
@@ -2472,11 +2591,11 @@ export function compileGeologyColumn(input) {
                 ],
                 [
                     item.start,
-                    y
+                    guideY
                 ],
                 [
-                    gridEnd(item),
-                    y
+                    guideEndX,
+                    guideY
                 ]
             ], false);
             g.text(3, depthX, valueY, depthText, style.textHeight, true, style.textWidthFactor);
@@ -2604,6 +2723,10 @@ export function compileGeologyColumn(input) {
                 if (anchorY > top + 1e-9 || anchorY - occupied < bottom - 1e-9 || previousDescriptionBottom != null && anchorY > previousDescriptionBottom - 0.2) throw new KJValidationError(`Geology: ${identity} source description placement collides or exceeds the drawing body`);
                 g.mtext(3, descriptionX + 2, anchorY, description.trim(), descriptionTextStyle.height, width);
                 descriptionTops.set(coreIndex, anchorY);
+                if ('precedingBoundaryClearanceMm' in placement && placement.precedingBoundaryClearanceMm) {
+                    if (coreIndex === 0) throw new KJValidationError('Geology: the first description cannot declare a preceding boundary clearance');
+                    descriptionBoundaryClearances.set(coreIndex, placement.precedingBoundaryClearanceMm);
+                }
                 previousDescriptionBottom = anchorY - occupied;
                 return;
             }
@@ -2698,7 +2821,7 @@ export function compileGeologyColumn(input) {
                 if (majorGroupValueStyle) emitPlacedFieldText(field(role), mid, values[role], majorGroupValueStyle[role]);
                 else emitFieldText(field(role), valueY, values[role], labelHeight);
             }
-            if (principal.description && (grouped || principal.descriptionSource !== 'layer-definition' || definitionAnchors.get(`${principal.code}\u0000${principal.description}`) === principal)) writeGridDescription(principal.description, yTop, yBottom, coreIndex, `major group ${id}`, principal.descriptionPlacement);
+            if (principal.description && (grouped || principal.descriptionSource !== 'layer-definition' || definitionAnchors.get(`${principal.code}\u0000${principal.description}`) === principal)) writeGridDescription(principal.description, yTop, yBottom, coreIndex, `major group ${id}`, principal.descriptionPlacement ?? descriptionPlacementRules.get(id));
         };
         for (const layer of strata){
             const yTop = top - layer.top * scale, yBottom = top - layer.bottom * scale;
@@ -2788,8 +2911,10 @@ export function compileGeologyColumn(input) {
             const descriptionField = field('description'), descriptionEnd = gridEnd(descriptionField);
             for (const [index, boundary] of majorBoundaries.entries()){
                 const nextDescriptionTop = descriptionTops.get(index + 1);
-                const descriptionY = nextDescriptionTop == null ? boundary.y : Math.min(boundary.y, nextDescriptionTop + descriptionBoundaryStyle.clearance);
-                if (descriptionY < bottom - 1e-9 || descriptionY > boundary.y + 1e-9) throw new KJValidationError('Geology: stepped description boundary exceeds the declared body');
+                const sourceClearance = descriptionBoundaryClearances.get(index + 1);
+                const leftDescriptionY = nextDescriptionTop == null ? boundary.y : Math.min(boundary.y, nextDescriptionTop + (sourceClearance?.left ?? descriptionBoundaryStyle.clearance));
+                const rightDescriptionY = nextDescriptionTop == null ? boundary.y : Math.min(boundary.y, nextDescriptionTop + (sourceClearance?.right ?? descriptionBoundaryStyle.clearance));
+                if (leftDescriptionY < bottom - 1e-9 || leftDescriptionY > boundary.y + 1e-9 || rightDescriptionY < bottom - 1e-9 || rightDescriptionY > boundary.y + 1e-9) throw new KJValidationError('Geology: stepped description boundary exceeds the declared body');
                 g.poly(1, [
                     [
                         left,
@@ -2801,11 +2926,11 @@ export function compileGeologyColumn(input) {
                     ],
                     [
                         descriptionField.start + descriptionBoundaryStyle.inset,
-                        descriptionY
+                        leftDescriptionY
                     ],
                     [
                         descriptionEnd - descriptionBoundaryStyle.inset,
-                        descriptionY
+                        rightDescriptionY
                     ],
                     [
                         descriptionEnd,
