@@ -30,6 +30,17 @@ function intent(expectedRevision = 0) {
   }
 }
 
+function longLogIntent(pageHeightMillimeters) {
+  const lithologies = ['fill', 'cultivated-soil', 'clay', 'silty-clay', 'silt', 'sand', 'gravel', 'loess', 'paleosol']
+  return {
+    version: '1.0.0', expectedRevision: 0, units: 'millimeter', locale: 'zh-CN',
+    ...(pageHeightMillimeters == null ? {} : { pageHeightMillimeters }),
+    hole: { id: 'ZK-31', collarElevation: 300, depth: 155,
+      strata: Array.from({ length: 31 }, (_, index) => ({ code: String(index + 1), name: `层-${String(index + 1).padStart(2, '0')}`,
+        top: index * 5, bottom: (index + 1) * 5, lithology: lithologies[index % lithologies.length] })) },
+  }
+}
+
 function accepted(result) { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 const sha = value => createHash('sha256').update(value).digest('hex')
 
@@ -305,6 +316,82 @@ test('nine Chinese lithologies are proposed, approved and reopened without an A4
     const report = JSON.parse(independent.stdout)
     assert.deepEqual([report.errors, report.fixes, report.hatches], [0, 0, 9])
     for (const name of names) assert.equal(report.texts.filter(text => text === name).length, 1, `ezdxf: ${name}`)
+  }
+})
+
+test('host-declared 841 mm long sheet preserves all 31 deep-log strata while the default A4 sheet fails closed', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const session = new KJAgentToolSession(sdk, document)
+  const schema = session.definitions.find(tool => tool.name === 'cad_propose_geology_column').inputSchema
+  assert.deepEqual(schema.properties.pageHeightMillimeters.enum, [297, 841])
+  assert.match(session.definitions.find(tool => tool.name === 'cad_propose_geology_column').description, /pageHeightMillimeters=841/u)
+  for (const input of [longLogIntent(), longLogIntent(297)]) {
+    const rejected = await session.call('cad_propose_geology_column', input)
+    assert.equal(rejected.ok, false)
+    assert.match(rejected.error.message, /depth text does not fit its declared field/u)
+  }
+  const proposal = accepted(await session.call('cad_propose_geology_column', longLogIntent(841)))
+  assert.equal(proposal.engineeringEvidence.parameters.pageHeightMillimeters, 841)
+  assert.equal(proposal.engineeringEvidence.parameters.verticalScaleDenominator, 250)
+  assert.equal(proposal.engineeringEvidence.parameters.stratumCount, 31)
+  assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'HATCH').length, 31)
+  const proposedTexts = proposal.arguments.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  for (const name of ['层-01', '层-16', '层-31']) assert.ok(proposedTexts.includes(name), name)
+  const noLongPack = structuredClone(KJDRAW_GEOLOGY_KNOWLEDGE_PACK)
+  delete noLongPack.rules['geology-column-layout'].pageHeightOptions
+  const blockedSession = new KJAgentToolSession(sdk, sdk.createDocument({ units: 'millimeter' }), {
+    geologyColumnKnowledge: { pack: noLongPack, sha256: sha(JSON.stringify(noLongPack)) },
+  })
+  const blocked = await blockedSession.call('cad_propose_geology_column', longLogIntent(841))
+  assert.equal(blocked.ok, false)
+  assert.match(blocked.error.message, /page height is not declared by the host style pack/u)
+  accepted(await session.approve(proposal.planId, 'synthetic-host-reviewer'))
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await createKJDrawSDK().readDocument(bytes, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities().length, proposal.engineeringEvidence.entityCount)
+    assert.equal(reopened.listEntities({ type: 'HATCH' }).length, 31)
+    const visible = reopened.listEntities({ type: 'TEXT' }).map(entity => entity.payload.text)
+    for (const name of ['层-01', '层-16', '层-31']) assert.ok(visible.includes(name), `${format}: ${name}`)
+  }
+})
+
+test('ordinary MCP materializes the host-declared 841 mm deep log without exposing candidate paths', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'kjdraw-mcp-long-geology-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await mkdir(join(root, 'pending')); await mkdir(join(root, 'candidates'))
+  const messages = [
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'long-log-test', version: '1' } } },
+    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'cad_propose_geology_column', arguments: longLogIntent(841) } },
+    { jsonrpc: '2.0', id: 3, method: 'resources/read', params: { uri: 'kjdraw://candidate/1/preview' } },
+    { jsonrpc: '2.0', id: 4, method: 'resources/list', params: {} },
+  ]
+  const mcp = fileURLToPath(new URL('../bin/kjdraw-mcp.mjs', import.meta.url))
+  const launched = spawnSync(process.execPath, [mcp, '--workspace', root, '--blank', 'long.kjd', '--units', 'millimeter',
+    '--proposal-dir', 'pending', '--candidate-dir', 'candidates'], {
+    input: `${messages.map(message => JSON.stringify(message)).join('\n')}\n`, encoding: 'utf8', timeout: 60000, maxBuffer: 64 * 1024 * 1024,
+  })
+  assert.equal(launched.status, 0, launched.stderr)
+  const replies = launched.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const value = accepted(replies[1].result.structuredContent)
+  assert.equal(value.status, 'candidate-ready')
+  assert.equal(value.engineeringEvidence.parameters.pageHeightMillimeters, 841)
+  assert.equal(value.engineeringEvidence.parameters.stratumCount, 31)
+  assert.equal(value.candidate.kjdReopenValid, true)
+  assert.equal(value.candidate.dxfReopenValid, true)
+  assert.equal(replies[2].result.contents[0].mimeType, 'text/html')
+  assert.equal(replies[3].result.resources.length, 4)
+  assert.ok(replies[3].result.resources.every(resource => resource.uri.startsWith('kjdraw://candidate/1/')))
+  for (const spelling of [root, root.replaceAll('\\', '/')]) assert.equal(launched.stdout.toLowerCase().includes(spelling.toLowerCase()), false)
+  assert.equal(launched.stdout.includes('file:///'), false)
+  for (const [format, path] of [['KJD', value.candidate.kjd], ['DXF', value.candidate.dxf]]) {
+    const reopened = await createKJDrawSDK().readDocument(await readFile(join(root, path)), { format })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities().length, value.candidate.entityCount)
+    assert.equal(reopened.listEntities({ type: 'HATCH' }).length, 31)
+    const visible = reopened.listEntities({ type: 'TEXT' }).map(entity => entity.payload.text)
+    for (const name of ['层-01', '层-16', '层-31']) assert.ok(visible.includes(name), `${format}: ${name}`)
   }
 })
 

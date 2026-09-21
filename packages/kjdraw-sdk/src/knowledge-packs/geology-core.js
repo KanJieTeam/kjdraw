@@ -852,6 +852,17 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
         'geology-column-layout': {
             paperWidth: 210,
             paperHeight: 297,
+            pageHeightOptions: [
+                {
+                    pageHeightMillimeters: 297
+                },
+                {
+                    pageHeightMillimeters: 841,
+                    fieldTextWidthFactors: {
+                        depth: 0.8
+                    }
+                }
+            ],
             left: 15,
             right: 195,
             headerDepth: 52,

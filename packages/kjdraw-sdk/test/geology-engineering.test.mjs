@@ -1159,6 +1159,9 @@ test('source-backed physical grids omit absent SPT lanes and strict mode rejects
   const wrongScale = structuredClone(input)
   wrongScale.verticalScaleDenominator = 250
   assert.throws(() => compileGeologyColumn(wrongScale), /vertical scale differs from the source template/)
+  const undeclaredLongSheet = structuredClone(input)
+  undeclaredLongSheet.pageHeightMillimeters = 841
+  assert.throws(() => compileGeologyColumn(undeclaredLongSheet), /page height is not declared by the host style pack/)
   const wrongWidth = structuredClone(input)
   wrongWidth.columnStylePack.rules['geology-column-layout'].right = 195
   assert.throws(() => compileGeologyColumn(wrongWidth), /vector grid width differs/)

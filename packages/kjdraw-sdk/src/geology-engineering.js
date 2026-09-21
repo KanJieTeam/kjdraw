@@ -237,7 +237,7 @@ function geologyLocale(input) {
 function columnLayout(input) {
     if (!input.columnStylePack) {
         if (input.strictSourceTemplate) throw new KJValidationError('Geology: strict source template needs a source-backed style pack');
-        if (geologyLocale(input) === 'zh-CN' && input.pageHeightMillimeters == null) return columnLayout({
+        if (geologyLocale(input) === 'zh-CN') return columnLayout({
             ...input,
             columnStylePack: KJDRAW_GEOLOGY_KNOWLEDGE_PACK
         });
@@ -266,7 +266,6 @@ function columnLayout(input) {
             ]
         };
     }
-    if (input.pageHeightMillimeters != null) throw new KJValidationError('Geology: a style pack and direct page height cannot be mixed');
     const pack = validateKnowledgePack(input.columnStylePack);
     const rule = pack.rules?.['geology-column-layout'];
     if (!rule || typeof rule !== 'object' || Array.isArray(rule)) throw new KJValidationError('Geology: style pack has no geology-column-layout rule');
@@ -317,9 +316,53 @@ function columnLayout(input) {
             'hatchLayerStyle',
             'formTopology',
             'verticalScaleDenominators',
-            'sourceTemplate'
+            'sourceTemplate',
+            'pageHeightOptions'
         ].includes(key)) || expectedKeys.some((key)=>!keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns');
-    const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height');
+    const paperWidth = numeric(value.paperWidth, 'style paper width'), declaredPaperHeight = numeric(value.paperHeight, 'style paper height');
+    let pageHeightOption;
+    if (value.pageHeightOptions != null) {
+        if (!Array.isArray(value.pageHeightOptions) || value.pageHeightOptions.length < 1 || value.pageHeightOptions.length > 2) throw new KJValidationError('Geology: style page height options must declare one or two bounded sheets');
+        const seenHeights = new Set();
+        const options = value.pageHeightOptions.map((raw, index)=>{
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: style page height option must be a declared object');
+            const option = raw, hasFactors = option.fieldTextWidthFactors != null;
+            if (Object.keys(option).sort().join(',') !== [
+                'pageHeightMillimeters',
+                ...hasFactors ? [
+                    'fieldTextWidthFactors'
+                ] : []
+            ].sort().join(',')) throw new KJValidationError('Geology: style page height option has an undeclared field');
+            const height = numeric(option.pageHeightMillimeters, `style page height option ${index + 1}`);
+            if (height !== 297 && height !== 841 || seenHeights.has(height)) throw new KJValidationError('Geology: style page heights must be unique 297 or 841 mm values');
+            seenHeights.add(height);
+            let fieldTextWidthFactors;
+            if (hasFactors) {
+                if (!isFieldGrid || !option.fieldTextWidthFactors || typeof option.fieldTextWidthFactors !== 'object' || Array.isArray(option.fieldTextWidthFactors)) throw new KJValidationError('Geology: long-sheet field width factors need a declared field grid');
+                const supplied = option.fieldTextWidthFactors, roles = Object.keys(supplied);
+                if (!roles.length || roles.length > fieldRoles.size - 1 || roles.some((role)=>role === 'measurement' || !fieldRoles.has(role))) throw new KJValidationError('Geology: long-sheet field width factors contain an undeclared role');
+                fieldTextWidthFactors = Object.fromEntries(roles.map((role)=>{
+                    const factor = numeric(supplied[role], `${role} long-sheet text width factor`);
+                    if (factor < 0.5 || factor > 1.5) throw new KJValidationError('Geology: long-sheet text width factor must be 0.5–1.5');
+                    return [
+                        role,
+                        factor
+                    ];
+                }));
+            }
+            return {
+                pageHeightMillimeters: height,
+                ...fieldTextWidthFactors ? {
+                    fieldTextWidthFactors
+                } : {}
+            };
+        });
+        if (!seenHeights.has(declaredPaperHeight)) throw new KJValidationError('Geology: style page height options must include the declared default height');
+        const selectedHeight = input.pageHeightMillimeters ?? declaredPaperHeight;
+        pageHeightOption = options.find((option)=>option.pageHeightMillimeters === selectedHeight);
+        if (!pageHeightOption) throw new KJValidationError('Geology: requested page height is not declared by the host style pack');
+    } else if (input.pageHeightMillimeters != null) throw new KJValidationError('Geology: requested page height is not declared by the host style pack');
+    const paperHeight = pageHeightOption?.pageHeightMillimeters ?? declaredPaperHeight;
     const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height');
     if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm');
     const left = numeric(value.left, 'style left'), right = numeric(value.right, 'style right');
@@ -620,6 +663,16 @@ function columnLayout(input) {
             ].filter(Boolean) : []){
                 if (placement.offset[0] < 0 || placement.offset[0] > width || placement.offset[1] < 0 || placement.offset[1] > fieldHeaderHeight) throw new KJValidationError(`Geology: field ${field.role} header placement is outside its physical cell`);
             }
+        }
+        if (pageHeightOption?.fieldTextWidthFactors) {
+            for (const role of Object.keys(pageHeightOption.fieldTextWidthFactors))if (!fieldGrid.some((field)=>field.role === role)) throw new KJValidationError(`Geology: long-sheet field role ${role} is not declared by the style pack`);
+            fieldGrid = fieldGrid.map((field)=>{
+                const factor = field.role === 'measurement' ? undefined : pageHeightOption.fieldTextWidthFactors[field.role];
+                return factor == null ? field : {
+                    ...field,
+                    textWidthFactor: factor
+                };
+            });
         }
     }
     let footerGrid;
@@ -2580,6 +2633,7 @@ export function compileGeologyColumn(input) {
     const finishColumn = ()=>g.finish({
             verticalScaleDenominator,
             verticalScaleSource: input.verticalScaleDenominator == null ? 'style-standard' : 'explicit',
+            pageHeightMillimeters: pageHeight,
             ...sourceTemplate ? {
                 sourceTemplateSha256: sourceTemplate.sourceSha256,
                 sourceGridWidthMillimeters: sourceTemplate.innerGridWidthMillimeters
