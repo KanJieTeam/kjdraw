@@ -180,6 +180,12 @@ const BASE_MAP_SOLID_KEYS = [
     'kind',
     'solidVertices'
 ];
+const BASE_MAP_POINT_KEYS = [
+    'id',
+    'styleId',
+    'kind',
+    'position'
+];
 const BASE_MAP_HATCH_VERTEX_KEYS = [
     'point',
     'bulge'
@@ -994,10 +1000,19 @@ function validateInput(document, source) {
             };
         }
         const kind = value.kind;
-        if (kind !== 'line' && kind !== 'arc' && kind !== 'circle' && kind !== 'polyline' && kind !== 'legacyPolyline' && kind !== 'hatch' && kind !== 'solid') throw new KJValidationError(`${label}.kind must be line, arc, circle, polyline, legacyPolyline, hatch, solid or an explicit block insert`);
-        exactKeys(value, kind === 'line' ? BASE_MAP_LINE_KEYS : kind === 'arc' ? BASE_MAP_ARC_KEYS : kind === 'circle' ? BASE_MAP_CIRCLE_KEYS : kind === 'legacyPolyline' ? BASE_MAP_LEGACY_POLYLINE_KEYS : kind === 'hatch' ? BASE_MAP_HATCH_KEYS : kind === 'solid' ? BASE_MAP_SOLID_KEYS : BASE_MAP_POLYLINE_KEYS, label);
+        if (kind !== 'line' && kind !== 'arc' && kind !== 'circle' && kind !== 'polyline' && kind !== 'legacyPolyline' && kind !== 'hatch' && kind !== 'solid' && kind !== 'point') throw new KJValidationError(`${label}.kind must be line, arc, circle, polyline, legacyPolyline, hatch, solid, point or an explicit block insert`);
+        exactKeys(value, kind === 'line' ? BASE_MAP_LINE_KEYS : kind === 'arc' ? BASE_MAP_ARC_KEYS : kind === 'circle' ? BASE_MAP_CIRCLE_KEYS : kind === 'legacyPolyline' ? BASE_MAP_LEGACY_POLYLINE_KEYS : kind === 'hatch' ? BASE_MAP_HATCH_KEYS : kind === 'solid' ? BASE_MAP_SOLID_KEYS : kind === 'point' ? BASE_MAP_POINT_KEYS : BASE_MAP_POLYLINE_KEYS, label);
         const id = text(value.id, `${label}.id`, 40), styleId = text(value.styleId, `${label}.styleId`, 40);
         if (!baseMapStyleIds.has(styleId)) throw new KJValidationError(`${label}.styleId references unknown base-map style ${styleId}`);
+        if (kind === 'point') {
+            if (topLevel) throw new KJValidationError(`${label} point is valid only inside an explicit source-backed block`);
+            return {
+                id,
+                styleId,
+                kind,
+                position: point(value.position, `${label}.position`)
+            };
+        }
         if (kind === 'solid') {
             if (topLevel) throw new KJValidationError(`${label} solid is valid only inside an explicit source-backed block`);
             if (!Array.isArray(value.solidVertices) || value.solidVertices.length !== 4) throw new KJValidationError(`${label}.solidVertices must contain exactly four supplied native vertices`);
@@ -1567,6 +1582,16 @@ export function buildAgentGeologyPlan(document, source) {
                             })),
                         sourceIds: loop.sourceMemberIds.map((sourceId)=>memberIds.get(sourceId))
                     })),
+                ...common
+            },
+            options: {
+                id
+            }
+        };
+        if (item.kind === 'point') return {
+            type: 'POINT',
+            payload: {
+                position: p3(item.position),
                 ...common
             },
             options: {
@@ -2229,6 +2254,7 @@ export function buildAgentGeologyPlan(document, source) {
             baseMapAttributeCount: input.baseMapInserts.reduce((sum, insert)=>sum + insert.attributes.length, 0),
             baseMapHatchCount: input.baseMapBlocks.reduce((sum, block)=>sum + block.entities.filter((entity)=>entity.kind === 'hatch').length, 0),
             baseMapSolidCount: input.baseMapBlocks.reduce((sum, block)=>sum + block.entities.filter((entity)=>entity.kind === 'solid').length, 0),
+            baseMapPointCount: input.baseMapBlocks.reduce((sum, block)=>sum + block.entities.filter((entity)=>entity.kind === 'point').length, 0),
             baseMapLineworkTypeCounts: Object.fromEntries([
                 'line',
                 'arc',
@@ -2292,7 +2318,7 @@ export function buildAgentGeologyPlan(document, source) {
                 'Building footprints are compiled only from supplied closed outlines and are never inferred',
                 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred',
                 'Base-map linework is compiled only from explicit source-backed line, arc, circle, lightweight-polyline and native 2D POLYLINE facts with supplied styles',
-                'Reusable blocks, attached attributes, associative patterned fills and native planar SOLID faces are compiled only from complete explicit source-backed definitions, sequences, transforms, vertices, boundaries and supplied styles',
+                'Reusable blocks, attached attributes, associative patterned fills, native planar SOLID faces and native planar POINT markers are compiled only from complete explicit source-backed definitions, sequences, transforms, positions, vertices, boundaries and supplied styles',
                 'Unsupplied roads, terrain, landscaping, symbols, text, fills and other base-map context remain external source-backed dependencies and are never inferred'
             ]
         }

@@ -2310,6 +2310,7 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
             'legacyPolyline',
             'hatch',
             'solid',
+            'point',
             'attributeDefinition'
         ]
     },

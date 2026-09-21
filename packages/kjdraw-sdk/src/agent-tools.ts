@@ -472,7 +472,7 @@ const geologyPlanBaseMapInsertSchema = objectWithOptional({
 }, ['extrusion', 'attributes'])
 const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
   ...geologyPlanBaseMapAttributeFields,
-  kind: { type: 'string', enum: ['line', 'arc', 'circle', 'polyline', 'legacyPolyline', 'hatch', 'solid', 'attributeDefinition'] }, prompt: { type: 'string', minLength: 0, maxLength: 256 },
+  kind: { type: 'string', enum: ['line', 'arc', 'circle', 'polyline', 'legacyPolyline', 'hatch', 'solid', 'point', 'attributeDefinition'] }, prompt: { type: 'string', minLength: 0, maxLength: 256 },
   start: numericTuple(2), end: numericTuple(2), center: numericTuple(2), radius,
   patternName: { type: 'string', minLength: 1, maxLength: 80 }, solid: { type: 'boolean' }, associative: { type: 'boolean' },
   patternAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, patternScale: { type: 'number', exclusiveMinimum: 0, maximum: 1_000_000 },
