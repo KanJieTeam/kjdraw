@@ -273,6 +273,12 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
         lens: { offset: [5, 0], height: 2, textWidthFactor: 0.9, horizontalAlignment: 'center', verticalAlignment: 'middle' } },
       defaultTextStyle: { name: 'GEO-SYNTHETIC-TEXT', fontFamily: 'serif', fontFile: 'serif.ttf', bigFontFile: '',
         fixedHeight: 0, widthFactor: 1, obliqueAngleDegrees: 0, dxfFlags: 0, generationFlags: 0 },
+      roleTextStyles: {
+        layerName: { name: 'GEO-SYNTHETIC-LAYER', fontFamily: 'sans-serif', fontFile: 'layer.ttf', bigFontFile: '',
+          fixedHeight: 0, widthFactor: 1, obliqueAngleDegrees: 0, dxfFlags: 0, generationFlags: 0 },
+        patternLabel: { name: 'GEO-SYNTHETIC-PATTERN', fontFamily: 'monospace', fontFile: 'pattern.ttf', bigFontFile: '',
+          fixedHeight: 0, widthFactor: 1, obliqueAngleDegrees: 12, dxfFlags: 0, generationFlags: 0 },
+      },
       sampleMarkerStyle: { height: 1, gap: 0.5, baselineOffset: 0.5 },
       sampleAnnotationStyle: { depthAnchor: 'observation-depth',
         label: { offset: [3, 1.1], height: 2, textWidthFactor: 0.9, horizontalAlignment: 'center', verticalAlignment: 'middle' },
@@ -308,10 +314,23 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     verticalScaleDenominator: 100, expectedRevision: 0, columnStylePack: style }
   const compiled = compileGeologyColumn(input)
   const texts = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT')
-  const declaredTextStyle = compiled.commandArgs.resources.textStyles[0]
+  const declaredTextStyle = compiled.commandArgs.resources.textStyles.find(record => record.name === 'GEO-SYNTHETIC-TEXT')
+  const layerTextStyle = compiled.commandArgs.resources.textStyles.find(record => record.name === 'GEO-SYNTHETIC-LAYER')
+  const patternTextStyle = compiled.commandArgs.resources.textStyles.find(record => record.name === 'GEO-SYNTHETIC-PATTERN')
+  assert.equal(compiled.commandArgs.resources.textStyles.length, 3)
   assert.equal(declaredTextStyle.payload.fontFile, 'serif.ttf')
-  assert.ok(compiled.commandArgs.entities.filter(entity => ['TEXT', 'MTEXT'].includes(entity.type))
-    .every(entity => entity.payload.styleId === declaredTextStyle.id), 'all column text uses the declared source style')
+  assert.equal(layerTextStyle.payload.fontFile, 'layer.ttf')
+  assert.equal(patternTextStyle.payload.fontFile, 'pattern.ttf')
+  assert.equal(patternTextStyle.payload.obliqueAngle, 12 * Math.PI / 180)
+  assert.equal(compiled.commandArgs.entities.filter(entity => ['TEXT', 'MTEXT'].includes(entity.type) &&
+    entity.payload.styleId === layerTextStyle.id).length, 10, 'layer names and notation use only the semantic layer-name style')
+  assert.equal(compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT' &&
+    entity.payload.styleId === patternTextStyle.id).length, 1, 'pattern labels use only the semantic pattern-label style')
+  assert.ok(texts.some(entity => entity.payload.text === 'Fill' && entity.payload.styleId === layerTextStyle.id))
+  assert.ok(texts.some(entity => entity.payload.text === 'SC' && entity.payload.styleId === patternTextStyle.id))
+  assert.ok(compiled.commandArgs.entities.filter(entity => ['TEXT', 'MTEXT'].includes(entity.type) &&
+    ![layerTextStyle.id, patternTextStyle.id].includes(entity.payload.styleId))
+    .every(entity => entity.payload.styleId === declaredTextStyle.id), 'all unrelated text keeps the declared default style')
   for (const [value, x] of [['P-18', 127], ['PHYS-1', 167], ['2.50', 127], ['3.00', 167]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x), `${value} at ${x}`)
   for (const [value, height] of [['Project', 2.8], ['Pattern', 2.75], ['1:100', 2.25], ['Fill', 2], ['0.60', 2.4], ['S1', 2]])
@@ -403,10 +422,17 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const reopened = await sdk.readDocument(dxf, { format: 'DXF' }), reopenedKjd = await sdk.readDocument(kjd, { format: 'KJD' })
   assert.equal(reopened.validate().valid, true); assert.equal(reopenedKjd.validate().valid, true)
   for (const reopenedDocument of [reopened, reopenedKjd]) {
-    const styleRecord = reopenedDocument.getTable('textStyles').records.find(record => record.name === 'GEO-SYNTHETIC-TEXT')
-    assert.equal(styleRecord.payload.fontFile, 'serif.ttf')
-    assert.ok(reopenedDocument.listEntities().filter(entity => ['TEXT', 'MTEXT'].includes(entity.type))
-      .every(entity => entity.payload.styleId === styleRecord.id), 'declared source font survives KJD/DXF reopen')
+    const styleRecords = Object.fromEntries(reopenedDocument.getTable('textStyles').records
+      .filter(record => record.name.startsWith('GEO-SYNTHETIC-')).map(record => [record.name, record]))
+    assert.equal(styleRecords['GEO-SYNTHETIC-TEXT'].payload.fontFile, 'serif.ttf')
+    assert.equal(styleRecords['GEO-SYNTHETIC-LAYER'].payload.fontFile, 'layer.ttf')
+    assert.equal(styleRecords['GEO-SYNTHETIC-PATTERN'].payload.fontFile, 'pattern.ttf')
+    assert.equal(reopenedDocument.listEntities().filter(entity => ['TEXT', 'MTEXT'].includes(entity.type) &&
+      entity.payload.styleId === styleRecords['GEO-SYNTHETIC-LAYER'].id).length, 10,
+    'semantic layer-name font survives KJD/DXF reopen')
+    assert.equal(reopenedDocument.listEntities().filter(entity => entity.type === 'TEXT' &&
+      entity.payload.styleId === styleRecords['GEO-SYNTHETIC-PATTERN'].id).length, 1,
+    'semantic pattern-label font survives KJD/DXF reopen')
   }
   for (const reopenedDocument of [reopened, reopenedKjd]) assert.equal(reopenedDocument.listEntities({ type: 'LWPOLYLINE' })
     .filter(entity => entity.payload.closed !== true && entity.payload.vertices.length === 3).length, 2,
@@ -448,6 +474,19 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     assert.deepEqual(report.merged, [[245, 260]])
     for (const y of [15, 235, 245, 250, 255, 260]) assert.ok(report.separators.includes(y), `ezdxf separator y=${y}`)
   }
+  const independentRoleStyles = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); wanted={"Project","Fill","SC"}; refs={e.dxf.text:e.dxf.style for e in d.modelspace().query("TEXT") if e.dxf.text in wanted}; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"refs":refs}))'],
+  dxf, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+    PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independentRoleStyles.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independentRoleStyles.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independentRoleStyles.stderr || independentRoleStyles.error?.message)
+    t.diagnostic('official role-style check unavailable; independent check skipped')
+  } else {
+    assert.equal(independentRoleStyles.status, 0, independentRoleStyles.stderr)
+    const roleStyleReport = JSON.parse(independentRoleStyles.stdout)
+    assert.deepEqual([roleStyleReport.errors, roleStyleReport.fixes], [0, 0])
+    assert.deepEqual(roleStyleReport.refs, { Project: 'GEO-SYNTHETIC-TEXT', Fill: 'GEO-SYNTHETIC-LAYER', SC: 'GEO-SYNTHETIC-PATTERN' })
+  }
   const partial = structuredClone(input)
   delete partial.columnStylePack.rules['geology-column-layout'].headerGrid.rows[0][1].valueStart
   assert.throws(() => compileGeologyColumn(partial), /must declare start and valueStart/u)
@@ -478,6 +517,19 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const unsafeTextStyle = structuredClone(input)
   unsafeTextStyle.columnStylePack.rules['geology-column-layout'].defaultTextStyle.fontFile = 'https://invalid.example/font.ttf'
   assert.throws(() => compileGeologyColumn(unsafeTextStyle), /invalid default text font file/u)
+  const unsupportedRoleStyle = structuredClone(input)
+  unsupportedRoleStyle.columnStylePack.rules['geology-column-layout'].roleTextStyles.footer =
+    structuredClone(unsupportedRoleStyle.columnStylePack.rules['geology-column-layout'].roleTextStyles.layerName)
+  assert.throws(() => compileGeologyColumn(unsupportedRoleStyle), /at least one supported semantic role/u)
+  const unsafeRoleTextStyle = structuredClone(input)
+  unsafeRoleTextStyle.columnStylePack.rules['geology-column-layout'].roleTextStyles.layerName.fontFile = 'data:font/invalid'
+  assert.throws(() => compileGeologyColumn(unsafeRoleTextStyle), /invalid layerName role text font file/u)
+  const duplicateRoleStyleName = structuredClone(input)
+  duplicateRoleStyleName.columnStylePack.rules['geology-column-layout'].roleTextStyles.layerName.name = 'geo-synthetic-text'
+  assert.throws(() => compileGeologyColumn(duplicateRoleStyleName), /text style names must be unique/u)
+  const emptyRoleStyles = structuredClone(input)
+  emptyRoleStyles.columnStylePack.rules['geology-column-layout'].roleTextStyles = {}
+  assert.throws(() => compileGeologyColumn(emptyRoleStyles), /at least one supported semantic role/u)
   const oversizedText = structuredClone(input)
   oversizedText.columnStylePack.rules['geology-column-layout'].textHeights.headerFact = 5
   assert.throws(() => compileGeologyColumn(oversizedText), /do not fit the declared rows/u)

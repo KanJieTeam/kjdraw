@@ -154,6 +154,11 @@ export interface KJGeologyDefaultTextStyle {
     dxfFlags: number;
     generationFlags: number;
 }
+/** Optional source-backed local CAD text styles for semantic column roles. */
+export interface KJGeologyRoleTextStyles {
+    layerName?: KJGeologyDefaultTextStyle;
+    patternLabel?: KJGeologyDefaultTextStyle;
+}
 /** Exact source-backed placement for one physical field-header line. Offsets
  * are millimetres from the field's lower-left corner. */
 export interface KJGeologyFieldHeaderTextPlacement {

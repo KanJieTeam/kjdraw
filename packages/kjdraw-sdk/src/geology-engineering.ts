@@ -145,6 +145,12 @@ export interface KJGeologyDefaultTextStyle {
   dxfFlags: number
   generationFlags: number
 }
+/** Optional source-backed local CAD text styles for semantic column roles. */
+export interface KJGeologyRoleTextStyles {
+  layerName?: KJGeologyDefaultTextStyle
+  patternLabel?: KJGeologyDefaultTextStyle
+}
+type KJGeologyRoleTextStyleRole = keyof KJGeologyRoleTextStyles
 /** Exact source-backed placement for one physical field-header line. Offsets
  * are millimetres from the field's lower-left corner. */
 export interface KJGeologyFieldHeaderTextPlacement {
@@ -380,6 +386,7 @@ interface ColumnLayout {
   majorGroupValueStyle?: KJGeologyMajorGroupValueStyle
   titleTextStyle?: KJGeologyTitleTextStyle
   defaultTextStyle?: KJGeologyDefaultTextStyle
+  roleTextStyles?: KJGeologyRoleTextStyles
   stratigraphicNotationStyle?: KJGeologyStratigraphicNotationStyle
   descriptionTextStyle?: KJGeologyDescriptionTextStyle
   sampleMarkerStyle?: { height: number; gap: number; baselineOffset: number }
@@ -492,7 +499,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'titleTextStyle', 'textFlow', 'textHeights', 'intervalDepthTextStyle', 'majorGroupValueStyle', 'defaultTextStyle', 'stratigraphicNotationStyle', 'descriptionTextStyle', 'sampleMarkerStyle', 'sampleAnnotationStyle', 'sampleRangeBaselineStyle', 'sampleRangeTextFormat', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'titleTextStyle', 'textFlow', 'textHeights', 'intervalDepthTextStyle', 'majorGroupValueStyle', 'defaultTextStyle', 'roleTextStyles', 'stratigraphicNotationStyle', 'descriptionTextStyle', 'sampleMarkerStyle', 'sampleAnnotationStyle', 'sampleRangeBaselineStyle', 'sampleRangeTextFormat', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -832,31 +839,48 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: title text style is outside the readable title band')
     titleTextStyle = { anchor: 'frame-left-top', placement, rotationDegrees }
   }
-  let defaultTextStyle: ColumnLayout['defaultTextStyle']
-  if (value.defaultTextStyle != null) {
-    if (!isFieldGrid || !value.defaultTextStyle || typeof value.defaultTextStyle !== 'object' || Array.isArray(value.defaultTextStyle) ||
-      Object.keys(value.defaultTextStyle).sort().join(',') !== 'bigFontFile,dxfFlags,fixedHeight,fontFamily,fontFile,generationFlags,name,obliqueAngleDegrees,widthFactor')
-      throw new KJValidationError('Geology: default text style needs an exact declarative field-grid schema')
-    const rule = value.defaultTextStyle as Record<string, unknown>
+  const sourceLocalTextStyle = (raw: unknown, label: string): KJGeologyDefaultTextStyle => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).sort().join(',') !== 'bigFontFile,dxfFlags,fixedHeight,fontFamily,fontFile,generationFlags,name,obliqueAngleDegrees,widthFactor')
+      throw new KJValidationError(`Geology: ${label} text style needs an exact declarative field-grid schema`)
+    const rule = raw as Record<string, unknown>
     const safeName = (raw: unknown, label: string, empty = false): string => {
       if (typeof raw !== 'string' || raw.length > 128 || !empty && !raw.length || /[\\/:\u0000-\u001f\u007f]/u.test(raw) || /^(?:data|https?)/iu.test(raw))
         throw new KJValidationError(`Geology: invalid ${label}`)
       return raw
     }
-    const name = safeName(rule.name, 'default text style name')
-    const fontFamily = safeName(rule.fontFamily, 'default text font family')
-    const fontFile = safeName(rule.fontFile, 'default text font file')
-    const bigFontFile = safeName(rule.bigFontFile, 'default text big-font file', true)
-    const fixedHeight = numeric(rule.fixedHeight, 'default text fixed height')
-    const widthFactor = numeric(rule.widthFactor, 'default text width factor')
-    const obliqueAngleDegrees = numeric(rule.obliqueAngleDegrees, 'default text oblique angle')
-    const dxfFlags = numeric(rule.dxfFlags, 'default text DXF flags')
-    const generationFlags = numeric(rule.generationFlags, 'default text generation flags')
+    const name = safeName(rule.name, `${label} text style name`)
+    const fontFamily = safeName(rule.fontFamily, `${label} text font family`)
+    const fontFile = safeName(rule.fontFile, `${label} text font file`)
+    const bigFontFile = safeName(rule.bigFontFile, `${label} text big-font file`, true)
+    const fixedHeight = numeric(rule.fixedHeight, `${label} text fixed height`)
+    const widthFactor = numeric(rule.widthFactor, `${label} text width factor`)
+    const obliqueAngleDegrees = numeric(rule.obliqueAngleDegrees, `${label} text oblique angle`)
+    const dxfFlags = numeric(rule.dxfFlags, `${label} text DXF flags`)
+    const generationFlags = numeric(rule.generationFlags, `${label} text generation flags`)
     if (fixedHeight !== 0 || widthFactor < 0.5 || widthFactor > 1.5 || obliqueAngleDegrees < -45 || obliqueAngleDegrees > 45 ||
       !Number.isSafeInteger(dxfFlags) || dxfFlags < 0 || dxfFlags > 255 || !Number.isSafeInteger(generationFlags) || generationFlags < 0 || generationFlags > 7)
-      throw new KJValidationError('Geology: default text style is unreadable or unsafe')
-    defaultTextStyle = { name, fontFamily, fontFile, bigFontFile, fixedHeight, widthFactor, obliqueAngleDegrees, dxfFlags, generationFlags }
+      throw new KJValidationError(`Geology: ${label} text style is unreadable or unsafe`)
+    return { name, fontFamily, fontFile, bigFontFile, fixedHeight, widthFactor, obliqueAngleDegrees, dxfFlags, generationFlags }
   }
+  let defaultTextStyle: ColumnLayout['defaultTextStyle']
+  if (value.defaultTextStyle != null) {
+    if (!isFieldGrid) throw new KJValidationError('Geology: default text style needs an exact declarative field-grid schema')
+    defaultTextStyle = sourceLocalTextStyle(value.defaultTextStyle, 'default')
+  }
+  let roleTextStyles: ColumnLayout['roleTextStyles']
+  if (value.roleTextStyles != null) {
+    if (!isFieldGrid || !value.roleTextStyles || typeof value.roleTextStyles !== 'object' || Array.isArray(value.roleTextStyles))
+      throw new KJValidationError('Geology: role text styles need a declarative field-grid object')
+    const roles = Object.keys(value.roleTextStyles)
+    if (!roles.length || roles.some(role => !['layerName', 'patternLabel'].includes(role)))
+      throw new KJValidationError('Geology: role text styles need at least one supported semantic role')
+    const raw = value.roleTextStyles as Record<string, unknown>
+    roleTextStyles = Object.fromEntries(roles.map(role => [role, sourceLocalTextStyle(raw[role], `${role} role`)])) as KJGeologyRoleTextStyles
+  }
+  const styleNames = [defaultTextStyle, ...Object.values(roleTextStyles ?? {})].filter((item): item is KJGeologyDefaultTextStyle => item != null)
+    .map(item => item.name.toLocaleLowerCase('en-US'))
+  if (new Set(styleNames).size !== styleNames.length) throw new KJValidationError('Geology: text style names must be unique')
   let stratigraphicNotationStyle: ColumnLayout['stratigraphicNotationStyle']
   if (value.stratigraphicNotationStyle != null) {
     if (!isFieldGrid || !value.stratigraphicNotationStyle || typeof value.stratigraphicNotationStyle !== 'object' || Array.isArray(value.stratigraphicNotationStyle) ||
@@ -1202,7 +1226,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   }
   return { paperWidth, paperHeight, left, right, columns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, legendMode, layerNumberStyle, titleHeight, verticalScaleDenominators, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
     ...(observationColumns ? { observationColumns } : {}), labels,
-    ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}), ...(intervalDepthTextStyle ? { intervalDepthTextStyle } : {}), ...(majorGroupValueStyle ? { majorGroupValueStyle } : {}), ...(titleTextStyle ? { titleTextStyle } : {}), ...(defaultTextStyle ? { defaultTextStyle } : {}),
+    ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}), ...(intervalDepthTextStyle ? { intervalDepthTextStyle } : {}), ...(majorGroupValueStyle ? { majorGroupValueStyle } : {}), ...(titleTextStyle ? { titleTextStyle } : {}), ...(defaultTextStyle ? { defaultTextStyle } : {}), ...(roleTextStyles ? { roleTextStyles } : {}),
     ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sampleMarkerStyle ? { sampleMarkerStyle } : {}),
     ...(sampleAnnotationStyle ? { sampleAnnotationStyle } : {}),
     ...(sampleRangeBaselineStyle ? { sampleRangeBaselineStyle } : {}),
@@ -1440,20 +1464,26 @@ function patternDefinitions(pack: ReadonlyDeep<KJKnowledgePack> | undefined, str
   return definitions
 }
 
-function drawingBuilder(input: unknown, templateId: string, expectedRevision: number, hatches: Record<string, Record<string, unknown>> = {}, defaultTextStyle?: KJGeologyDefaultTextStyle,
+function drawingBuilder(input: unknown, templateId: string, expectedRevision: number, hatches: Record<string, Record<string, unknown>> = {}, defaultTextStyle?: KJGeologyDefaultTextStyle, roleTextStyles?: KJGeologyRoleTextStyles,
   drawingOrigin: readonly [number, number] = [0, 0]) {
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new KJValidationError('Geology: invalid expected revision')
   const prefix = `geo-${stableHash({ input, templateId })}`
   const linetypeId = `${prefix}-continuous`
   const names = ['GEO_FRAME', 'GEO_BOUNDARY', 'GEO_HATCH', 'GEO_TEXT', 'GEO_GUIDE']
   const layers = names.map((name, index) => ({ id: `${prefix}-layer-${index}`, name, color: [7, 7, 8, 7, 9][index]!, linetypeId, lineweight: [35, 35, 18, 18, 9][index]! }))
+  const styleResource = (id: string, style: KJGeologyDefaultTextStyle) => ({ id, name: style.name, payload: {
+    fontFamily: style.fontFamily, fontFile: style.fontFile, bigFontFile: style.bigFontFile,
+    fixedHeight: style.fixedHeight, widthFactor: style.widthFactor, obliqueAngle: style.obliqueAngleDegrees * Math.PI / 180,
+    dxfFlags: style.dxfFlags, generationFlags: style.generationFlags,
+  } })
   const textStyleId = defaultTextStyle ? `${prefix}-text-style` : undefined
-  const textStyles = !defaultTextStyle ? [] : [{ id: textStyleId!, name: defaultTextStyle.name, payload: {
-    fontFamily: defaultTextStyle.fontFamily, fontFile: defaultTextStyle.fontFile, bigFontFile: defaultTextStyle.bigFontFile,
-    fixedHeight: defaultTextStyle.fixedHeight, widthFactor: defaultTextStyle.widthFactor,
-    obliqueAngle: defaultTextStyle.obliqueAngleDegrees * Math.PI / 180,
-    dxfFlags: defaultTextStyle.dxfFlags, generationFlags: defaultTextStyle.generationFlags,
-  } }]
+  const roleTextStyleIds = Object.fromEntries(Object.entries(roleTextStyles ?? {}).map(([role]) =>
+    [role, `${prefix}-text-style-${role}`])) as Partial<Record<KJGeologyRoleTextStyleRole, string>>
+  const textStyles = [
+    ...(defaultTextStyle ? [styleResource(textStyleId!, defaultTextStyle)] : []),
+    ...Object.entries(roleTextStyles ?? {}).map(([role, style]) => styleResource(roleTextStyleIds[role as KJGeologyRoleTextStyleRole]!, style)),
+  ]
+  const textStyleFor = (role?: KJGeologyRoleTextStyleRole): string | undefined => role == null ? textStyleId : roleTextStyleIds[role] ?? textStyleId
   const entities: KJKnowledgeCompileResult['commandArgs']['entities'] = []
   const add = (type: string, layer: number, payload: Record<string, unknown>) => {
     if (entities.length >= 8192) throw new KJValidationError('Geology: entity budget exceeded')
@@ -1462,17 +1492,17 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
   const shifted = (x: number, y: number): [number, number, number] => [x + drawingOrigin[0], y + drawingOrigin[1], 0]
   const line = (layer: number, x1: number, y1: number, x2: number, y2: number) => add('LINE', layer, { start: shifted(x1, y1), end: shifted(x2, y2) })
   const semanticLine = (layer: number, x1: number, y1: number, x2: number, y2: number, metadata: Record<string, unknown>) => add('LINE', layer, { start: shifted(x1, y1), end: shifted(x2, y2), ...metadata })
-  const text = (layer: number, x: number, y: number, value: string, height = 2.6, centered = false, widthFactor?: number, verticalAlignment?: 1 | 2 | 3) => add('TEXT', layer, {
+  const text = (layer: number, x: number, y: number, value: string, height = 2.6, centered = false, widthFactor?: number, verticalAlignment?: 1 | 2 | 3, styleRole?: KJGeologyRoleTextStyleRole) => add('TEXT', layer, {
     position: shifted(x, y), text: value, height,
-    ...(textStyleId ? { styleId: textStyleId } : {}),
+    ...(textStyleFor(styleRole) ? { styleId: textStyleFor(styleRole) } : {}),
     ...(widthFactor == null ? {} : { widthFactor }),
     ...(centered ? { horizontalAlignment: 1 } : {}), ...(verticalAlignment == null ? {} : { verticalAlignment }),
     ...(centered || verticalAlignment != null ? { alignmentPoint: shifted(x, y) } : {}),
   })
   const placedText = (layer: number, x: number, y: number, value: string, height: number, widthFactor: number,
-    horizontalAlignment: 0 | 1 | 2, verticalAlignment: 0 | 2, rotation: number) => add('TEXT', layer, {
+    horizontalAlignment: 0 | 1 | 2, verticalAlignment: 0 | 2, rotation: number, styleRole?: KJGeologyRoleTextStyleRole) => add('TEXT', layer, {
     position: shifted(x, y), text: value, height, widthFactor, rotation,
-    ...(textStyleId ? { styleId: textStyleId } : {}),
+    ...(textStyleFor(styleRole) ? { styleId: textStyleFor(styleRole) } : {}),
     ...(horizontalAlignment === 0 ? {} : { horizontalAlignment }), ...(verticalAlignment === 0 ? {} : { verticalAlignment }),
     ...(horizontalAlignment !== 0 || verticalAlignment !== 0 ? { alignmentPoint: shifted(x, y) } : {}),
   })
@@ -1504,7 +1534,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
     headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, titleTextStyle, textFlow, textHeights, intervalDepthTextStyle, majorGroupValueStyle,
-    defaultTextStyle, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, sampleRangeTextFormat, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology,
+    defaultTextStyle, roleTextStyles, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, sampleRangeTextFormat, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology,
     layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
     throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style')
@@ -1537,7 +1567,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const scale = 1000 / verticalScaleDenominator
   const bottom = top - hole.depth * scale
   if (scale < 0.1 || scale > 100 || bottom < footerReserve) throw new KJValidationError('Geology: column does not fit the declared physical sheet at this vertical scale')
-  const g = drawingBuilder(input, 'borehole-column-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, strata), defaultTextStyle)
+  const g = drawingBuilder(input, 'borehole-column-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, strata), defaultTextStyle, roleTextStyles)
   const finishColumn = (): ReadonlyDeep<KJKnowledgeCompileResult> => g.finish({
     verticalScaleDenominator,
     verticalScaleSource: input.verticalScaleDenominator == null ? 'style-standard' : 'explicit',
@@ -1831,7 +1861,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       if (width > fieldWidth(item) - 2.4) throw new KJValidationError(`Geology: ${item.role} text does not fit its declared field`)
       const centered = item.role !== 'description'
       const x = centered ? item.start + fieldWidth(item) / 2 : item.start + 1.2
-      g.text(3, x, y, value, height, centered, item.textWidthFactor)
+      g.text(3, x, y, value, height, centered, item.textWidthFactor, undefined, item.role === 'layerName' ? 'layerName' : undefined)
       textBoxes.push({ role: item.role, left: x - (centered ? width / 2 : 0) - 0.25,
         right: x + (centered ? width / 2 : width) + 0.25, bottom: y - 0.25, top: y + height + 0.25 })
     }
@@ -1845,7 +1875,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         throw new KJValidationError(`Geology: ${item.role} text does not fit its declared source placement`)
       const horizontalAlignment = placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2
       const verticalAlignment = placement.verticalAlignment === 'baseline' ? 0 : 2
-      g.placedText(3, x, y, value, placement.height, placement.textWidthFactor, horizontalAlignment, verticalAlignment, 0)
+      g.placedText(3, x, y, value, placement.height, placement.textWidthFactor, horizontalAlignment, verticalAlignment, 0,
+        item.role === 'layerName' ? 'layerName' : undefined)
       const textBottom = placement.verticalAlignment === 'middle' ? y - placement.height / 2 : y
       textBoxes.push({ role: item.role, left: left - 0.25, right: left + textWidth + 0.25,
         bottom: textBottom - 0.25, top: textBottom + placement.height + 0.25 })
@@ -1997,19 +2028,19 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       if (width > fieldWidth(item) - 2.4) throw new KJValidationError(`Geology: stratigraphic notation for ${layer.code} does not fit its declared field`)
       const start = item.start + (fieldWidth(item) - width) / 2, symbolX = start + symbolWidth / 2
       const symbolY = yBottom + 0.5
-      g.text(3, symbolX, symbolY, notation.symbol, style.symbolHeight, true, item.textWidthFactor)
+      g.text(3, symbolX, symbolY, notation.symbol, style.symbolHeight, true, item.textWidthFactor, undefined, 'layerName')
       textBoxes.push({ role: item.role, left: start - 0.25, right: start + symbolWidth + 0.25,
         bottom: symbolY - 0.25, top: symbolY + style.symbolHeight + 0.25 })
       const qualifierX = start + symbolWidth + qualifierGap
       if (notation.subscript) {
         const qualifierY = symbolY - style.qualifierHeight * 0.3
-        g.text(3, qualifierX, qualifierY, notation.subscript, style.qualifierHeight, false, item.textWidthFactor)
+        g.text(3, qualifierX, qualifierY, notation.subscript, style.qualifierHeight, false, item.textWidthFactor, undefined, 'layerName')
         textBoxes.push({ role: item.role, left: qualifierX - 0.25, right: qualifierX + qualifierWidth + 0.25,
           bottom: qualifierY - 0.25, top: qualifierY + style.qualifierHeight + 0.25 })
       }
       if (notation.superscript) {
         const qualifierY = symbolY + style.symbolHeight - style.qualifierHeight
-        g.text(3, qualifierX, qualifierY, notation.superscript, style.qualifierHeight, false, item.textWidthFactor)
+        g.text(3, qualifierX, qualifierY, notation.superscript, style.qualifierHeight, false, item.textWidthFactor, undefined, 'layerName')
         textBoxes.push({ role: item.role, left: qualifierX - 0.25, right: qualifierX + qualifierWidth + 0.25,
           bottom: qualifierY - 0.25, top: qualifierY + style.qualifierHeight + 0.25 })
       }
@@ -2151,7 +2182,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         if (bandHeight + 1e-9 < style.minimumBandHeight || width > fieldWidth(patternField) - 2.4)
           throw new KJValidationError(`Geology: pattern label for ${layer.code} does not fit its declared interval`)
         const x = patternField.start + fieldWidth(patternField) / 2, y = (yTop + yBottom) / 2
-        g.text(3, x, y, layer.patternLabel, style.height, true, style.textWidthFactor, 2)
+        g.text(3, x, y, layer.patternLabel, style.height, true, style.textWidthFactor, 2, 'patternLabel')
         textBoxes.push({ role: 'pattern', left: x - width / 2, right: x + width / 2,
           bottom: y - style.height / 2 + 0.1, top: y + style.height / 2 - 0.1 })
       }
@@ -2354,7 +2385,8 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   const x = (hole: KJGeologyBorehole) => originX + (hole.station! - holes[0]!.station!) * hs
   const y = (hole: KJGeologyBorehole, depth: number) => layout.plotBottom + (hole.collarElevation - depth - datum) * vs
   if (x(holes.at(-1)!) > layout.plotRight - 4 || holes.some(hole => y(hole, 0) > layout.plotTop || y(hole, hole.depth) < layout.plotBottom)) throw new KJValidationError('Geology: section does not fit A3 at the declared scales and datum')
-  const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, [...byId.values()].flatMap(value => value.strata)), undefined, layout.drawingOrigin)
+  const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision,
+    patternDefinitions(input.hatchPack, [...byId.values()].flatMap(value => value.strata)), undefined, undefined, layout.drawingOrigin)
   const frame = (margins: SectionLayout['outerMargins'], rule: SectionFrameRule) => {
     const left = margins.left, right = layout.paperWidth - margins.right
     const bottom = margins.bottom, top = layout.paperHeight - margins.top
