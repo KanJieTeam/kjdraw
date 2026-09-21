@@ -70,7 +70,10 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
       footerFrameStyle: { left: 12, right: 408, bottom: 12, top: 22, guideY: 12, primitive: 'line-segments', cellMode: 'none' },
       headingTextStyle: { title: { anchorX: 210, height: 6, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 }, scale: { anchorX: 210, height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
       sectionReferenceStyle: { start: { offset: [150, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'right', verticalAlignment: 'baseline' }, end: { offset: [270, 268], height: 4, textWidthFactor: 1, horizontalAlignment: 'left', verticalAlignment: 'baseline' } },
-      observationSymbolStyle: { sample: { centerOffset: [-4, 0], radius: 0.7, fill: 'solid' }, spt: { topRightOffset: [-7, 0], width: 10, height: 3, labelPlacement: { offset: [-12, -1.5], height: 2, textWidthFactor: 1, horizontalAlignment: 'center', verticalAlignment: 'baseline' } } },
+      observationSymbolStyle: { sample: { centerOffset: [-4, 0], radius: 0.7, fill: 'solid' }, spt: { topRightOffset: [-7, 0], width: 10, height: 3,
+        labelPlacement: { offset: [-12, -1.5], height: 2, textWidthFactor: 1, horizontalAlignment: 'middle', verticalAlignment: 'baseline' },
+        labelOverrides: [{ holeId: 'SYN-01', observationId: 'N1', placement: { offset: [-11.5, -1.25], height: 2,
+          textWidthFactor: 1, horizontalAlignment: 'middle', verticalAlignment: 'baseline' } }] } },
       plotLeft: 30, plotRight: 390, plotBottom: 35, plotTop: 245, titleY: 275, scaleY: 262, footerHeight: 10, boreholeWidth: 3, elevationTickStep: 2,
       footerGrid: [{ start: 12, key: 'projectName', label: 'Project' }, { start: 140, key: 'organization', label: 'Organization' }, { start: 260, key: 'drawingNumber', label: 'Drawing' }],
     } },
@@ -94,6 +97,9 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedPatternSymbolCount, 1)
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedPatternEntityCount, 3)
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedBoundaryPolylineCount, 2)
+  assert.equal(proposal.engineeringEvidence.parameters.sourceBackedSptLabelOverrideCount, 1)
+  const sourceBackedSpt = proposal.arguments.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'N=12')
+  assert.equal(sourceBackedSpt.payload.horizontalAlignment, 4)
   assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'SOLID').length, 5)
   assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'TEXT' &&
     ['81', '83', '85', '87', '89'].includes(entity.payload.text)).length, 5)

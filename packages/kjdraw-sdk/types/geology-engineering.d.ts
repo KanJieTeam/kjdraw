@@ -170,6 +170,9 @@ export interface KJGeologyFieldHeaderTextPlacement {
     horizontalAlignment: 'left' | 'center' | 'right';
     verticalAlignment: 'baseline' | 'middle';
 }
+type KJGeologySectionTextPlacement = Omit<KJGeologyFieldHeaderTextPlacement, 'horizontalAlignment'> & {
+    horizontalAlignment: 'left' | 'center' | 'right' | 'middle';
+};
 /** A field header may contain one main line and, only when the field declares
  * a sublabel, one independently placed sub line. */
 export interface KJGeologyFieldHeaderTextStyle {
@@ -280,7 +283,12 @@ export interface KJGeologySectionObservationSymbolStyle {
         topRightOffset: [number, number];
         width: number;
         height: number;
-        labelPlacement: KJGeologyFieldHeaderTextPlacement;
+        labelPlacement: KJGeologySectionTextPlacement;
+        labelOverrides?: {
+            holeId: string;
+            observationId: string;
+            placement: KJGeologySectionTextPlacement;
+        }[];
     };
     groundwater?: {
         insertOffset: [number, number];
@@ -345,3 +353,4 @@ export interface KJGeologySectionInput {
 }
 export declare function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<KJKnowledgeCompileResult>;
 export declare function compileGeologySection(input: KJGeologySectionInput): ReadonlyDeep<KJKnowledgeCompileResult>;
+export {};

@@ -58,6 +58,19 @@ const sourceTextPlacement = (raw, label, minimumHeight = 1.2, maximumHeight = 5)
         verticalAlignment: rule.verticalAlignment
     };
 };
+const sourceSectionTextPlacement = (raw, label)=>{
+    if (raw && typeof raw === 'object' && !Array.isArray(raw) && raw.horizontalAlignment === 'middle') {
+        const parsed = sourceTextPlacement({
+            ...raw,
+            horizontalAlignment: 'center'
+        }, label);
+        return {
+            ...parsed,
+            horizontalAlignment: 'middle'
+        };
+    }
+    return sourceTextPlacement(raw, label);
+};
 const projectCoordinate = (value, label)=>{
     if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1e9) throw new KJValidationError(`Geology: invalid ${label}`);
     return value;
@@ -1965,7 +1978,10 @@ function sectionLayout(input) {
             'centerOffset,fill,radius',
             'centerOffset,fill,labelPlacement,radius'
         ].includes(Object.keys(supplied.sample).sort().join(','))) throw new KJValidationError('Geology: section sample symbol rule is invalid');
-        if (!supplied.spt || typeof supplied.spt !== 'object' || Array.isArray(supplied.spt) || Object.keys(supplied.spt).sort().join(',') !== 'height,labelPlacement,topRightOffset,width') throw new KJValidationError('Geology: section SPT symbol rule is invalid');
+        if (!supplied.spt || typeof supplied.spt !== 'object' || Array.isArray(supplied.spt) || ![
+            'height,labelPlacement,topRightOffset,width',
+            'height,labelOverrides,labelPlacement,topRightOffset,width'
+        ].includes(Object.keys(supplied.spt).sort().join(','))) throw new KJValidationError('Geology: section SPT symbol rule is invalid');
         const sample = supplied.sample, spt = supplied.spt;
         let groundwater;
         if (supplied.groundwater != null) {
@@ -1996,6 +2012,28 @@ function sectionLayout(input) {
                 }
             };
         }
+        let labelOverrides;
+        if (spt.labelOverrides != null) {
+            if (!Array.isArray(spt.labelOverrides) || spt.labelOverrides.length < 1 || spt.labelOverrides.length > 128) throw new KJValidationError('Geology: section SPT label overrides need 1-128 explicit observation facts');
+            const seenOverrides = new Set();
+            labelOverrides = spt.labelOverrides.map((rawOverride, index)=>{
+                if (!rawOverride || typeof rawOverride !== 'object' || Array.isArray(rawOverride) || Object.keys(rawOverride).sort().join(',') !== 'holeId,observationId,placement') throw new KJValidationError('Geology: section SPT label override needs an exact observation identity and placement');
+                const suppliedOverride = rawOverride;
+                const holeId = bounded(suppliedOverride.holeId, `section SPT label override ${index + 1} hole`, 40);
+                const observationId = bounded(suppliedOverride.observationId, `section SPT label override ${index + 1} observation`, 64);
+                const identity = JSON.stringify([
+                    holeId,
+                    observationId
+                ]);
+                if (seenOverrides.has(identity)) throw new KJValidationError('Geology: duplicate section SPT label override fact');
+                seenOverrides.add(identity);
+                return {
+                    holeId,
+                    observationId,
+                    placement: sourceSectionTextPlacement(suppliedOverride.placement, `section SPT label override ${index + 1}`)
+                };
+            });
+        }
         const radius = numeric(sample.radius, 'section sample symbol radius');
         const width = numeric(spt.width, 'section SPT symbol width'), height = numeric(spt.height, 'section SPT symbol height');
         if (sample.fill !== 'solid' && sample.fill !== 'none' || radius < 0.2 || radius > 5 || width < 2 || width > 30 || height < 1 || height > 10) throw new KJValidationError('Geology: section observation symbol geometry is unreadable');
@@ -2015,7 +2053,10 @@ function sectionLayout(input) {
                 topRightOffset: offsetPair(spt.topRightOffset, 'section SPT symbol offset'),
                 width,
                 height,
-                labelPlacement: sourceTextPlacement(spt.labelPlacement, 'section SPT label')
+                labelPlacement: sourceSectionTextPlacement(spt.labelPlacement, 'section SPT label'),
+                ...labelOverrides ? {
+                    labelOverrides
+                } : {}
             }
         };
     }
@@ -3666,7 +3707,7 @@ export function compileGeologySection(input) {
     const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, [
         ...byId.values()
     ].flatMap((value)=>value.strata)), undefined, undefined, layout.drawingOrigin);
-    const emitPlaced = (baseX, baseY, value, placement)=>g.placedText(3, baseX + placement.offset[0], baseY + placement.offset[1], value, placement.height, placement.textWidthFactor, placement.horizontalAlignment === 'center' ? 1 : placement.horizontalAlignment === 'right' ? 2 : 0, placement.verticalAlignment === 'middle' ? 2 : 0, 0);
+    const emitPlaced = (baseX, baseY, value, placement)=>g.placedText(3, baseX + placement.offset[0], baseY + placement.offset[1], value, placement.height, placement.textWidthFactor, placement.horizontalAlignment === 'middle' ? 4 : placement.horizontalAlignment === 'center' ? 1 : placement.horizontalAlignment === 'right' ? 2 : 0, placement.verticalAlignment === 'middle' ? 2 : 0, 0);
     const emitTextRole = (baseX, baseY, value, placement)=>g.placedText(3, baseX + placement.offset[0], baseY + placement.offset[1], value, placement.height, placement.textWidthFactor, placement.horizontalAlignment, placement.verticalAlignment, 0);
     const fixed = (value, precision)=>value.toFixed(precision);
     const frame = (margins, rule)=>{
@@ -3810,6 +3851,15 @@ export function compileGeologySection(input) {
         }
     } else if (sectionText?.stationLabel.visibility === 'shown') emitTextRole(layout.plotLeft, footerBottom, locale === 'zh-CN' ? '里程' : 'STATION', sectionText.stationLabel);
     g.poly(1, surface);
+    const sptLabelOverrides = new Map((layout.observationSymbolStyle?.spt.labelOverrides ?? []).map((item)=>[
+            `${item.holeId}\u0000${item.observationId}`,
+            item.placement
+        ]));
+    for (const item of layout.observationSymbolStyle?.spt.labelOverrides ?? []){
+        const hole = holes.find((candidate)=>candidate.id === item.holeId);
+        const observation = hole?.observations?.find((candidate)=>candidate.id === item.observationId);
+        if (!observation || observation.kind !== 'spt') throw new KJValidationError('Geology: section SPT label override references an unknown supplied SPT observation');
+    }
     for (const hole of holes){
         const center = x(hole), top = y(hole, 0), bottom = y(hole, hole.depth);
         const half = layout.boreholeWidth / 2;
@@ -3926,7 +3976,8 @@ export function compileGeologySection(input) {
                     g.line(1, left, bottom, right, bottom);
                     g.line(1, right, bottom, right, top);
                     const shown = Number.isInteger(observation.value) ? observation.value.toString() : metres(observation.value);
-                    emitPlaced(center, observationY, observation.displayLabel ?? `N=${shown}`, style.labelPlacement);
+                    const placement = sptLabelOverrides.get(`${hole.id}\u0000${observation.id}`) ?? style.labelPlacement;
+                    emitPlaced(center, observationY, observation.displayLabel ?? `N=${shown}`, placement);
                 }
                 continue;
             }
@@ -4123,6 +4174,9 @@ export function compileGeologySection(input) {
         ...layout.sourceBackedPatternSymbols ? {
             sourceBackedPatternSymbolCount: layout.sourceBackedPatternSymbols.length,
             sourceBackedPatternEntityCount: layout.sourceBackedPatternSymbols.length * 3
+        } : {},
+        ...layout.observationSymbolStyle?.spt.labelOverrides ? {
+            sourceBackedSptLabelOverrideCount: layout.observationSymbolStyle.spt.labelOverrides.length
         } : {},
         ...layout.sourceBackedBoundaryPolylines ? {
             sourceBackedBoundaryPolylineCount: layout.sourceBackedBoundaryPolylines.length

@@ -232,7 +232,10 @@ test('section preserves caller-supplied references and native measured-observati
   }
   rule.observationSymbolStyle = {
     sample: { centerOffset: [6, -1], radius: 1, fill: 'solid' },
-    spt: { topRightOffset: [0, 0], width: 10, height: 3, labelPlacement: placement([-5, -2], 2) },
+    spt: { topRightOffset: [0, 0], width: 10, height: 3, labelPlacement: placement([-5, -2], 2, 'middle'),
+      labelOverrides: [{ holeId: holes[0].id, observationId: 'spt-1',
+        placement: placement([-4, -1], 2, 'middle') }],
+    },
     groundwater: { insertOffset: [-8, 0], lineSegments: [
       [[0, -2], [4, -2]],
       [[0, -1], [4, -1]],
@@ -272,8 +275,10 @@ test('section preserves caller-supplied references and native measured-observati
   assert.equal(entities.filter(entity => entity.type === 'HATCH' && entity.payload.solid === true).length, 2)
   assert.equal(entities.filter(entity => entity.type === 'TEXT' && String(entity.payload.text).startsWith('WL ')).length, 0)
   const spt = entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'N=8')
-  assert.deepEqual(spt.payload.alignmentPoint, [47, 201, 0])
+  assert.deepEqual(spt.payload.alignmentPoint, [48, 202, 0])
   assert.equal(spt.payload.height, 2)
+  assert.equal(spt.payload.horizontalAlignment, 4)
+  assert.equal(result.evidence.parameters.sourceBackedSptLabelOverrideCount, 1)
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', result.commandArgs, { document })
   for (const [format, version] of [['KJD', '1'], ['DXF', '2018']]) {
@@ -283,6 +288,9 @@ test('section preserves caller-supplied references and native measured-observati
     assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
     assert.equal(reopened.listEntities({ type: 'CIRCLE' }).length, document.listEntities({ type: 'CIRCLE' }).length)
     assert.equal(reopened.listEntities({ type: 'HATCH' }).filter(entity => entity.payload.solid === true).length, 2)
+    const reopenedSpt = reopened.listEntities({ type: 'TEXT' }).find(entity => entity.payload.text === 'N=8')
+    assert.equal(reopenedSpt.payload.horizontalAlignment, 4)
+    assert.deepEqual(reopenedSpt.payload.alignmentPoint, [48, 202, 0])
   }
   const missingPlacement = structuredClone(input)
   delete missingPlacement.sectionStylePack.rules['geology-section-layout'].sectionReferenceStyle
@@ -295,6 +303,12 @@ test('section preserves caller-supplied references and native measured-observati
   const invalidGroundwater = structuredClone(input)
   invalidGroundwater.sectionStylePack.rules['geology-section-layout'].observationSymbolStyle.groundwater.lineSegments = []
   assert.throws(() => compileGeologySection(invalidGroundwater), /groundwater symbol geometry is unreadable/u)
+  const unknownOverride = structuredClone(input)
+  unknownOverride.sectionStylePack.rules['geology-section-layout'].observationSymbolStyle.spt.labelOverrides[0].observationId = 'absent'
+  assert.throws(() => compileGeologySection(unknownOverride), /references an unknown supplied SPT observation/u)
+  const invalidAlignment = structuredClone(input)
+  invalidAlignment.sectionStylePack.rules['geology-section-layout'].observationSymbolStyle.spt.labelPlacement.horizontalAlignment = 'fit'
+  assert.throws(() => compileGeologySection(invalidAlignment), /placement is unreadable/u)
   assert.throws(() => compileGeologySection(undeclared), /exact start and end identifiers/u)
 })
 
