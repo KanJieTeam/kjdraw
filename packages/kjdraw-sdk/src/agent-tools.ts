@@ -372,8 +372,8 @@ const geologyColumnSchema = objectWithOptional({
 const geologySectionHoleSchema = objectWithOptional({
   id: geologyHoleSchema.properties!.id!, collarElevation: number, depth: radius,
   station: number, strata: geologyHoleSchema.properties!.strata!,
-  stableWaterDepth: nonnegative, observations: geologyHoleSchema.properties!.observations!,
-}, ['stableWaterDepth', 'observations'])
+  endDate: geologyHoleSchema.properties!.endDate!, stableWaterDepth: nonnegative, observations: geologyHoleSchema.properties!.observations!,
+}, ['endDate', 'stableWaterDepth', 'observations'])
 const geologyCorrelationSchema = objectWithOptional({
   fromHoleId: { ...text, maxLength: 64 }, toHoleId: { ...text, maxLength: 64 },
   fromStratumCode: { ...text, maxLength: 24 }, toStratumCode: { ...text, maxLength: 24 },

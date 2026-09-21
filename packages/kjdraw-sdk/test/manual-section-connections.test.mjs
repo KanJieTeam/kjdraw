@@ -391,6 +391,9 @@ test('section style pack preserves bounded text roles, composite interval labels
     holeIdentifier: { ...placement([0, 10], 3, 4), labelOverrides: [
       { holeId: 'ZK1', placement: placement([0.5, 10.5], 3, 4) },
     ] },
+    holeEndDate: { ...placement([-4, -20], 2.2), format: 'date-only', labelOverrides: [
+      { holeId: 'ZK1', endDate: '2024-01-02', placement: placement([-4.5, -20.5], 2.2) },
+    ] },
     collarElevation: { ...placement([0, 5], 3, 4), labelOverrides: [
       { holeId: 'ZK1', elevation: 100.004, placement: placement([0.25, 5.25], 3, 4) },
     ] },
@@ -407,6 +410,8 @@ test('section style pack preserves bounded text roles, composite interval labels
     stratigraphicBand: { patternScale: 1.25, patternAngle: 0 },
   }
   const sectionHoles = structuredClone(holes)
+  sectionHoles[0].endDate = '2024-01-02T08:30:00Z'
+  sectionHoles[1].endDate = '2024-01-03'
   sectionHoles[0].strata[0].intervalId = 'ZK1-a'
   sectionHoles[1].strata[0].intervalId = 'ZK2-a'
   const input = { holes: sectionHoles, correlations: [{ fromHoleId: 'ZK1', toHoleId: 'ZK2', fromStratumCode: '1', toStratumCode: '1' }], sectionStylePack: pack,
@@ -425,6 +430,9 @@ test('section style pack preserves bounded text roles, composite interval labels
   assert.deepEqual([collarElevation.payload.position[0] - holeIdentifier.payload.position[0],
     collarElevation.payload.position[1] - holeIdentifier.payload.position[1]], [-0.25, -5.25])
   assert.equal(result.evidence.parameters.sourceBackedHoleIdentifierLabelOverrideCount, 1)
+  const endDate = texts.find(entity => entity.payload.text === '2024-01-02')
+  assert.deepEqual([endDate.payload.height, endDate.payload.position[0] - holeIdentifier.payload.position[0]], [2.2, -5])
+  assert.equal(result.evidence.parameters.sourceBackedHoleEndDateLabelOverrideCount, 1)
   assert.equal(result.evidence.parameters.sourceBackedCollarElevationLabelOverrideCount, 1)
   const spacing = texts.find(entity => entity.payload.text === '20.0')
   assert.deepEqual([spacing.payload.height, spacing.payload.horizontalAlignment], [3, 4])
@@ -447,6 +455,7 @@ test('section style pack preserves bounded text roles, composite interval labels
     assert.equal(reopened.validate().valid, true)
     assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
     assert.equal(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === '10.00-89.75'), true)
+    assert.equal(reopened.listEntities({ type: 'TEXT' }).filter(entity => /^2024-01-0[23]$/u.test(entity.payload.text)).length, 2)
     assert.equal(reopened.listEntities({ type: 'HATCH' }).filter(entity => entity.payload.solid !== true).length, 3)
   }
   const invalidText = structuredClone(input)
@@ -464,6 +473,19 @@ test('section style pack preserves bounded text roles, composite interval labels
   const unknownHoleIdentifierField = structuredClone(input)
   unknownHoleIdentifierField.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.holeIdentifier.labelOverrides[0].invented = true
   assert.throws(() => compileGeologySection(unknownHoleIdentifierField), /needs an exact fact schema/u)
+  const unknownEndDate = structuredClone(input)
+  unknownEndDate.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.holeEndDate.labelOverrides[0].holeId = 'absent'
+  assert.throws(() => compileGeologySection(unknownEndDate), /unknown hole or missing supplied end date/u)
+  const missingEndDate = structuredClone(input)
+  delete missingEndDate.holes[0].endDate
+  assert.throws(() => compileGeologySection(missingEndDate), /requires a supplied end date for every hole/u)
+  const mismatchedEndDate = structuredClone(input)
+  mismatchedEndDate.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.holeEndDate.labelOverrides[0].endDate = '2024-01-04'
+  assert.throws(() => compileGeologySection(mismatchedEndDate), /does not match its supplied end date/u)
+  const duplicateEndDate = structuredClone(input)
+  duplicateEndDate.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.holeEndDate.labelOverrides.push(
+    structuredClone(duplicateEndDate.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.holeEndDate.labelOverrides[0]))
+  assert.throws(() => compileGeologySection(duplicateEndDate), /hole end date label overrides must be unique/u)
   const unknownCollar = structuredClone(input)
   unknownCollar.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.collarElevation.labelOverrides[0].holeId = 'absent'
   assert.throws(() => compileGeologySection(unknownCollar), /references an unknown supplied hole/u)

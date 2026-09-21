@@ -48,6 +48,9 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
         holeIdentifier: { offset: [0, 10], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0, labelOverrides: [
           { holeId: 'SYN-01', placement: { offset: [0.5, 10.5], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
         ] },
+        holeEndDate: { offset: [-4, -20], height: 2.2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0, format: 'date-only', labelOverrides: [
+          { holeId: 'SYN-01', endDate: '2024-01-02', placement: { offset: [-4.5, -20.5], height: 2.2, textWidthFactor: 1, horizontalAlignment: 0, verticalAlignment: 0 } },
+        ] },
         collarElevation: { offset: [0, 5], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0, labelOverrides: [
           { holeId: 'SYN-01', elevation: 105.254, placement: { offset: [0.25, 5.25], height: 3, textWidthFactor: 1, horizontalAlignment: 4, verticalAlignment: 0 } },
         ] },
@@ -95,6 +98,8 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const digest = sha(JSON.stringify(pack)), session = new KJAgentToolSession(sdk, document, { geologySectionKnowledge: { pack, sha256: digest } })
   const request = intent()
+  request.holes[0].endDate = '2024-01-02T08:30:00Z'
+  request.holes[1].endDate = '2024-01-03'
   request.sectionReference = { start: 'A', end: "A'" }
   request.holes[0].stableWaterDepth = 6
   request.holes[0].observations = [{ kind: 'sample', id: 'S1', depth: 4 }, { kind: 'spt', id: 'N1', depth: 8, value: 12 }]
@@ -110,6 +115,9 @@ test('host-bound section knowledge is reachable through the ordinary proposal to
   assert.deepEqual([collarElevation.payload.position[0] - holeIdentifier.payload.position[0],
     collarElevation.payload.position[1] - holeIdentifier.payload.position[1]], [-0.25, -5.25])
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedHoleIdentifierLabelOverrideCount, 1)
+  const endDate = proposal.arguments.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === '2024-01-02')
+  assert.deepEqual([endDate.payload.height, endDate.payload.position[0] - holeIdentifier.payload.position[0]], [2.2, -5])
+  assert.equal(proposal.engineeringEvidence.parameters.sourceBackedHoleEndDateLabelOverrideCount, 1)
   assert.equal(proposal.engineeringEvidence.parameters.sourceBackedCollarElevationLabelOverrideCount, 1)
   const stableWaterLabel = proposal.arguments.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === '6.00-99.13')
   assert.deepEqual(stableWaterLabel.payload.position, [40.5, 189.75, 0])

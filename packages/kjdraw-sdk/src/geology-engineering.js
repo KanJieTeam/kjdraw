@@ -1674,14 +1674,34 @@ function sectionLayout(input) {
     };
     let sectionTextStyle;
     if (value.sectionTextStyle != null) {
-        if (!value.sectionTextStyle || typeof value.sectionTextStyle !== 'object' || Array.isArray(value.sectionTextStyle) || Object.keys(value.sectionTextStyle).sort().join(',') !== 'collarElevation,elevationTick,holeDepth,holeIdentifier,intervalBottom,station,stationLabel') throw new KJValidationError('Geology: section text style needs every declared text role');
+        if (!value.sectionTextStyle || typeof value.sectionTextStyle !== 'object' || Array.isArray(value.sectionTextStyle)) throw new KJValidationError('Geology: section text style needs every declared text role');
+        const textStyleKeys = [
+            'collarElevation',
+            'elevationTick',
+            'holeDepth',
+            'holeIdentifier',
+            'intervalBottom',
+            'station',
+            'stationLabel',
+            ...value.sectionTextStyle.holeEndDate == null ? [] : [
+                'holeEndDate'
+            ]
+        ];
+        if (Object.keys(value.sectionTextStyle).sort().join(',') !== textStyleKeys.sort().join(',')) throw new KJValidationError('Geology: section text style needs every declared text role');
         const supplied = value.sectionTextStyle;
         const holeIdentifier = supplied.holeIdentifier;
+        const holeEndDate = supplied.holeEndDate;
         const collar = supplied.collarElevation, interval = supplied.intervalBottom;
         const station = supplied.station;
         const holeDepth = supplied.holeDepth, stationLabel = supplied.stationLabel;
         const holeIdentifierPlacement = parseSectionTextPlacement(holeIdentifier, 'hole identifier', holeIdentifier?.labelOverrides == null ? [] : [
             'labelOverrides'
+        ]);
+        const holeEndDatePlacement = holeEndDate == null ? undefined : parseSectionTextPlacement(holeEndDate, 'hole end date', [
+            'format',
+            ...holeEndDate.labelOverrides == null ? [] : [
+                'labelOverrides'
+            ]
         ]);
         const collarPlacement = parseSectionTextPlacement(collar, 'collar elevation', collar?.labelOverrides == null ? [] : [
             'labelOverrides'
@@ -1704,7 +1724,10 @@ function sectionLayout(input) {
         const stationLabelPlacement = parseSectionTextPlacement(stationLabel, 'station label', [
             'visibility'
         ]);
-        if (![
+        if (holeEndDate != null && ![
+            'date-only',
+            'as-supplied'
+        ].includes(holeEndDate.format) || ![
             'depth',
             'depth-elevation'
         ].includes(interval.format) || ![
@@ -1730,6 +1753,24 @@ function sectionLayout(input) {
                 return {
                     holeId,
                     placement: parseSectionTextPlacement(item.placement, `hole identifier label override ${index + 1}`)
+                };
+            });
+        }
+        let holeEndDateLabelOverrides;
+        if (holeEndDate?.labelOverrides != null) {
+            if (!Array.isArray(holeEndDate.labelOverrides) || holeEndDate.labelOverrides.length < 1 || holeEndDate.labelOverrides.length > 256) throw new KJValidationError('Geology: section hole end date label overrides need bounded source facts');
+            const identities = new Set();
+            holeEndDateLabelOverrides = holeEndDate.labelOverrides.map((raw, index)=>{
+                if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'endDate,holeId,placement') throw new KJValidationError(`Geology: section hole end date label override ${index + 1} needs an exact fact schema`);
+                const item = raw;
+                const holeId = bounded(item.holeId, `section hole end date label override ${index + 1} hole id`);
+                if (identities.has(holeId)) throw new KJValidationError('Geology: section hole end date label overrides must be unique');
+                identities.add(holeId);
+                const endDate = bounded(item.endDate, `section hole end date label override ${index + 1} end date`, 32);
+                return {
+                    holeId,
+                    endDate,
+                    placement: parseSectionTextPlacement(item.placement, `hole end date label override ${index + 1}`)
                 };
             });
         }
@@ -1806,6 +1847,15 @@ function sectionLayout(input) {
                     labelOverrides: holeIdentifierLabelOverrides
                 } : {}
             },
+            ...holeEndDate && holeEndDatePlacement ? {
+                holeEndDate: {
+                    ...holeEndDatePlacement,
+                    format: holeEndDate.format,
+                    ...holeEndDateLabelOverrides ? {
+                        labelOverrides: holeEndDateLabelOverrides
+                    } : {}
+                }
+            } : {},
             collarElevation: {
                 ...collarPlacement,
                 ...collarLabelOverrides ? {
@@ -4070,6 +4120,29 @@ export function compileGeologySection(input) {
     for (const item of sectionText?.holeIdentifier.labelOverrides ?? []){
         if (!byId.has(item.holeId)) throw new KJValidationError('Geology: section hole identifier label override references an unknown supplied hole');
     }
+    const holeEndDateRole = sectionText?.holeEndDate;
+    const visibleHoleEndDate = (raw)=>{
+        const supplied = bounded(raw, 'section hole end date', 32);
+        if (holeEndDateRole?.format === 'as-supplied') return supplied;
+        const match = /^(\d{4}-\d{2}-\d{2})(?:T.*)?$/u.exec(supplied);
+        if (!match) throw new KJValidationError('Geology: section hole end date needs an ISO date for date-only presentation');
+        return match[1];
+    };
+    const holeEndDateLabelOverrides = new Map((holeEndDateRole?.labelOverrides ?? []).map((item)=>[
+            item.holeId,
+            item
+        ]));
+    if (holeEndDateRole) {
+        for (const hole of holes){
+            if (hole.endDate == null) throw new KJValidationError('Geology: section hole end date role requires a supplied end date for every hole');
+            visibleHoleEndDate(hole.endDate);
+        }
+    }
+    for (const item of holeEndDateRole?.labelOverrides ?? []){
+        const hole = byId.get(item.holeId)?.hole;
+        if (hole?.endDate == null) throw new KJValidationError('Geology: section hole end date label override references an unknown hole or missing supplied end date');
+        if (item.endDate !== visibleHoleEndDate(hole.endDate)) throw new KJValidationError('Geology: section hole end date label override does not match its supplied end date');
+    }
     const collarElevationLabelOverrides = new Map((sectionText?.collarElevation.labelOverrides ?? []).map((item)=>[
             item.holeId,
             item
@@ -4139,6 +4212,10 @@ export function compileGeologySection(input) {
             const collarLabelOverride = collarElevationLabelOverrides.get(hole.id);
             emitTextRole(center, top, hole.id, holeIdentifierLabelOverrides.get(hole.id) ?? sectionText.holeIdentifier);
             emitTextRole(center, top, metres(collarLabelOverride?.elevation ?? hole.collarElevation), collarLabelOverride?.placement ?? sectionText.collarElevation);
+            if (holeEndDateRole && hole.endDate != null) {
+                const override = holeEndDateLabelOverrides.get(hole.id);
+                emitTextRole(center, top, override?.endDate ?? visibleHoleEndDate(hole.endDate), override?.placement ?? holeEndDateRole);
+            }
             if (sectionText.station.mode === 'cumulative-at-hole') emitTextRole(center, layout.plotBottom, `${locale === 'zh-CN' ? '里程' : 'STA'} ${fixed(hole.station, sectionText.station.precision)}`, sectionText.station);
             if (sectionText.holeDepth.visibility === 'shown') emitTextRole(center, layout.plotBottom, `${locale === 'zh-CN' ? '孔深' : 'DEPTH'} ${fixed(hole.depth, sectionText.holeDepth.precision)}`, sectionText.holeDepth);
         } else {
@@ -4437,6 +4514,9 @@ export function compileGeologySection(input) {
         } : {},
         ...sectionText?.holeIdentifier.labelOverrides ? {
             sourceBackedHoleIdentifierLabelOverrideCount: sectionText.holeIdentifier.labelOverrides.length
+        } : {},
+        ...sectionText?.holeEndDate?.labelOverrides ? {
+            sourceBackedHoleEndDateLabelOverrideCount: sectionText.holeEndDate.labelOverrides.length
         } : {},
         ...sectionText?.collarElevation.labelOverrides ? {
             sourceBackedCollarElevationLabelOverrideCount: sectionText.collarElevation.labelOverrides.length

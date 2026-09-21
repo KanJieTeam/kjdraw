@@ -1653,9 +1653,11 @@ const geologySectionHoleSchema = objectWithOptional({
     depth: radius,
     station: number,
     strata: geologyHoleSchema.properties.strata,
+    endDate: geologyHoleSchema.properties.endDate,
     stableWaterDepth: nonnegative,
     observations: geologyHoleSchema.properties.observations
 }, [
+    'endDate',
     'stableWaterDepth',
     'observations'
 ]);
