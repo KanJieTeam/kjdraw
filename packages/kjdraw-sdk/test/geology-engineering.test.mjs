@@ -1249,3 +1249,58 @@ test('engineering geography refuses invented, discontinuous or visually unreadab
   const badLink = { ...noLink, correlations: [{ fromHoleId: 'ZK-01', toHoleId: 'ZK-02', fromStratumCode: '2', toStratumCode: 'missing' }] }
   assert.throws(() => compileGeologySection(badLink), /unambiguous interval/)
 })
+
+test('source-backed physical headers preserve explicit blank value entities through KJD and DXF', async () => {
+  const placement = { offset: [1, 1], height: 2.5, textWidthFactor: 0.8,
+    horizontalAlignment: 'left', verticalAlignment: 'baseline' }
+  const fieldGrid = [
+    { start: 5, role: 'layerNumber', label: 'No' }, { start: 15, role: 'layerName', label: 'Name' },
+    { start: 33, role: 'baseElevation', label: 'Base' }, { start: 45, role: 'thickness', label: 'Thick' },
+    { start: 55, role: 'depth', label: 'Depth' }, { start: 65, role: 'pattern', label: 'Pattern' },
+    { start: 85, role: 'description', label: 'Description' }, { start: 145, role: 'sample', label: 'Sample' },
+    { start: 165, role: 'spt', label: 'SPT' },
+  ]
+  const blank = { optional: true, preserveBlankValue: true, textStyle: { label: placement, value: placement } }
+  const style = validateKnowledgePack({ schema: 'kjdraw.knowledge-pack.v1', id: 'geo-blank-header-values-test', version: '1.0.0',
+    title: 'MIT synthetic blank header values', domain: 'geology',
+    license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'blank-header-layout', title: 'MIT synthetic blank header layout', license: 'MIT',
+      contentHash: crypto.createHash('sha256').update('blank physical header values').digest('hex') }],
+    ontology: { objectKinds: ['borehole-log'], relationKinds: [] }, rules: { 'geology-column-layout': {
+      paperWidth: 190, paperHeight: 290, left: 5, right: 185, headerDepth: 40, headerRowHeight: 5,
+      fieldHeaderHeight: 10, footerReserve: 15, titleHeight: 10, verticalScaleDenominators: [100],
+      fieldGrid, legendMode: 'none', headerGrid: { rows: [
+        [{ start: 5, valueStart: 25, role: 'projectName', label: 'Project', ...blank },
+          { start: 65, valueStart: 85, role: 'documentFact', key: 'projectCode', label: 'Code', ...blank },
+          { start: 125, valueStart: 145, role: 'holeId', label: 'Hole' }],
+        [{ start: 5, valueStart: 25, role: 'collarElevation', label: 'Collar' },
+          { start: 65, valueStart: 85, role: 'depth', label: 'Depth' },
+          { start: 125, valueStart: 145, role: 'verticalScale', label: 'Scale' }],
+      ] },
+    } } })
+  const input = { hole: { id: 'BH-1', collarElevation: 100, depth: 10,
+    strata: [{ code: '1', name: 'Fill', top: 0, bottom: 10, lithology: 'fill' }] },
+  verticalScaleDenominator: 100, expectedRevision: 0, columnStylePack: style }
+  const compiled = compileGeologyColumn(input)
+  const blanks = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT' && entity.payload.text === '')
+  assert.equal(blanks.length, 2)
+  assert.deepEqual(blanks.map(entity => entity.payload.position.slice(0, 2)), [[26, 256], [86, 256]])
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
+  for (const [format, version] of [['KJD', '1'], ['DXF', '2018']]) {
+    const bytes = await sdk.writeDocument(document, { format, version })
+    const reopened = await sdk.readDocument(bytes, { format, version })
+    assert.equal(reopened.listEntities().filter(entity => entity.type === 'TEXT' && entity.payload.text === '').length, 2,
+      `${format} keeps both source-declared blank value entities`)
+    assert.equal(reopened.validate().valid, true)
+  }
+  const invalidBoolean = structuredClone(style)
+  invalidBoolean.rules['geology-column-layout'].headerGrid.rows[0][0].preserveBlankValue = 'yes'
+  assert.throws(() => compileGeologyColumn({ ...input, columnStylePack: invalidBoolean }), /preservation flag must be boolean/u)
+  const requiredBlank = structuredClone(style)
+  delete requiredBlank.rules['geology-column-layout'].headerGrid.rows[0][0].optional
+  assert.throws(() => compileGeologyColumn({ ...input, columnStylePack: requiredBlank }), /blank header values need an optional physical source cell/u)
+  const unplacedBlank = structuredClone(style)
+  delete unplacedBlank.rules['geology-column-layout'].headerGrid.rows[0][0].textStyle
+  assert.throws(() => compileGeologyColumn({ ...input, columnStylePack: unplacedBlank }), /blank header values need an optional physical source cell with exact text placement/u)
+})

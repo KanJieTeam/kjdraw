@@ -390,6 +390,8 @@ function columnLayout(input) {
                 const cell = raw;
                 const optional = cell.optional == null ? undefined : cell.optional;
                 if (optional != null && typeof optional !== 'boolean') throw new KJValidationError('Geology: header fact optional flag must be boolean');
+                const preserveBlankValue = cell.preserveBlankValue == null ? undefined : cell.preserveBlankValue;
+                if (preserveBlankValue != null && typeof preserveBlankValue !== 'boolean') throw new KJValidationError('Geology: header blank-value preservation flag must be boolean');
                 const hasGeometry = cell.start != null || cell.valueStart != null;
                 if (physical !== hasGeometry || hasGeometry && (cell.start == null || cell.valueStart == null)) throw new KJValidationError('Geology: a physical header row must declare start and valueStart for every cell');
                 if (cell.textStyle != null && !physical) throw new KJValidationError('Geology: header fact text style needs a physical source cell');
@@ -406,11 +408,15 @@ function columnLayout(input) {
                         value: sourceTextPlacement(supplied.value, `header fact ${rowIndex + 1}/${cellIndex + 1} value`)
                     };
                 }
+                if (preserveBlankValue === true && (optional !== true || !physical || !textStyle)) throw new KJValidationError('Geology: blank header values need an optional physical source cell with exact text placement');
                 const commonKeys = [
                     'label',
                     'role',
                     ...optional == null ? [] : [
                         'optional'
+                    ],
+                    ...preserveBlankValue == null ? [] : [
+                        'preserveBlankValue'
                     ],
                     ...physical ? [
                         'start',
@@ -438,7 +444,10 @@ function columnLayout(input) {
                         ...geometry,
                         ...textStyle ? {
                             textStyle
-                        } : {}
+                        } : {},
+                        ...preserveBlankValue == null ? {} : {
+                            preserveBlankValue
+                        }
                     };
                 }
                 if (Object.keys(cell).sort().join(',') !== commonKeys.sort().join(',') || typeof cell.role !== 'string' || !headerRoles.has(cell.role)) throw new KJValidationError('Geology: undeclared header fact role');
@@ -454,7 +463,10 @@ function columnLayout(input) {
                     ...geometry,
                     ...textStyle ? {
                         textStyle
-                    } : {}
+                    } : {},
+                    ...preserveBlankValue == null ? {} : {
+                        preserveBlankValue
+                    }
                 };
             });
             if (physical) for (const [cellIndex, cell] of parsed.entries()){
@@ -2043,7 +2055,7 @@ export function compileGeologyColumn(input) {
                         g.placedText(3, originX + placement.offset[0], rowBottom + placement.offset[1], text, placement.height, placement.textWidthFactor, horizontalAlignment, verticalAlignment, 0);
                     };
                     emitHeaderFact(cellLeft, cell.label, cell.textStyle.label);
-                    if (visibleValue) emitHeaderFact(valueX, visibleValue, cell.textStyle.value);
+                    if (visibleValue || cell.preserveBlankValue) emitHeaderFact(valueX, visibleValue, cell.textStyle.value);
                 } else {
                     if (estimated(cell.label, headerFactHeight) > valueX - cellLeft - 3 || estimated(visibleValue, headerFactHeight) > cellLeft + width - valueX - 3) throw new KJValidationError(`Geology: header fact ${identity} does not fit the declared cell`);
                     g.text(3, cellLeft + 2, rowTop - rowHeight * 0.69, cell.label, headerFactHeight);

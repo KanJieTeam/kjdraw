@@ -397,7 +397,7 @@ interface ColumnLayout {
 }
 
 type HeaderRole = 'projectName' | 'holeId' | 'collarElevation' | 'depth' | 'x' | 'y' | 'startDate' | 'endDate' | 'initialWaterDepth' | 'stableWaterDepth' | 'verticalScale'
-type HeaderCellGeometry = { start?: number; valueStart?: number; textStyle?: KJGeologyHeaderFactTextStyle }
+type HeaderCellGeometry = { start?: number; valueStart?: number; textStyle?: KJGeologyHeaderFactTextStyle; preserveBlankValue?: boolean }
 type HeaderCell = ({ role: HeaderRole; label: string; optional?: boolean } | { role: 'documentFact'; key: string; label: string; optional?: boolean }) & HeaderCellGeometry
 type FooterCell = { start: number; key: string; label: string; internalDivider?: number; textStyle?: KJGeologyFooterFactTextStyle }
 type TitleMarginFactPlacement = {
@@ -561,6 +561,8 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
         const cell = raw as Record<string, unknown>
         const optional = cell.optional == null ? undefined : cell.optional
         if (optional != null && typeof optional !== 'boolean') throw new KJValidationError('Geology: header fact optional flag must be boolean')
+        const preserveBlankValue = cell.preserveBlankValue == null ? undefined : cell.preserveBlankValue
+        if (preserveBlankValue != null && typeof preserveBlankValue !== 'boolean') throw new KJValidationError('Geology: header blank-value preservation flag must be boolean')
         const hasGeometry = cell.start != null || cell.valueStart != null
         if (physical !== hasGeometry || hasGeometry && (cell.start == null || cell.valueStart == null))
           throw new KJValidationError('Geology: a physical header row must declare start and valueStart for every cell')
@@ -578,7 +580,10 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
           textStyle = { label: sourceTextPlacement(supplied.label, `header fact ${rowIndex + 1}/${cellIndex + 1} label`),
             value: sourceTextPlacement(supplied.value, `header fact ${rowIndex + 1}/${cellIndex + 1} value`) }
         }
+        if (preserveBlankValue === true && (optional !== true || !physical || !textStyle))
+          throw new KJValidationError('Geology: blank header values need an optional physical source cell with exact text placement')
         const commonKeys = ['label', 'role', ...(optional == null ? [] : ['optional']),
+          ...(preserveBlankValue == null ? [] : ['preserveBlankValue']),
           ...(physical ? ['start', 'valueStart'] : []), ...(textStyle ? ['textStyle'] : [])]
         if (cell.role === 'documentFact') {
           if (Object.keys(cell).sort().join(',') !== [...commonKeys, 'key'].sort().join(',')) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a document fact key, role and label`)
@@ -586,14 +591,14 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
           if (documentKeys.has(canonical)) throw new KJValidationError('Geology: duplicate document fact key')
           documentKeys.add(canonical)
           return { role: 'documentFact' as const, key, label: bounded(cell.label, 'header fact label', 24), ...(optional == null ? {} : { optional }), ...geometry,
-            ...(textStyle ? { textStyle } : {}) }
+            ...(textStyle ? { textStyle } : {}), ...(preserveBlankValue == null ? {} : { preserveBlankValue }) }
         }
         if (Object.keys(cell).sort().join(',') !== commonKeys.sort().join(',') || typeof cell.role !== 'string' || !headerRoles.has(cell.role as HeaderRole)) throw new KJValidationError('Geology: undeclared header fact role')
         const role = cell.role as HeaderRole
         if (seen.has(role)) throw new KJValidationError('Geology: duplicate header fact role')
         seen.add(role)
         return { role, label: bounded(cell.label, 'header fact label', 24), ...(optional == null ? {} : { optional }), ...geometry,
-          ...(textStyle ? { textStyle } : {}) }
+          ...(textStyle ? { textStyle } : {}), ...(preserveBlankValue == null ? {} : { preserveBlankValue }) }
       })
       if (physical) for (const [cellIndex, cell] of parsed.entries()) {
         const end = parsed[cellIndex + 1]?.start ?? right
@@ -1679,7 +1684,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
               placement.textWidthFactor, horizontalAlignment, verticalAlignment, 0)
           }
           emitHeaderFact(cellLeft, cell.label, cell.textStyle.label)
-          if (visibleValue) emitHeaderFact(valueX, visibleValue, cell.textStyle.value)
+          if (visibleValue || cell.preserveBlankValue) emitHeaderFact(valueX, visibleValue, cell.textStyle.value)
         } else {
           if (estimated(cell.label, headerFactHeight) > valueX - cellLeft - 3 ||
             estimated(visibleValue, headerFactHeight) > cellLeft + width - valueX - 3)
