@@ -442,8 +442,9 @@ const geologyPlanBaseMapLineworkSchema = objectWithOptional({
   startAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, endAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, clockwise: { type: 'boolean' },
   points: { type: 'array', minItems: 2, maxItems: 256, items: numericTuple(2) }, closed: { type: 'boolean' },
   startWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative },
+  bulges: { type: 'array', minItems: 2, maxItems: 256, items: { type: 'number', minimum: -1_000_000, maximum: 1_000_000 } },
   endWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative },
-}, ['start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'closed', 'startWidths', 'endWidths'])
+}, ['start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'closed', 'bulges', 'startWidths', 'endWidths'])
 const geologyPlanBaseMapInsertSchema = object({
   id: { ...text, maxLength: 40 }, styleId: { ...text, maxLength: 40 }, blockId: { ...text, maxLength: 40 },
   position: numericTuple(2), scale: numericTuple(3), rotationDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 },
@@ -454,8 +455,9 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
   startAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, endAngleDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 }, clockwise: { type: 'boolean' },
   points: { type: 'array', minItems: 2, maxItems: 256, items: numericTuple(2) }, closed: { type: 'boolean' },
   startWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative }, endWidths: { type: 'array', minItems: 2, maxItems: 256, items: nonnegative },
+  bulges: { type: 'array', minItems: 2, maxItems: 256, items: { type: 'number', minimum: -1_000_000, maximum: 1_000_000 } },
   blockId: { ...text, maxLength: 40 }, position: numericTuple(2), scale: numericTuple(3), rotationDegrees: { type: 'number', minimum: -360_000, maximum: 360_000 },
-}, ['kind', 'start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'closed', 'startWidths', 'endWidths', 'blockId', 'position', 'scale', 'rotationDegrees'])
+}, ['kind', 'start', 'end', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise', 'points', 'closed', 'bulges', 'startWidths', 'endWidths', 'blockId', 'position', 'scale', 'rotationDegrees'])
 const geologyPlanBaseMapBlockSchema = object({
   id: { ...text, maxLength: 40 }, basePoint: numericTuple(2),
   entities: { type: 'array', minItems: 1, maxItems: 1024, items: geologyPlanBaseMapBlockMemberSchema },

@@ -103,6 +103,7 @@ export type KJGeologyPlanBaseMapLinework = {
     kind: 'polyline';
     points: Point2[];
     closed?: boolean;
+    bulges?: number[];
     startWidths?: number[];
     endWidths?: number[];
 };

@@ -130,6 +130,7 @@ const BASE_MAP_POLYLINE_KEYS = [
     'kind',
     'points',
     'closed',
+    'bulges',
     'startWidths',
     'endWidths'
 ];
@@ -288,6 +289,31 @@ function validateInput(document, source) {
     ];
     const modelViewportWidth = 390 * scale / 1000, modelViewportHeight = 250 * scale / 1000;
     const insideModelViewport = (value)=>value[0] >= modelViewportCenter[0] - modelViewportWidth / 2 - EPSILON && value[0] <= modelViewportCenter[0] + modelViewportWidth / 2 + EPSILON && value[1] >= modelViewportCenter[1] - modelViewportHeight / 2 - EPSILON && value[1] <= modelViewportCenter[1] + modelViewportHeight / 2 + EPSILON;
+    const bulgeSegmentInsideModelViewport = (start, end, bulge)=>{
+        if (Math.abs(bulge) <= EPSILON) return true;
+        const dx = end[0] - start[0], dy = end[1] - start[1], chord = Math.hypot(dx, dy);
+        const offset = chord * (1 - bulge * bulge) / (4 * bulge);
+        const center = [
+            (start[0] + end[0]) / 2 - dy / chord * offset,
+            (start[1] + end[1]) / 2 + dx / chord * offset
+        ];
+        const radius = Math.hypot(start[0] - center[0], start[1] - center[1]), startAngle = Math.atan2(start[1] - center[1], start[0] - center[0]);
+        const sweep = 4 * Math.atan(bulge);
+        const onSweep = (angle)=>sweep > 0 ? normalizedAngle(angle - startAngle) <= sweep + EPSILON : normalizedAngle(startAngle - angle) <= -sweep + EPSILON;
+        return [
+            start,
+            end,
+            ...[
+                0,
+                Math.PI / 2,
+                Math.PI,
+                Math.PI * 3 / 2
+            ].filter(onSweep).map((angle)=>[
+                    center[0] + Math.cos(angle) * radius,
+                    center[1] + Math.sin(angle) * radius
+                ])
+        ].every(insideModelViewport);
+    };
     if (!Array.isArray(input.boreholes) || input.boreholes.length < 2 || input.boreholes.length > 128) throw new KJValidationError('input.boreholes must contain 2-128 points');
     const boreholes = input.boreholes.map((raw, index)=>{
         const value = plain(raw, `input.boreholes[${index}]`);
@@ -665,6 +691,13 @@ function validateInput(document, source) {
             const first = points[pointIndex], second = points[(pointIndex + 1) % points.length];
             if (Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON) throw new KJValidationError(`${label} contains a zero-length segment`);
         }
+        const bulges = value.bulges === undefined ? undefined : (()=>{
+            if (!Array.isArray(value.bulges) || value.bulges.length !== points.length) throw new KJValidationError(`${label}.bulges must contain one value per point`);
+            return value.bulges.map((entry, entryIndex)=>finite(entry, `${label}.bulges[${entryIndex}]`, -1_000_000, 1_000_000));
+        })();
+        if (bulges) for(let pointIndex = 0; pointIndex < points.length - (closed ? 0 : 1); pointIndex += 1){
+            if (!bulgeSegmentInsideModelViewport(points[pointIndex], points[(pointIndex + 1) % points.length], bulges[pointIndex])) throw new KJValidationError(`${label} geometry must lie inside the declared model viewport`);
+        }
         const widths = (key)=>{
             const rawWidths = value[key];
             if (rawWidths === undefined) return undefined;
@@ -677,6 +710,7 @@ function validateInput(document, source) {
             kind,
             points,
             closed,
+            bulges,
             startWidths: widths('startWidths'),
             endWidths: widths('endWidths')
         };
@@ -750,6 +784,10 @@ function validateInput(document, source) {
             const first = points[pointIndex], second = points[(pointIndex + 1) % points.length];
             if (Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON) throw new KJValidationError(`${label} contains a zero-length segment`);
         }
+        const bulges = value.bulges === undefined ? undefined : (()=>{
+            if (!Array.isArray(value.bulges) || value.bulges.length !== points.length) throw new KJValidationError(`${label}.bulges must contain one value per point`);
+            return value.bulges.map((entry, entryIndex)=>finite(entry, `${label}.bulges[${entryIndex}]`, -1_000_000, 1_000_000));
+        })();
         const widths = (key)=>{
             const rawWidths = value[key];
             if (rawWidths === undefined) return undefined;
@@ -762,6 +800,7 @@ function validateInput(document, source) {
             kind,
             points,
             closed,
+            bulges,
             startWidths: widths('startWidths'),
             endWidths: widths('endWidths')
         };
@@ -1045,8 +1084,9 @@ export function buildAgentGeologyPlan(document, source) {
                 id
             }
         };
-        const vertices = item.points.map((value, index)=>item.startWidths || item.endWidths ? {
+        const vertices = item.points.map((value, index)=>item.bulges || item.startWidths || item.endWidths ? {
                 point: p3(value),
+                bulge: item.bulges?.[index] ?? 0,
                 startWidth: item.startWidths?.[index] ?? 0,
                 endWidth: item.endWidths?.[index] ?? 0
             } : p3(value));
@@ -1095,8 +1135,9 @@ export function buildAgentGeologyPlan(document, source) {
             ...common
         });
         else {
-            const vertices = item.points.map((value, index)=>item.startWidths || item.endWidths ? {
+            const vertices = item.points.map((value, index)=>item.bulges || item.startWidths || item.endWidths ? {
                     point: p3(value),
+                    bulge: item.bulges?.[index] ?? 0,
                     startWidth: item.startWidths?.[index] ?? 0,
                     endWidth: item.endWidths?.[index] ?? 0
                 } : p3(value));

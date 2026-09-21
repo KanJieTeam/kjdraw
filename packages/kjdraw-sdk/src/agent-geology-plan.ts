@@ -89,7 +89,7 @@ export type KJGeologyPlanBaseMapLinework =
   | { id: string; styleId: string; kind: 'line'; start: Point2; end: Point2 }
   | { id: string; styleId: string; kind: 'arc'; center: Point2; radius: number; startAngleDegrees: number; endAngleDegrees: number; clockwise?: boolean }
   | { id: string; styleId: string; kind: 'circle'; center: Point2; radius: number }
-  | { id: string; styleId: string; kind: 'polyline'; points: Point2[]; closed?: boolean; startWidths?: number[]; endWidths?: number[] }
+  | { id: string; styleId: string; kind: 'polyline'; points: Point2[]; closed?: boolean; bulges?: number[]; startWidths?: number[]; endWidths?: number[] }
 
 export interface KJGeologyPlanBaseMapInsert {
   id: string
@@ -142,7 +142,7 @@ type NormalizedBaseMapEntity =
   | { id: string; styleId: string; kind: 'line'; start: Point2; end: Point2 }
   | { id: string; styleId: string; kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise: boolean }
   | { id: string; styleId: string; kind: 'circle'; center: Point2; radius: number }
-  | { id: string; styleId: string; kind: 'polyline'; points: Point2[]; closed: boolean; startWidths: number[] | undefined; endWidths: number[] | undefined }
+  | { id: string; styleId: string; kind: 'polyline'; points: Point2[]; closed: boolean; bulges: number[] | undefined; startWidths: number[] | undefined; endWidths: number[] | undefined }
   | { id: string; styleId: string; kind: 'insert'; blockId: string; position: Point2; scale: Point3; rotation: number }
 
 const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'baseMapStyles', 'baseMapLinework', 'baseMapBlocks', 'baseMapInserts', 'northAngleDegrees']
@@ -160,7 +160,7 @@ const BASE_MAP_STYLE_KEYS = ['id', 'color', 'lineweight', 'pattern']
 const BASE_MAP_LINE_KEYS = ['id', 'styleId', 'kind', 'start', 'end']
 const BASE_MAP_ARC_KEYS = ['id', 'styleId', 'kind', 'center', 'radius', 'startAngleDegrees', 'endAngleDegrees', 'clockwise']
 const BASE_MAP_CIRCLE_KEYS = ['id', 'styleId', 'kind', 'center', 'radius']
-const BASE_MAP_POLYLINE_KEYS = ['id', 'styleId', 'kind', 'points', 'closed', 'startWidths', 'endWidths']
+const BASE_MAP_POLYLINE_KEYS = ['id', 'styleId', 'kind', 'points', 'closed', 'bulges', 'startWidths', 'endWidths']
 const BASE_MAP_BLOCK_KEYS = ['id', 'basePoint', 'entities']
 const BASE_MAP_INSERT_KEYS = ['id', 'styleId', 'blockId', 'position', 'scale', 'rotationDegrees']
 const BASE_MAP_BLOCK_LIMIT = 64, BASE_MAP_BLOCK_MEMBER_LIMIT = 2048, BASE_MAP_INSERT_LIMIT = 512
@@ -298,6 +298,16 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
   const modelViewportWidth = 390 * scale / 1000, modelViewportHeight = 250 * scale / 1000
   const insideModelViewport = (value: Point2) => value[0] >= modelViewportCenter[0] - modelViewportWidth / 2 - EPSILON && value[0] <= modelViewportCenter[0] + modelViewportWidth / 2 + EPSILON
     && value[1] >= modelViewportCenter[1] - modelViewportHeight / 2 - EPSILON && value[1] <= modelViewportCenter[1] + modelViewportHeight / 2 + EPSILON
+  const bulgeSegmentInsideModelViewport = (start: Point2, end: Point2, bulge: number) => {
+    if (Math.abs(bulge) <= EPSILON) return true
+    const dx = end[0] - start[0], dy = end[1] - start[1], chord = Math.hypot(dx, dy)
+    const offset = chord * (1 - bulge * bulge) / (4 * bulge)
+    const center: Point2 = [(start[0] + end[0]) / 2 - dy / chord * offset, (start[1] + end[1]) / 2 + dx / chord * offset]
+    const radius = Math.hypot(start[0] - center[0], start[1] - center[1]), startAngle = Math.atan2(start[1] - center[1], start[0] - center[0])
+    const sweep = 4 * Math.atan(bulge)
+    const onSweep = (angle: number) => sweep > 0 ? normalizedAngle(angle - startAngle) <= sweep + EPSILON : normalizedAngle(startAngle - angle) <= -sweep + EPSILON
+    return [start, end, ...[0, Math.PI / 2, Math.PI, Math.PI * 3 / 2].filter(onSweep).map(angle => [center[0] + Math.cos(angle) * radius, center[1] + Math.sin(angle) * radius] as Point2)].every(insideModelViewport)
+  }
   if (!Array.isArray(input.boreholes) || input.boreholes.length < 2 || input.boreholes.length > 128) throw new KJValidationError('input.boreholes must contain 2-128 points')
   const boreholes = input.boreholes.map((raw, index) => {
     const value = plain(raw, `input.boreholes[${index}]`); exactKeys(value, BOREHOLE_KEYS, `input.boreholes[${index}]`)
@@ -566,13 +576,20 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
       const first = points[pointIndex]!, second = points[(pointIndex + 1) % points.length]!
       if (Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON) throw new KJValidationError(`${label} contains a zero-length segment`)
     }
+    const bulges = value.bulges === undefined ? undefined : (() => {
+      if (!Array.isArray(value.bulges) || value.bulges.length !== points.length) throw new KJValidationError(`${label}.bulges must contain one value per point`)
+      return value.bulges.map((entry, entryIndex) => finite(entry, `${label}.bulges[${entryIndex}]`, -1_000_000, 1_000_000))
+    })()
+    if (bulges) for (let pointIndex = 0; pointIndex < points.length - (closed ? 0 : 1); pointIndex += 1) {
+      if (!bulgeSegmentInsideModelViewport(points[pointIndex]!, points[(pointIndex + 1) % points.length]!, bulges[pointIndex]!)) throw new KJValidationError(`${label} geometry must lie inside the declared model viewport`)
+    }
     const widths = (key: 'startWidths' | 'endWidths') => {
       const rawWidths = value[key]
       if (rawWidths === undefined) return undefined
       if (!Array.isArray(rawWidths) || rawWidths.length !== points.length) throw new KJValidationError(`${label}.${key} must contain one width per point`)
       return rawWidths.map((width, widthIndex) => finite(width, `${label}.${key}[${widthIndex}]`, 0, 1_000_000))
     }
-    return { id, styleId, kind, points, closed, startWidths: widths('startWidths'), endWidths: widths('endWidths') }
+    return { id, styleId, kind, points, closed, bulges, startWidths: widths('startWidths'), endWidths: widths('endWidths') }
   })
   const validateBlockEntity = (raw: unknown, label: string): NormalizedBaseMapEntity => {
     const value = plain(raw, label)
@@ -614,13 +631,17 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
       const first = points[pointIndex]!, second = points[(pointIndex + 1) % points.length]!
       if (Math.hypot(second[0] - first[0], second[1] - first[1]) <= EPSILON) throw new KJValidationError(`${label} contains a zero-length segment`)
     }
+    const bulges = value.bulges === undefined ? undefined : (() => {
+      if (!Array.isArray(value.bulges) || value.bulges.length !== points.length) throw new KJValidationError(`${label}.bulges must contain one value per point`)
+      return value.bulges.map((entry, entryIndex) => finite(entry, `${label}.bulges[${entryIndex}]`, -1_000_000, 1_000_000))
+    })()
     const widths = (key: 'startWidths' | 'endWidths') => {
       const rawWidths = value[key]
       if (rawWidths === undefined) return undefined
       if (!Array.isArray(rawWidths) || rawWidths.length !== points.length) throw new KJValidationError(`${label}.${key} must contain one width per point`)
       return rawWidths.map((width, widthIndex) => finite(width, `${label}.${key}[${widthIndex}]`, 0, 1_000_000))
     }
-    return { id, styleId, kind, points, closed, startWidths: widths('startWidths'), endWidths: widths('endWidths') }
+    return { id, styleId, kind, points, closed, bulges, startWidths: widths('startWidths'), endWidths: widths('endWidths') }
   }
   if (input.baseMapBlocks !== undefined && (!Array.isArray(input.baseMapBlocks) || input.baseMapBlocks.length > BASE_MAP_BLOCK_LIMIT)) throw new KJValidationError(`input.baseMapBlocks must contain at most ${BASE_MAP_BLOCK_LIMIT} supplied definitions`)
   const baseMapBlockIds = new Set<string>()
@@ -729,7 +750,7 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     if (item.kind === 'line') return { type: 'LINE', payload: { start: p3(item.start), end: p3(item.end), ...common }, options: { id } }
     if (item.kind === 'arc') return { type: 'ARC', payload: { center: p3(item.center), radius: item.radius, startAngle: item.startAngle, endAngle: item.endAngle, clockwise: item.clockwise, ...common }, options: { id } }
     if (item.kind === 'circle') return { type: 'CIRCLE', payload: { center: p3(item.center), radius: item.radius, ...common }, options: { id } }
-    const vertices = item.points.map((value, index) => item.startWidths || item.endWidths ? { point: p3(value), startWidth: item.startWidths?.[index] ?? 0, endWidth: item.endWidths?.[index] ?? 0 } : p3(value))
+    const vertices = item.points.map((value, index) => item.bulges || item.startWidths || item.endWidths ? { point: p3(value), bulge: item.bulges?.[index] ?? 0, startWidth: item.startWidths?.[index] ?? 0, endWidth: item.endWidths?.[index] ?? 0 } : p3(value))
     return { type: 'LWPOLYLINE', payload: { vertices, closed: item.closed, ...common }, options: { id } }
   }
   const baseMapBlockResources = input.baseMapBlocks.map((block, blockIndex) => ({
@@ -746,8 +767,8 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     else if (item.kind === 'arc') addToLayer('ARC', style.layerId, { center: p3(item.center!), radius: item.radius, startAngle: item.startAngle, endAngle: item.endAngle, clockwise: item.clockwise, ...common })
     else if (item.kind === 'circle') addToLayer('CIRCLE', style.layerId, { center: p3(item.center!), radius: item.radius, ...common })
     else {
-      const vertices = item.points!.map((value, index) => item.startWidths || item.endWidths
-        ? { point: p3(value), startWidth: item.startWidths?.[index] ?? 0, endWidth: item.endWidths?.[index] ?? 0 }
+      const vertices = item.points!.map((value, index) => item.bulges || item.startWidths || item.endWidths
+        ? { point: p3(value), bulge: item.bulges?.[index] ?? 0, startWidth: item.startWidths?.[index] ?? 0, endWidth: item.endWidths?.[index] ?? 0 }
         : p3(value))
       addToLayer('LWPOLYLINE', style.layerId, { vertices, closed: item.closed, ...common })
     }

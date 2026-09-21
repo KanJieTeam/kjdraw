@@ -2074,6 +2074,16 @@ const geologyPlanBaseMapLineworkSchema = objectWithOptional({
         maxItems: 256,
         items: nonnegative
     },
+    bulges: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 256,
+        items: {
+            type: 'number',
+            minimum: -1_000_000,
+            maximum: 1_000_000
+        }
+    },
     endWidths: {
         type: 'array',
         minItems: 2,
@@ -2090,6 +2100,7 @@ const geologyPlanBaseMapLineworkSchema = objectWithOptional({
     'clockwise',
     'points',
     'closed',
+    'bulges',
     'startWidths',
     'endWidths'
 ]);
@@ -2170,6 +2181,16 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
         maxItems: 256,
         items: nonnegative
     },
+    bulges: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 256,
+        items: {
+            type: 'number',
+            minimum: -1_000_000,
+            maximum: 1_000_000
+        }
+    },
     blockId: {
         ...text,
         maxLength: 40
@@ -2192,6 +2213,7 @@ const geologyPlanBaseMapBlockMemberSchema = objectWithOptional({
     'clockwise',
     'points',
     'closed',
+    'bulges',
     'startWidths',
     'endWidths',
     'blockId',
