@@ -389,7 +389,9 @@ test('section style pack preserves bounded text roles, composite interval labels
   pack.rules['geology-section-layout'].sectionTextStyle = {
     elevationTick: placement([-12, -0.5], 2, 2),
     holeIdentifier: placement([0, 10], 3, 4),
-    collarElevation: placement([0, 5], 3, 4),
+    collarElevation: { ...placement([0, 5], 3, 4), labelOverrides: [
+      { holeId: 'ZK1', elevation: 100.004, placement: placement([0.25, 5.25], 3, 4) },
+    ] },
     intervalBottom: { ...placement([2, -1], 2.2), format: 'depth-elevation', precision: 2, labelOverrides: [
       { holeId: 'ZK1', intervalId: 'ZK1-a', depth: 10, elevation: 89.75,
         placement: placement([2.25, -1.5], 2.2) },
@@ -417,6 +419,10 @@ test('section style pack preserves bounded text roles, composite interval labels
   assert.equal(result.evidence.parameters.sourceBackedIntervalBottomLabelOverrideCount, 1)
   const holeIdentifier = texts.find(entity => entity.payload.text === 'ZK1')
   assert.deepEqual([holeIdentifier.payload.height, holeIdentifier.payload.horizontalAlignment], [3, 4])
+  const collarElevation = texts.find(entity => entity.payload.text === '100.00')
+  assert.deepEqual([collarElevation.payload.position[0] - holeIdentifier.payload.position[0],
+    collarElevation.payload.position[1] - holeIdentifier.payload.position[1]], [0.25, -4.75])
+  assert.equal(result.evidence.parameters.sourceBackedCollarElevationLabelOverrideCount, 1)
   const spacing = texts.find(entity => entity.payload.text === '20.0')
   assert.deepEqual([spacing.payload.height, spacing.payload.horizontalAlignment], [3, 4])
   assert.equal(texts.some(entity => /^(?:STA|DEPTH) /u.test(entity.payload.text)), false)
@@ -449,6 +455,12 @@ test('section style pack preserves bounded text roles, composite interval labels
   const mismatchedDepth = structuredClone(input)
   mismatchedDepth.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.intervalBottom.labelOverrides[0].depth = 9
   assert.throws(() => compileGeologySection(mismatchedDepth), /depth does not match its supplied interval/u)
+  const unknownCollar = structuredClone(input)
+  unknownCollar.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.collarElevation.labelOverrides[0].holeId = 'absent'
+  assert.throws(() => compileGeologySection(unknownCollar), /references an unknown supplied hole/u)
+  const mismatchedCollar = structuredClone(input)
+  mismatchedCollar.sectionStylePack.rules['geology-section-layout'].sectionTextStyle.collarElevation.labelOverrides[0].elevation = 99
+  assert.throws(() => compileGeologySection(mismatchedCollar), /does not match its supplied collar/u)
   const invalidHatch = structuredClone(input)
   invalidHatch.sectionStylePack.rules['geology-section-layout'].sectionHatchPresentation.stratigraphicBand.patternScale = 0
   assert.throws(() => compileGeologySection(invalidHatch), /hatch presentation is out of bounds/u)

@@ -1676,8 +1676,12 @@ function sectionLayout(input) {
     if (value.sectionTextStyle != null) {
         if (!value.sectionTextStyle || typeof value.sectionTextStyle !== 'object' || Array.isArray(value.sectionTextStyle) || Object.keys(value.sectionTextStyle).sort().join(',') !== 'collarElevation,elevationTick,holeDepth,holeIdentifier,intervalBottom,station,stationLabel') throw new KJValidationError('Geology: section text style needs every declared text role');
         const supplied = value.sectionTextStyle;
-        const interval = supplied.intervalBottom, station = supplied.station;
+        const collar = supplied.collarElevation, interval = supplied.intervalBottom;
+        const station = supplied.station;
         const holeDepth = supplied.holeDepth, stationLabel = supplied.stationLabel;
+        const collarPlacement = parseSectionTextPlacement(collar, 'collar elevation', collar?.labelOverrides == null ? [] : [
+            'labelOverrides'
+        ]);
         const intervalPlacement = parseSectionTextPlacement(interval, 'interval bottom', [
             'format',
             'precision',
@@ -1709,6 +1713,35 @@ function sectionLayout(input) {
             'shown',
             'omitted'
         ].includes(stationLabel.visibility)) throw new KJValidationError('Geology: section text presentation mode is invalid');
+        let collarLabelOverrides;
+        if (collar.labelOverrides != null) {
+            if (!Array.isArray(collar.labelOverrides) || collar.labelOverrides.length < 1 || collar.labelOverrides.length > 256) throw new KJValidationError('Geology: section collar elevation label overrides need bounded source facts');
+            const identities = new Set();
+            collarLabelOverrides = collar.labelOverrides.map((raw, index)=>{
+                if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError(`Geology: section collar elevation label override ${index + 1} needs an exact fact schema`);
+                const item = raw, hasPlacement = item.placement != null;
+                const expectedKeys = [
+                    'elevation',
+                    'holeId',
+                    ...hasPlacement ? [
+                        'placement'
+                    ] : []
+                ];
+                if (Object.keys(item).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError(`Geology: section collar elevation label override ${index + 1} needs an exact fact schema`);
+                const holeId = bounded(item.holeId, `section collar elevation label override ${index + 1} hole id`);
+                if (identities.has(holeId)) throw new KJValidationError('Geology: section collar elevation label overrides must be unique');
+                identities.add(holeId);
+                const elevation = numeric(item.elevation, `section collar elevation label override ${index + 1} elevation`);
+                if (elevation < -10000 || elevation > 10000) throw new KJValidationError(`Geology: section collar elevation label override ${index + 1} is out of bounds`);
+                return {
+                    holeId,
+                    elevation,
+                    ...hasPlacement ? {
+                        placement: parseSectionTextPlacement(item.placement, `collar elevation label override ${index + 1}`)
+                    } : {}
+                };
+            });
+        }
         let labelOverrides;
         if (interval.labelOverrides != null) {
             if (interval.format !== 'depth-elevation' || !Array.isArray(interval.labelOverrides) || interval.labelOverrides.length < 1 || interval.labelOverrides.length > 256) throw new KJValidationError('Geology: section interval bottom label overrides need bounded depth-elevation facts');
@@ -1748,7 +1781,12 @@ function sectionLayout(input) {
         sectionTextStyle = {
             elevationTick: parseSectionTextPlacement(supplied.elevationTick, 'elevation tick'),
             holeIdentifier: parseSectionTextPlacement(supplied.holeIdentifier, 'hole identifier'),
-            collarElevation: parseSectionTextPlacement(supplied.collarElevation, 'collar elevation'),
+            collarElevation: {
+                ...collarPlacement,
+                ...collarLabelOverrides ? {
+                    labelOverrides: collarLabelOverrides
+                } : {}
+            },
             intervalBottom: {
                 ...intervalPlacement,
                 format: interval.format,
@@ -4000,6 +4038,15 @@ export function compileGeologySection(input) {
             `${item.holeId}\u0000${item.intervalId}`,
             item
         ]));
+    const collarElevationLabelOverrides = new Map((sectionText?.collarElevation.labelOverrides ?? []).map((item)=>[
+            item.holeId,
+            item
+        ]));
+    for (const item of sectionText?.collarElevation.labelOverrides ?? []){
+        const supplied = byId.get(item.holeId)?.hole;
+        if (!supplied) throw new KJValidationError('Geology: section collar elevation label override references an unknown supplied hole');
+        if (Math.abs(item.elevation - supplied.collarElevation) > 0.005 + 1e-9) throw new KJValidationError('Geology: section collar elevation label override does not match its supplied collar');
+    }
     for (const item of sectionText?.intervalBottom.labelOverrides ?? []){
         const supplied = byId.get(item.holeId);
         const interval = supplied?.strata.find((candidate)=>candidate.intervalId === item.intervalId);
@@ -4057,8 +4104,9 @@ export function compileGeologySection(input) {
             g.line(1, center - 5, top + 1.5, center + 5, top + 1.5);
         }
         if (sectionText) {
+            const collarLabelOverride = collarElevationLabelOverrides.get(hole.id);
             emitTextRole(center, top, hole.id, sectionText.holeIdentifier);
-            emitTextRole(center, top, metres(hole.collarElevation), sectionText.collarElevation);
+            emitTextRole(center, top, metres(collarLabelOverride?.elevation ?? hole.collarElevation), collarLabelOverride?.placement ?? sectionText.collarElevation);
             if (sectionText.station.mode === 'cumulative-at-hole') emitTextRole(center, layout.plotBottom, `${locale === 'zh-CN' ? '里程' : 'STA'} ${fixed(hole.station, sectionText.station.precision)}`, sectionText.station);
             if (sectionText.holeDepth.visibility === 'shown') emitTextRole(center, layout.plotBottom, `${locale === 'zh-CN' ? '孔深' : 'DEPTH'} ${fixed(hole.depth, sectionText.holeDepth.precision)}`, sectionText.holeDepth);
         } else {
@@ -4354,6 +4402,9 @@ export function compileGeologySection(input) {
         } : {},
         ...sectionText?.intervalBottom.labelOverrides ? {
             sourceBackedIntervalBottomLabelOverrideCount: sectionText.intervalBottom.labelOverrides.length
+        } : {},
+        ...sectionText?.collarElevation.labelOverrides ? {
+            sourceBackedCollarElevationLabelOverrideCount: sectionText.collarElevation.labelOverrides.length
         } : {},
         ...groundwaterStyle?.labelOverrides ? {
             sourceBackedStableWaterLabelOverrideCount: groundwaterStyle.labelOverrides.length
