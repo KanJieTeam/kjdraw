@@ -40,8 +40,8 @@ export interface KJAgentGeometryPreview {
 }
 const project = (entity: KJReadonlyObjectRecord): KJAgentPreviewEntity => ({ id: entity.id, type: entity.type, payload: entity.payload })
 const supported = ['LINE', 'CIRCLE', 'ARC', 'LWPOLYLINE']
-export const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[] = Object.freeze([...supported, 'ELLIPSE', 'SPLINE', 'HATCH', 'XLINE', 'RAY', 'TEXT', 'MTEXT', 'LEADER', 'DIMENSION', 'INSERT'])
-const creatable = [...supported, 'ELLIPSE', 'SPLINE', 'HATCH', 'TEXT', 'MTEXT', 'LEADER', 'DIMENSION', 'INSERT']
+export const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[] = Object.freeze([...supported, 'ELLIPSE', 'SPLINE', 'HATCH', 'XLINE', 'RAY', 'TEXT', 'MTEXT', 'LEADER', 'DIMENSION', 'TOLERANCE', 'INSERT'])
+const creatable = [...supported, 'POLYLINE', 'ELLIPSE', 'SPLINE', 'HATCH', 'SOLID', 'TEXT', 'MTEXT', 'LEADER', 'DIMENSION', 'TOLERANCE', 'INSERT']
 const stretchable = ['LINE', 'LWPOLYLINE', 'POLYLINE']
 
 function effectiveLayerId(document: KJDocument, entity: KJReadonlyObjectRecord): string | null {
@@ -91,14 +91,15 @@ export function resolveAgentTransformEntityIds(document: KJDocument, sourceIds: 
 function validateMovableAnnotation(document: KJDocument, entity: KJReadonlyObjectRecord): void {
   if (['ELLIPSE', 'SPLINE', 'HATCH'].includes(entity.type)) { validateTransformGeometry(document, entity); return }
   if (entity.type === 'LEADER' || entity.type === 'MTEXT') { validateTransformGeometry(document, entity); return }
-  if (entity.type !== 'TEXT' && entity.type !== 'DIMENSION') return
+  if (entity.type !== 'TEXT' && entity.type !== 'DIMENSION' && entity.type !== 'TOLERANCE') return
   const payload = entity.payload
   for (const field of ['normal', 'extrusionDirection']) {
     const normal = payload[field]
     if (normal !== undefined && normal !== null && (!Array.isArray(normal) || normal.length !== 3 || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) throw new KJValidationError('Annotation move preview requires the default +Z plane')
   }
-  const points = entity.type === 'TEXT' ? [payload.position, ...(payload.alignmentPoint ? [payload.alignmentPoint] : [])] : [...(Array.isArray(payload.definitionPoints) ? payload.definitionPoints : []), ...(payload.textPosition ? [payload.textPosition] : [])]
+  const points = entity.type === 'TEXT' || entity.type === 'TOLERANCE' ? [payload.position, ...(payload.alignmentPoint ? [payload.alignmentPoint] : [])] : [...(Array.isArray(payload.definitionPoints) ? payload.definitionPoints : []), ...(payload.textPosition ? [payload.textPosition] : [])]
   if (!points.length || points.some(point => !Array.isArray(point) || point.length !== 3 || point.some(value => typeof value !== 'number' || !Number.isFinite(value)) || point[2] !== 0)) throw new KJValidationError('Annotation move preview requires complete model XY geometry at z=0')
+  if (entity.type === 'TOLERANCE' && (typeof payload.text !== 'string' || !payload.text || !Array.isArray(payload.xAxisDirection) || Math.hypot(Number(payload.xAxisDirection[0]), Number(payload.xAxisDirection[1])) <= 1e-12)) throw new KJValidationError('Annotation move preview requires a bounded native tolerance frame')
   if (entity.type === 'DIMENSION' && !projectDimension(payload, document.getObject(String(payload.styleId ?? ''))?.payload)) throw new KJValidationError('Annotation move preview requires supported nondegenerate native dimension geometry')
 }
 
@@ -148,6 +149,9 @@ function validateTransformGeometry(document: KJDocument, entity: KJReadonlyObjec
     const projection = projectDimension(payload, document.getObject(String(payload.styleId ?? ''))?.payload)!
     const visiblePoints = [...projection.lines.flat(), ...projection.arrows.flat(), projection.label.position, ...projection.arcs.map(arc => arc.center)]
     if (!visiblePoints.every(p => p.every(bounded)) || !bounded(projection.measurement) || !bounded(projection.label.height) || projection.arcs.some(arc => !bounded(arc.radius))) throw new KJValidationError('Transform annotation projection exceeds its finite coordinate budget')
+  } else if (entity.type === 'TOLERANCE') {
+    points = [payload.position, payload.xAxisDirection]
+    if (typeof payload.text !== 'string' || !payload.text || payload.text.length > 4096 || !Array.isArray(payload.xAxisDirection) || Math.hypot(Number(payload.xAxisDirection[0]), Number(payload.xAxisDirection[1])) <= 1e-12) throw new KJValidationError('Transform preview requires a bounded native tolerance frame')
   } else if (entity.type === 'HATCH') {
     const loops = Array.isArray(payload.boundaryLoops) ? payload.boundaryLoops : []
     if (!loops.length || loops.length > 64 || !bounded(payload.patternScale) || payload.patternScale <= 0 || !bounded(payload.patternAngle)) throw new KJValidationError('Transform preview requires a bounded native hatch')
@@ -321,6 +325,12 @@ function validateStructuralEditPreview(document: KJDocument, args: Record<string
 export interface KJAgentGeometryPreviewOptions {
   /** Trusted host creation budget; defaults to 64, hard maximum 512. Transforms remain limited to 64. */
   maxCreatedEntities?: number
+  /** Trusted host new-resource budget; defaults to 32 and is always capped at 256. */
+  maxCreatedResources?: number
+  /** Trusted host complete after-preview budget, including block members; defaults to maxCreatedEntities and is capped at 4096. */
+  maxPreviewEntities?: number
+  /** Trusted host serialized preview budget; defaults to 256 KiB and is capped at 4 MiB. */
+  maxPreviewBytes?: number
 }
 
 /** Run bounded core geometry on a detached document. No host plugins, authority, network or source history is invoked. */
@@ -350,7 +360,13 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   if (command === 'LENGTHEN') validateLengthenPreview(document, args)
   const structuralIds = command === 'STRUCTURALEDIT' ? validateStructuralEditPreview(document, args) : undefined
   const maxCreatedEntities = options.maxCreatedEntities ?? 64
-  if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 512) throw new KJValidationError('Preview creation budget must be an integer from 1 to 512')
+  if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 2048) throw new KJValidationError('Preview creation budget must be an integer from 1 to 2048')
+  const maxCreatedResources = options.maxCreatedResources ?? 32
+  if (!Number.isSafeInteger(maxCreatedResources) || maxCreatedResources < 1 || maxCreatedResources > 256) throw new KJValidationError('Preview resource budget must be an integer from 1 to 256')
+  const maxPreviewEntities = options.maxPreviewEntities ?? maxCreatedEntities
+  if (!Number.isSafeInteger(maxPreviewEntities) || maxPreviewEntities < maxCreatedEntities || maxPreviewEntities > 4096) throw new KJValidationError('Complete preview entity budget must be an integer from maxCreatedEntities to 4096')
+  const maxPreviewBytes = options.maxPreviewBytes ?? 262144
+  if (!Number.isSafeInteger(maxPreviewBytes) || maxPreviewBytes < 1 || maxPreviewBytes > 4194304) throw new KJValidationError('Preview byte budget must be an integer from 1 to 4194304')
   if (command === 'CREATEBATCH') {
     if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some(spec => !spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} supported drawing and annotation entities`)
   } else if (command !== 'COMPONENTINSERT' && command !== 'STRUCTURALEDIT') {
@@ -438,7 +454,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   if (command === 'LENGTHEN' && !after.length) throw new KJValidationError('LENGTHEN would leave the selected geometry unchanged')
   if (command === 'PEDIT' && !after.length) throw new KJValidationError('Polyline edit would leave the selected geometry unchanged')
   if (command === 'PROPERTIES' && (before.length !== ids.length || after.length !== ids.length)) throw new KJValidationError('Relayer preview must include complete before and after payloads for every changed entity')
-  if (before.length > 64 || after.length > (command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit')
+  if (before.length > 64 || after.length > (command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? maxPreviewEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit')
   const draftState = draft.snapshot()
   const recordChanges = command === 'STRUCTURALEDIT' ? Object.values(source.objects).filter(record => record.kind === 'group' || record.type === 'SEQEND').flatMap(beforeRecord => {
     const rawAfter = draftState.objects[beforeRecord.id]
@@ -449,14 +465,14 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   const resources = draft.listObjects().filter(item => (item.kind === 'table-record' || item.kind === 'block-record') && !document.getObject(item.id)).map(item => ({
     id: item.id, type: item.type, name: item.name, payload: item.payload, ...(item.kind === 'block-record' ? { kind: item.kind } : {}),
   }))
-  if (resources.length > 32) throw new KJValidationError('Preview exceeds the 32 new resource limit')
+  if (resources.length > maxCreatedResources) throw new KJValidationError(`Preview exceeds the ${maxCreatedResources} new resource limit`)
   const designId = design?.id ?? (command === 'DESIGNCREATE' ? String(args.id) : undefined)
   const dictionaryId = draft.snapshot().namedObjectsDictionaryId
   const dictionaryKey = designId ? Object.entries(draft.getObject(dictionaryId)!.payload.entries ?? {}).find(([key, target]) => key.startsWith('KJDRAW_DESIGN:') && target === designId)?.[0] : undefined
   if (designId && !dictionaryKey) throw new KJValidationError('Design relation dictionary binding is missing')
   const designChange = designId ? { id: designId, before: design?.definition ?? { parameters: [], derived: [], bindings: [], requirements: [] }, after: readDesignRelations(draft, [designId])[0]!.definition, record: draft.getObject(designId)!, members: ids.map(id => draft.getObject(id)!), dictionary: { id: dictionaryId, key: dictionaryKey! } } : undefined
   const preview = { documentId: document.id, revision, command, before, after, ...(recordChanges.length ? { recordChanges } : {}), ...(resources.length ? { resources } : {}), ...(blockDependencies ? { blockDependencies } : {}), ...(designChange ? { designChange } : {}) }
-  if (new TextEncoder().encode(JSON.stringify(preview)).length > 262144) throw new KJValidationError('Agent geometry preview exceeds the 256 KiB output limit')
+  if (new TextEncoder().encode(JSON.stringify(preview)).length > maxPreviewBytes) throw new KJValidationError(`Agent geometry preview exceeds the ${Math.ceil(maxPreviewBytes / 1024)} KiB output limit`)
   return deepFreeze(preview) as KJAgentGeometryPreview
 }
 

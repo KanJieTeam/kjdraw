@@ -16,6 +16,7 @@ const PROTOCOL_VERSION = '2025-11-25'
 const SUPPORTED_PROTOCOLS = new Set([PROTOCOL_VERSION, '2025-06-18'])
 const MAX_DRAWING_BYTES = 64 * 1024 * 1024
 const MAX_MESSAGE_BYTES = 4 * 1024 * 1024
+const MAX_INLINE_SVG_BYTES = 768 * 1024
 const MAX_KNOWLEDGE_PACK_BYTES = 1024 * 1024
 const KIMI_SAFE_TOOL_NAMES = new Set([
   'cad_read_drawing',
@@ -33,12 +34,14 @@ const KIMI_SAFE_TOOL_NAMES = new Set([
   'cad_propose_cartesian_chart',
   'cad_propose_geology_column',
   'cad_propose_geology_section',
+  'cad_propose_geology_section_example',
+  'cad_propose_geology_plan',
   'cad_propose_road_drawing',
   'cad_propose_site_plan',
 ])
 
 function usage() {
-  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json> [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>] [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json> [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>] [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --check-tool-schemas\n\nOptional host-only geology style binding:\n  --geology-column-pack <existing-relative.json> --geology-column-pack-sha256 <64-lowercase-hex>\n\n--tool-profile defaults to full. kimi-safe exposes the core read, drafting, geology, architecture, manufacturing and chart tools through a bounded schema set for older Kimi Work runtimes. --proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session. When the host also supplies --candidate-dir, exact CREATEBATCH proposals are materialized into new KJD/DXF/SVG candidate files there; the input drawing is never overwritten. The model cannot choose either path or approve writes to the input.`
+  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json> [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>] [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json> [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>] [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --check-tool-schemas\n\nOptional host-only geology style binding:\n  --geology-column-pack <existing-relative.json> --geology-column-pack-sha256 <64-lowercase-hex>\n  --geology-section-pack <existing-relative.json> --geology-section-pack-sha256 <64-lowercase-hex>\n\n--tool-profile defaults to full. kimi-safe exposes the core read, drafting, geology, architecture, manufacturing and chart tools through a bounded schema set for older Kimi Work runtimes. --proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session. When the host also supplies --candidate-dir, exact CREATEBATCH proposals are materialized into new KJD/DXF/SVG candidate files there; the input drawing is never overwritten. The model cannot choose either path or approve writes to the input.`
 }
 
 function parseArgs(argv) {
@@ -48,7 +51,7 @@ function parseArgs(argv) {
   const values = {}
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index], value = argv[index + 1]
-    if (!['--workspace', '--input', '--blank', '--units', '--proposals', '--proposal-dir', '--candidate-dir', '--geology-column-pack', '--geology-column-pack-sha256', '--tool-profile'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
+    if (!['--workspace', '--input', '--blank', '--units', '--proposals', '--proposal-dir', '--candidate-dir', '--geology-column-pack', '--geology-column-pack-sha256', '--geology-section-pack', '--geology-section-pack-sha256', '--tool-profile'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
     values[key.slice(2)] = value
   }
   if (!values.workspace) throw new Error('Missing required --workspace')
@@ -59,6 +62,8 @@ function parseArgs(argv) {
   if (values.input && values.units) throw new Error('--units is only allowed with --blank')
   if (Boolean(values['geology-column-pack']) !== Boolean(values['geology-column-pack-sha256'])) throw new Error('--geology-column-pack and --geology-column-pack-sha256 must be supplied together')
   if (values['geology-column-pack-sha256'] && !/^[a-f0-9]{64}$/u.test(values['geology-column-pack-sha256'])) throw new Error('--geology-column-pack-sha256 must be 64 lowercase hexadecimal characters')
+  if (Boolean(values['geology-section-pack']) !== Boolean(values['geology-section-pack-sha256'])) throw new Error('--geology-section-pack and --geology-section-pack-sha256 must be supplied together')
+  if (values['geology-section-pack-sha256'] && !/^[a-f0-9]{64}$/u.test(values['geology-section-pack-sha256'])) throw new Error('--geology-section-pack-sha256 must be 64 lowercase hexadecimal characters')
   values['tool-profile'] ??= 'full'
   if (!['full', 'kimi-safe'].includes(values['tool-profile'])) throw new Error('--tool-profile must be full or kimi-safe')
   return values
@@ -248,33 +253,47 @@ function rpcError(id, code, message, data) {
   send({ jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data === undefined ? {} : { data }) } })
 }
 
-function toolResponse(id, result, isError = false, workspace = null) {
-  const candidate = !isError && workspace ? result?.value?.candidate : null
+async function toolResponse(id, result, isError = false, host = null) {
+  const candidate = !isError && host ? result?.value?.candidate : null
   const resources = candidate ? [
-    candidate.preview?.path ? { path: candidate.preview.path, name: 'KJDraw interactive preview', title: 'KJDraw drawing preview (zoom and pan)', description: 'Open the reviewable drawing preview with fit, zoom and pan controls.', mimeType: 'text/html' } : null,
-    candidate.svg?.path ? { path: candidate.svg.path, name: 'KJDraw SVG preview', title: 'KJDraw drawing preview', description: 'Reviewable drawing preview generated from the exact candidate.', mimeType: 'image/svg+xml' } : null,
-    candidate.kjd ? { path: candidate.kjd, name: 'KJDraw editable drawing', title: 'KJDraw editable KJD candidate', description: 'Editable native KJDraw candidate; the attached source drawing was not overwritten.', mimeType: 'application/vnd.kanjie.kjdraw+json' } : null,
-    candidate.dxf ? { path: candidate.dxf, name: 'KJDraw DXF drawing', title: 'KJDraw DXF candidate', description: 'Interchange DXF reopened and validated by KJDraw.', mimeType: 'application/dxf' } : null,
-  ].filter(Boolean).map(resource => ({
-    type: 'resource_link', uri: pathToFileURL(resolve(workspace, resource.path)).href,
-    name: resource.name, title: resource.title, description: resource.description, mimeType: resource.mimeType,
-    annotations: { audience: ['user'], priority: ['text/html', 'image/svg+xml'].includes(resource.mimeType) ? 1 : 0.8 },
-  })) : []
+    candidate.preview?.path ? { key: 'preview', path: candidate.preview.path, name: 'KJDraw interactive preview', title: 'KJDraw drawing preview (zoom and pan)', description: 'Open the reviewable drawing preview with fit, zoom and pan controls.', mimeType: 'text/html' } : null,
+    candidate.svg?.path ? { key: 'svg', path: candidate.svg.path, name: 'KJDraw SVG preview', title: 'KJDraw drawing preview', description: 'Reviewable drawing preview generated from the exact candidate.', mimeType: 'image/svg+xml' } : null,
+    candidate.kjd ? { key: 'kjd', path: candidate.kjd, name: 'KJDraw editable drawing', title: 'KJDraw editable KJD candidate', description: 'Editable native KJDraw candidate; the attached source drawing was not overwritten.', mimeType: 'application/vnd.kanjie.kjdraw+json' } : null,
+    candidate.dxf ? { key: 'dxf', path: candidate.dxf, name: 'KJDraw DXF drawing', title: 'KJDraw DXF candidate', description: 'Interchange DXF reopened and validated by KJDraw.', mimeType: 'application/dxf' } : null,
+  ].filter(Boolean).map(resource => {
+    const uri = pathToFileURL(resolve(host.workspace, resource.path)).href
+    void host.resources.delete(uri)
+    return {
+      type: 'resource_link', uri,
+      name: resource.name, title: resource.title, description: resource.description, mimeType: resource.mimeType,
+      annotations: { audience: ['user'], priority: ['text/html', 'image/svg+xml'].includes(resource.mimeType) ? 1 : 0.8 },
+    }
+  }) : []
+  let inlinePreview = []
+  if (candidate?.svg?.path && host) {
+    try {
+      const svgPath = await resolveRegularFileWithoutLinks(host.workspace, candidate.svg.path, 'Candidate SVG preview')
+      const metadata = await stat(svgPath)
+      if (metadata.size <= MAX_INLINE_SVG_BYTES) inlinePreview = [{
+        type: 'image', data: (await readFile(svgPath)).toString('base64'), mimeType: 'image/svg+xml',
+        annotations: { audience: ['user'], priority: 1 },
+      }]
+    } catch {}
+  }
   send({
     jsonrpc: '2.0', id,
     result: {
-      // Put review artifacts before the machine-readable fallback. Some desktop
-      // MCP hosts only surface the leading content blocks in the conversation;
-      // a text-first response could therefore claim a preview was ready while
-      // hiding every actual drawing link from the user.
-      content: [...resources, { type: 'text', text: JSON.stringify(result) }],
+      // Inline the exact SVG before links so hosts that block custom URI
+      // schemes can still render the candidate. Resource-aware hosts retain
+      // the interactive HTML, SVG, KJD and DXF links that follow.
+      content: [...inlinePreview, ...resources, { type: 'text', text: JSON.stringify(result) }],
       structuredContent: result,
       ...(isError ? { isError: true } : {})
     }
   })
 }
 
-const COMPACT_ENGINEERING_PROPOSALS = new Set(['cad_propose_geology_column', 'cad_propose_geology_section'])
+const COMPACT_ENGINEERING_PROPOSALS = new Set(['cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_section_example', 'cad_propose_geology_plan'])
 function modelVisibleProposal(name, result, host, delivery = null) {
   if (result.ok && delivery) return { ok: true, value: {
     product: 'KJDraw', responseKind: 'verified-cad-candidate@1', tool: name,
@@ -444,7 +463,7 @@ async function deliverCandidate(host, proposal) {
 }
 
 async function openHost(options) {
-  if (options.blank || options['proposal-dir'] || options['candidate-dir'] || options['geology-column-pack']) {
+  if (options.blank || options['proposal-dir'] || options['candidate-dir'] || options['geology-column-pack'] || options['geology-section-pack']) {
     const workspaceEntry = await lstat(options.workspace)
     if (workspaceEntry.isSymbolicLink()) throw new Error('--workspace must not be a symbolic link')
   }
@@ -462,6 +481,19 @@ async function openHost(options) {
     try { pack = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
     catch { throw new Error('--geology-column-pack must be strict UTF-8 JSON') }
     geologyColumnKnowledge = { pack, sha256, path: relative(workspace, packPath).split(sep).join('/'), byteLength: bytes.byteLength }
+  }
+  let geologySectionKnowledge
+  if (options['geology-section-pack']) {
+    const packPath = await resolveRegularFileWithoutLinks(workspace, options['geology-section-pack'], '--geology-section-pack')
+    const metadata = await stat(packPath)
+    if (metadata.size > MAX_KNOWLEDGE_PACK_BYTES) throw new Error(`--geology-section-pack must be no larger than ${MAX_KNOWLEDGE_PACK_BYTES} bytes`)
+    const bytes = await readFile(packPath)
+    const sha256 = createHash('sha256').update(bytes).digest('hex')
+    if (sha256 !== options['geology-section-pack-sha256']) throw new Error('--geology-section-pack bytes do not match the host-supplied SHA-256')
+    let pack
+    try { pack = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
+    catch { throw new Error('--geology-section-pack must be strict UTF-8 JSON') }
+    geologySectionKnowledge = { pack, sha256, path: relative(workspace, packPath).split(sep).join('/'), byteLength: bytes.byteLength }
   }
   const input = options.blank
     ? await resolveVacantFileInside(workspace, options.blank, '--blank')
@@ -500,8 +532,12 @@ async function openHost(options) {
     sdk = createKJDrawSDK()
     document = await sdk.readDocument(source, { format })
   }
-  const session = new KJAgentToolSession(sdk, document, geologyColumnKnowledge ? { geologyColumnKnowledge } : {})
+  const session = new KJAgentToolSession(sdk, document, {
+    ...(geologyColumnKnowledge ? { geologyColumnKnowledge } : {}),
+    ...(geologySectionKnowledge ? { geologySectionKnowledge } : {}),
+  })
   const geologyColumnKnowledgeDescriptor = session.geologyColumnKnowledge
+  const geologySectionKnowledgeDescriptor = session.geologySectionKnowledge
   const sourceFingerprint = fingerprint(document)
   const ledger = {
     schema: 'com.kanjie.kjdraw.mcp-pending-proposals@1',
@@ -517,8 +553,12 @@ async function openHost(options) {
       ...(options.blank ? { createdBlank: true } : {})
     },
     proposals: [],
-    ...(geologyColumnKnowledgeDescriptor ? { knowledge: { geologyColumn: { ...geologyColumnKnowledgeDescriptor,
-      path: geologyColumnKnowledge.path, byteLength: geologyColumnKnowledge.byteLength } } } : {}),
+    ...(geologyColumnKnowledgeDescriptor || geologySectionKnowledgeDescriptor ? { knowledge: {
+      ...(geologyColumnKnowledgeDescriptor ? { geologyColumn: { ...geologyColumnKnowledgeDescriptor,
+        path: geologyColumnKnowledge.path, byteLength: geologyColumnKnowledge.byteLength } } : {}),
+      ...(geologySectionKnowledgeDescriptor ? { geologySection: { ...geologySectionKnowledgeDescriptor,
+        path: geologySectionKnowledge.path, byteLength: geologySectionKnowledge.byteLength } } : {}),
+    } } : {}),
     ...(sessionId ? { session: { id: sessionId, ledgerPath: relative(workspace, proposals).split(sep).join('/') } } : {})
   }
   if (proposalDir) {
@@ -533,7 +573,7 @@ async function openHost(options) {
     }
   } else await exclusiveAtomicJsonCreate(proposals, ledger)
   const sessionReceipt = sessionId ? { ledgerPath: ledger.session.ledgerPath, sessionId, sourceFingerprint, sourceRevision: document.revision, sourceDocumentId: document.id } : null
-  return { workspace, sdk, document, session, sourceFingerprint, proposals, ledger, sessionReceipt, candidateDir, toolProfile: options['tool-profile'] }
+  return { workspace, sdk, document, session, sourceFingerprint, proposals, ledger, sessionReceipt, candidateDir, toolProfile: options['tool-profile'], resources: new Map() }
 }
 
 async function main() {
@@ -602,6 +642,27 @@ async function main() {
         }) } })
         continue
       }
+      if (request.method === 'resources/list') {
+        if (!notification) send({ jsonrpc: '2.0', id: request.id, result: { resources: [...host.resources].map(([uri, resource]) => ({
+          uri, name: resource.name, title: resource.title, description: resource.description, mimeType: resource.mimeType,
+        })) } })
+        continue
+      }
+      if (request.method === 'resources/read') {
+        if (notification) continue
+        const uri = request.params?.uri
+        const resource = typeof uri === 'string' ? host.resources.get(uri) : null
+        if (!resource) { rpcError(request.id, -32602, 'Unknown candidate resource'); continue }
+        const resourcePath = await resolveRegularFileWithoutLinks(host.workspace, resource.path, 'Candidate resource')
+        const metadata = await stat(resourcePath)
+        if (metadata.size > MAX_DRAWING_BYTES) throw new Error(`Candidate resource must be no larger than ${MAX_DRAWING_BYTES} bytes`)
+        const bytes = await readFile(resourcePath)
+        let text
+        try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes) }
+        catch { throw new Error('Candidate resource must be strict UTF-8 text') }
+        send({ jsonrpc: '2.0', id: request.id, result: { contents: [{ uri, mimeType: resource.mimeType, text }] } })
+        continue
+      }
       if (request.method === 'tools/call') {
         if (notification) continue
         const name = request.params?.name, input = request.params?.arguments ?? {}
@@ -627,11 +688,11 @@ async function main() {
           if (delivery) {
             proposal.delivery = delivery
             await atomicJsonWrite(host.proposals, host.ledger)
-            toolResponse(request.id, modelVisibleProposal(name, result, host, delivery), false, host.workspace)
+            await toolResponse(request.id, modelVisibleProposal(name, result, host, delivery), false, host)
             continue
           }
         }
-        toolResponse(request.id, modelVisibleProposal(name, result, host), !result.ok)
+        await toolResponse(request.id, modelVisibleProposal(name, result, host), !result.ok)
         continue
       }
       if (!notification) rpcError(request.id, -32601, 'Method not found')

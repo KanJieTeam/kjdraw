@@ -35,6 +35,7 @@ test('skill routes reference only real MCP tools and prefer every production dra
   assert.deepEqual(manifest.routes[2].eraseImpactCheck, ['cad_query_impact'])
   assert.deepEqual(manifest.routes[1].preferredCompilers, [
     'cad_propose_geology_column',
+    'cad_propose_geology_section_example',
     'cad_propose_geology_section',
     'cad_propose_manufacturing_sheet',
     'cad_propose_architecture_plan',
