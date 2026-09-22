@@ -1,9 +1,9 @@
 $ErrorActionPreference = 'Stop'
 
-$KJDrawSourceSha = '1129f309be7151bb4c4670197c5b3fb2627535de'
+$KJDrawSourceSha = 'eda026f3b18b5e9196ecd580356b4419604a07b0'
 $KJDrawUserHome = if ($env:KJDRAW_USER_HOME) { $env:KJDRAW_USER_HOME } else { $env:USERPROFILE }
 $KJDrawDataRoot = Join-Path $env:LOCALAPPDATA 'KJDraw'
-$KJDrawInstall = Join-Path $KJDrawDataRoot 'source-1129f30'
+$KJDrawInstall = Join-Path $KJDrawDataRoot 'source-eda026f'
 $KJDrawStableBin = Join-Path $KJDrawDataRoot 'bin'
 $KJDrawStableMcp = Join-Path $KJDrawStableBin 'kjdraw-mcp.mjs'
 $KJDrawCurrent = Join-Path $KJDrawDataRoot 'current.json'
