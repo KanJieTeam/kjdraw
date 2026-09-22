@@ -3174,7 +3174,7 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   const correlationMode = input.correlationMode ?? 'explicit-correlations'
   if (correlationMode !== 'explicit-correlations' && correlationMode !== 'source-group-topology')
     throw new KJValidationError('Geology: invalid section correlation mode')
-  if (!Array.isArray(input.correlations) || input.correlations.length > 200) throw new KJValidationError('Geology: invalid correlation list')
+  if (!Array.isArray(input.correlations) || input.correlations.length > 512) throw new KJValidationError('Geology: invalid correlation list')
   const manualConnections = input.manualConnections ?? []
   if (!Array.isArray(manualConnections) || manualConnections.length > 200) throw new KJValidationError('Geology: invalid manual connection list')
   if (correlationMode === 'source-group-topology' && (input.correlations.length || manualConnections.length))

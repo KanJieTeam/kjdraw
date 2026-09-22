@@ -34,6 +34,42 @@ function intent(expectedRevision = 0) {
   }
 }
 
+test('illustrative loess sections compile from variable parameters without model-authored strata or correlations', async () => {
+  const probeSdk = createKJDrawSDK(), probeDocument = probeSdk.createDocument({ units: 'millimeter' })
+  const probe = new KJAgentToolSession(probeSdk, probeDocument)
+  const exampleSchema = probe.definitions.find(tool => tool.name === 'cad_propose_geology_section_example').inputSchema
+  assert.equal(exampleSchema.properties.holeCount.maximum, 24)
+  const measuredSchema = probe.definitions.find(tool => tool.name === 'cad_propose_geology_section').inputSchema
+  assert.equal(Object.hasOwn(measuredSchema.properties, 'sectionReference'), false)
+  assert.deepEqual(measuredSchema.properties.documentFacts.items.properties.key.enum, ['organization', 'preparedBy', 'checkedBy', 'approvedBy', 'drawingNumber'])
+  for (const holeCount of [5, 10, 24]) {
+    const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), session = new KJAgentToolSession(sdk, document)
+    const started = performance.now()
+    const proposal = accepted(await session.call('cad_propose_geology_section_example', {
+      expectedRevision: 0, units: 'millimeter', locale: 'zh-CN', holeCount, depthMeters: 30,
+    }))
+    assert.ok(performance.now() - started < 5000)
+    assert.equal(proposal.engineeringEvidence.inputKind, 'illustrative-example')
+    assert.equal(proposal.engineeringEvidence.measuredData, false)
+    assert.equal(document.listEntities().length, 0)
+    assert.ok(proposal.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text.includes(`${holeCount}孔`) && entity.payload.text.includes('非实测')))
+    assert.ok(proposal.arguments.entities.length > holeCount * 40)
+    if (holeCount === 10) {
+      accepted(await session.approve(proposal.planId, 'variable-example-test'))
+      const expected = document.listEntities().length
+      assert.equal(expected, proposal.arguments.entities.length)
+      for (const [format, bytes] of [
+        ['KJD', await sdk.writeDocument(document, { format: 'KJD' })],
+        ['DXF', await sdk.writeDocument(document, { format: 'DXF', version: '2018' })],
+      ]) {
+        const reopened = await createKJDrawSDK().readDocument(bytes, { format })
+        assert.equal(reopened.validate().valid, true)
+        assert.equal(reopened.listEntities().length, expected)
+      }
+    }
+  }
+})
+
 test('host-bound section knowledge is reachable through the ordinary proposal tool without model-supplied layout facts', async () => {
   const pack = {
     schema: 'kjdraw.knowledge-pack.v1', id: 'synthetic-host-section-layout', version: '1.0.0', title: 'Synthetic host section layout',
@@ -265,7 +301,7 @@ test('professional section layout renders only supplied title-block, water, samp
   for(const expected of ['黄土场地工程勘察','测试勘察院','PM-01','水位 5.20','原状样','N=18','水平比例尺']) assert.ok(visible.some(value=>value.includes(expected)),expected)
   assert.equal(proposal.engineeringEvidence.parameters.styleRule,'geology-section-layout')
   const undeclared=await session.call('cad_propose_geology_section',{...intent(),documentFacts:[{key:'inventedApproval',value:'not allowed'}]})
-  assert.equal(undeclared.ok,false);assert.match(undeclared.error.message,/not declared by the section style/u)
+  assert.equal(undeclared.ok,false);assert.match(undeclared.error.message,/expected one of: organization, preparedBy, checkedBy, approvedBy, drawingNumber/u)
 })
 
 test('existing geometry is protected and a dense 24-hole section above proposal budget fails closed', async () => {

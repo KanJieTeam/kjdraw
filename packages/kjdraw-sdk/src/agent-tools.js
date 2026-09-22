@@ -27,6 +27,7 @@ import { buildAgentGeologyPlan } from './agent-geology-plan.js';
 import { buildAgentCartesianChart } from './agent-cartesian-chart.js';
 import { compileGeologyColumn, compileGeologySection } from './geology-engineering.js';
 import { validateKnowledgePack } from './knowledge-pack.js';
+import { KJDRAW_GEOLOGY_KNOWLEDGE_PACK } from './knowledge-packs/geology-core.js';
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -1750,13 +1751,13 @@ const geologySectionSchema = objectWithOptional({
     correlations: {
         type: 'array',
         minItems: 0,
-        maxItems: 200,
+        maxItems: 512,
         items: geologyCorrelationSchema
     },
     manualConnections: {
         type: 'array',
         minItems: 0,
-        maxItems: 200,
+        maxItems: 512,
         items: geologySectionConnectionSchema
     },
     horizontalScaleDenominator: radius,
@@ -1795,6 +1796,228 @@ const geologySectionSchema = objectWithOptional({
     'sectionReference',
     'documentFacts'
 ]);
+const geologySectionExampleSchema = objectWithOptional({
+    version: {
+        type: 'string',
+        enum: [
+            '1.0.0'
+        ]
+    },
+    expectedRevision: revision,
+    units: {
+        type: 'string',
+        enum: [
+            'millimeter'
+        ]
+    },
+    locale: {
+        type: 'string',
+        enum: [
+            'zh-CN',
+            'en'
+        ]
+    },
+    holeCount: {
+        type: 'integer',
+        minimum: 2,
+        maximum: 24
+    },
+    depthMeters: {
+        type: 'number',
+        minimum: 5,
+        maximum: 200
+    },
+    spacingMeters: {
+        type: 'number',
+        minimum: 5,
+        maximum: 200
+    },
+    title: {
+        ...text,
+        maxLength: 64
+    }
+}, [
+    'version',
+    'locale',
+    'spacingMeters',
+    'title'
+]);
+function geologySectionExampleIntent(args) {
+    const locale = args.locale === 'en' ? 'en' : 'zh-CN';
+    const holeCount = Number(args.holeCount), depth = Number(args.depthMeters), spacing = Number(args.spacingMeters ?? 30);
+    const boundaryFractions = [
+        0,
+        0.04,
+        0.16,
+        0.24,
+        0.35,
+        0.47,
+        0.61,
+        0.75,
+        0.87,
+        1
+    ];
+    const layers = locale === 'zh-CN' ? [
+        [
+            '1',
+            '耕植土',
+            'cultivated-soil'
+        ],
+        [
+            '2',
+            '马兰黄土',
+            'loess'
+        ],
+        [
+            '3',
+            '古土壤',
+            'paleosol'
+        ],
+        [
+            '4',
+            '湿陷性黄土',
+            'loess-collapsible'
+        ],
+        [
+            '5',
+            '古土壤',
+            'paleosol'
+        ],
+        [
+            '6',
+            '离石黄土',
+            'loess'
+        ],
+        [
+            '7',
+            '钙质结核层',
+            'calcareous-nodule'
+        ],
+        [
+            '8',
+            '类黄土',
+            'loess-like'
+        ],
+        [
+            '9',
+            '粉质黏土',
+            'silty-clay'
+        ]
+    ] : [
+        [
+            '1',
+            'Cultivated soil',
+            'cultivated-soil'
+        ],
+        [
+            '2',
+            'Loess',
+            'loess'
+        ],
+        [
+            '3',
+            'Paleosol',
+            'paleosol'
+        ],
+        [
+            '4',
+            'Collapsible loess',
+            'loess-collapsible'
+        ],
+        [
+            '5',
+            'Paleosol',
+            'paleosol'
+        ],
+        [
+            '6',
+            'Loess',
+            'loess'
+        ],
+        [
+            '7',
+            'Calcareous nodules',
+            'calcareous-nodule'
+        ],
+        [
+            '8',
+            'Loess-like soil',
+            'loess-like'
+        ],
+        [
+            '9',
+            'Silty clay',
+            'silty-clay'
+        ]
+    ];
+    const midpoint = (holeCount - 1) / 2;
+    const holes = Array.from({
+        length: holeCount
+    }, (_, holeIndex)=>{
+        const id = `ZK${String(holeIndex + 1).padStart(2, '0')}`;
+        const collarElevation = 300 + [
+            0,
+            0.35,
+            -0.15,
+            0.25,
+            -0.3,
+            0.1
+        ][holeIndex % 6];
+        const boundaries = boundaryFractions.map((fraction, boundaryIndex)=>{
+            if (!boundaryIndex || boundaryIndex === boundaryFractions.length - 1) return fraction * depth;
+            const wave = (holeIndex - midpoint) / Math.max(midpoint, 1) * (boundaryIndex % 2 ? 0.12 : -0.08);
+            return Number((fraction * depth + wave).toFixed(3));
+        });
+        return {
+            id,
+            station: holeIndex * spacing,
+            collarElevation,
+            depth,
+            strata: layers.map(([code, name, lithology], layerIndex)=>({
+                    intervalId: `${id}-L${layerIndex + 1}`,
+                    groupId: `L${layerIndex + 1}`,
+                    groupRole: 'principal',
+                    code,
+                    name,
+                    top: boundaries[layerIndex],
+                    bottom: boundaries[layerIndex + 1],
+                    lithology
+                }))
+        };
+    });
+    const correlations = [];
+    for(let holeIndex = 0; holeIndex < holes.length - 1; holeIndex++)for(let layerIndex = 0; layerIndex < layers.length; layerIndex++)correlations.push({
+        fromHoleId: holes[holeIndex].id,
+        toHoleId: holes[holeIndex + 1].id,
+        fromIntervalId: `${holes[holeIndex].id}-L${layerIndex + 1}`,
+        toIntervalId: `${holes[holeIndex + 1].id}-L${layerIndex + 1}`
+    });
+    const span = spacing * (holeCount - 1);
+    const standardScales = [
+        100,
+        200,
+        500,
+        1000,
+        2000,
+        5000,
+        10000,
+        20000
+    ];
+    const fittingScale = (required)=>standardScales.find((scale)=>scale >= required) ?? 20000;
+    const notice = locale === 'zh-CN' ? '（示意数据，非实测）' : ' (illustrative, not measured)';
+    const baseTitle = String(args.title ?? (locale === 'zh-CN' ? `${depth}米黄土地区${holeCount}孔工程地质剖面图` : `${depth} m loess section, ${holeCount} boreholes`));
+    return {
+        expectedRevision: Number(args.expectedRevision),
+        holes,
+        correlations,
+        horizontalScaleDenominator: fittingScale(span * 1000 / 330),
+        verticalScaleDenominator: fittingScale((depth + 6) * 1000 / 190),
+        datumElevation: Math.floor(300 - depth - 5),
+        surfaceRule: 'straight-between-supplied-collars',
+        locale,
+        title: `${baseTitle.slice(0, 64 - notice.length)}${notice}`
+    };
+}
 const geologyPlanBoreholeLabelLayoutSchema = objectWithOptional({
     idPosition: numericTuple(2),
     collarElevationPosition: numericTuple(2),
@@ -2866,6 +3089,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         inputSchema: geologySectionSchema
     },
     {
+        name: 'cad_propose_geology_section_example',
+        effect: 'propose',
+        description: 'Create one deterministic editable loess-region geological section for product demonstration when the user asks for a generic example but supplies no measured borehole table. holeCount supports 2–24 boreholes; depthMeters and spacingMeters stay variable. KJDraw creates illustrative strata and exact interval-ID correlations locally in one call, selects fitting scales, and clearly marks the title as illustrative and not measured. Never use this tool for a real project, imported borehole facts or engineering conclusions; use cad_propose_geology_section for those. Requires a blank millimetre drawing and returns the same reviewed KJD/DXF/SVG candidate workflow.',
+        inputSchema: geologySectionExampleSchema
+    },
+    {
         name: 'cad_check_geometry',
         effect: 'read',
         description: 'Check 1–64 explicit requirements against actual drawing objects at expectedRevision. Supply lineLengths, circleRadii, pointDistances and polylineClosures; ellipseMajorRadii, ellipseMinorRadii, splineLengths, dimensionMeasurements, hatchAreas, hatchLoopCounts, polylineVertexCounts and polylineSegmentBulges are optional additive groups. LINE lengths and point distances use native owner coordinates in 3D; point references may address a native polyline vertex with feature=vertex and vertexIndex. Circle and ellipse radii are intrinsic; spline length follows the native rational B-spline. Native DIMENSION measurements use drawing units for linear/radius/diameter and degrees for angular dimensions. Hatch area is exact for straight polygonal XY loops and single full native circle/ellipse or verified rational-conic spline loops, subtracting island loops; other curved or composite boundaries fail closed. Polyline and hatch checks inspect stored topology fields and do not infer user intent. Returns actual values, deviations, tolerances and pass/fail for supplied requirements only. Does not certify a design, modify or approve a drawing.',
@@ -3582,30 +3811,63 @@ export class KJAgentToolSession {
     }
     get definitions() {
         const units = this.#document.snapshot().header.units;
-        return deepFreeze(KJDRAW_AGENT_TOOLS.filter((tool)=>![
-                'cad_propose_manufacturing_sheet',
-                'cad_propose_architecture_plan',
-                'cad_propose_cartesian_chart',
-                'cad_propose_geology_column',
-                'cad_propose_geology_section'
-            ].includes(tool.name) || units === 'millimeter').filter((tool)=>![
+        const millimeterTools = [
+            'cad_propose_manufacturing_sheet',
+            'cad_propose_architecture_plan',
+            'cad_propose_cartesian_chart',
+            'cad_propose_geology_column',
+            'cad_propose_geology_section',
+            'cad_propose_geology_section_example'
+        ];
+        const sectionPack = this.#geologySectionKnowledge?.pack ?? KJDRAW_GEOLOGY_KNOWLEDGE_PACK;
+        const sectionRule = sectionPack.rules?.['geology-section-layout'];
+        return deepFreeze(KJDRAW_AGENT_TOOLS.filter((tool)=>!millimeterTools.includes(tool.name) || units === 'millimeter').filter((tool)=>![
                 'cad_propose_site_plan',
                 'cad_propose_geology_plan'
             ].includes(tool.name) || units === 'meter').map((tool)=>{
             if (!tool.inputSchema.properties?.units) return tool;
+            let properties = {
+                ...tool.inputSchema.properties,
+                units: {
+                    ...tool.inputSchema.properties.units,
+                    enum: [
+                        units
+                    ]
+                }
+            };
+            if (tool.name === 'cad_propose_geology_section') {
+                if (!sectionRule?.sectionReferenceStyle) {
+                    const { sectionReference: _unused, ...supported } = properties;
+                    properties = supported;
+                }
+                const keys = Array.isArray(sectionRule?.footerGrid) ? sectionRule.footerGrid.map((cell)=>String(cell.key)).filter((key)=>key !== 'projectName') : [];
+                if (keys.length && properties.documentFacts?.items?.properties?.key) properties = {
+                    ...properties,
+                    documentFacts: {
+                        ...properties.documentFacts,
+                        items: {
+                            ...properties.documentFacts.items,
+                            properties: {
+                                ...properties.documentFacts.items.properties,
+                                key: {
+                                    ...properties.documentFacts.items.properties.key,
+                                    enum: keys
+                                }
+                            }
+                        }
+                    }
+                };
+                else {
+                    const { documentFacts: _unused, ...supported } = properties;
+                    properties = supported;
+                }
+            }
             return {
                 ...tool,
                 inputSchema: {
                     ...tool.inputSchema,
-                    properties: {
-                        ...tool.inputSchema.properties,
-                        units: {
-                            ...tool.inputSchema.properties.units,
-                            enum: [
-                                units
-                            ]
-                        }
-                    }
+                    properties,
+                    required: tool.inputSchema.required?.filter((key)=>Object.hasOwn(properties, key))
                 }
             };
         }));
@@ -3930,10 +4192,12 @@ export class KJAgentToolSession {
                                     knowledgePack: this.geologyColumnKnowledge
                                 } : {}
                             };
-                        } else if (name === 'cad_propose_geology_section') {
+                        } else if (name === 'cad_propose_geology_section' || name === 'cad_propose_geology_section_example') {
                             if (document.listEntities().length !== 0) throw new KJValidationError('Geology section requires a blank drawing; existing geometry is not replaced');
-                            if (!(Array.isArray(args.correlations) && args.correlations.length) && !(Array.isArray(args.manualConnections) && args.manualConnections.length)) throw new KJValidationError('Geology section requires at least one explicit correlation or manual connection');
-                            const { version: _version, units: _units, documentFacts: suppliedDocumentFacts, ...intent } = args;
+                            const illustrative = name === 'cad_propose_geology_section_example';
+                            const sectionArgs = illustrative ? geologySectionExampleIntent(args) : args;
+                            if (!(Array.isArray(sectionArgs.correlations) && sectionArgs.correlations.length) && !(Array.isArray(sectionArgs.manualConnections) && sectionArgs.manualConnections.length)) throw new KJValidationError('Geology section requires at least one explicit correlation or manual connection');
+                            const { version: _version, units: _units, documentFacts: suppliedDocumentFacts, ...intent } = sectionArgs;
                             let documentFacts;
                             if (suppliedDocumentFacts !== undefined) {
                                 documentFacts = Object.create(null);
@@ -3954,10 +4218,15 @@ export class KJAgentToolSession {
                                     sectionStylePack: this.#geologySectionKnowledge.pack
                                 } : {}
                             });
-                            if (compiled.commandArgs.entities.length > 512 || compiled.commandArgs.resources.layers.length + compiled.commandArgs.resources.linetypes.length > 32) throw new KJValidationError('Geology section exceeds the bounded Agent proposal budget');
+                            const entityLimit = illustrative ? 2048 : 512;
+                            if (compiled.commandArgs.entities.length > entityLimit || compiled.commandArgs.resources.layers.length + compiled.commandArgs.resources.linetypes.length > 64) throw new KJValidationError('Geology section exceeds the bounded Agent proposal budget');
                             commandArgs = structuredClone(compiled.commandArgs);
                             engineeringEvidence = {
                                 ...compiled.evidence,
+                                ...illustrative ? {
+                                    inputKind: 'illustrative-example',
+                                    measuredData: false
+                                } : {},
                                 ...this.geologySectionKnowledge ? {
                                     knowledgePack: this.geologySectionKnowledge
                                 } : {}
@@ -4449,7 +4718,11 @@ export class KJAgentToolSession {
                                 proposalByteLimit: geologyPlanProposalByteLimit
                             };
                         }
-                        const maxCreatedEntities = name === 'cad_propose_component_insert' ? 65 : name === 'cad_propose_geology_plan' ? 2048 : [
+                        const expandedPreview = [
+                            'cad_propose_geology_plan',
+                            'cad_propose_geology_section_example'
+                        ].includes(name);
+                        const maxCreatedEntities = name === 'cad_propose_component_insert' ? 65 : expandedPreview ? 2048 : [
                             'cad_propose_drawing_pattern',
                             'cad_propose_drawing_annotated',
                             'cad_propose_manufacturing_sheet',
@@ -4461,7 +4734,7 @@ export class KJAgentToolSession {
                             'cad_propose_road_drawing',
                             'cad_propose_road_drawing_from_asset'
                         ].includes(name) ? 512 : undefined;
-                        const preview = await createAgentGeometryPreview(document, command, commandArgs, name === 'cad_propose_geology_plan' ? {
+                        const preview = await createAgentGeometryPreview(document, command, commandArgs, expandedPreview ? {
                             maxCreatedEntities: 2048,
                             maxCreatedResources: 256,
                             maxPreviewEntities: 4096,
@@ -4533,6 +4806,10 @@ export class KJAgentToolSession {
                             ok: true,
                             value
                         })).length > 1048576) throw new KJValidationError('Geology section proposal exceeds the 1 MiB output limit');
+                        if (name === 'cad_propose_geology_section_example' && new TextEncoder().encode(JSON.stringify({
+                            ok: true,
+                            value
+                        })).length > 4194304) throw new KJValidationError('Illustrative geology section proposal exceeds the 4 MiB output limit');
                         if (name === 'cad_propose_relayer' && new TextEncoder().encode(JSON.stringify({
                             ok: true,
                             value

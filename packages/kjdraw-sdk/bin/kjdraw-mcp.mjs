@@ -15,6 +15,7 @@ const PROTOCOL_VERSION = '2025-11-25'
 const SUPPORTED_PROTOCOLS = new Set([PROTOCOL_VERSION, '2025-06-18'])
 const MAX_DRAWING_BYTES = 64 * 1024 * 1024
 const MAX_MESSAGE_BYTES = 4 * 1024 * 1024
+const MAX_INLINE_SVG_BYTES = 768 * 1024
 const MAX_KNOWLEDGE_PACK_BYTES = 1024 * 1024
 const KIMI_SAFE_TOOL_NAMES = new Set([
   'cad_read_drawing',
@@ -32,6 +33,7 @@ const KIMI_SAFE_TOOL_NAMES = new Set([
   'cad_propose_cartesian_chart',
   'cad_propose_geology_column',
   'cad_propose_geology_section',
+  'cad_propose_geology_section_example',
   'cad_propose_geology_plan',
   'cad_propose_road_drawing',
   'cad_propose_site_plan',
@@ -250,7 +252,7 @@ function rpcError(id, code, message, data) {
   send({ jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data === undefined ? {} : { data }) } })
 }
 
-function toolResponse(id, result, isError = false, host = null) {
+async function toolResponse(id, result, isError = false, host = null) {
   const candidate = !isError && host ? result?.value?.candidate : null
   const resources = candidate ? [
     candidate.preview?.path ? { key: 'preview', path: candidate.preview.path, name: 'KJDraw interactive preview', title: 'KJDraw drawing preview (zoom and pan)', description: 'Open the reviewable drawing preview with fit, zoom and pan controls.', mimeType: 'text/html' } : null,
@@ -266,21 +268,31 @@ function toolResponse(id, result, isError = false, host = null) {
       annotations: { audience: ['user'], priority: ['text/html', 'image/svg+xml'].includes(resource.mimeType) ? 1 : 0.8 },
     }
   }) : []
+  let inlinePreview = []
+  if (candidate?.svg?.path && host) {
+    try {
+      const svgPath = await resolveRegularFileWithoutLinks(host.workspace, candidate.svg.path, 'Candidate SVG preview')
+      const metadata = await stat(svgPath)
+      if (metadata.size <= MAX_INLINE_SVG_BYTES) inlinePreview = [{
+        type: 'image', data: (await readFile(svgPath)).toString('base64'), mimeType: 'image/svg+xml',
+        annotations: { audience: ['user'], priority: 1 },
+      }]
+    } catch {}
+  }
   send({
     jsonrpc: '2.0', id,
     result: {
-      // Put review artifacts before the machine-readable fallback. Some desktop
-      // MCP hosts only surface the leading content blocks in the conversation;
-      // a text-first response could therefore claim a preview was ready while
-      // hiding every actual drawing link from the user.
-      content: [...resources, { type: 'text', text: JSON.stringify(result) }],
+      // Inline the exact SVG before links so hosts that block custom URI
+      // schemes can still render the candidate. Resource-aware hosts retain
+      // the interactive HTML, SVG, KJD and DXF links that follow.
+      content: [...inlinePreview, ...resources, { type: 'text', text: JSON.stringify(result) }],
       structuredContent: result,
       ...(isError ? { isError: true } : {})
     }
   })
 }
 
-const COMPACT_ENGINEERING_PROPOSALS = new Set(['cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_plan'])
+const COMPACT_ENGINEERING_PROPOSALS = new Set(['cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_section_example', 'cad_propose_geology_plan'])
 function modelVisibleProposal(name, result, host, delivery = null) {
   if (result.ok && delivery) return { ok: true, value: {
     product: 'KJDraw', responseKind: 'verified-cad-candidate@1', tool: name,
@@ -675,11 +687,11 @@ async function main() {
           if (delivery) {
             proposal.delivery = delivery
             await atomicJsonWrite(host.proposals, host.ledger)
-            toolResponse(request.id, modelVisibleProposal(name, result, host, delivery), false, host)
+            await toolResponse(request.id, modelVisibleProposal(name, result, host, delivery), false, host)
             continue
           }
         }
-        toolResponse(request.id, modelVisibleProposal(name, result, host), !result.ok)
+        await toolResponse(request.id, modelVisibleProposal(name, result, host), !result.ok)
         continue
       }
       if (!notification) rpcError(request.id, -32601, 'Method not found')

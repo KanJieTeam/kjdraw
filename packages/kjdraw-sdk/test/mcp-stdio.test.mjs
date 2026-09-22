@@ -164,8 +164,10 @@ test('explicit host candidate policy turns one circle request into independently
   })
   const links = responses[1].result.content.filter(item => item.type === 'resource_link')
   assert.deepEqual(links.map(item => item.mimeType), ['text/html', 'image/svg+xml', 'application/vnd.kanjie.kjdraw+json', 'application/dxf'])
-  assert.equal(responses[1].result.content[0].type, 'resource_link')
-  assert.equal(responses[1].result.content[0].mimeType, 'text/html')
+  assert.equal(responses[1].result.content[0].type, 'image')
+  assert.equal(responses[1].result.content[0].mimeType, 'image/svg+xml')
+  assert.match(Buffer.from(responses[1].result.content[0].data, 'base64').toString('utf8'), /<svg[^>]+xmlns=/u)
+  assert.equal(responses[1].result.content[1].type, 'resource_link')
   assert.equal(responses[1].result.content.at(-1).type, 'text')
   assert.deepEqual(links.map(item => item.uri), [
     'kjdraw://candidate/1/preview', 'kjdraw://candidate/1/svg',

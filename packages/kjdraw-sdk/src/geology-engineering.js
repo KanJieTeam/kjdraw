@@ -3993,7 +3993,7 @@ export function compileGeologySection(input) {
     if (input.holes.some((hole)=>hole.groundwaterObservations?.length)) throw new KJValidationError('Geology: down-hole groundwater annotation facts belong to column layouts, not section summaries');
     const correlationMode = input.correlationMode ?? 'explicit-correlations';
     if (correlationMode !== 'explicit-correlations' && correlationMode !== 'source-group-topology') throw new KJValidationError('Geology: invalid section correlation mode');
-    if (!Array.isArray(input.correlations) || input.correlations.length > 200) throw new KJValidationError('Geology: invalid correlation list');
+    if (!Array.isArray(input.correlations) || input.correlations.length > 512) throw new KJValidationError('Geology: invalid correlation list');
     const manualConnections = input.manualConnections ?? [];
     if (!Array.isArray(manualConnections) || manualConnections.length > 200) throw new KJValidationError('Geology: invalid manual connection list');
     if (correlationMode === 'source-group-topology' && (input.correlations.length || manualConnections.length)) throw new KJValidationError('Geology: source-group topology conflicts with explicit correlations or manual connections');
