@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-KJDRAW_SOURCE_SHA='81e1bc0387023c3f96bffd8a17cb5a5ea3202db2'
+KJDRAW_SOURCE_SHA='1129f309be7151bb4c4670197c5b3fb2627535de'
 command -v node >/dev/null 2>&1 || { echo 'KJDraw requires Node.js 22 or newer.' >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo 'KJDraw requires curl.' >&2; exit 1; }
 command -v tar >/dev/null 2>&1 || { echo 'KJDraw requires tar.' >&2; exit 1; }
@@ -9,7 +9,7 @@ node -e 'if (+process.versions.node.split(".")[0] < 22) process.exit(1)'
 KJDRAW_USER_HOME="${KJDRAW_USER_HOME:-$(node -p 'require("node:os").homedir()')}"
 KJDRAW_DATA_ROOT="${XDG_DATA_HOME:-$KJDRAW_USER_HOME/.local/share}"
 KJDRAW_ROOT="$KJDRAW_DATA_ROOT/kjdraw"
-KJDRAW_INSTALL="$KJDRAW_ROOT/source-81e1bc0"
+KJDRAW_INSTALL="$KJDRAW_ROOT/source-1129f30"
 KJDRAW_STABLE_BIN="$KJDRAW_ROOT/bin"
 KJDRAW_STABLE_MCP="$KJDRAW_STABLE_BIN/kjdraw-mcp.mjs"
 KJDRAW_CURRENT="$KJDRAW_ROOT/current.json"
