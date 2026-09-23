@@ -49,6 +49,12 @@ export declare function resolveAgentTransformEntityIds(document: KJDocument, sou
 export interface KJAgentGeometryPreviewOptions {
     /** Trusted host creation budget; defaults to 64, hard maximum 512. Transforms remain limited to 64. */
     maxCreatedEntities?: number;
+    /** Trusted host new-resource budget; defaults to 32 and is always capped at 256. */
+    maxCreatedResources?: number;
+    /** Trusted host complete after-preview budget, including block members; defaults to maxCreatedEntities and is capped at 4096. */
+    maxPreviewEntities?: number;
+    /** Trusted host serialized preview budget; defaults to 256 KiB and is capped at 4 MiB. */
+    maxPreviewBytes?: number;
 }
 /** Run bounded core geometry on a detached document. No host plugins, authority, network or source history is invoked. */
 export declare function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT', args: Record<string, unknown>, options?: KJAgentGeometryPreviewOptions): Promise<KJAgentGeometryPreview>;

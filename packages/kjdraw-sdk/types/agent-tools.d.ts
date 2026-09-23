@@ -25,6 +25,10 @@ export interface KJAgentGeologyColumnKnowledgeBinding {
     pack: unknown;
     sha256: string;
 }
+export interface KJAgentGeologySectionKnowledgeBinding {
+    pack: unknown;
+    sha256: string;
+}
 export interface KJAgentPatternDrawingInput extends KJAgentCompactDrawingInput {
     arrays: (KJRectangularDrawingPattern & {
         sources: string[];
@@ -219,11 +223,17 @@ export declare class KJAgentToolSession {
         sha256: string;
     }> | undefined;
     /** Exact instance/SDK attachment check for trusted host orchestration. */
+    get geologySectionKnowledge(): Readonly<{
+        id: string;
+        version: string;
+        sha256: string;
+    }> | undefined;
     isBoundTo(document: KJDocument): boolean;
     /** Bind unit schemas to the drawing so models see its canonical unit name. */
     get definitions(): readonly KJAgentToolDefinition[];
     constructor(sdk: KJDrawSDK, document: KJDocument, options?: {
         geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;
+        geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;
     });
     /** Trusted host operation: verify saved parameters against all current generated objects.
      * Registration is bound to this exact document revision and is not model-callable. */

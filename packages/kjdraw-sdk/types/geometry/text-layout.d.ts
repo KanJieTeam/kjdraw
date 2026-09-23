@@ -2,6 +2,8 @@ import type { KJObjectPayload } from '../schema.js';
 type Data = Readonly<Record<string, unknown>>;
 type Point = readonly [number, number];
 type MeasureText = (text: string, height: number, family: string) => number;
+/** Browser-safe engineering preview stack: neutral Latin glyphs plus installed CJK fallbacks. */
+export declare const KJDRAW_ENGINEERING_FONT_STACK = "\"Arial\",\"Segoe UI\",\"Microsoft YaHei\",\"Microsoft YaHei UI\",\"PingFang SC\",\"Noto Sans CJK SC\",\"Source Han Sans SC\",\"WenQuanYi Micro Hei\",sans-serif";
 /** Safe local font-family mapping; no URL/file loading or embedded font claims. */
 export declare function textFontFamily(style?: Data, fallback?: string): string;
 /** CAD cap-height coordinates. Optional metrics are supplied by the rendering host;
