@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-KJDRAW_SOURCE_SHA='8374659204e94c6d35d0e7dcaeaa102b5bd17c3f'
+KJDRAW_SOURCE_SHA='b99e13bb71daf7e072f0bfb027c19988c8451fca'
 command -v node >/dev/null 2>&1 || { echo 'KJDraw requires Node.js 22 or newer.' >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo 'KJDraw requires curl.' >&2; exit 1; }
 command -v tar >/dev/null 2>&1 || { echo 'KJDraw requires tar.' >&2; exit 1; }
@@ -9,7 +9,7 @@ node -e 'if (+process.versions.node.split(".")[0] < 22) process.exit(1)'
 KJDRAW_USER_HOME="${KJDRAW_USER_HOME:-$(node -p 'require("node:os").homedir()')}"
 KJDRAW_DATA_ROOT="${XDG_DATA_HOME:-$KJDRAW_USER_HOME/.local/share}"
 KJDRAW_ROOT="$KJDRAW_DATA_ROOT/kjdraw"
-KJDRAW_INSTALL="$KJDRAW_ROOT/source-8374659"
+KJDRAW_INSTALL="$KJDRAW_ROOT/source-b99e13b"
 KJDRAW_STABLE_BIN="$KJDRAW_ROOT/bin"
 KJDRAW_STABLE_MCP="$KJDRAW_STABLE_BIN/kjdraw-mcp.mjs"
 KJDRAW_CURRENT="$KJDRAW_ROOT/current.json"
@@ -40,6 +40,7 @@ KJDRAW_PREVIOUS_E748="$KJDRAW_ROOT/source-e74812f/packages/kjdraw-sdk/bin/kjdraw
 KJDRAW_PREVIOUS_03D="$KJDRAW_ROOT/source-03d170d/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_73C="$KJDRAW_ROOT/source-73c7975/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_381C="$KJDRAW_ROOT/source-381ce68/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
+KJDRAW_PREVIOUS_8374="$KJDRAW_ROOT/source-8374659/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 
 case "$KJDRAW_USER_HOME" in
   /*) ;;
@@ -145,6 +146,7 @@ if [ -f "$KJDRAW_PREVIOUS_E748" ]; then set -- "$@" --previous-mcp-script "$KJDR
 if [ -f "$KJDRAW_PREVIOUS_03D" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_03D"; fi
 if [ -f "$KJDRAW_PREVIOUS_73C" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_73C"; fi
 if [ -f "$KJDRAW_PREVIOUS_381C" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_381C"; fi
+if [ -f "$KJDRAW_PREVIOUS_8374" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_8374"; fi
 KJDRAW_RESULT=$(node "$KJDRAW_CONNECT" "$@")
 mv -f "$KJDRAW_CURRENT_STAGE" "$KJDRAW_CURRENT"
 trap - 0 HUP INT TERM
