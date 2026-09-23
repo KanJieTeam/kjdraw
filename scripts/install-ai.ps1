@@ -1,9 +1,9 @@
 $ErrorActionPreference = 'Stop'
 
-$KJDrawSourceSha = 'b99e13bb71daf7e072f0bfb027c19988c8451fca'
+$KJDrawSourceSha = '9ae198838e04eb627b64f003cdca9b7cf5f742bf'
 $KJDrawUserHome = if ($env:KJDRAW_USER_HOME) { $env:KJDRAW_USER_HOME } else { $env:USERPROFILE }
 $KJDrawDataRoot = Join-Path $env:LOCALAPPDATA 'KJDraw'
-$KJDrawInstall = Join-Path $KJDrawDataRoot 'source-b99e13b'
+$KJDrawInstall = Join-Path $KJDrawDataRoot 'source-9ae1988'
 $KJDrawStableBin = Join-Path $KJDrawDataRoot 'bin'
 $KJDrawStableMcp = Join-Path $KJDrawStableBin 'kjdraw-mcp.mjs'
 $KJDrawCurrent = Join-Path $KJDrawDataRoot 'current.json'
@@ -39,7 +39,8 @@ $KJDrawPreviousMcpCandidates = @(
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-03d170d\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-73c7975\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-381ce68\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
-  (Join-Path $env:LOCALAPPDATA 'KJDraw\source-8374659\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs')
+  (Join-Path $env:LOCALAPPDATA 'KJDraw\source-8374659\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
+  (Join-Path $env:LOCALAPPDATA 'KJDraw\source-b99e13b\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs')
 )
 
 function Assert-KJDrawSafeItem([string]$Path, [string]$Kind) {
