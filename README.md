@@ -1,10 +1,6 @@
 <p align="center"><img src="docs/assets/hero.svg" alt="KJDraw — the engineering drawing harness for AI agents" width="100%"></p>
 
-<p align="center">
-  <strong>One structured CAD runtime for people, applications, and AI agents.</strong><br>
-  Turn engineering intent into editable entities, deterministic transactions,<br>
-  reviewable evidence, and files that still work after save and reopen.
-</p>
+<h1 align="center">The open-source engineering drawing harness for AI agents.</h1>
 
 <p align="center">
   <a href="#quick-start"><strong>Quick start</strong></a> ·
@@ -26,25 +22,6 @@
 > See [release status](docs/status.md).
 
 ---
-
-## What is KJDraw?
-
-KJDraw is an open-source TypeScript CAD engine and agent runtime for building
-engineering drawing workflows into your own product. It gives applications and AI
-agents one consistent way to create, inspect, edit, validate, preview and deliver
-structured drawings without reducing the result to a screenshot or an opaque blob.
-
-Use KJDraw when you need to:
-
-- give an AI agent bounded, high-level CAD tools instead of asking it to emit hundreds of coordinates;
-- embed an editable CAD workbench in a browser, React or Vue application;
-- inspect existing drawings through stable object IDs, layers, references and spatial queries;
-- compile supported engineering intent into native entities with deterministic geometry;
-- verify a result through diagnostics, Undo/Redo, KJD/DXF reopen and rendered SVG evidence;
-- keep drawings and model credentials local to the user's environment.
-
-KJDraw is not an image generator and it is not a collection of frozen templates. It
-is the execution layer between engineering intent and a reviewable CAD deliverable.
 
 ## Why KJDraw
 
@@ -175,12 +152,6 @@ proposal pending; accepted edits remain undoable and can be saved and reopened.
 | **Generate supported drawing types** | High-level compilers for manufacturing, architecture, site, road, data visualization, and geology workflows. |
 | **Continue editing through conversation** | Precise selection, move, copy, rotate, scale, offset, stretch, lengthen, text/layer edits, and structural delete/reconnect/relayer operations. |
 | **Embed CAD in your product** | JavaScript/TypeScript SDK, React and Vue components, packaged editor, CLI, and MCP tools powered by the same engine. |
-
-Mechanical, geology, architecture, site and road knowledge is delivered as versioned
-high-level compilers on top of the same core. Coverage grows independently of the CAD
-runtime; the [capability matrix](docs/capability-matrix.md) and
-[release status](docs/status.md) are the source of truth for what has passed the
-current release gates.
 
 ---
 

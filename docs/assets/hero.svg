@@ -1,9 +1,49 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="520" viewBox="0 0 1440 520" role="img" aria-labelledby="title desc">
-<title id="title">KJDraw — The engineering drawing harness for AI agents</title><desc id="desc">Open-source, local-first CAD infrastructure for people, engineering applications, and AI agents.</desc>
-<defs><pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".7" fill="#304058"/></pattern><linearGradient id="fade"><stop stop-color="#0c1119"/><stop offset="1" stop-color="#14212d"/></linearGradient></defs>
-<rect width="1440" height="520" rx="18" fill="url(#fade)"/><rect x="700" width="740" height="520" fill="url(#grid)"/>
-<g transform="translate(64 50)"><rect width="43" height="43" rx="10" fill="#bcf878"/><path d="M12 11v22M32 11 17 22l15 11M25 16v12" fill="none" stroke="#17251b" stroke-width="3.5"/><text x="58" y="32" font-family="Segoe UI,Arial,sans-serif" font-size="32" font-weight="650" letter-spacing="-1" fill="#edf4fb">KJDraw</text></g>
-<g font-family="Segoe UI,Arial,sans-serif"><text x="64" y="170" fill="#c0f88c" font-size="13" letter-spacing="3">OPEN SOURCE · LOCAL FIRST · APACHE 2.0</text><text x="59" y="247" fill="#edf4fb" font-size="63" font-weight="600" letter-spacing="-3">Engineering drawing.</text><text x="59" y="318" fill="#bcf878" font-size="63" font-weight="600" letter-spacing="-3">Harnessed for AI.</text><text x="64" y="374" fill="#a8b9cc" font-size="22">Create · Edit · Inspect · Verify · Deliver</text><text x="64" y="408" fill="#a8b9cc" font-size="18">Structured CAD with deterministic execution.</text><text x="64" y="477" fill="#71879e" font-size="12" letter-spacing="2">TYPESCRIPT / RUST / WEBASSEMBLY / MCP</text></g>
-<g transform="translate(890 190)" fill="none" stroke="#78acc9" stroke-width="1.5"><path d="m0 35 210-115 217 120-210 116z"/><path d="m0 35 0 108 217 120 210-115V40M217 156v107M0 90l217 120 210-115M103-21v109l217 120M210-80v109l217 119M107 94 318-22M53 64l210-115M54 65v107M162 126v107M269 127v108M375 69v108"/><path d="m-30 160 247 137 247-137M-30 152v17M464 152v17M217 288v18" stroke="#4e687e"/><path d="m0 35 217 121 210-116" stroke="#bcf878" stroke-width="2.4"/><g fill="#bcf878" stroke="none"><circle cy="35" r="4"/><circle cx="217" cy="156" r="4"/><circle cx="427" cy="40" r="4"/></g></g>
-<g font-family="Consolas,monospace" font-size="12" fill="#7e96ad"><text x="1100" y="83">DRAWING / REV 01</text><text x="875" y="391">X</text><text x="1335" y="369">Y</text><text x="1000" y="494">INTENT → ENTITIES → VALIDATION → FILE</text></g>
+<title id="title">KJDraw engineering banner</title><desc id="desc">Abstract CAD linework combining a mechanical detail, a geological section, and structured drawing geometry.</desc>
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#08111b"/><stop offset=".58" stop-color="#0d1a28"/><stop offset="1" stop-color="#13283a"/></linearGradient>
+  <radialGradient id="glow" cx=".58" cy=".48" r=".68"><stop stop-color="#397fa7" stop-opacity=".25"/><stop offset="1" stop-color="#07101a" stop-opacity="0"/></radialGradient>
+  <pattern id="minor" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#8bb0c6" stroke-opacity=".065"/></pattern>
+  <pattern id="major" width="120" height="120" patternUnits="userSpaceOnUse"><path d="M120 0H0V120" fill="none" stroke="#8bb0c6" stroke-opacity=".11"/></pattern>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#02070d" flood-opacity=".6"/></filter>
+</defs>
+<rect width="1440" height="520" rx="20" fill="url(#bg)"/><rect width="1440" height="520" rx="20" fill="url(#glow)"/><rect width="1440" height="520" rx="20" fill="url(#minor)"/><rect width="1440" height="520" rx="20" fill="url(#major)"/>
+
+<!-- KJDraw mark -->
+<g transform="translate(70 65)" filter="url(#shadow)">
+  <rect width="94" height="94" rx="22" fill="#bcf878"/>
+  <g fill="none" stroke="#17251b" stroke-width="8" stroke-linecap="square" stroke-linejoin="miter"><path d="M25 23v48M70 23 35 47l35 24M55 34v27"/></g>
+  <circle cx="35" cy="47" r="6" fill="#17251b"/>
+</g>
+
+<!-- mechanical detail -->
+<g transform="translate(225 76)" fill="none" stroke="#8db8d0" stroke-width="1.6" filter="url(#shadow)">
+  <rect x="0" y="38" width="470" height="324" rx="10" fill="#0a1622" fill-opacity=".78" stroke="#65869b" stroke-opacity=".55"/>
+  <path d="M70 105h330v190H70z" stroke="#aac9d9" stroke-width="2"/>
+  <path d="M116 145h238v110H116zM190 145v110M280 145v110" stroke-opacity=".43"/>
+  <path d="M116 200h238" stroke="#bcf878" stroke-width="2.6"/>
+  <circle cx="146" cy="170" r="15"/><circle cx="324" cy="170" r="15"/><circle cx="146" cy="230" r="15"/><circle cx="324" cy="230" r="15"/>
+  <circle cx="235" cy="200" r="42"/><circle cx="235" cy="200" r="23"/>
+  <path d="M235 130v140M165 200h140" stroke="#6f91a5" stroke-dasharray="9 6"/>
+  <path d="M116 93V72M354 93V72M116 78h238M116 68v20M354 68v20M57 145H35M57 255H35M42 145v110M32 145h20M32 255h20" stroke="#66889e"/>
+  <path d="m111 78 12-5v10zm248 0-12-5v10zM42 140l-5 12h10zm0 120-5-12h10z" fill="#66889e" stroke="none"/>
+  <path d="M84 318h302M84 332h302" stroke="#607f93" stroke-opacity=".48"/>
+</g>
+
+<!-- geology section -->
+<g transform="translate(760 76)" fill="none" stroke="#8db8d0" stroke-width="1.5" filter="url(#shadow)">
+  <rect x="0" y="38" width="610" height="324" rx="10" fill="#0a1622" fill-opacity=".78" stroke="#65869b" stroke-opacity=".55"/>
+  <path d="M55 92v218M165 92v218M275 92v218M385 92v218M495 92v218" stroke-opacity=".48"/>
+  <path d="M34 122h538M34 168h538M34 214h538M34 260h538M34 306h538" stroke-opacity=".22"/>
+  <path d="M55 126c70-18 143 10 220-1s151-8 220 6M55 172c76 12 143-8 220 5s145-4 220-7M55 218c73-9 146 16 220 1s148 3 220 12M55 264c70 14 143-6 220 7s151-10 220-2" stroke="#bcf878" stroke-width="2.5"/>
+  <path d="M55 92l110 10 110-4 110 13 110-8" stroke="#c5d9e4" stroke-width="2"/>
+  <g fill="#bcf878" stroke="none"><circle cx="55" cy="126" r="4"/><circle cx="165" cy="120" r="4"/><circle cx="275" cy="125" r="4"/><circle cx="385" cy="124" r="4"/><circle cx="495" cy="131" r="4"/></g>
+  <g stroke="#66889e"><path d="M55 78V58M495 78V58M55 64h440"/><path d="m50 64 12-5v10zm450 0-12-5v10z" fill="#66889e" stroke="none"/></g>
+  <path d="M35 326h538" stroke="#607f93" stroke-opacity=".5"/>
+</g>
+
+<!-- shared structured flow -->
+<g fill="none" stroke="#bcf878" stroke-width="2.4"><path d="M185 424H1260"/><path d="m1260 424-16-8v16z" fill="#bcf878"/></g>
+<g fill="#bcf878"><circle cx="185" cy="424" r="6"/><circle cx="550" cy="424" r="6"/><circle cx="910" cy="424" r="6"/><circle cx="1260" cy="424" r="6"/></g>
+<g stroke="#63869c" stroke-width="1.2"><path d="M185 438v22M550 438v22M910 438v22M1260 438v22"/></g>
 </svg>
