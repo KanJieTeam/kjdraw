@@ -17,36 +17,6 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
 
-> **Status: 1.0 release candidate.** Command-line configuration and real-engine smoke
-> tests pass; independent GUI and model acceptance is still a release gate.
-> See [release status](docs/status.md).
-
----
-
-## Why KJDraw
-
-Generating geometry is no longer the hard part. Engineering CAD starts where geometry ends: a drawing contains hundreds of related objects, and the model must find the same object again across turns, preserve dimensions, layers, blocks, hatches and references, and produce a consistent result after Undo, export, save and reopen.
-
-Asking an LLM to emit coordinates and primitive entities one by one creates four predictable failures:
-
-- Token cost grows with the size of the drawing.
-- Geometry and engineering constraints drift across turns.
-- Without stable object identity, the next edit becomes a guess.
-- A rendered result does not prove that the drawing remains editable or auditable.
-
-KJDraw turns the same job into one sentence:
-
-```text
-Draw an engineering borehole log with KJDraw: generate strata, lithology hatching,
-elevations and annotations from the borehole data.
-```
-
-KJDraw is not another model trained to draw a few templates. It gives different
-models and agents the same CAD execution layer: **the model decides what to draw;
-the engine decides how to draw it correctly.** The model submits engineering intent,
-facts and constraints; geometry, object identity, layers, references, transactions,
-validation and file output are resolved deterministically by the local engine.
-
 ---
 
 ## Quick start
