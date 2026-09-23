@@ -166,6 +166,7 @@ if (Test-Path -LiteralPath $KJDrawHost -PathType Leaf) {
 # other files still fail atomically inside kjdraw-connect.
 $KJDrawArgs += @('--mcp-script', $KJDrawStableMcp)
 $KJDrawArgs += '--replace-existing'
+ += '--replace-existing-skill'
 $KJDrawPreviousMcp = @($KJDrawPreviousMcpCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
 foreach ($KJDrawPreviousPath in $KJDrawPreviousMcp) { $KJDrawArgs += @('--previous-mcp-script', $KJDrawPreviousPath) }
 try {

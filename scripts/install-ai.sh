@@ -115,7 +115,7 @@ fi
 # managed by KJDraw and may be replaced. The connector only replaces that
 # named entry; unrelated MCP servers remain untouched. Unknown conflicts in
 # other files still fail atomically inside kjdraw-connect.
-set -- "$@" --mcp-script "$KJDRAW_STABLE_MCP" --replace-existing
+set -- "$@" --mcp-script "$KJDRAW_STABLE_MCP" --replace-existing --replace-existing-skill
 if [ -f "$KJDRAW_PREVIOUS_000D" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_000D"; fi
 if [ -f "$KJDRAW_PREVIOUS_DDB0" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_DDB0"; fi
 if [ -f "$KJDRAW_PREVIOUS_BB17" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_BB17"; fi

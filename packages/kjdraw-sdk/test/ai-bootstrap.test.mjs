@@ -23,7 +23,7 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
     assert.match(source, /--candidate-dir/)
     assert.match(source, /\.kjdraw\/results/)
     assert.match(source, /--previous-mcp-script/)
-    assert.match(source, /--replace-existing/)
+    assert.match(source, /--replace-existing/); assert.match(source, /--replace-existing-skill/)
     assert.match(source, /--mcp-script/)
     assert.match(source, /current\.json/)
     assert.match(source, /com\.kanjie\.kjdraw\.install-current@1/)

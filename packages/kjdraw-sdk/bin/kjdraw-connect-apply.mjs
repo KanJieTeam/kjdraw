@@ -46,8 +46,8 @@ function parseArgs(argv) {
     const key = argv[i]
     if (seen.has(key) && key !== '--previous-mcp-script') throw new Error(`Duplicate option: ${key}`)
     seen.add(key)
-    if (key === '--all' || key === '--apply' || key === '--replace-existing') {
-      options[key === '--replace-existing' ? 'replaceExisting' : key.slice(2)] = true
+    if (key === '--all' || key === '--apply' || key === '--replace-existing' || key === '--replace-existing-skill') {
+      options[key === '--replace-existing' ? 'replaceExisting' : key === '--replace-existing-skill' ? 'replaceExistingSkill' : key.slice(2)] = true
       continue
     }
     if (key === '--previous-mcp-script') {
@@ -218,7 +218,7 @@ async function directoryFiles(root, directory = root) {
   return names.sort()
 }
 
-async function planSkillTargets(root, source) {
+async function planSkillTargets(root, source, replaceExistingSkill = false) {
   const plans = []
   for (const target of SKILL_TARGETS) {
     const path = await checkedPath(root, target.path, 'KJDraw Skill', 'directory')
@@ -226,14 +226,12 @@ async function planSkillTargets(root, source) {
     if (!existing) { plans.push({ ...target, path, action: 'add' }); continue }
     const names = await directoryFiles(path)
     if (!isDeepStrictEqual(names, [...SKILL_FILES].sort())) throw new Error(`Existing KJDraw Skill conflicts at ${target.path}; refusing to overwrite it`)
-    for (const file of source.files) {
-      if (sha(await readFile(join(path, ...file.name.split('/')))) !== file.sha256) throw new Error(`Existing KJDraw Skill conflicts at ${target.path}; refusing to overwrite it`)
-    }
-    plans.push({ ...target, path, action: 'unchanged' })
+    const matches = (await Promise.all(source.files.map(async file => sha(await readFile(join(path, ...file.name.split('/')))) === file.sha256))).every(Boolean)
+    if (!matches && !replaceExistingSkill) throw new Error(`Existing KJDraw Skill conflicts at ${target.path}; refusing to overwrite it`)
+    plans.push({ ...target, path, action: matches ? 'unchanged' : 'replace' })
   }
   return plans
 }
-
 async function stageSkill(root, source) {
   const temporary = join(root, `.kjdraw-skill-stage-${randomUUID()}`)
   await mkdir(temporary, { recursive: false })
@@ -340,7 +338,7 @@ export async function connectWorkspace(options, hooks = {}) {
   const sourceSha256 = sha(await inspected('Installed MCP script', () => readFile(mcpPath)))
   const nodeEvidence = await inspected('Node.js runtime', () => nodePathEvidence(root))
   const skill = await inspected('Packaged KJDraw skill', () => skillSource())
-  const skillPlans = await inspected('Existing KJDraw skill', () => planSkillTargets(root, skill))
+  const skillPlans = await inspected('Existing KJDraw skill', () => planSkillTargets(root, skill, options.replaceExistingSkill === true))
   // 'node' avoids an ephemeral desktop runtime path and TraeCode's no-spaces command rule.
   const entry = { command: 'node', args: [mcpPath, '--workspace', rawRoot, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/'),
     ...(candidates ? ['--candidate-dir', relative(root, candidates).split(sep).join('/')] : []),
@@ -398,6 +396,7 @@ export async function connectWorkspace(options, hooks = {}) {
   const retainedBackups = new Set()
   const stagedSkills = []
   const committedSkills = []
+  const skillBackups = []
   try {
     await ensureProjectDirectory(root, dirname(proposals))
     if (!await item(proposals)) { await mkdir(proposals); created.push({ path: proposals, type: 'directory' }) }
@@ -422,8 +421,9 @@ export async function connectWorkspace(options, hooks = {}) {
         backups.push(plan.backup)
       }
     }
-    for (const plan of skillPlans.filter(plan => plan.action === 'add')) {
-      if (await item(plan.path)) throw new Error(`KJDraw Skill appeared during installation at ${plan.path}`)
+    for (const plan of skillPlans.filter(plan => ['add', 'replace'].includes(plan.action))) {
+      if (plan.action === 'replace' && !(await item(plan.path))) throw new Error(`KJDraw Skill disappeared during installation at ${plan.path}`)
+      if (plan.action === 'add' && await item(plan.path)) throw new Error(`KJDraw Skill appeared during installation at ${plan.path}`)
       plan.temp = await stageSkill(root, skill)
       stagedSkills.push(plan.temp)
     }
@@ -434,25 +434,32 @@ export async function connectWorkspace(options, hooks = {}) {
       await rename(plan.temp, plan.path)
       committed.push(plan)
     }
-    for (const plan of skillPlans.filter(plan => plan.action === 'add')) {
+    for (const plan of skillPlans.filter(plan => ['add', 'replace'].includes(plan.action))) {
       let walk = root
       for (const part of relative(root, dirname(plan.path)).split(sep)) {
         walk = resolve(walk, part)
         if (!await item(walk)) { await mkdir(walk); created.push({ path: walk, type: 'directory' }) }
       }
-      if (await item(plan.path)) throw new Error(`KJDraw Skill appeared during installation at ${plan.path}`)
+      if (await item(plan.path)) {
+        if (plan.action !== 'replace') throw new Error(`KJDraw Skill appeared during installation at ${plan.path}`)
+        plan.backup = `${plan.path}.kjdraw-skill-backup-${randomUUID()}`
+        await rename(plan.path, plan.backup)
+        skillBackups.push(plan.backup)
+      }
       await rename(plan.temp, plan.path)
       committedSkills.push(plan)
-    }
-    return { applied: true, clients: clientEvidence(), skills: skillEvidence, drawing: drawing.serialized ? 'created blank' : 'existing', backupCount: backups.length, transientBackupCount: backups.length, retainedBackupCount: 0, sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
+    }    return { applied: true, clients: clientEvidence(), skills: skillEvidence, drawing: drawing.serialized ? 'created blank' : 'existing', backupCount: backups.length, transientBackupCount: backups.length, retainedBackupCount: 0, sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
   } catch (error) {
     const rollbackConflicts = []
     for (const plan of committedSkills.reverse()) {
       try {
         const names = await directoryFiles(plan.path)
         const exact = isDeepStrictEqual(names, [...SKILL_FILES].sort()) && (await Promise.all(skill.files.map(async file => sha(await readFile(join(plan.path, ...file.name.split('/')))) === file.sha256))).every(Boolean)
-        if (exact) await rm(plan.path, { recursive: true, force: true })
-        else rollbackConflicts.push(plan.clients.join('/'))
+        if (!exact) rollbackConflicts.push(plan.clients.join('/'))
+        else {
+          await rm(plan.path, { recursive: true, force: true })
+          if (plan.backup) await rename(plan.backup, plan.path)
+        }
       } catch { rollbackConflicts.push(plan.clients.join('/')) }
     }
     for (const plan of committed.reverse()) {
@@ -487,6 +494,7 @@ export async function connectWorkspace(options, hooks = {}) {
     for (const path of staged) await unlink(path).catch(error => { if (error.code !== 'ENOENT') cleanupFailures.push(path) })
     for (const path of backups) if (!retainedBackups.has(path)) await unlink(path).catch(error => { if (error.code !== 'ENOENT') cleanupFailures.push(path) })
     for (const path of stagedSkills) await rm(path, { recursive: true, force: true }).catch(() => cleanupFailures.push(path))
+    for (const path of skillBackups) await rm(path, { recursive: true, force: true }).catch(() => cleanupFailures.push(path))
     if (cleanupFailures.length) throw new Error(`Connect may have changed project files; temporary copies could not be removed: ${cleanupFailures.map(path => relative(root, path).split(sep).join('/')).join(', ')}`)
   }
 }
