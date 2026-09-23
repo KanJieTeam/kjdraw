@@ -3,14 +3,6 @@
 <p align="center"><strong>The open-source engineering drawing harness for AI agents.</strong></p>
 
 <p align="center">
-  Mechanical · Geology · Architecture · Site Plans · Roads
-</p>
-
-<p align="center">
-  <strong>Deterministic, editable CAD infrastructure for AI agents</strong>
-</p>
-
-<p align="center">
   Build engineering drawing workflows with high-level compilers, stable object identity,
   transactional editing, and one runtime across browsers, Node.js, CLI, and MCP.
 </p>

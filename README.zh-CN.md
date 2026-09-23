@@ -3,14 +3,6 @@
 <p align="center"><strong>面向 AI 智能体的开源工程图纸运行时。</strong></p>
 
 <p align="center">
-  机械 · 勘察 · 建筑 · 施工总平 · 道路
-</p>
-
-<p align="center">
-  <strong>面向 AI 智能体的确定性、可编辑 CAD 基础设施</strong>
-</p>
-
-<p align="center">
   通过高层工程编译器、稳定对象身份和事务化编辑构建工程绘图工作流，
   并以同一运行时连接浏览器、Node.js、CLI 与 MCP。
 </p>
