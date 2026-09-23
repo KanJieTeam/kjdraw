@@ -1,6 +1,12 @@
 <p align="center"><img src="docs/assets/hero.svg" alt="KJDraw——面向 AI 智能体的工程图纸运行时" width="100%"></p>
 
-<h1 align="center">面向 AI 智能体的开源工程图纸运行时。</h1>
+<p align="center"><strong>面向 AI 智能体的开源工程图纸运行时。</strong></p>
+
+<p align="center">
+  让人、应用和 AI 智能体共享同一个结构化 CAD 运行时。<br>
+  把工程意图编译成可编辑实体、确定性事务、可审核证据，
+  以及保存重开后仍然可靠的真实图纸。
+</p>
 
 <p align="center">
   <a href="#快速开始"><strong>快速开始</strong></a> ·
@@ -17,6 +23,21 @@
   <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><img src="https://img.shields.io/badge/Docs-get_started-2863f0?style=flat-square&labelColor=30363d" alt="使用文档"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
+
+## KJDraw 是什么？
+
+KJDraw 是以 TypeScript 为核心的开源 CAD 引擎和智能体运行时，用来把工程绘图能力嵌入自己的产品。人、应用和 AI 可以通过同一套接口创建、读取、编辑、校验、预览并交付结构化图纸，结果不是截图，也不是无法继续修改的黑盒文件。
+
+适合以下场景：
+
+- 给 AI 提供有边界的高层 CAD 工具，而不是让模型逐个猜测和输出数百个坐标；
+- 在浏览器、React 或 Vue 应用中嵌入可编辑 CAD 工作台；
+- 通过稳定对象 ID、图层、引用和空间查询读懂现有图纸；
+- 把已经支持的工程意图确定性编译为原生 CAD 实体；
+- 通过诊断、撤销重做、KJD/DXF 重开和 SVG 渲染证据验证结果；
+- 让图纸和模型凭据留在用户自己的本地环境。
+
+KJDraw 不是图片生成器，也不是一组固定模板。它是工程意图与可审核 CAD 交付物之间的执行层。
 
 ## KJDraw 真正解决什么
 
@@ -54,8 +75,6 @@ curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/inst
 ```
 
 连接器会安全合并用户级配置，不再要求修改每个项目；可编辑图纸宿主统一保存在用户主目录。[安装细节与安全边界](docs/try-in-ai.zh-CN.md)
-
-> **1.0 候选状态：** 命令行配置与真实引擎冒烟测试已经通过；四个客户端 GUI 与真实模型的独立验收仍是发布门槛。KJDraw 不收集模型 Key；安装器会把新建请求物化为独立验证的 KJD、DXF 和 SVG 候选图，永不覆盖源图；原位修改与破坏性操作仍由宿主审核。
 
 ### 体验在线编辑器
 
