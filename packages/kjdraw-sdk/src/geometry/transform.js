@@ -3,6 +3,10 @@ import { KJValidationError } from '../errors.js';
 import { clone } from '../utils.js';
 import { hatchPatternLines } from './hatch.js';
 import { determinant3, similarityScale3, transformPoint3, transformVector3 } from './matrix3.js';
+function withoutUndefined(record) {
+    for (const key of Object.keys(record))if (record[key] === undefined) delete record[key];
+    return record;
+}
 function angleOf(vector) {
     const record = vector;
     const coordinates = Array.isArray(vector) ? vector : [
@@ -130,7 +134,6 @@ export function transformEntityPayload(type, source, matrix) {
             };
         case 'LWPOLYLINE':
         case 'POLYLINE':
-        case 'WIPEOUT':
         case 'REVISION_CLOUD':
             return {
                 ...payload,
@@ -177,6 +180,14 @@ export function transformEntityPayload(type, source, matrix) {
                     mirrored: mirrored ? !payload.mirrored : payload.mirrored
                 };
             }
+        case 'WIPEOUT':
+            return withoutUndefined({
+                ...payload,
+                position: payload.position == null ? undefined : transformPoint3(matrix, payload.position),
+                uVector: payload.uVector == null ? undefined : transformVector3(matrix, payload.uVector),
+                vVector: payload.vVector == null ? undefined : transformVector3(matrix, payload.vVector),
+                vertices: (payload.vertices ?? payload.points ?? []).map((vertex)=>transformVertex(matrix, vertex, mirrored, scale()))
+            });
         case 'IMAGE':
             return {
                 ...payload,
@@ -250,6 +261,24 @@ export function transformEntityPayload(type, source, matrix) {
                 textPosition: payload.textPosition && transformPoint3(matrix, payload.textPosition),
                 rotation: transformAngle(matrix, payload.rotation ?? 0)
             };
+        case 'TOLERANCE':
+            {
+                const axis = transformVector3(matrix, payload.xAxisDirection ?? [
+                    1,
+                    0,
+                    0
+                ]), z = Number(axis[2] ?? 0), length = Math.hypot(axis[0], axis[1], z);
+                if (!(length > 1e-15)) throw new KJValidationError('TOLERANCE x-axis direction became degenerate');
+                return {
+                    ...payload,
+                    position: transformPoint3(matrix, payload.position),
+                    xAxisDirection: [
+                        axis[0] / length,
+                        axis[1] / length,
+                        z / length
+                    ]
+                };
+            }
         case 'VIEWPORT':
             return {
                 ...payload,

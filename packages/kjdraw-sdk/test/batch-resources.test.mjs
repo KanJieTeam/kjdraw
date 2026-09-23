@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJCommandRegistry, registerCoreCommands } from '../src/commands.js'
 
@@ -69,6 +70,37 @@ test('resource batches can reference existing linetypes, accept empty groups, an
   assert.equal(document.getTable('layers').records.find(item => item.name === 'LEGACY').payload.color, 2)
 })
 
+test('resource batches create bounded text and dimension styles atomically and preserve native references', async () => {
+  const { sdk, document } = fixture(), layer0 = document.getTable('layers').currentId
+  const args = { resources: { linetypes: [], layers: [],
+    textStyles: [{ id: 'note-style', name: 'NOTE-NARROW', payload: { fontFamily: 'TXT', fontFile: 'TXT', bigFontFile: '', fixedHeight: 0, widthFactor: .7, obliqueAngle: 0, dxfFlags: 0, generationFlags: 0 } }],
+    dimensionStyles: [{ id: 'dimension-style', name: 'DIM-PRECISION', payload: { overallScale: 1, arrowSize: 3, extensionOffset: .625, baselineSpacing: 3.75, extensionBeyond: 0, rounding: 1e-9, textHeight: 3, decimalPlaces: 2, centerMarkSize: 2.5, textGap: .75, dxfFlags: 0 } }],
+  }, entities: [
+    { type: 'MTEXT', payload: { position: [5, 5, 0], text: 'NOTE', height: 3, styleId: 'note-style', layerId: layer0 }, options: { id: 'note' } },
+    { type: 'DIMENSION', payload: { dimensionType: 'ALIGNED', definitionPoints: [[0, 5, 0], [0, 0, 0], [10, 0, 0]], styleId: 'dimension-style', styleName: 'DIM-PRECISION', layerId: layer0 }, options: { id: 'dimension' } },
+    { type: 'TOLERANCE', payload: { position: [5, 8, 0], text: String.raw`{\Fgdt;j}%%v0.1%%vA%%v%%v%%v%%v^J`, styleId: 'dimension-style', styleName: 'DIM-PRECISION', normal: [0, 0, 1], xAxisDirection: [1, 0, 0], layerId: layer0 }, options: { id: 'tolerance' } },
+  ] }
+  await sdk.executeCommand('CREATEBATCH', args)
+  assert.equal(document.getObject('note-style').payload.widthFactor, .7)
+  assert.equal(document.getObject('dimension-style').payload.decimalPlaces, 2)
+  assert.equal(document.getObject('note').payload.styleId, 'note-style')
+  assert.equal(document.getObject('tolerance').payload.styleId, 'dimension-style')
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, format === 'DXF' ? { format, version: '2018' } : { format }), { format })
+    const textStyle = reopened.getTable('textStyles').records.find(item => item.name === 'NOTE-NARROW')
+    const dimensionStyle = reopened.getTable('dimensionStyles').records.find(item => item.name === 'DIM-PRECISION')
+    assert.equal(textStyle.payload.widthFactor, .7)
+    assert.equal(dimensionStyle.payload.decimalPlaces, 2)
+    assert.equal(reopened.listEntities({ type: 'MTEXT' })[0].payload.styleId, textStyle.id)
+    assert.equal(reopened.listEntities({ type: 'TOLERANCE' })[0].payload.styleId, dimensionStyle.id)
+  }
+  await sdk.executeCommand('UNDO')
+  assert.equal(document.getObject('note-style'), null)
+  assert.equal(document.getObject('dimension-style'), null)
+  await sdk.executeCommand('REDO')
+  assert.equal(document.getObject('note-style').payload.widthFactor, .7)
+})
+
 test('resource batches create reusable native blocks and inserts in one undoable transaction', async () => {
   const { sdk, document } = fixture(), continuous = document.getTable('linetypes').currentId
   const args = {
@@ -121,12 +153,111 @@ test('block resource identity, ownership and references are validated atomically
     args => { args.resources.blocks[0].entities[0].type = 'INSERT' },
     args => { args.entities[0].payload.blockRecordId = 'missing' },
     args => { args.entities[0].payload.attributeIds = ['forged'] },
-    args => { args.resources.blocks = Array.from({ length: 17 }, (_, index) => ({ id: `b-${index}`, name: `B-${index}`, basePoint: [0, 0, 0], entities: [{ type: 'POINT', payload: { position: [0, 0, 0], layerId: 'layer' }, options: { id: `m-${index}` } }] })) },
+    args => { args.resources.blocks[0].entities = Array.from({ length: 1025 }, (_, index) => ({ type: 'POINT', payload: { position: [index, 0, 0], layerId: 'layer' }, options: { id: `member-${index}` } })) },
+    args => { args.resources.blocks = Array.from({ length: 257 }, (_, index) => ({ id: `b-${index}`, name: `B-${index}`, basePoint: [0, 0, 0], entities: [{ type: 'POINT', payload: { position: [0, 0, 0], layerId: 'layer' }, options: { id: `m-${index}` } }] })) },
   ]
   for (const mutate of cases) {
     const args = valid(); mutate(args)
     await assert.rejects(sdk.executeCommand('CREATEBATCH', args))
     assert.equal(document.serialize(), source)
+  }
+})
+
+test('CREATEBATCH block budgets accept 256 records, 1024 per block and 2048 total before atomic next-value rejection', async t => {
+  const { sdk, document } = fixture()
+  const member = (blockIndex, memberIndex) => ({ type: 'POINT', payload: { position: [memberIndex, blockIndex, 0] }, options: { id: `public-member-${blockIndex}-${memberIndex}` } })
+  const makeArgs = (blockCount, memberCounts) => {
+    const blocks = Array.from({ length: blockCount }, (_, blockIndex) => ({
+      id: `public-block-${blockIndex}`, name: `PUBLIC_BOUNDARY_${String(blockIndex).padStart(3, '0')}`, basePoint: [0, 0, 0],
+      entities: Array.from({ length: memberCounts[blockIndex] ?? 0 }, (_, memberIndex) => member(blockIndex, memberIndex)),
+    }))
+    return { resources: { linetypes: [], layers: [], blocks }, entities: [{ type: 'INSERT', payload: {
+      blockRecordId: blocks[0].id, position: [0, 0, 0], scale: [1, 1, 1], rotation: 0, attributeIds: [], sequenceEndId: null,
+    }, options: { id: 'public-boundary-insert' } }] }
+  }
+  const source = document.serialize()
+  for (const [args, pattern] of [
+    [makeArgs(257, []), /at most 256 block records/u],
+    [makeArgs(1, [1025]), /at most 1024 definition entities/u],
+    [makeArgs(5, [512, 512, 512, 512, 1]), /at most 2048 total definition entities/u],
+  ]) {
+    await assert.rejects(sdk.executeCommand('CREATEBATCH', args), pattern)
+    assert.equal(document.serialize(), source)
+  }
+  const args = makeArgs(256, [1024, 1024])
+  await sdk.executeCommand('CREATEBATCH', args)
+  const customBlocks = document.getTable('blockRecords').records.filter(record => record.name?.startsWith('PUBLIC_BOUNDARY_'))
+  assert.equal(customBlocks.length, 256)
+  assert.equal(customBlocks.reduce((sum, block) => sum + block.payload.entityIds.length, 0), 2048)
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const [kjd, dxf] = await Promise.all([
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
+    sdk.readDocument(dxfText, { format: 'DXF' }),
+  ])
+  for (const reopened of [kjd, dxf]) {
+    const blocks = reopened.getTable('blockRecords').records.filter(record => record.name?.startsWith('PUBLIC_BOUNDARY_'))
+    assert.equal(blocks.length, 256)
+    assert.equal(blocks.reduce((sum, block) => sum + block.payload.entityIds.length, 0), 2048)
+  }
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); b=[x for x in d.blocks if x.name.startswith("PUBLIC_BOUNDARY_")]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"blocks":len(b),"members":sum(len(x) for x in b)}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, blocks: 256, members: 2048 })
+  }
+})
+test('CREATEBATCH atomically creates editable attributed block sequences and preserves them through KJD and DXF', async () => {
+  const { sdk, document } = fixture(), continuous = document.getTable('linetypes').currentId
+  const args = {
+    resources: {
+      linetypes: [], layers: [{ id: 'tag-layer', name: 'PUBLIC-TAGS', color: 7, linetypeId: continuous, lineweight: 18 }],
+      blocks: [{ id: 'tag-block', name: 'PUBLIC-TAGGED-SYMBOL', basePoint: [0, 0, 0], entities: [
+        { type: 'LINE', payload: { start: [0, 0, 0], end: [10, 0, 0], layerId: 'tag-layer' }, options: { id: 'tag-line' } },
+        { type: 'ATTDEF', payload: { position: [1, 2, 0], text: 'DEFAULT', tag: 'PART', prompt: 'Part', flags: 0, height: 2.5, rotation: 0, layerId: 'tag-layer' }, options: { id: 'tag-definition' } },
+      ] }],
+    },
+    entities: [{ type: 'INSERT', payload: { blockRecordId: 'tag-block', position: [20, 30, 0], scale: [1, 1, 1], rotation: 0, attributes: {}, attributeIds: [], sequenceEndId: null, layerId: 'tag-layer' }, options: { id: 'tag-insert' },
+      attributeSequence: { attributes: [
+        { id: 'tag-value', payload: { position: [21, 32, 0], alignmentPoint: [21, 32, 0], text: 'P-100', tag: 'PART', prompt: '', flags: 0, height: 2.5, rotation: 0, layerId: 'tag-layer' } },
+      ], sequenceEnd: { id: 'tag-end', dxfOwnerMode: 'insert', layerId: 'tag-layer' } } }],
+  }
+  const created = await sdk.executeCommand('CREATEBATCH', args)
+  assert.deepEqual(created.map(item => item.id), ['tag-line', 'tag-definition', 'tag-insert', 'tag-value', 'tag-end'])
+  const insert = document.getObject('tag-insert'), value = document.getObject('tag-value'), end = document.getObject('tag-end')
+  assert.deepEqual(insert.payload.attributeIds, ['tag-value']); assert.equal(insert.payload.sequenceEndId, 'tag-end')
+  assert.equal(value.ownerId, document.spaces.modelSpaceId); assert.equal(value.payload.parentInsertId, 'tag-insert')
+  assert.equal(end.kind, 'custom'); assert.equal(end.ownerId, 'tag-insert'); assert.equal(document.validate().valid, true)
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format }), { format })
+    const next = reopened.listEntities({ type: 'INSERT' })[0], attribute = reopened.getObject(next.payload.attributeIds[0]), sequence = reopened.getObject(next.payload.sequenceEndId)
+    assert.equal(attribute.payload.text, 'P-100'); assert.equal(attribute.payload.tag, 'PART'); assert.equal(attribute.payload.parentInsertId, next.id)
+    assert.equal(sequence.kind, 'custom'); assert.equal(sequence.ownerId, next.id)
+  }
+})
+
+test('CREATEBATCH rejects incomplete, forged or oversized attributed sequences without mutation', async () => {
+  const { sdk, document } = fixture(), source = document.serialize(), continuous = document.getTable('linetypes').currentId
+  const valid = () => ({ resources: { linetypes: [], layers: [{ id: 'layer', name: 'ATTRIBUTES', color: 7, linetypeId: continuous, lineweight: 18 }], blocks: [
+    { id: 'block', name: 'ATTRIBUTED-BLOCK', basePoint: [0, 0, 0], entities: [{ type: 'POINT', payload: { position: [0, 0, 0], layerId: 'layer' }, options: { id: 'member' } }] },
+  ] }, entities: [{ type: 'INSERT', payload: { blockRecordId: 'block', position: [0, 0, 0], scale: [1, 1, 1], rotation: 0, attributeIds: [], sequenceEndId: null, layerId: 'layer' }, options: { id: 'insert' },
+    attributeSequence: { attributes: [{ id: 'attribute', payload: { position: [0, 0, 0], text: 'A', tag: 'TAG', prompt: '', flags: 0, height: 2.5, rotation: 0 } }], sequenceEnd: { id: 'end', dxfOwnerMode: 'insert' } } }] })
+  const cases = [
+    args => { args.entities[0].type = 'LINE' },
+    args => { args.entities[0].options = {} },
+    args => { args.entities[0].attributeSequence.attributes = [] },
+    args => { args.entities[0].attributeSequence.attributes[0].id = 'insert' },
+    args => { args.entities[0].attributeSequence.attributes[0].payload.parentInsertId = 'forged' },
+    args => { args.entities[0].attributeSequence.sequenceEnd.dxfOwnerMode = 'other' },
+    args => { args.entities[0].attributeSequence.sequenceEnd.extra = true },
+    args => { args.entities[0].attributeSequence.attributes = Array.from({ length: 65 }, (_, index) => ({ id: `attribute-${index}`, payload: { position: [0, 0, 0], text: 'A', tag: `T${index}`, prompt: '', flags: 0, height: 2.5, rotation: 0 } })) },
+  ]
+  for (const mutate of cases) {
+    const args = valid(); mutate(args)
+    await assert.rejects(sdk.executeCommand('CREATEBATCH', args)); assert.equal(document.serialize(), source)
   }
 })
 
@@ -203,12 +334,32 @@ test('duplicate identity, name collisions, wrong-table references and invalid en
   }
 })
 
-test('linetype patterns require finite alternating dash/gap pairs and bounded table groups', async () => {
+test('linetype patterns preserve native dash, gap and point segments within bounded table groups', async t => {
   const { sdk, document } = fixture(), source = document.serialize()
-  for (const pattern of [[1], [1, -1, 1], [0, -1], [-1, 1], [1, 1], [1, -1, -1, 1], [Infinity, -1], [1, NaN], [1e13, -1], Array.from({ length: 34 }, (_, i) => i % 2 ? -1 : 1)]) {
+  for (const pattern of [[0], [0, 0], [Infinity, -1], [1, NaN], [1e13, -1], Array.from({ length: 33 }, (_, i) => i % 3 ? -1 : 0)]) {
     const args = input(); args.resources.linetypes[0].pattern = pattern
     await assert.rejects(sdk.executeCommand('CREATEBATCH', args))
     assert.equal(document.serialize(), source)
+  }
+  for (const pattern of [[1], [1, -1, 1], [0, -1], [-1, 1], [1, 1], [1, -1, -1, 1]]) {
+    const current = fixture(), args = input(); args.resources.linetypes[0].pattern = pattern
+    await current.sdk.executeCommand('CREATEBATCH', args)
+    assert.deepEqual(current.document.getObject('type-center').payload.pattern, pattern)
+  }
+  const pointArgs = input(); pointArgs.resources.linetypes[0].pattern = [4, -1, 0, -1]
+  const pointFixture = fixture(); await pointFixture.sdk.executeCommand('CREATEBATCH', pointArgs)
+  const dxf = await pointFixture.sdk.writeDocument(pointFixture.document, { format: 'DXF', version: '2018' })
+  const reopened = await createKJDrawSDK().readDocument(dxf, { format: 'DXF' })
+  assert.deepEqual(reopened.getTable('linetypes').records.find(record => record.name === 'CENTER').payload.pattern, [4, -1, 0, -1])
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"pattern":[float(x) for x in d.linetypes.get("CENTER").pattern_tags.compile()] }))'],
+  dxf, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    const audit = JSON.parse(independent.stdout); assert.deepEqual([audit.errors, audit.fixes], [0, 0]); assert.ok(audit.pattern.includes(0))
   }
   for (const resources of [null, {}, { linetypes: [] }, { linetypes: [], layers: [], code: 'DELETE' }, { linetypes: Array.from({ length: 17 }, (_, i) => ({ id: `type-${i}`, name: `TYPE${i}`, pattern: [1, -1] })), layers: [] }]) {
     await assert.rejects(sdk.executeCommand('CREATEBATCH', { ...input(), resources }))

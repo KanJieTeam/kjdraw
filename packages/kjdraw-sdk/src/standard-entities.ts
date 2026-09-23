@@ -14,7 +14,7 @@ export const KJ_ENTITY_CONTRACT_VERSION = 1 as const
 const STANDARD = new Set([
   'LINE', 'RAY', 'XLINE', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE',
   'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'IMAGE', 'HATCH', 'LEADER',
-  'MLEADER', 'DIMENSION', 'VIEWPORT', 'WIPEOUT', 'REVISION_CLOUD',
+  'MLEADER', 'DIMENSION', 'TOLERANCE', 'VIEWPORT', 'WIPEOUT', 'REVISION_CLOUD',
   'SOLID', 'TRACE', 'TABLE', 'PROXY_ENTITY',
   'SOLID3D',
 ] as const)
@@ -66,6 +66,12 @@ interface EntityPayloadShape extends Record<string, unknown> {
   uVector?: unknown
   vVector?: unknown
   clipBoundary?: unknown[]
+  boundaryType?: unknown
+  clipping?: unknown
+  brightness?: unknown
+  contrast?: unknown
+  fade?: unknown
+  clipMode?: unknown
   boundaryLoops?: HatchLoopInput[]
   patternName?: unknown
   patternScale?: unknown
@@ -86,6 +92,7 @@ interface EntityPayloadShape extends Record<string, unknown> {
   definitionPoints?: unknown[]
   textOverride?: unknown
   styleName?: unknown
+  xAxisDirection?: unknown
   blockName?: unknown
   measurement?: unknown
   dxfDimensionType?: unknown
@@ -238,6 +245,64 @@ function normalizePolyline(payload: EntityPayloadShape): KJObjectPayload {
   return { ...base(payload), vertices: source.map(normalizeVertex), closed: Boolean(payload.closed), elevation: finite(payload.elevation ?? 0, 'elevation') }
 }
 
+function wipeoutWorldPoint(position: KJPoint3, uVector: KJPoint3, vVector: KJPoint3, clip: KJPoint3): KJPoint3 {
+  return [
+    position[0] + uVector[0] * (clip[0] + .5) + vVector[0] * (.5 - clip[1]),
+    position[1] + uVector[1] * (clip[0] + .5) + vVector[1] * (.5 - clip[1]),
+    position[2] + uVector[2] * (clip[0] + .5) + vVector[2] * (.5 - clip[1]),
+  ]
+}
+
+function normalizeWipeout(payload: EntityPayloadShape): KJObjectPayload {
+  const flags = finite(payload.flags ?? 7, 'flags')
+  if (!Number.isInteger(flags) || flags < 0 || flags > 15) throw new KJValidationError('WIPEOUT flags must use only bits 1, 2, 4 and 8')
+  const boolean = (value: unknown, fallback: boolean, label: string): boolean => {
+    if (value == null) return fallback
+    if (typeof value !== 'boolean') throw new KJValidationError(`WIPEOUT ${label} must be boolean`)
+    return value
+  }
+  const percent = (value: unknown, fallback: number, label: string): number => {
+    const result = finite(value ?? fallback, label)
+    if (!Number.isInteger(result) || result < 0 || result > 100) throw new KJValidationError(`WIPEOUT ${label} must be an integer from 0 to 100`)
+    return result
+  }
+  const display = { flags, clipping: boolean(payload.clipping, true, 'clipping'), brightness: percent(payload.brightness, 50, 'brightness'),
+    contrast: percent(payload.contrast, 50, 'contrast'), fade: percent(payload.fade, 0, 'fade'), clipMode: boolean(payload.clipMode, false, 'clipMode') }
+  const hasExplicit = payload.position != null || payload.uVector != null || payload.vVector != null || payload.clipBoundary != null || payload.boundaryType != null
+  if (!hasExplicit) {
+    const normalized = normalizePolyline({ ...payload, closed: true })
+    const vertices = normalized.vertices as KJNormalizedVertex[]
+    if (vertices.length > 128) throw new KJValidationError('WIPEOUT supports at most 128 boundary vertices')
+    const points = vertices.map(vertex => vertex.point)
+    const area = points.length === 2
+      ? Math.abs((points[1]![0] - points[0]![0]) * (points[1]![1] - points[0]![1]))
+      : Math.abs(points.reduce((sum, point, index) => { const next = points[(index + 1) % points.length]!; return sum + point[0] * next[1] - next[0] * point[1] }, 0))
+    if (area <= 1e-15) throw new KJValidationError('WIPEOUT boundary must span a nonzero area')
+    return { ...normalized, ...display }
+  }
+  if (payload.position == null || payload.uVector == null || payload.vVector == null || !Array.isArray(payload.clipBoundary)) throw new KJValidationError('WIPEOUT explicit clipping requires position, uVector, vVector and clipBoundary')
+  const position = point3(payload.position, 'position'), uVector = vector3(payload.uVector, 'uVector'), vVector = vector3(payload.vVector, 'vVector')
+  const cross: KJPoint3 = [uVector[1] * vVector[2] - uVector[2] * vVector[1], uVector[2] * vVector[0] - uVector[0] * vVector[2], uVector[0] * vVector[1] - uVector[1] * vVector[0]]
+  if (Math.hypot(...cross) <= 1e-15) throw new KJValidationError('WIPEOUT uVector and vVector must span a nonzero plane')
+  if (payload.clipBoundary.length < 2 || payload.clipBoundary.length > 128) throw new KJValidationError('WIPEOUT clipBoundary requires 2 to 128 points')
+  const clipBoundary = payload.clipBoundary.map((value, index) => point3(value, `clipBoundary[${index}]`))
+  if (clipBoundary.some(point => Math.abs(point[2]) > 1e-15)) throw new KJValidationError('WIPEOUT clipBoundary must be two-dimensional')
+  const boundaryType = finite(payload.boundaryType ?? (clipBoundary.length === 2 ? 1 : 2), 'boundaryType')
+  if (!Number.isInteger(boundaryType) || ![1, 2].includes(boundaryType)) throw new KJValidationError('WIPEOUT boundaryType must be 1 or 2')
+  if (boundaryType === 1 && clipBoundary.length !== 2) throw new KJValidationError('WIPEOUT rectangular clipBoundary requires exactly 2 points')
+  if (boundaryType === 2 && clipBoundary.length < 3) throw new KJValidationError('WIPEOUT polygonal clipBoundary requires at least 3 points')
+  let worldClips = clipBoundary
+  if (boundaryType === 1) {
+    const [a, b] = clipBoundary
+    if (Math.abs(a![0] - b![0]) <= 1e-15 || Math.abs(a![1] - b![1]) <= 1e-15) throw new KJValidationError('WIPEOUT rectangular clipBoundary must span a nonzero area')
+    worldClips = [a!, [b![0], a![1], 0], b!, [a![0], b![1], 0]]
+  } else {
+    const area = Math.abs(clipBoundary.reduce((sum, point, index) => { const next = clipBoundary[(index + 1) % clipBoundary.length]!; return sum + point[0] * next[1] - next[0] * point[1] }, 0))
+    if (area <= 1e-15) throw new KJValidationError('WIPEOUT polygonal clipBoundary must span a nonzero area')
+  }
+  const vertices = worldClips.map((clip, index) => normalizeVertex(wipeoutWorldPoint(position, uVector, vVector, clip), index))
+  return { ...base(payload), ...display, position, uVector, vVector, clipBoundary, boundaryType, vertices, closed: true, elevation: 0 }
+}
 function normalizeHatch(payload: EntityPayloadShape): KJObjectPayload {
   if (!Array.isArray(payload.boundaryLoops) || !payload.boundaryLoops.length) throw new KJValidationError('Hatch requires at least one boundary loop')
   const loops = payload.boundaryLoops.map((loop, loopIndex) => {
@@ -312,10 +377,17 @@ export function normalizeStandardEntityPayload(type: unknown, input: Record<stri
       if (vertices.length < 2 || vertices.length > 4096) throw new KJValidationError('LEADER requires 2 to 4096 vertices')
       if (vertices.some((point, index) => index > 0 && Math.hypot(point[0] - vertices[index - 1]![0], point[1] - vertices[index - 1]![1], point[2] - vertices[index - 1]![2]) <= 1e-12)) throw new KJValidationError('LEADER consecutive vertices must be distinct')
       const integer = (value: unknown, fallback: number, label: string, minimum: number, maximum: number): number => { const result = finite(value ?? fallback, label); if (!Number.isInteger(result) || result < minimum || result > maximum) throw new KJValidationError(`${label} is outside its native LEADER range`); return result }
-      return { ...base(payload), vertices, textPosition: payload.textPosition && point3(payload.textPosition, 'textPosition'), annotationId: payload.annotationId == null ? null : String(payload.annotationId), ownsAnnotation: payload.ownsAnnotation === true, arrowEnabled: payload.arrowEnabled !== false, pathType: integer(payload.pathType, 0, 'pathType', 0, 1), annotationType: integer(payload.annotationType, payload.annotationId ? 0 : 3, 'annotationType', 0, 3), hookLineDirection: integer(payload.hookLineDirection, 0, 'hookLineDirection', 0, 1), hookLineEnabled: payload.hookLineEnabled === true, ...(payload.horizontalDirection == null ? {} : { horizontalDirection: point3(payload.horizontalDirection, 'horizontalDirection') }), ...(payload.blockOffset == null ? {} : { blockOffset: point3(payload.blockOffset, 'blockOffset') }), ...(payload.annotationOffset == null ? {} : { annotationOffset: point3(payload.annotationOffset, 'annotationOffset') }) }
+      const textHeight = payload.textHeight == null ? undefined : finite(payload.textHeight, 'textHeight')
+      const textWidth = payload.textWidth == null ? undefined : finite(payload.textWidth, 'textWidth')
+      if (textHeight != null && (textHeight < 0 || textHeight > 1e9)) throw new KJValidationError('textHeight is outside its native LEADER range')
+      if (textWidth != null && (textWidth < 0 || textWidth > 1e9)) throw new KJValidationError('textWidth is outside its native LEADER range')
+      return { ...base(payload), vertices, textPosition: payload.textPosition && point3(payload.textPosition, 'textPosition'), annotationId: payload.annotationId == null ? null : String(payload.annotationId), ownsAnnotation: payload.ownsAnnotation === true, arrowEnabled: payload.arrowEnabled !== false, pathType: integer(payload.pathType, 0, 'pathType', 0, 1), annotationType: integer(payload.annotationType, payload.annotationId ? 0 : 3, 'annotationType', 0, 3), hookLineDirection: integer(payload.hookLineDirection, 0, 'hookLineDirection', 0, 1), hookLineEnabled: payload.hookLineEnabled === true, ...(textHeight == null ? {} : { textHeight }), ...(textWidth == null ? {} : { textWidth }), ...(payload.horizontalDirection == null ? {} : { horizontalDirection: point3(payload.horizontalDirection, 'horizontalDirection') }), ...(payload.blockOffset == null ? {} : { blockOffset: point3(payload.blockOffset, 'blockOffset') }), ...(payload.annotationOffset == null ? {} : { annotationOffset: point3(payload.annotationOffset, 'annotationOffset') }) }
     }
     case 'MLEADER': return { ...base(payload), vertices: (payload.vertices ?? []).map((point, index) => point3(point, `vertices[${index}]`)), textPosition: payload.textPosition && point3(payload.textPosition, 'textPosition'), annotationId: payload.annotationId == null ? null : String(payload.annotationId) }
     case 'DIMENSION': return { ...base(payload), dimensionType: normalizeName(payload.dimensionType ?? 'ALIGNED'), definitionPoints: (payload.definitionPoints ?? []).map((point, index) => point3(point, `definitionPoints[${index}]`)), textPosition: payload.textPosition && point3(payload.textPosition, 'textPosition'), textOverride: payload.textOverride == null ? null : String(payload.textOverride), styleId: payload.styleId == null ? null : String(payload.styleId), styleName: String(payload.styleName ?? 'STANDARD'), blockName: payload.blockName == null ? null : String(payload.blockName), measurement: payload.measurement == null ? null : finite(payload.measurement, 'measurement'), dxfDimensionType: payload.dxfDimensionType == null ? null : Math.trunc(finite(payload.dxfDimensionType, 'dxfDimensionType')), rotation: finite(payload.rotation ?? 0, 'rotation'), ...(payload.dimensionAssociations == null ? {} : { dimensionAssociations: normalizeDimensionAssociations(payload.dimensionAssociations) }) }
+    case 'TOLERANCE': return { ...base(payload), position: point3(payload.position, 'position'), text: String(payload.text ?? ''),
+      styleId: payload.styleId == null ? null : String(payload.styleId), styleName: String(payload.styleName ?? 'STANDARD'),
+      normal: vector3(payload.normal ?? [0, 0, 1], 'normal'), xAxisDirection: vector3(payload.xAxisDirection ?? [1, 0, 0], 'xAxisDirection') }
     case 'VIEWPORT': {
       const integer = (value: unknown, label: string, min: number, max: number): number => {
         const result = finite(value, label)
@@ -344,7 +416,7 @@ export function normalizeStandardEntityPayload(type: unknown, input: Record<stri
         lensLength: positive(payload.lensLength ?? 50, 'lensLength'), frontClipDistance: finite(payload.frontClipDistance ?? 0, 'frontClipDistance'), backClipDistance: finite(payload.backClipDistance ?? 0, 'backClipDistance'),
         frozenLayerIds: [...frozenLayerIds], clippingBoundaryId }
     }
-    case 'WIPEOUT':
+    case 'WIPEOUT': return normalizeWipeout(payload)
     case 'REVISION_CLOUD': return normalizePolyline({ ...payload, closed: true })
     case 'SOLID':
     case 'TRACE': {

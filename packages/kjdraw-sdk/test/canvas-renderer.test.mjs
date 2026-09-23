@@ -23,7 +23,7 @@ class RecordingContext2D {
   lineTo(...args) { this.#record('lineTo', ...args) }
   closePath() { this.#record('closePath') }
   stroke() { this.#record('stroke', this.lineWidth, this.strokeStyle, this.lineDash) }
-  fill(...args) { this.#record('fill', ...args) }
+  fill(...args) { this.#record('fill', ...args, this.fillStyle, this.globalAlpha) }
   clip(...args) { this.#record('clip', ...args) }
   arc(...args) { this.#record('arc', ...args) }
   ellipse(...args) { this.#record('ellipse', ...args) }
@@ -131,6 +131,20 @@ test('dimensions paint measurable lines, arrows and text and can be selected on 
   assert.ok(context.calls.some(call => call[0] === 'fillText' && call[1] === '10'))
   assert.ok(context.calls.filter(call => call[0] === 'fill').length >= 2)
   assert.equal(renderer.hitTest(renderer.worldToScreen([5,-5]))?.entity.id, dimension.id)
+  assert.equal(renderer.report.unsupported, 0)
+  renderer.dispose()
+})
+
+test('native tolerance frames paint semantic compartments and remain selectable', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'tolerance-paint' })
+  const tolerance = await sdk.executeCommand('CREATE', { type: 'TOLERANCE', payload: { position: [10, 20],
+    text: String.raw`{\Fgdt;r}%%v0.02%%vA%%v%%v%%v%%v^J`, styleName: 'STANDARD', normal: [0, 0, 1], xAxisDirection: [1, 0, 0] } })
+  const { canvas, context } = mockCanvas(), renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1 }).fit()
+  context.calls.length = 0; renderer.render()
+  assert.ok(context.calls.some(call => call[0] === 'fillText' && call[1] === '◎'))
+  assert.ok(context.calls.some(call => call[0] === 'fillText' && call[1] === '0.02'))
+  assert.equal(context.calls.filter(call => call[0] === 'strokeRect').length, 3)
+  assert.equal(renderer.hitTest(renderer.worldToScreen([10, 20]))?.entity.id, tolerance.id)
   assert.equal(renderer.report.unsupported, 0)
   renderer.dispose()
 })
@@ -404,5 +418,47 @@ test('ByLayer and block ByBlock drawing properties resolve through the effective
   assert.ok(Math.abs(widths[0] - 50 / 100 * 96 / 25.4) < 1e-9)
   assert.ok(Math.abs(widths[1] - widths[0]) < 1e-9)
   assert.ok(Math.abs(widths[2] - 70 / 100 * 96 / 25.4) < 1e-9)
+  renderer.dispose()
+})
+
+test('Canvas renderer honors PDMODE composition and viewport-relative PDSIZE', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'canvas-point-display' })
+  await sdk.executeCommand('SETVAR', { name: 'PDMODE', value: 98 }, { document })
+  await sdk.executeCommand('SETVAR', { name: 'PDSIZE', value: -10 }, { document })
+  await sdk.executeCommand('CREATE', { type: 'POINT', payload: { position: [0, 0] } }, { document })
+  const { canvas, context } = mockCanvas(640, 360)
+  const renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1 })
+  Object.assign(renderer.camera, { centerX: 0, centerY: 0, scale: 1 })
+  context.calls.length = 0; renderer.render()
+  const paths = context.calls.filter(call => call[0] === 'moveTo' || call[0] === 'lineTo')
+  assert.ok(paths.some(call => call[0] === 'moveTo' && call[1] === 302 && call[2] === 180))
+  assert.ok(paths.some(call => call[0] === 'lineTo' && call[1] === 338 && call[2] === 180))
+  assert.ok(paths.some(call => call[0] === 'moveTo' && call[1] === 320 && call[2] === 162))
+  assert.ok(paths.some(call => call[0] === 'lineTo' && call[1] === 320 && call[2] === 198))
+  assert.ok(context.calls.some(call => call[0] === 'arc' && call[1] === 320 && call[2] === 180 && call[3] === 18))
+  assert.ok(context.calls.some(call => call[0] === 'closePath'))
+  assert.equal(renderer.report.rendered, 1)
+  assert.equal(renderer.report.unsupported, 0)
+  renderer.dispose()
+})
+test('WIPEOUT fills with the drawing background without adding a frame stroke', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'canvas-wipeout' })
+  await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [-20, 0], end: [20, 0] } }, { document })
+  await sdk.executeCommand('CREATE', { type: 'WIPEOUT', payload: {
+    position: [0, 0, 0], uVector: [10, 0, 0], vVector: [0, 5, 0],
+    clipBoundary: [[-0.5, -0.5], [0.5, 0.5]], boundaryType: 1,
+  } }, { document })
+  const { canvas, context } = mockCanvas()
+  const renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1, background: '#123456' })
+  Object.assign(renderer.camera, { centerX: 0, centerY: 0, scale: 2 })
+  context.calls.length = 0
+  renderer.render()
+  const fills = context.calls.filter(call => call[0] === 'fill')
+  const strokes = context.calls.filter(call => call[0] === 'stroke')
+  assert.equal(fills.length, 1)
+  assert.deepEqual(fills[0].slice(-2), ['#123456', 1])
+  assert.equal(strokes.length, 1)
+  assert.equal(renderer.report.rendered, 2)
+  assert.equal(renderer.report.unsupported, 0)
   renderer.dispose()
 })

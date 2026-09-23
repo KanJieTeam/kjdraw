@@ -423,6 +423,10 @@ function validateObjectGraph(state: KJDocumentState, issues: KJValidationIssue[]
   }
   const linetypeScale = state.header.systemVariables?.LTSCALE ?? 1
   if (typeof linetypeScale !== 'number' || !Number.isFinite(linetypeScale) || linetypeScale <= 0) issues.push({ path: 'header.systemVariables.LTSCALE', message: 'LTSCALE must be positive and finite' })
+  const pointDisplayMode = state.header.systemVariables?.PDMODE ?? 0
+  if (typeof pointDisplayMode !== 'number' || !Number.isInteger(pointDisplayMode) || pointDisplayMode < 0 || pointDisplayMode > 100 || (pointDisplayMode & 31) > 4 || ![0, 32, 64, 96].includes(pointDisplayMode & ~31)) issues.push({ path: 'header.systemVariables.PDMODE', message: 'PDMODE must be a legal point-display mode' })
+  const pointDisplaySize = state.header.systemVariables?.PDSIZE ?? 0
+  if (typeof pointDisplaySize !== 'number' || !Number.isFinite(pointDisplaySize) || pointDisplaySize < -100 || pointDisplaySize > 1_000_000) issues.push({ path: 'header.systemVariables.PDSIZE', message: 'PDSIZE must be finite from -100 to 1000000' })
 }
 
 function validateTables(state: KJDocumentState, issues: KJValidationIssue[]): void {

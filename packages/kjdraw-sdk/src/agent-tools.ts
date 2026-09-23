@@ -32,6 +32,7 @@ import { createEraseImpact, type KJEraseImpactQuery } from './erase-impact.js'
 export type { KJEraseImpact, KJEraseImpactBlocker, KJEraseImpactQuery } from './erase-impact.js'
 import { createCatalogComponentInsertIdentity, searchComponentCatalog } from './component-library.js'
 import { buildAgentManufacturingSheet, type KJAgentManufacturingSheetInput } from './agent-manufacturing-sheet.js'
+import { buildAgentMechanicalFlangeCore, type KJAgentMechanicalFlangeCoreInput } from './agent-mechanical-flange-core.js'
 import { buildAgentArchitecturePlan, type KJAgentArchitecturePlanInput } from './agent-architecture-plan.js'
 import { buildAgentSitePlan, type KJAgentSitePlanInput } from './agent-site-plan.js'
 import { buildAgentGeologyPlan, type KJAgentGeologyPlanInput } from './agent-geology-plan.js'
@@ -272,6 +273,60 @@ const manufacturingSheetSchema = objectWithOptional({
   // retaining deterministic validation in the compiler.
   sheet: objectWithOptional({ origin: numericTuple(2), size: numericTuple(2) }, ['origin']), textHeight: radius,
 }, ['locale', 'holePatterns', 'boltCirclePatterns', 'slots'])
+const mechanicalFlangeLength: KJAgentToolSchema = { type: 'number', exclusiveMinimum: 0, maximum: 160 }
+const mechanicalFlangeSchema = objectWithOptional({
+  version: { type: 'string', enum: ['1.0.0'] }, expectedRevision: revision, units: { type: 'string', enum: ['millimeter'] },
+  locale: { type: 'string', enum: ['zh-CN', 'en'] },
+  drawingId: { ...text, maxLength: 64 }, title: { ...text, maxLength: 96 },
+  outerDiameter: mechanicalFlangeLength, boreDiameter: mechanicalFlangeLength, thickness: { ...mechanicalFlangeLength, maximum: 120 },
+  boltCount: { type: 'integer', minimum: 2, maximum: 64 },
+  boltCircleDiameter: mechanicalFlangeLength, boltHoleDiameter: mechanicalFlangeLength,
+}, ['locale'])
+
+function mechanicalFlangeIntent(args: Record<string, unknown>): KJAgentMechanicalFlangeCoreInput {
+  const outerDiameter = Number(args.outerDiameter), boreDiameter = Number(args.boreDiameter), thickness = Number(args.thickness)
+  const boltCount = Number(args.boltCount), boltCircleDiameter = Number(args.boltCircleDiameter), boltHoleDiameter = Number(args.boltHoleDiameter)
+  if (boreDiameter >= outerDiameter) throw new KJValidationError('Mechanical flange boreDiameter must be smaller than outerDiameter')
+  if (boltHoleDiameter >= outerDiameter) throw new KJValidationError('Mechanical flange boltHoleDiameter must be smaller than outerDiameter')
+  if (boltCircleDiameter <= boreDiameter + boltHoleDiameter || boltCircleDiameter >= outerDiameter - boltHoleDiameter)
+    throw new KJValidationError('Mechanical flange bolt circle must keep every hole clear of the bore and outer edge')
+  const locale = args.locale === 'en' ? 'en' : 'zh-CN'
+  const center: [number, number] = [95, 165], outerRadius = outerDiameter / 2, boreRadius = boreDiameter / 2
+  const sideStart = 220, sideEnd = sideStart + thickness, dimensionHeight = 2.5
+  const holeNote = locale === 'zh-CN' ? String(boltCount) + '×⌀' + String(boltHoleDiameter) + ' 均布' : String(boltCount) + '×⌀' + String(boltHoleDiameter) + ' EQ SP'
+  return {
+    version: '1.0.0', expectedRevision: Number(args.expectedRevision), units: 'millimeter', drawingId: String(args.drawingId),
+    endView: {
+      center,
+      ringRadii: [boreRadius, boltCircleDiameter / 2, outerRadius],
+      ringStyleKeys: [null, 'pitch-circle', null],
+      holePatterns: [{ count: boltCount, pitchRadius: boltCircleDiameter / 2, holeRadius: boltHoleDiameter / 2, startAngle: Math.PI / 2 }],
+    },
+    sideViewAxis: {
+      xRange: [sideStart - 10, sideEnd + 10], axisCoordinate: center[1],
+      symmetricProfiles: [{ vertices: [{ station: sideStart, radius: outerRadius }, { station: sideEnd, radius: outerRadius }], endCaps: 'both' }],
+    },
+    auxiliaryLines: [
+      { start: [sideStart, center[1] + boreRadius], end: [sideEnd, center[1] + boreRadius], role: 'hidden' },
+      { start: [sideStart, center[1] - boreRadius], end: [sideEnd, center[1] - boreRadius], role: 'hidden' },
+    ],
+    dimensions: [
+      { kind: 'diameter', definitionPoints: [[center[0] - outerRadius, center[1]], [center[0] + outerRadius, center[1]]], textPosition: [center[0], center[1] + outerRadius + 12], textHeight: dimensionHeight },
+      { kind: 'diameter', definitionPoints: [[center[0] - boreRadius, center[1]], [center[0] + boreRadius, center[1]]], textPosition: [center[0], center[1] - boreRadius - 12], textHeight: dimensionHeight },
+      { kind: 'diameter', definitionPoints: [[center[0] - boltCircleDiameter / 2, center[1]], [center[0] + boltCircleDiameter / 2, center[1]]], textPosition: [center[0] + boltCircleDiameter / 2 + 18, center[1]], textOverride: 'PCD <>', textHeight: dimensionHeight },
+      { kind: 'rotated', definitionPoints: [[(sideStart + sideEnd) / 2, center[1] - outerRadius - 18], [sideStart, center[1] - outerRadius - 8], [sideEnd, center[1] - outerRadius - 8]], textPosition: [(sideStart + sideEnd) / 2, center[1] - outerRadius - 18], rotation: 0, textHeight: dimensionHeight },
+    ],
+    styleProfile: { custom: [{ key: 'pitch-circle', layerName: 'FLANGE_PITCH', color: 7, lineweight: 18, linetypeName: 'CENTER', linetypePattern: [8, -1, 1, -1] }] },
+    sheet: {
+      origin: [0, 0], size: [420, 297], inset: 10,
+      titleGrid: { origin: [260, 10], size: [150, 36], columns: [0, 22, 72, 112], rows: [{ offset: 12 }, { offset: 24 }] },
+      notes: [
+        { kind: 'single-line', text: String(args.title), position: [270, 34], height: 3.5 },
+        { kind: 'single-line', text: holeNote, position: [48, 72], height: 3 },
+      ],
+    },
+  }
+}
 const architectureOpening = object({ wall: { type: 'string', enum: ['north', 'south', 'east', 'west'] }, offset: nonnegative, width: radius, kind: { type: 'string', enum: ['door', 'window'] } })
 const architecturePartitionOpening = object({ offset: nonnegative, width: radius, kind: { type: 'string', enum: ['door', 'window'] } })
 const architecturePartition = objectWithOptional({
@@ -609,6 +664,7 @@ const geologyPlanSchema = objectWithOptional({
 }, ['locale', 'title', 'revision', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'baseMapStyles', 'baseMapTextStyles', 'baseMapLinework', 'baseMapBlocks', 'baseMapInserts', 'northAngleDegrees'])
 
 export const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[] = deepFreeze([
+  { name: 'cad_propose_mechanical_flange', effect: 'propose', description: 'Compile one complete editable A3 millimeter drawing of a simple circular flange from exact engineering dimensions. Supply outerDiameter, boreDiameter, thickness, boltCount, boltCircleDiameter and boltHoleDiameter; KJDraw validates edge clearances and generates the end view, aligned side view, pitch circle, equally spaced native holes, hidden bore lines, centerlines, native measured dimensions, title grid, notes and named engineering layers locally. Set locale=zh-CN for Chinese generated notes. Geometry is native 1:1 and intentionally limited to outer diameters up to 160 mm and thickness up to 120 mm so the complete part fits the fixed sheet without hidden rescaling. Requires a blank millimeter drawing. Returns a full preview and engineering evidence; only host approval commits one undoable CREATEBATCH transaction.', inputSchema: mechanicalFlangeSchema },
   { name: 'cad_propose_text_edit', effect: 'propose', description: 'Propose one atomic batch of 1–64 exact native TEXT/MTEXT content replacements. Query existing object IDs and complete text first. Each change supplies id, expectedText and text; every expectedText must match exactly at expectedRevision. Preserves IDs, handles, positions, layers, styles, ownership and references. Raw MTEXT formatting is part of the text; preserve it unless explicitly asked to change it. No regex, inferred targets, blank replacement, dynamic field expressions, dimension text overrides, block attributes or paper/block-space editing. Hidden, frozen, locked or stale objects reject the whole batch. Review the complete before/after text before host approval; approval is one undoable TEXTEDIT transaction.', inputSchema: object({ expectedRevision: revision, units: text, changes: collection(object({ id: text, expectedText: { type: 'string', maxLength: 16384 }, text: { type: 'string', minLength: 1, maxLength: 16384 } })) }) },
   { name: 'cad_read_components', effect: 'read', description: 'Search the bounded versioned KJDraw component catalog. Returns exact IDs, versions, parameters and SPDX license metadata. Use the returned version with cad_propose_component_insert. This reads catalog data and does not modify the drawing.', inputSchema: componentSearchSchema },
   { name: 'cad_propose_component_insert', effect: 'propose', description: 'Propose one licensed native component as an editable INSERT with a reusable BLOCK_RECORD. Supply the exact catalog ID/version, every changed parameter as {name,value}, model-space position, positive uniform scale and rotation in degrees. The current or supplied editable layer is used. Returns the complete definition and instance preview; a trusted host must approve before one undoable commit.', inputSchema: componentInsertSchema },
@@ -1057,6 +1113,28 @@ export class KJAgentToolSession {
               const compiled = buildAgentManufacturingSheet(document, args as unknown as KJAgentManufacturingSheetInput)
               commandArgs = structuredClone(compiled.commandArgs)
               engineeringEvidence = compiled.evidence
+            } else if (name === 'cad_propose_mechanical_flange') {
+              if (document.listEntities().length !== 0) throw new KJValidationError('Mechanical flange requires a blank drawing; existing geometry is not replaced')
+              const compiled = buildAgentMechanicalFlangeCore(document, mechanicalFlangeIntent(args))
+              const layoutToken = stableHash({ drawingId: args.drawingId, kind: 'mechanical-flange-a3' }).slice(0, 12)
+              commandArgs = { ...structuredClone(compiled.commandArgs), layout: {
+                id: 'mechanical-flange-' + layoutToken + '-layout',
+                blockRecordId: 'mechanical-flange-' + layoutToken + '-paper-space',
+                name: 'KJ_MECH_' + layoutToken.toUpperCase() + '_A3',
+                dxfPlotSettings: {
+                  paperWidth: 420, paperHeight: 297,
+                  marginLeft: 0, marginBottom: 0, marginRight: 0, marginTop: 0,
+                  originX: 0, originY: 0, scaleNumerator: 1, scaleDenominator: 1,
+                  flags: 0, paperUnits: 1, rotation: 0, plotType: 5,
+                },
+                viewport: {
+                  id: 'mechanical-flange-' + layoutToken + '-viewport',
+                  center: [210, 148.5, 0], width: 420, height: 297,
+                  viewCenter: [210, 148.5, 0], viewHeight: 297,
+                  twistAngle: 0, modelUnits: 'millimeter', scaleDenominator: 1,
+                },
+              } }
+              engineeringEvidence = compiled.evidence
             } else if (name === 'cad_propose_architecture_plan') {
               const compiled = buildAgentArchitecturePlan(document, args as unknown as KJAgentArchitecturePlanInput)
               commandArgs = structuredClone(compiled.commandArgs)
@@ -1309,7 +1387,7 @@ export class KJAgentToolSession {
             }
             const expandedPreview = ['cad_propose_geology_plan', 'cad_propose_geology_plan_example', 'cad_propose_geology_section_example'].includes(name)
             const maxCreatedEntities = name === 'cad_propose_component_insert' ? 65 : expandedPreview ? 2048
-              : ['cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_site_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) ? 512 : undefined
+              : ['cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_mechanical_flange', 'cad_propose_architecture_plan', 'cad_propose_site_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) ? 512 : undefined
             const preview = await createAgentGeometryPreview(document, command, commandArgs, expandedPreview ? { maxCreatedEntities: 2048, maxCreatedResources: 256, maxPreviewEntities: 4096, maxPreviewBytes: 4194304 } : maxCreatedEntities === undefined ? {} : { maxCreatedEntities })
             const envelope = this.#sdk.createCommandEnvelope(command, commandArgs, { document, mode: 'plan', origin: 'ai', expectedRevision: preview.revision })
             value = { planId: envelope.id, documentId: document.id, expectedRevision: envelope.expectedRevision, units: args.units, command, arguments: structuredClone(commandArgs), status: 'awaiting-host-approval', previewKind: 'geometry', preview, ...(engineeringEvidence ? { engineeringEvidence } : {}), ...(sourceAsset ? { sourceAsset } : {}), ...(selectionSet ? { selectionSet: structuredClone(selectionSet) } : {}), ...(unchangedIds ? { unchangedIds: [...unchangedIds] } : {}), ...(layerChange ? { layerChange: structuredClone(layerChange) } : {}), ...(structuralEdit ? { structuralEdit } : {}) }
@@ -1324,6 +1402,7 @@ export class KJAgentToolSession {
               if (evidence.proposalBytes > geologyPlanProposalByteLimit) throw new KJValidationError('Geology plan proposal exceeds the 4 MiB output limit')
             }
             if (name === 'cad_propose_geology_column' && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 1048576) throw new KJValidationError('Geology column proposal exceeds the 1 MiB output limit')
+            if (name === 'cad_propose_mechanical_flange' && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 1048576) throw new KJValidationError('Mechanical flange proposal exceeds the 1 MiB output limit')
             if (name === 'cad_propose_geology_section' && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 1048576) throw new KJValidationError('Geology section proposal exceeds the 1 MiB output limit')
             if (name === 'cad_propose_geology_section_example' && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 4194304) throw new KJValidationError('Illustrative geology section proposal exceeds the 4 MiB output limit')
             if (name === 'cad_propose_relayer' && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > Number(args.maxBytes)) throw new KJValidationError('Relayer proposal exceeds maxBytes; increase the exact response budget')

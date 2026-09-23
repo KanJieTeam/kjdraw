@@ -26,6 +26,7 @@ const STANDARD = new Set([
     'LEADER',
     'MLEADER',
     'DIMENSION',
+    'TOLERANCE',
     'VIEWPORT',
     'WIPEOUT',
     'REVISION_CLOUD',
@@ -150,6 +151,110 @@ function normalizePolyline(payload) {
         vertices: source.map(normalizeVertex),
         closed: Boolean(payload.closed),
         elevation: finite(payload.elevation ?? 0, 'elevation')
+    };
+}
+function wipeoutWorldPoint(position, uVector, vVector, clip) {
+    return [
+        position[0] + uVector[0] * (clip[0] + .5) + vVector[0] * (.5 - clip[1]),
+        position[1] + uVector[1] * (clip[0] + .5) + vVector[1] * (.5 - clip[1]),
+        position[2] + uVector[2] * (clip[0] + .5) + vVector[2] * (.5 - clip[1])
+    ];
+}
+function normalizeWipeout(payload) {
+    const flags = finite(payload.flags ?? 7, 'flags');
+    if (!Number.isInteger(flags) || flags < 0 || flags > 15) throw new KJValidationError('WIPEOUT flags must use only bits 1, 2, 4 and 8');
+    const boolean = (value, fallback, label)=>{
+        if (value == null) return fallback;
+        if (typeof value !== 'boolean') throw new KJValidationError(`WIPEOUT ${label} must be boolean`);
+        return value;
+    };
+    const percent = (value, fallback, label)=>{
+        const result = finite(value ?? fallback, label);
+        if (!Number.isInteger(result) || result < 0 || result > 100) throw new KJValidationError(`WIPEOUT ${label} must be an integer from 0 to 100`);
+        return result;
+    };
+    const display = {
+        flags,
+        clipping: boolean(payload.clipping, true, 'clipping'),
+        brightness: percent(payload.brightness, 50, 'brightness'),
+        contrast: percent(payload.contrast, 50, 'contrast'),
+        fade: percent(payload.fade, 0, 'fade'),
+        clipMode: boolean(payload.clipMode, false, 'clipMode')
+    };
+    const hasExplicit = payload.position != null || payload.uVector != null || payload.vVector != null || payload.clipBoundary != null || payload.boundaryType != null;
+    if (!hasExplicit) {
+        const normalized = normalizePolyline({
+            ...payload,
+            closed: true
+        });
+        const vertices = normalized.vertices;
+        if (vertices.length > 128) throw new KJValidationError('WIPEOUT supports at most 128 boundary vertices');
+        const points = vertices.map((vertex)=>vertex.point);
+        const area = points.length === 2 ? Math.abs((points[1][0] - points[0][0]) * (points[1][1] - points[0][1])) : Math.abs(points.reduce((sum, point, index)=>{
+            const next = points[(index + 1) % points.length];
+            return sum + point[0] * next[1] - next[0] * point[1];
+        }, 0));
+        if (area <= 1e-15) throw new KJValidationError('WIPEOUT boundary must span a nonzero area');
+        return {
+            ...normalized,
+            ...display
+        };
+    }
+    if (payload.position == null || payload.uVector == null || payload.vVector == null || !Array.isArray(payload.clipBoundary)) throw new KJValidationError('WIPEOUT explicit clipping requires position, uVector, vVector and clipBoundary');
+    const position = point3(payload.position, 'position'), uVector = vector3(payload.uVector, 'uVector'), vVector = vector3(payload.vVector, 'vVector');
+    const cross = [
+        uVector[1] * vVector[2] - uVector[2] * vVector[1],
+        uVector[2] * vVector[0] - uVector[0] * vVector[2],
+        uVector[0] * vVector[1] - uVector[1] * vVector[0]
+    ];
+    if (Math.hypot(...cross) <= 1e-15) throw new KJValidationError('WIPEOUT uVector and vVector must span a nonzero plane');
+    if (payload.clipBoundary.length < 2 || payload.clipBoundary.length > 128) throw new KJValidationError('WIPEOUT clipBoundary requires 2 to 128 points');
+    const clipBoundary = payload.clipBoundary.map((value, index)=>point3(value, `clipBoundary[${index}]`));
+    if (clipBoundary.some((point)=>Math.abs(point[2]) > 1e-15)) throw new KJValidationError('WIPEOUT clipBoundary must be two-dimensional');
+    const boundaryType = finite(payload.boundaryType ?? (clipBoundary.length === 2 ? 1 : 2), 'boundaryType');
+    if (!Number.isInteger(boundaryType) || ![
+        1,
+        2
+    ].includes(boundaryType)) throw new KJValidationError('WIPEOUT boundaryType must be 1 or 2');
+    if (boundaryType === 1 && clipBoundary.length !== 2) throw new KJValidationError('WIPEOUT rectangular clipBoundary requires exactly 2 points');
+    if (boundaryType === 2 && clipBoundary.length < 3) throw new KJValidationError('WIPEOUT polygonal clipBoundary requires at least 3 points');
+    let worldClips = clipBoundary;
+    if (boundaryType === 1) {
+        const [a, b] = clipBoundary;
+        if (Math.abs(a[0] - b[0]) <= 1e-15 || Math.abs(a[1] - b[1]) <= 1e-15) throw new KJValidationError('WIPEOUT rectangular clipBoundary must span a nonzero area');
+        worldClips = [
+            a,
+            [
+                b[0],
+                a[1],
+                0
+            ],
+            b,
+            [
+                a[0],
+                b[1],
+                0
+            ]
+        ];
+    } else {
+        const area = Math.abs(clipBoundary.reduce((sum, point, index)=>{
+            const next = clipBoundary[(index + 1) % clipBoundary.length];
+            return sum + point[0] * next[1] - next[0] * point[1];
+        }, 0));
+        if (area <= 1e-15) throw new KJValidationError('WIPEOUT polygonal clipBoundary must span a nonzero area');
+    }
+    const vertices = worldClips.map((clip, index)=>normalizeVertex(wipeoutWorldPoint(position, uVector, vVector, clip), index));
+    return {
+        ...base(payload),
+        ...display,
+        position,
+        uVector,
+        vVector,
+        clipBoundary,
+        boundaryType,
+        vertices,
+        closed: true,
+        elevation: 0
     };
 }
 function normalizeHatch(payload) {
@@ -378,6 +483,10 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                     if (!Number.isInteger(result) || result < minimum || result > maximum) throw new KJValidationError(`${label} is outside its native LEADER range`);
                     return result;
                 };
+                const textHeight = payload.textHeight == null ? undefined : finite(payload.textHeight, 'textHeight');
+                const textWidth = payload.textWidth == null ? undefined : finite(payload.textWidth, 'textWidth');
+                if (textHeight != null && (textHeight < 0 || textHeight > 1e9)) throw new KJValidationError('textHeight is outside its native LEADER range');
+                if (textWidth != null && (textWidth < 0 || textWidth > 1e9)) throw new KJValidationError('textWidth is outside its native LEADER range');
                 return {
                     ...base(payload),
                     vertices,
@@ -389,6 +498,12 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                     annotationType: integer(payload.annotationType, payload.annotationId ? 0 : 3, 'annotationType', 0, 3),
                     hookLineDirection: integer(payload.hookLineDirection, 0, 'hookLineDirection', 0, 1),
                     hookLineEnabled: payload.hookLineEnabled === true,
+                    ...textHeight == null ? {} : {
+                        textHeight
+                    },
+                    ...textWidth == null ? {} : {
+                        textWidth
+                    },
                     ...payload.horizontalDirection == null ? {} : {
                         horizontalDirection: point3(payload.horizontalDirection, 'horizontalDirection')
                     },
@@ -423,6 +538,24 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                 ...payload.dimensionAssociations == null ? {} : {
                     dimensionAssociations: normalizeDimensionAssociations(payload.dimensionAssociations)
                 }
+            };
+        case 'TOLERANCE':
+            return {
+                ...base(payload),
+                position: point3(payload.position, 'position'),
+                text: String(payload.text ?? ''),
+                styleId: payload.styleId == null ? null : String(payload.styleId),
+                styleName: String(payload.styleName ?? 'STANDARD'),
+                normal: vector3(payload.normal ?? [
+                    0,
+                    0,
+                    1
+                ], 'normal'),
+                xAxisDirection: vector3(payload.xAxisDirection ?? [
+                    1,
+                    0,
+                    0
+                ], 'xAxisDirection')
             };
         case 'VIEWPORT':
             {
@@ -493,6 +626,7 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                 };
             }
         case 'WIPEOUT':
+            return normalizeWipeout(payload);
         case 'REVISION_CLOUD':
             return normalizePolyline({
                 ...payload,

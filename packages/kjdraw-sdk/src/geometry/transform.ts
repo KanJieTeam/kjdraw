@@ -12,6 +12,11 @@ import type { Point2Input } from './vector2.js'
 
 export type GeometryEntityPayload = Record<string, unknown>
 
+function withoutUndefined<T extends Record<string, unknown>>(record: T): T {
+  for (const key of Object.keys(record)) if (record[key] === undefined) delete record[key]
+  return record
+}
+
 function angleOf(vector: Point2Input): number {
   const record = vector as { readonly x?: unknown; readonly y?: unknown }
   const coordinates = Array.isArray(vector) ? vector : [record.x, record.y]
@@ -155,7 +160,6 @@ export function transformEntityPayload(
       }
     case 'LWPOLYLINE':
     case 'POLYLINE':
-    case 'WIPEOUT':
     case 'REVISION_CLOUD':
       return {
         ...payload,
@@ -209,6 +213,15 @@ export function transformEntityPayload(
         mirrored: mirrored ? !payload.mirrored : payload.mirrored,
       }
     }
+    case 'WIPEOUT':
+      return withoutUndefined({
+        ...payload,
+        position: payload.position == null ? undefined : transformPoint3(matrix, payload.position as Point2Input),
+        uVector: payload.uVector == null ? undefined : transformVector3(matrix, payload.uVector as Point2Input),
+        vVector: payload.vVector == null ? undefined : transformVector3(matrix, payload.vVector as Point2Input),
+        vertices: ((payload.vertices ?? payload.points ?? []) as readonly unknown[])
+          .map(vertex => transformVertex(matrix, vertex, mirrored, scale())),
+      })
     case 'IMAGE':
       return {
         ...payload,
@@ -262,6 +275,11 @@ export function transformEntityPayload(
           && transformPoint3(matrix, payload.textPosition as Point2Input),
         rotation: transformAngle(matrix, payload.rotation ?? 0),
       }
+    case 'TOLERANCE': {
+      const axis = transformVector3(matrix, (payload.xAxisDirection ?? [1, 0, 0]) as Point2Input), z = Number(axis[2] ?? 0), length = Math.hypot(axis[0], axis[1], z)
+      if (!(length > 1e-15)) throw new KJValidationError('TOLERANCE x-axis direction became degenerate')
+      return { ...payload, position: transformPoint3(matrix, payload.position as Point2Input), xAxisDirection: [axis[0] / length, axis[1] / length, z / length] }
+    }
     case 'VIEWPORT':
       return {
         ...payload,

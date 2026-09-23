@@ -201,6 +201,7 @@ const READ_TYPES = Object.freeze([
     'HATCH',
     'LEADER',
     'DIMENSION',
+    'TOLERANCE',
     'SOLID',
     'VIEWPORT',
     'WIPEOUT',
@@ -225,6 +226,7 @@ const WRITE_TYPES = new Set([
     'HATCH',
     'LEADER',
     'DIMENSION',
+    'TOLERANCE',
     'SOLID',
     'VIEWPORT',
     'WIPEOUT',
@@ -1240,8 +1242,31 @@ function entityPayload(record, blockIds, resources = {}) {
                         styleId: resources.dimensionStyleIds?.get(normalizeName(styleName)) ?? null,
                         blockName: first(record, 2),
                         measurement: values(record, 42).length ? number(record, 42) : null,
-                        rotation: number(record, 50, 0) * Math.PI / 180,
+                        rotation: (subtype === 6 ? -number(record, 51, 0) : number(record, 50, 0)) * Math.PI / 180,
                         rawTags: record.tags
+                    }
+                };
+            }
+        case 'TOLERANCE':
+            {
+                const styleName = first(record, 3, 'STANDARD');
+                return {
+                    type: 'TOLERANCE',
+                    payload: {
+                        position: point(record),
+                        text: first(record, 1, ''),
+                        styleName,
+                        styleId: resources.dimensionStyleIds?.get(normalizeName(styleName)) ?? null,
+                        normal: optionalPoint(record, 210, 220, 230) ?? [
+                            0,
+                            0,
+                            1
+                        ],
+                        xAxisDirection: optionalPoint(record, 11, 21, 31) ?? [
+                            1,
+                            0,
+                            0
+                        ]
                     }
                 };
             }
@@ -1289,10 +1314,25 @@ function entityPayload(record, blockIds, resources = {}) {
         case 'WIPEOUT':
             {
                 const position = point(record), u = point(record, 11, 21, 31), v = point(record, 12, 22, 32);
-                const vertices = repeatedPoints(record, 14, 24, 34).map(([x, y])=>[
-                        position[0] + u[0] * x + v[0] * y,
-                        position[1] + u[1] * x + v[1] * y,
-                        position[2] + u[2] * x + v[2] * y
+                const clipBoundary = repeatedPoints(record, 14, 24, 34), boundaryType = number(record, 71, clipBoundary.length === 2 ? 1 : 2);
+                const worldClips = boundaryType === 1 && clipBoundary.length === 2 ? [
+                    clipBoundary[0],
+                    [
+                        clipBoundary[1][0],
+                        clipBoundary[0][1],
+                        0
+                    ],
+                    clipBoundary[1],
+                    [
+                        clipBoundary[0][0],
+                        clipBoundary[1][1],
+                        0
+                    ]
+                ] : clipBoundary;
+                const vertices = worldClips.map(([x, y])=>[
+                        position[0] + u[0] * (x + .5) + v[0] * (.5 - y),
+                        position[1] + u[1] * (x + .5) + v[1] * (.5 - y),
+                        position[2] + u[2] * (x + .5) + v[2] * (.5 - y)
                     ]);
                 return {
                     type: 'WIPEOUT',
@@ -1302,7 +1342,14 @@ function entityPayload(record, blockIds, resources = {}) {
                         position,
                         uVector: u,
                         vVector: v,
-                        rawTags: record.tags
+                        clipBoundary,
+                        boundaryType,
+                        flags: number(record, 70, 7),
+                        clipping: number(record, 280, 1) !== 0,
+                        brightness: number(record, 281, 50),
+                        contrast: number(record, 282, 50),
+                        fade: number(record, 283, 0),
+                        clipMode: number(record, 290, 0) !== 0
                     }
                 };
             }
@@ -1429,6 +1476,16 @@ function dxfHeaderNumber(tags, name, fallback) {
     if (!value || value.code !== 40 || !String(value.value).trim()) throw new KJValidationError(`Invalid DXF ${name} header value`);
     const result = Number(value.value);
     if (!Number.isFinite(result) || result <= 0) throw new KJValidationError(`Invalid DXF ${name} header value`);
+    return result;
+}
+function dxfHeaderReal(tags, name, fallback) {
+    const header = section(tags, 'HEADER');
+    const index = header.findIndex((tag)=>tag.code === 9 && normalizeName(tag.value) === name);
+    if (index < 0) return fallback;
+    const value = header[index + 1];
+    if (!value || value.code !== 40 || !String(value.value).trim()) throw new KJValidationError(`Invalid DXF ${name} header value`);
+    const result = Number(value.value);
+    if (!Number.isFinite(result)) throw new KJValidationError(`Invalid DXF ${name} header value`);
     return result;
 }
 function dxfHeaderText(tags, name) {
@@ -1581,7 +1638,9 @@ async function readDXF(source, options = {}) {
         codePage: dxfCodePage(tags),
         ...dxfDrawingUnits(tags),
         systemVariables: {
-            LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1)
+            LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1),
+            PDMODE: dxfHeaderInteger(tags, '$PDMODE') ?? 0,
+            PDSIZE: dxfHeaderReal(tags, '$PDSIZE', 0)
         },
         title: 'Imported DXF'
     });
@@ -2052,14 +2111,15 @@ const NATIVE_DIMENSION_SUBTYPES = new Set([
     2,
     3,
     4,
-    5
+    5,
+    6
 ]);
 function nativeDimensionCode(payload) {
     const namedType = normalizeName(payload.dimensionType);
     const mapped = namedType === 'LINEAR' ? 0 : DIMENSION_CODE_BY_TYPE[namedType];
     const value = payload.dxfDimensionType == null ? mapped : Number(payload.dxfDimensionType);
     if (!Number.isInteger(value) || value < 0 || !NATIVE_DIMENSION_SUBTYPES.has(value & 7)) {
-        throw new KJValidationError(`DXF export requires a valid ALIGNED, ROTATED, ANGULAR, ANGULAR_3_POINT, RADIUS, or DIAMETER dimension; received ${payload.dimensionType ?? payload.dxfDimensionType ?? 'unknown'}`);
+        throw new KJValidationError(`DXF export requires a valid ALIGNED, ROTATED, ANGULAR, ANGULAR_3_POINT, RADIUS, DIAMETER, or ORDINATE dimension; received ${payload.dimensionType ?? payload.dxfDimensionType ?? 'unknown'}`);
     }
     return value;
 }
@@ -2250,10 +2310,6 @@ function buildDimensionExportBlocks(document, entities, sourceBlocks, dimensionS
         assertNativeDimensionIsXY(payload, entity.handle);
         const style = (payload.styleId ? dimensionStyles.find((record)=>record.id === payload.styleId) : undefined)?.payload ?? {};
         if (VERSION_RANK[context.version] < VERSION_RANK['2000'] && (payload.precision != null || style.decimalPlaces != null)) throw new KJValidationError('Explicit dimension precision requires DXF 2000 or newer');
-        if ([
-            2,
-            5
-        ].includes(subtype) && Number(payload.angularUnits ?? style.angularUnits ?? 0) !== 0) throw new KJValidationError('Angular DIMENSION regeneration currently supports decimal degrees only');
         const angularPrecision = Number(style.angularDecimalPlaces) >= 0 ? style.angularDecimalPlaces : style.decimalPlaces;
         const precision = [
             2,
@@ -2392,6 +2448,12 @@ function buildDimensionExportBlocks(document, entities, sourceBlocks, dimensionS
             } : {},
             ...resolveDimensionAnnotationStyle(payload, style),
             precision: Math.max(0, Math.min(8, Math.trunc(Number.isFinite(Number(precision)) && precision != null ? Number(precision) : 2))),
+            ...[
+                2,
+                5
+            ].includes(subtype) ? {
+                angularUnits: Number(payload.angularUnits ?? style.angularUnits ?? 0)
+            } : {},
             textPosition: [
                 projection.label.position[0],
                 projection.label.position[1],
@@ -2920,10 +2982,6 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emitHatch(output, entity, layerName, ownerHandle, space, context);
         return;
     }
-    if (entity.type === 'WIPEOUT' && p.rawTags?.length) {
-        emitRawEntity(output, entity, layerName, ownerHandle, space, context);
-        return;
-    }
     if (entity.type === 'DIMENSION' && p.rawTags?.length && resources.dimensions?.get(entity.handle)?.preserveRaw) {
         emitRawEntity(output, entity, layerName, ownerHandle, space, context);
         return;
@@ -2950,6 +3008,56 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
     } else if (entity.type === 'POINT') {
         emitSubclass(output, version, 'AcDbPoint');
         emitPoint(output, p.position);
+    } else if (entity.type === 'WIPEOUT') {
+        let position = p.position, uVector = p.uVector, vVector = p.vVector, clipBoundary = p.clipBoundary, boundaryType = p.boundaryType;
+        if (!position || !uVector || !vVector || !Array.isArray(clipBoundary)) {
+            const points = entityVertices.map(vertexPoint), xs = points.map((value)=>value[0]), ys = points.map((value)=>value[1]);
+            const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys), width = maxX - minX, height = maxY - minY;
+            if (!(width > 0) || !(height > 0)) throw new KJValidationError('DXF WIPEOUT boundary must span a nonzero area');
+            position = [
+                minX,
+                minY,
+                0
+            ];
+            uVector = [
+                width,
+                0,
+                0
+            ];
+            vVector = [
+                0,
+                height,
+                0
+            ];
+            clipBoundary = points.map((value)=>[
+                    (value[0] - minX) / width - .5,
+                    .5 - (value[1] - minY) / height,
+                    0
+                ]);
+            boundaryType = points.length === 2 ? 1 : 2;
+        }
+        if (clipBoundary.length < 2 || clipBoundary.length > 128) throw new KJValidationError('DXF WIPEOUT clipBoundary requires 2 to 128 points');
+        emitSubclass(output, version, 'AcDbWipeout');
+        emit(output, 90, 0);
+        emitPoint(output, position);
+        emitPoint(output, uVector, 11);
+        emitPoint(output, vVector, 12);
+        emit(output, 13, 1);
+        emit(output, 23, 1);
+        emit(output, 340, '0');
+        emit(output, 70, p.flags ?? 7);
+        emit(output, 280, p.clipping === false ? 0 : 1);
+        emit(output, 281, p.brightness ?? 50);
+        emit(output, 282, p.contrast ?? 50);
+        emit(output, 283, p.fade ?? 0);
+        emit(output, 360, '0');
+        emit(output, 71, boundaryType ?? (clipBoundary.length === 2 ? 1 : 2));
+        emit(output, 91, clipBoundary.length);
+        for (const value of clipBoundary){
+            emit(output, 14, value[0]);
+            emit(output, 24, value[1]);
+        }
+        if (VERSION_RANK[version] >= VERSION_RANK['2010']) emit(output, 290, p.clipMode === true ? 1 : 0);
     } else if (entity.type === 'CIRCLE') {
         emitSubclass(output, version, 'AcDbCircle');
         emitPoint(output, p.center);
@@ -3050,6 +3158,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         if (p.unresolvedLeaderAnnotation) throw new KJValidationError(`DXF LEADER has an unresolved annotation reference: ${p.unresolvedLeaderAnnotation}`);
         const annotation = p.annotationId ? resources.objects?.get(String(p.annotationId)) : null;
         if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || annotation.type !== 'MTEXT' || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT in the same owner space');
+        const textHeight = annotation?.payload.height ?? p.textHeight, textWidth = annotation?.payload.width ?? p.textWidth;
         emitSubclass(output, version, 'AcDbLeader');
         emit(output, 3, 'STANDARD');
         emit(output, 71, p.arrowEnabled === false ? 0 : 1);
@@ -3057,8 +3166,8 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emit(output, 73, annotation ? 0 : p.annotationType ?? 3);
         emit(output, 74, p.hookLineDirection ?? 0);
         emit(output, 75, p.hookLineEnabled === true ? 1 : 0);
-        if (annotation?.payload.height != null) emit(output, 40, annotation.payload.height);
-        if (annotation?.payload.width != null) emit(output, 41, annotation.payload.width);
+        if (textHeight != null) emit(output, 40, textHeight);
+        if (textWidth != null) emit(output, 41, textWidth);
         emit(output, 76, entityVertices.length);
         for (const value of entityVertices)emitPoint(output, vertexPoint(value));
         emitPoint(output, p.horizontalDirection ?? [
@@ -3082,6 +3191,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emit(output, 3, (p.styleId ? resources.dimensionStyleNames?.get(p.styleId) : undefined) ?? p.styleName ?? 'STANDARD');
         emit(output, 70, isSubclassDXF(version) ? dimensionCode | 32 : dimensionCode);
         if (p.textOverride != null) emit(output, 1, p.textOverride);
+        if ((dimensionCode & 7) === 6 && p.rotation) emit(output, 51, -Number(p.rotation) * 180 / Math.PI);
         if (dimension.measurement != null && ![
             2,
             5
@@ -3113,6 +3223,22 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
             1
         ].includes(subtype)) emit(output, 50, dimensionRotation * 180 / Math.PI);
         if (subtype === 0) emitSubclass(output, version, 'AcDbRotatedDimension');
+    } else if (entity.type === 'TOLERANCE') {
+        if (VERSION_RANK[version] < VERSION_RANK['2000']) throw new KJValidationError('DXF TOLERANCE requires DXF 2000 or newer');
+        emitSubclass(output, version, 'AcDbFcf');
+        emit(output, 3, (p.styleId ? resources.dimensionStyleNames?.get(p.styleId) : undefined) ?? p.styleName ?? 'STANDARD');
+        emitPoint(output, p.position);
+        emit(output, 1, p.text ?? '');
+        emitPoint(output, p.normal ?? [
+            0,
+            0,
+            1
+        ], 210);
+        emitPoint(output, p.xAxisDirection ?? [
+            1,
+            0,
+            0
+        ], 11);
     } else if (entity.type === 'VIEWPORT') {
         if (p.unresolvedViewportReferences?.length) throw new KJValidationError('Cannot export VIEWPORT with unresolved source references');
         if (p.viewCenter?.[2]) throw new KJValidationError('VIEWPORT viewCenter must be a two-dimensional DCS point');
@@ -3240,7 +3366,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
             emit(output, 1070, dimensionStyle.precision);
             if (angular) {
                 emit(output, 1070, 275);
-                emit(output, 1070, 0);
+                emit(output, 1070, dimensionStyle.angularUnits ?? 0);
                 emit(output, 1070, 79);
                 emit(output, 1070, 2);
             }
@@ -3438,6 +3564,19 @@ function writeDXF(document, options = {}) {
     if (!Number.isFinite(linetypeScale) || linetypeScale <= 0) throw new KJValidationError('Cannot export invalid LTSCALE');
     emit(output, 9, '$LTSCALE');
     emit(output, 40, linetypeScale);
+    const pointDisplayMode = Number(state.header.systemVariables.PDMODE ?? 0);
+    if (!Number.isInteger(pointDisplayMode) || pointDisplayMode < 0 || pointDisplayMode > 100 || (pointDisplayMode & 31) > 4 || ![
+        0,
+        32,
+        64,
+        96
+    ].includes(pointDisplayMode & ~31)) throw new KJValidationError('Cannot export invalid PDMODE');
+    emit(output, 9, '$PDMODE');
+    emit(output, 70, pointDisplayMode);
+    const pointDisplaySize = Number(state.header.systemVariables.PDSIZE ?? 0);
+    if (!Number.isFinite(pointDisplaySize) || pointDisplaySize < -100 || pointDisplaySize > 1_000_000) throw new KJValidationError('Cannot export invalid PDSIZE');
+    emit(output, 9, '$PDSIZE');
+    emit(output, 40, pointDisplaySize);
     const currentTextStyleId = state.tables.textStyles.currentId;
     const currentTextStyle = currentTextStyleId ? state.objects[currentTextStyleId] : undefined;
     if (!currentTextStyle || !state.tables.textStyles.recordIds.includes(currentTextStyle.id)) throw new KJValidationError('Cannot export an unresolved current text style');

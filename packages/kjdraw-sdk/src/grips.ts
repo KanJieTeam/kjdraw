@@ -263,8 +263,10 @@ export function getEntityGrips(entity: KJReadonlyObjectRecord): readonly KJEntit
       add('position', 'move', payload.position)
       if (payload.alignmentPoint) add('alignment', 'alignment', payload.alignmentPoint)
       break
+    case 'TOLERANCE':
     case 'INSERT':
     case 'TABLE': add('position', 'move', payload.position); break
+    case 'WIPEOUT':
     case 'IMAGE': {
       const origin = point3(payload.position), u = point3(payload.uVector), v = point3(payload.vVector)
       add('position', 'move', origin)
@@ -380,8 +382,10 @@ export function editEntityGrip(entity: KJReadonlyObjectRecord, gripId: string, t
     case 'ATTDEF':
     case 'ATTRIB':
       payload[gripId === 'alignment' ? 'alignmentPoint' : 'position'] = target; return payload
+    case 'TOLERANCE':
     case 'INSERT':
     case 'TABLE': payload.position = target; return payload
+    case 'WIPEOUT':
     case 'IMAGE': {
       if (gripId === 'position') return moveWhole()
       const origin = point3(payload.position), vector: KJGripPoint = [target[0] - origin[0], target[1] - origin[1], target[2] - origin[2]]

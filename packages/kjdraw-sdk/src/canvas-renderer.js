@@ -161,6 +161,36 @@ function finite(value, fallback = 0) {
     const result = Number(value);
     return Number.isFinite(result) ? result : fallback;
 }
+function toleranceRows(value) {
+    const glyphs = {
+        j: '⌖',
+        r: '◎',
+        i: '≡',
+        f: '∥',
+        b: '⊥',
+        a: '∠',
+        g: '⌭',
+        c: '▱',
+        e: '○',
+        u: '—',
+        d: '⌒',
+        k: '⌢',
+        h: '↗',
+        t: '⇗',
+        n: '⌀',
+        m: 'Ⓜ',
+        l: 'Ⓛ',
+        s: 'Ⓢ',
+        p: 'Ⓟ'
+    };
+    return String(value ?? '').split('^J').filter(Boolean).map((row)=>{
+        const cells = row.split('%%v').map((cell)=>cell.replace(/\{\\Fgdt;([a-z])\}/gu, (_, code)=>glyphs[code] ?? code));
+        while(cells.at(-1) === '')cells.pop();
+        return cells.length ? cells : [
+            ''
+        ];
+    });
+}
 function splineSamples(payload) {
     const definition = normalizeSplineDefinition({
         degree: finite(payload.degree, 3),
@@ -1591,13 +1621,45 @@ export class KJCanvasRenderer {
             const value = point2(payload.position);
             if (!value) drawn = false;
             else {
-                const screen = this.worldToScreen(value);
-                context.beginPath();
-                context.moveTo(screen[0] - 4, screen[1]);
-                context.lineTo(screen[0] + 4, screen[1]);
-                context.moveTo(screen[0], screen[1] - 4);
-                context.lineTo(screen[0], screen[1] + 4);
-                context.stroke();
+                const variables = this.#document?.snapshot().header.systemVariables ?? {};
+                const rawMode = Number(variables.PDMODE ?? 0), rawSize = Number(variables.PDSIZE ?? 0);
+                const mode = Number.isInteger(rawMode) && rawMode >= 0 && rawMode <= 100 && (rawMode & 31) <= 4 && [
+                    0,
+                    32,
+                    64,
+                    96
+                ].includes(rawMode & ~31) ? rawMode : 0;
+                const size = Number.isFinite(rawSize) && rawSize >= -100 && rawSize <= 1_000_000 ? rawSize : 0;
+                const screen = this.worldToScreen(value), base = mode & 31, flags = mode & ~31;
+                const pixels = Math.max(1, Math.min(1_000_000, size > 0 ? size * this.camera.scale * (transformScale ?? 1) : this.#height * (size < 0 ? Math.abs(size) / 100 : .05)));
+                const half = pixels / 2;
+                if (base === 0) context.fillRect(screen[0] - 1, screen[1] - 1, 2, 2);
+                if (base !== 1 || flags !== 0) {
+                    context.beginPath();
+                    if (base === 2) {
+                        context.moveTo(screen[0] - half, screen[1]);
+                        context.lineTo(screen[0] + half, screen[1]);
+                        context.moveTo(screen[0], screen[1] - half);
+                        context.lineTo(screen[0], screen[1] + half);
+                    } else if (base === 3) {
+                        context.moveTo(screen[0] - half, screen[1] - half);
+                        context.lineTo(screen[0] + half, screen[1] + half);
+                        context.moveTo(screen[0] - half, screen[1] + half);
+                        context.lineTo(screen[0] + half, screen[1] - half);
+                    } else if (base === 4) {
+                        context.moveTo(screen[0], screen[1] - half);
+                        context.lineTo(screen[0], screen[1] + half);
+                    }
+                    if ((flags & 32) !== 0) context.arc(screen[0], screen[1], half, 0, Math.PI * 2);
+                    if ((flags & 64) !== 0) {
+                        context.moveTo(screen[0] - half, screen[1] - half);
+                        context.lineTo(screen[0] + half, screen[1] - half);
+                        context.lineTo(screen[0] + half, screen[1] + half);
+                        context.lineTo(screen[0] - half, screen[1] + half);
+                        context.closePath();
+                    }
+                    context.stroke();
+                }
             }
         } else if ([
             'LWPOLYLINE',
@@ -1825,6 +1887,34 @@ export class KJCanvasRenderer {
                     }
                 }
             }
+        } else if (entity.type === 'TOLERANCE') {
+            const position = point2(payload.position), axis = point2(payload.xAxisDirection) ?? [
+                1,
+                0
+            ];
+            if (!position || Math.hypot(...axis) <= 1e-12) drawn = false;
+            else {
+                const rows = toleranceRows(payload.text), style = this.#document?.getObject(String(payload.styleId ?? ''))?.payload;
+                const height = Math.max(.01, finite(style?.textHeight, 2.5)), padding = height * .38, rowHeight = height * 1.65;
+                context.font = `${height * this.camera.scale}px "Segoe UI Symbol", "Segoe UI", sans-serif`;
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                const widths = rows.map((row)=>row.map((cell)=>Math.max(height * 1.2, context.measureText(cell || ' ').width / this.camera.scale + padding * 2)));
+                const screen = this.worldToScreen(position), rotation = Math.atan2(axis[1], axis[0]);
+                context.translate(screen[0], screen[1]);
+                context.rotate(-rotation);
+                let y = 0;
+                for(let rowIndex = 0; rowIndex < rows.length; rowIndex++){
+                    let x = 0;
+                    for(let cellIndex = 0; cellIndex < rows[rowIndex].length; cellIndex++){
+                        const width = widths[rowIndex][cellIndex], pixelWidth = width * this.camera.scale, pixelHeight = rowHeight * this.camera.scale;
+                        context.strokeRect(x, y, pixelWidth, pixelHeight);
+                        context.fillText(rows[rowIndex][cellIndex], x + pixelWidth / 2, y + pixelHeight / 2);
+                        x += pixelWidth;
+                    }
+                    y += rowHeight * this.camera.scale;
+                }
+            }
         } else if (entity.type === 'DIMENSION') {
             const projected = projection && 'dimension' in projection ? projection.dimension : projectDimension(payload, this.#document?.getObject(String(payload.styleId ?? ''))?.payload);
             drawn = projected !== null;
@@ -1891,10 +1981,24 @@ export class KJCanvasRenderer {
                 context.textBaseline = 'bottom';
                 context.fillText(String(text), screen[0], screen[1]);
             }
+        } else if (entity.type === 'WIPEOUT') {
+            const values = points(payload.vertices);
+            drawn = values.length >= 3;
+            if (drawn) {
+                context.beginPath();
+                values.forEach((value, index)=>{
+                    const screen = this.worldToScreen(value);
+                    if (index === 0) context.moveTo(...screen);
+                    else context.lineTo(...screen);
+                });
+                context.closePath();
+                context.globalAlpha = 1;
+                context.fillStyle = this.#paperSheetState ? '#fffefb' : this.#background ?? (this.#theme === 'dark' ? '#081016' : '#f8fafc');
+                context.fill();
+            }
         } else if ([
             'SOLID',
             'TRACE',
-            'WIPEOUT',
             'REVISION_CLOUD'
         ].includes(entity.type)) {
             const values = points(payload.vertices);

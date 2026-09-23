@@ -112,6 +112,7 @@ export interface KJEntityBatchSpec extends Record<string, unknown> {
   type?: string
   payload?: KJObjectPayload
   options?: KJObjectSpec
+  attributeSequence?: KJEntityBatchAttributeSequence
   layerName?: string
   layer?: {
     color?: unknown
@@ -122,9 +123,16 @@ export interface KJEntityBatchSpec extends Record<string, unknown> {
   }
 }
 
+export interface KJEntityBatchAttributeSequence {
+  attributes: { id: string; payload: KJObjectPayload }[]
+  sequenceEnd: { id: string; dxfOwnerMode: 'insert' | 'space'; layerId?: string }
+}
+
 export interface KJEntityBatchResources {
   linetypes: { id: string; name: string; pattern: number[] }[]
   layers: { id: string; name: string; color: number; linetypeId: string; lineweight: number }[]
+  textStyles?: { id: string; name: string; payload: KJObjectPayload }[]
+  dimensionStyles?: { id: string; name: string; payload: KJObjectPayload }[]
   blocks?: { id: string; name: string; basePoint: KJPointInput; entities: KJEntityBatchSpec[] }[]
 }
 
@@ -165,6 +173,7 @@ export interface KJBlockAttributeDefinitionInput {
 export interface KJCommandArguments extends Record<string, unknown> {
   resources?: KJEntityBatchResources
   layout?: KJEntityBatchLayout
+  systemVariables?: { readonly PDMODE?: number; readonly PDSIZE?: number }
   id?: string
   ids?: readonly string[]
   firstId?: string
@@ -330,7 +339,7 @@ export interface KJRegisteredCommand extends KJCommandDefinition {
 const AFFINE_ENTITY_TYPES = Object.freeze([
   'LINE', 'RAY', 'XLINE', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE',
   'WIPEOUT', 'REVISION_CLOUD', 'SPLINE', 'ELLIPSE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT',
-  'IMAGE', 'HATCH', 'LEADER', 'MLEADER', 'DIMENSION', 'VIEWPORT',
+  'IMAGE', 'HATCH', 'LEADER', 'MLEADER', 'DIMENSION', 'TOLERANCE', 'VIEWPORT',
   'SOLID', 'TRACE', 'TABLE',
 ])
 
@@ -471,7 +480,7 @@ export class KJCommandRegistry {
     if (context.expectedDefinition && command !== context.expectedDefinition) throw new KJValidationError(`Command changed before execution: ${command.id}`)
     // Explicit resource batches are a strict data boundary. Check before clone can
     // invoke accessors or normalize unusual object/array properties away.
-    if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && (Object.hasOwn(args, 'resources') || Object.hasOwn(args, 'layout'))) validateCommandData(args)
+    if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'entities')) validateCommandData(args, 'CREATEBATCH')
     if (command.id === 'STRUCTURALEDIT' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'STRUCTURALEDIT')
     if (command.id === 'TEXTEDIT' && command.owner === '@kanjieteam/kjdraw') validateTextEdits(args)
     if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE')
@@ -506,7 +515,7 @@ export class KJCommandRegistry {
     if (!command || this.resolve(command.id) !== command) throw new KJValidationError('Command changed before transactional composition')
     if (command.transactional === false) throw new KJValidationError(`Command cannot be composed transactionally: ${command.id}`)
     if (!context.document || !context.transaction) throw new KJValidationError(`Command ${command.id} requires a document transaction`)
-    if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && (Object.hasOwn(args, 'resources') || Object.hasOwn(args, 'layout'))) validateCommandData(args)
+    if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'entities')) validateCommandData(args, 'CREATEBATCH')
     if (command.id === 'STRUCTURALEDIT' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'STRUCTURALEDIT')
     if (command.id === 'TEXTEDIT' && command.owner === '@kanjieteam/kjdraw') validateTextEdits(args)
     if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE')
@@ -1429,6 +1438,9 @@ function normalizePlotSettings(value: KJPlotSettingsInput = {}): KJPlotSettings 
   return { device, media: String(value.media ?? 'ISO_A4'), area, window, scale, centered: value.centered !== false, rotation, plotStyleId: value.plotStyleId == null ? null : String(value.plotStyleId), lineweights: value.lineweights !== false, outputQualityDpi: Number(value.outputQualityDpi ?? 600) }
 }
 
+const MAX_BATCH_BLOCK_RECORDS = 256
+const MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION = 1024
+const MAX_BATCH_BLOCK_MEMBERS_TOTAL = 2048
 const BATCH_LINEWEIGHTS = new Set([-3, -2, -1, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211])
 
 function validateCommandData(input: unknown, label = 'CREATEBATCH resources'): void {
@@ -1771,9 +1783,12 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
     if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== expected.length || expected.some(key => !Object.hasOwn(value, key))) throw new KJValidationError('CREATEBATCH resource fields do not match the declared format')
   }
   const resourceKeys = Object.keys(resources).sort()
-  if (!['layers', 'linetypes'].every(key => resourceKeys.includes(key)) || resourceKeys.some(key => !['blocks', 'layers', 'linetypes'].includes(key))) throw new KJValidationError('CREATEBATCH resource fields do not match the declared format')
-  const blocks = resources.blocks ?? []
-  for (const group of [resources.linetypes, resources.layers, blocks]) if (!Array.isArray(group) || group.length > 16) throw new KJValidationError('CREATEBATCH resources allow at most 16 records per table')
+  if (!['layers', 'linetypes'].every(key => resourceKeys.includes(key)) || resourceKeys.some(key => !['blocks', 'dimensionStyles', 'layers', 'linetypes', 'textStyles'].includes(key))) throw new KJValidationError('CREATEBATCH resource fields do not match the declared format')
+  const blocks = resources.blocks ?? [], textStyles = resources.textStyles ?? [], dimensionStyles = resources.dimensionStyles ?? []
+  for (const group of [resources.linetypes, resources.layers, textStyles, dimensionStyles]) if (!Array.isArray(group) || group.length > 32) throw new KJValidationError('CREATEBATCH resources allow at most 32 records per table')
+  if (!Array.isArray(blocks) || blocks.length > MAX_BATCH_BLOCK_RECORDS) throw new KJValidationError(`CREATEBATCH resources allow at most ${MAX_BATCH_BLOCK_RECORDS} block records`)
+  const totalBlockMembers = blocks.reduce((sum, block) => sum + (Array.isArray(block.entities) ? block.entities.length : 0), 0)
+  if (totalBlockMembers > MAX_BATCH_BLOCK_MEMBERS_TOTAL) throw new KJValidationError(`CREATEBATCH block resources allow at most ${MAX_BATCH_BLOCK_MEMBERS_TOTAL} total definition entities`)
   const ids = new Set<string>(), linetypes = new Map(document.getTable('linetypes')!.records.filter(item => !item.erased).map(item => [item.id, item.name!]))
   const validateIdentity = (value: { id: string; name: string }, names: Set<string>): void => {
     if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > 256 || value.id !== value.id.trim() || /[\u0000-\u001f\u007f]/.test(value.id) || ['__proto__', 'constructor', 'prototype'].includes(value.id)) throw new KJValidationError('CREATEBATCH resource IDs must be bounded nonempty data strings')
@@ -1787,9 +1802,13 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
   for (const type of resources.linetypes) {
     fields(type, ['id', 'name', 'pattern']); validateIdentity(type, typeNames)
     if (['BYLAYER', 'BYBLOCK'].includes(normalizeName(type.name))) throw new KJValidationError('CREATEBATCH resource linetype names cannot shadow inheritance keywords')
-    if (!Array.isArray(type.pattern) || type.pattern.length > 32 || type.pattern.length % 2 !== 0 || type.pattern.some((segment, index) => typeof segment !== 'number' || !Number.isFinite(segment) || Math.abs(segment) > 1e12 || (index % 2 === 0 ? segment <= 0 : segment >= 0))) throw new KJValidationError('CREATEBATCH linetype patterns must be empty for continuous lines or contain alternating positive dashes and negative gaps')
+    // Native simple DXF linetypes store an ordered segment sequence: positive
+    // values are dashes, negative values are gaps, and zero is a point. Do not
+    // force an artificial positive/negative pairing that would erase point
+    // segments or reject valid repeated dash/gap elements.
+    if (!Array.isArray(type.pattern) || type.pattern.length > 32 || type.pattern.some(segment => typeof segment !== 'number' || !Number.isFinite(segment) || Math.abs(segment) > 1e12)) throw new KJValidationError('CREATEBATCH linetype patterns must be a bounded sequence of native dash, gap, or point segments')
     const length = type.pattern.reduce((sum, segment) => sum + Math.abs(segment), 0)
-    if ((type.pattern.length > 0 && !(length > 0)) || !Number.isFinite(length)) throw new KJValidationError('CREATEBATCH nonempty linetype length must be finite and positive')
+    if ((type.pattern.length > 0 && !(length > 0)) || !Number.isFinite(length)) throw new KJValidationError('CREATEBATCH nonempty linetype length must contain at least one finite non-point segment')
     linetypes.set(type.id, type.name)
   }
   const layerNames = new Set(document.getTable('layers')!.records.map(item => normalizeName(String(item.name))))
@@ -1799,7 +1818,52 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
     if (!BATCH_LINEWEIGHTS.has(layer.lineweight)) throw new KJValidationError('CREATEBATCH layer lineweight must be a supported DXF hundredth-millimetre value')
     if (typeof layer.linetypeId !== 'string' || !linetypes.has(layer.linetypeId)) throw new KJValidationError('CREATEBATCH layer linetypeId must reference the linetype table')
   }
+  const payload = (value: unknown, allowed: readonly string[], label: string): KJObjectPayload => {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new KJValidationError(`${label} payload must be a plain object`)
+    const result = value as KJObjectPayload
+    if (Object.keys(result).some(key => !allowed.includes(key))) throw new KJValidationError(`${label} payload contains an unsupported field`)
+    return result
+  }
+  const finiteField = (record: KJObjectPayload, key: string, min: number, max: number, label: string, integer = false): void => {
+    if (record[key] == null) return
+    const value = record[key]
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || integer && !Number.isInteger(value)) throw new KJValidationError(`${label}.${key} is invalid`)
+  }
+  const textStyleNames = new Set(document.getTable('textStyles')!.records.map(item => normalizeName(String(item.name))))
+  for (const style of textStyles) {
+    fields(style, ['id', 'name', 'payload']); validateIdentity(style, textStyleNames)
+    const record = payload(style.payload, ['fontFamily', 'fontFile', 'bigFontFile', 'fixedHeight', 'widthFactor', 'obliqueAngle', 'dxfFlags', 'generationFlags', 'lastHeight'], 'CREATEBATCH text style')
+    for (const key of ['fontFamily', 'fontFile', 'bigFontFile']) if (record[key] != null && (typeof record[key] !== 'string' || String(record[key]).length > 512 || /[\u0000-\u001f\u007f]/.test(String(record[key])))) throw new KJValidationError(`CREATEBATCH text style ${key} must be bounded printable text or null`)
+    finiteField(record, 'fixedHeight', 0, 1e12, 'CREATEBATCH text style')
+    finiteField(record, 'widthFactor', 1e-12, 1e12, 'CREATEBATCH text style')
+    finiteField(record, 'obliqueAngle', -Math.PI * 2, Math.PI * 2, 'CREATEBATCH text style')
+    finiteField(record, 'dxfFlags', 0, 65535, 'CREATEBATCH text style', true)
+    finiteField(record, 'generationFlags', 0, 65535, 'CREATEBATCH text style', true)
+    finiteField(record, 'lastHeight', 0, 1e12, 'CREATEBATCH text style')
+  }
+  const dimensionStyleNames = new Set(document.getTable('dimensionStyles')!.records.map(item => normalizeName(String(item.name))))
+  for (const style of dimensionStyles) {
+    fields(style, ['id', 'name', 'payload']); validateIdentity(style, dimensionStyleNames)
+    const record = payload(style.payload, ['overallScale', 'arrowSize', 'extensionOffset', 'baselineSpacing', 'extensionBeyond', 'rounding', 'textHeight', 'decimalPlaces', 'angularDecimalPlaces', 'angularUnits', 'centerMarkSize', 'textGap', 'dxfFlags'], 'CREATEBATCH dimension style')
+    for (const key of ['arrowSize', 'extensionOffset', 'baselineSpacing', 'extensionBeyond', 'rounding', 'textGap']) finiteField(record, key, 0, 1e12, 'CREATEBATCH dimension style')
+    for (const key of ['overallScale', 'textHeight']) finiteField(record, key, 1e-12, 1e12, 'CREATEBATCH dimension style')
+    finiteField(record, 'centerMarkSize', -1e12, 1e12, 'CREATEBATCH dimension style')
+    finiteField(record, 'decimalPlaces', 0, 8, 'CREATEBATCH dimension style', true)
+    finiteField(record, 'angularDecimalPlaces', -1, 8, 'CREATEBATCH dimension style', true)
+    finiteField(record, 'angularUnits', 0, 3, 'CREATEBATCH dimension style', true)
+    finiteField(record, 'dxfFlags', 0, 65535, 'CREATEBATCH dimension style', true)
+  }
   const blockNames = new Set(document.getTable('blockRecords')!.records.map(item => normalizeName(String(item.name))))
+  const blockIds = new Set([...document.getTable('blockRecords')!.records.filter(item => !item.erased).map(item => item.id), ...blocks.map(block => block.id)])
+  const blockEdges = new Map(blocks.map(block => [block.id, block.entities.filter(spec => normalizeName(spec.type) === 'INSERT').map(spec => String(spec.payload?.blockRecordId ?? ''))]))
+  const blockVisit = new Set<string>(), blockStack = new Set<string>()
+  const visitBlock = (id: string): void => {
+    if (blockStack.has(id)) throw new KJValidationError('CREATEBATCH block resources cannot contain nested cycles')
+    if (blockVisit.has(id)) return
+    blockStack.add(id)
+    for (const child of blockEdges.get(id) ?? []) if (blockEdges.has(child)) visitBlock(child)
+    blockStack.delete(id); blockVisit.add(id)
+  }
   const explicitEntityIds = new Set<string>()
   const validateExplicitEntityId = (spec: KJEntityBatchSpec, label: string, required: boolean): void => {
     const id = spec.options?.id
@@ -1811,25 +1875,37 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
   for (const [index, block] of blocks.entries()) {
     fields(block, ['id', 'name', 'basePoint', 'entities']); validateIdentity(block, blockNames)
     vec3(block.basePoint, `CREATEBATCH resources.blocks[${index}].basePoint`)
-    if (!Array.isArray(block.entities) || !block.entities.length || block.entities.length > 64) throw new KJValidationError('CREATEBATCH blocks require 1 to 64 definition entities')
+    if (!Array.isArray(block.entities) || block.entities.length > MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION) throw new KJValidationError(`CREATEBATCH blocks require at most ${MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION} definition entities`)
     for (const [memberIndex, spec] of block.entities.entries()) {
       fields(spec, ['type', 'payload', 'options'])
       if (typeof spec.type !== 'string' || !spec.type.trim()) throw new KJValidationError('CREATEBATCH block entity type is required')
-      if (normalizeName(spec.type) === 'INSERT' || ['ATTRIB', 'SEQEND'].includes(normalizeName(spec.type))) throw new KJValidationError('CREATEBATCH v1 blocks do not support nested or attached entities')
+      if (['ATTRIB', 'SEQEND'].includes(normalizeName(spec.type))) throw new KJValidationError('CREATEBATCH blocks do not support attached entities')
+      if (normalizeName(spec.type) === 'INSERT') {
+        const blockRecordId = spec.payload?.blockRecordId
+        if (typeof blockRecordId !== 'string' || !blockIds.has(blockRecordId)) throw new KJValidationError('CREATEBATCH nested INSERT blockRecordId must reference a declared or existing block definition')
+      }
       fields(spec.options, ['id'])
       validateExplicitEntityId(spec, `CREATEBATCH resources.blocks[${index}].entities[${memberIndex}]`, true)
       if (spec.payload?.layerId !== undefined && !new Set([...document.getTable('layers')!.records.filter(item => !item.erased).map(item => item.id), ...resources.layers.map(item => item.id)]).has(String(spec.payload.layerId))) throw new KJValidationError('CREATEBATCH block entity layerId must reference the layer table')
       if (spec.payload?.linetypeId !== undefined && !linetypes.has(String(spec.payload.linetypeId))) throw new KJValidationError('CREATEBATCH block entity linetypeId must reference the linetype table')
       if (spec.payload?.lineweight !== undefined && !BATCH_LINEWEIGHTS.has(Number(spec.payload.lineweight))) throw new KJValidationError('CREATEBATCH block entity lineweight must be supported')
-      if (Object.keys(spec.payload ?? {}).some(key => BLOCK_RELATION_FIELDS.has(key))) throw new KJValidationError('CREATEBATCH block entities cannot supply ownership or attachment relationships')
+      if (resources.textStyles != null && ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(normalizeName(spec.type)) && spec.payload?.styleId !== undefined && !new Set([...document.getTable('textStyles')!.records.filter(item => !item.erased).map(item => item.id), ...textStyles.map(item => item.id)]).has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH block text styleId must reference the text style table')
+      if (resources.dimensionStyles != null && ['DIMENSION', 'TOLERANCE'].includes(normalizeName(spec.type)) && spec.payload?.styleId !== undefined && !new Set([...document.getTable('dimensionStyles')!.records.filter(item => !item.erased).map(item => item.id), ...dimensionStyles.map(item => item.id)]).has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH block dimension styleId must reference the dimension style table')
+      if (normalizeName(spec.type) === 'INSERT') {
+        if ((spec.payload?.attributeIds as unknown[] | undefined)?.length || spec.payload?.sequenceEndId != null || spec.payload?.parentInsertId != null) throw new KJValidationError('CREATEBATCH nested INSERT cannot supply attached entity relationships')
+      } else if (Object.keys(spec.payload ?? {}).some(key => BLOCK_RELATION_FIELDS.has(key))) throw new KJValidationError('CREATEBATCH block entities cannot supply ownership or attachment relationships')
     }
+    visitBlock(block.id)
   }
   for (const spec of modelSpecs) validateExplicitEntityId(spec, 'CREATEBATCH entity', false)
   for (const type of resources.linetypes) transaction.upsertTableRecord('linetypes', { id: type.id, name: type.name, type: 'LINETYPE', payload: { description: '', pattern: clone(type.pattern), totalPatternLength: type.pattern.reduce((sum, segment) => sum + Math.abs(segment), 0), dxfFlags: 0 } })
   for (const layer of resources.layers) transaction.upsertTableRecord('layers', { id: layer.id, name: layer.name, type: 'LAYER', payload: { color: layer.color, linetypeId: layer.linetypeId, linetypeName: linetypes.get(layer.linetypeId), lineweight: layer.lineweight, visible: true, frozen: false, locked: false, plottable: true } })
+  for (const style of textStyles) transaction.upsertTableRecord('textStyles', { id: style.id, name: style.name, type: 'TEXT_STYLE', payload: clone(style.payload) })
+  for (const style of dimensionStyles) transaction.upsertTableRecord('dimensionStyles', { id: style.id, name: style.name, type: 'DIM_STYLE', payload: clone(style.payload) })
   const created: KJObjectRecord[] = []
+  const blockRecords = new Map(blocks.map(block => [block.id, transaction.upsertTableRecord('blockRecords', { id: block.id, name: block.name, type: 'BLOCK_RECORD', payload: { entityIds: [], isSpace: false, basePoint: vec3(block.basePoint, 'block basePoint'), description: null } })]))
   for (const block of blocks) {
-    const record = transaction.upsertTableRecord('blockRecords', { id: block.id, name: block.name, type: 'BLOCK_RECORD', payload: { entityIds: [], isSpace: false, basePoint: vec3(block.basePoint, 'block basePoint'), description: null } })
+    const record = blockRecords.get(block.id)!
     for (const spec of block.entities) created.push(transaction.createEntity(spec.type!, clone(spec.payload ?? {}), { id: String(spec.options!.id), ownerId: record.id }))
   }
   return created
@@ -1944,21 +2020,113 @@ function createBatchLayout(transaction: KJTransaction, layout: KJValidatedBatchL
   return viewport
 }
 
+interface KJValidatedBatchAttributeSequence {
+  attributes: { id: string; payload: KJObjectPayload }[]
+  sequenceEnd: { id: string; dxfOwnerMode: 'insert' | 'space'; layerId?: string }
+}
+
+function validateBatchAttributeSequences(document: KJDocument, args: KJCommandArguments, specs: readonly KJEntityBatchSpec[]): Map<KJEntityBatchSpec, KJValidatedBatchAttributeSequence> {
+  const result = new Map<KJEntityBatchSpec, KJValidatedBatchAttributeSequence>()
+  if (!specs.some(spec => spec?.attributeSequence != null)) return result
+  const plain = (value: unknown, label: string): Record<string, unknown> => {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new KJValidationError(`${label} must be a plain object`)
+    return value as Record<string, unknown>
+  }
+  const exact = (value: unknown, keys: readonly string[], label: string): Record<string, unknown> => {
+    const record = plain(value, label), actual = Object.keys(record)
+    if (actual.length !== keys.length || actual.some(key => !keys.includes(key))) throw new KJValidationError(`${label} fields do not match the declared format`)
+    return record
+  }
+  const validId = (value: unknown, label: string): string => {
+    const id = String(value ?? '')
+    if (!id.trim() || id !== id.trim() || id.length > 256 || /[\u0000-\u001f\u007f]/u.test(id) || ['__proto__', 'constructor', 'prototype'].includes(id)) throw new KJValidationError(`${label} requires a bounded object id`)
+    return id
+  }
+  const occupied = new Set(Object.keys(document.snapshot().objects))
+  const reserve = (value: unknown, label: string): string => {
+    const id = validId(value, label)
+    if (occupied.has(id)) throw new KJValidationError(`${label} must be globally unique`)
+    occupied.add(id); return id
+  }
+  for (const resource of [...(args.resources?.linetypes ?? []), ...(args.resources?.layers ?? []), ...(args.resources?.textStyles ?? []), ...(args.resources?.dimensionStyles ?? [])]) reserve(resource.id, 'CREATEBATCH resource id')
+  for (const block of args.resources?.blocks ?? []) {
+    reserve(block.id, 'CREATEBATCH block id')
+    for (const member of block.entities ?? []) if (member.options?.id != null) reserve(member.options.id, 'CREATEBATCH block member id')
+  }
+  for (const spec of specs) if (spec.options?.id != null) reserve(spec.options.id, 'CREATEBATCH entity id')
+  if (args.layout) {
+    reserve(args.layout.id, 'CREATEBATCH layout id'); reserve(args.layout.blockRecordId, 'CREATEBATCH layout block id'); reserve(args.layout.viewport.id, 'CREATEBATCH viewport id')
+  }
+  const layers = new Set([...document.getTable('layers')!.records.filter(item => !item.erased).map(item => item.id), ...(args.resources?.layers ?? []).map(item => item.id)])
+  const linetypes = new Set([...document.getTable('linetypes')!.records.filter(item => !item.erased).map(item => item.id), ...(args.resources?.linetypes ?? []).map(item => item.id)])
+  const textStyles = new Set([...document.getTable('textStyles')!.records.filter(item => !item.erased).map(item => item.id), ...(args.resources?.textStyles ?? []).map(item => item.id)])
+  for (const [index, spec] of specs.entries()) {
+    if (spec.attributeSequence == null) continue
+    const label = `CREATEBATCH entities[${index}].attributeSequence`
+    if (normalizeName(spec.type) !== 'INSERT') throw new KJValidationError(`${label} is only valid for INSERT`)
+    if (spec.options?.id == null) throw new KJValidationError(`${label} requires an explicit INSERT id`)
+    const suppliedIds = spec.payload?.attributeIds as unknown[] | undefined
+    if (suppliedIds?.length || spec.payload?.sequenceEndId != null || spec.payload?.parentInsertId != null) throw new KJValidationError(`${label} owns the complete attached relationship`)
+    const sequence = exact(spec.attributeSequence, ['attributes', 'sequenceEnd'], label)
+    if (!Array.isArray(sequence.attributes) || !sequence.attributes.length || sequence.attributes.length > 64) throw new KJValidationError(`${label}.attributes must contain 1 to 64 items`)
+    const attributes = sequence.attributes.map((value, attributeIndex) => {
+      const attributeLabel = `${label}.attributes[${attributeIndex}]`, attribute = exact(value, ['id', 'payload'], attributeLabel)
+      const id = reserve(attribute.id, `${attributeLabel}.id`), payload = plain(attribute.payload, `${attributeLabel}.payload`) as KJObjectPayload
+      if (Object.hasOwn(payload, 'parentInsertId') || Object.hasOwn(payload, 'attributeIds') || Object.hasOwn(payload, 'sequenceEndId')) throw new KJValidationError(`${attributeLabel}.payload cannot supply relationship fields`)
+      if (payload.layerId != null && !layers.has(String(payload.layerId))) throw new KJValidationError(`${attributeLabel}.payload.layerId must reference the layer table`)
+      if (payload.linetypeId != null && !linetypes.has(String(payload.linetypeId))) throw new KJValidationError(`${attributeLabel}.payload.linetypeId must reference the linetype table`)
+      if (payload.lineweight != null && !BATCH_LINEWEIGHTS.has(Number(payload.lineweight))) throw new KJValidationError(`${attributeLabel}.payload.lineweight must be supported`)
+      if (payload.styleId != null && !textStyles.has(String(payload.styleId))) throw new KJValidationError(`${attributeLabel}.payload.styleId must reference the text style table`)
+      return { id, payload: clone(payload) }
+    })
+    const end = plain(sequence.sequenceEnd, `${label}.sequenceEnd`), endKeys = Object.keys(end)
+    if (!Object.hasOwn(end, 'id') || !Object.hasOwn(end, 'dxfOwnerMode') || endKeys.some(key => !['id', 'dxfOwnerMode', 'layerId'].includes(key))) throw new KJValidationError(`${label}.sequenceEnd fields do not match the declared format`)
+    if (!['insert', 'space'].includes(String(end.dxfOwnerMode))) throw new KJValidationError(`${label}.sequenceEnd.dxfOwnerMode must be insert or space`)
+    if (end.layerId != null && !layers.has(String(end.layerId))) throw new KJValidationError(`${label}.sequenceEnd.layerId must reference the layer table`)
+    result.set(spec, { attributes, sequenceEnd: { id: reserve(end.id, `${label}.sequenceEnd.id`), dxfOwnerMode: end.dxfOwnerMode as 'insert' | 'space', ...(end.layerId == null ? {} : { layerId: String(end.layerId) }) } })
+  }
+  return result
+}
+
+function validateBatchPointDisplay(value: unknown): { PDMODE?: number; PDSIZE?: number } | undefined {
+  if (value === undefined) return undefined
+  if (!value || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new KJValidationError('CREATEBATCH systemVariables must be a plain object')
+  const source = value as Record<string, unknown>, keys = Object.keys(source)
+  if (!keys.length || keys.some(key => !['PDMODE', 'PDSIZE'].includes(key))) throw new KJValidationError('CREATEBATCH systemVariables accept only PDMODE and PDSIZE')
+  const result: { PDMODE?: number; PDSIZE?: number } = {}
+  if (Object.hasOwn(source, 'PDMODE')) {
+    const mode = source.PDMODE
+    if (typeof mode !== 'number' || !Number.isInteger(mode) || mode < 0 || mode > 100 || (mode & 31) > 4 || ![0, 32, 64, 96].includes(mode & ~31)) throw new KJValidationError('CREATEBATCH PDMODE must be a legal point-display mode')
+    result.PDMODE = mode
+  }
+  if (Object.hasOwn(source, 'PDSIZE')) {
+    const size = source.PDSIZE
+    if (typeof size !== 'number' || !Number.isFinite(size) || size < -100 || size > 1_000_000) throw new KJValidationError('CREATEBATCH PDSIZE must be finite from -100 to 1000000')
+    result.PDSIZE = size
+  }
+  return result
+}
+
 function createEntityBatch({ document, transaction }: KJCommandContext, args: KJCommandArguments = {}): KJObjectRecord[] {
+  const pointDisplay = validateBatchPointDisplay(args.systemVariables)
   const specs = args.entities
   if (!Array.isArray(specs) || !specs.length) throw new KJValidationError('CREATEBATCH requires at least one entity')
   const blockMemberCount = args.resources?.blocks?.reduce((sum, block) => sum + (Array.isArray(block.entities) ? block.entities.length : 0), 0) ?? 0
-  if (specs.length + blockMemberCount + (args.layout ? 1 : 0) > 100000) throw new KJValidationError('CREATEBATCH exceeds the 100000 entity safety limit')
+  const attributeSequenceCount = specs.reduce((sum, spec) => sum + (Array.isArray(spec.attributeSequence?.attributes) ? spec.attributeSequence.attributes.length + 1 : 0), 0)
+  if (specs.length + blockMemberCount + attributeSequenceCount + (args.layout ? 1 : 0) > 100000) throw new KJValidationError('CREATEBATCH exceeds the 100000 entity safety limit')
+  const attributeSequences = validateBatchAttributeSequences(document, args, specs)
   const batchLayout = validateBatchLayout(document, args.layout, args)
   const created: KJObjectRecord[] = []
   if (Object.hasOwn(args, 'resources')) {
     created.push(...createBatchResources(document, transaction, args.resources!, specs))
-    const tableIds = (table: 'layers' | 'linetypes') => new Set([...document.getTable(table)!.records.filter(item => !item.erased).map(item => item.id), ...args.resources![table].map(item => item.id)])
-    const layers = tableIds('layers'), linetypes = tableIds('linetypes')
+    const tableIds = (table: 'layers' | 'linetypes' | 'textStyles' | 'dimensionStyles') => new Set([...document.getTable(table)!.records.filter(item => !item.erased).map(item => item.id), ...(args.resources![table] ?? []).map(item => item.id)])
+    const layers = tableIds('layers'), linetypes = tableIds('linetypes'), textStyles = tableIds('textStyles'), dimensionStyles = tableIds('dimensionStyles')
     for (const spec of specs) {
       if (spec?.payload?.layerId !== undefined && !layers.has(spec.payload.layerId as string)) throw new KJValidationError('CREATEBATCH entity layerId must reference the layer table')
       if (spec?.payload?.linetypeId !== undefined && !linetypes.has(spec.payload.linetypeId as string)) throw new KJValidationError('CREATEBATCH entity linetypeId must reference the linetype table')
       if (spec?.payload?.lineweight !== undefined && !BATCH_LINEWEIGHTS.has(spec.payload.lineweight as number)) throw new KJValidationError('CREATEBATCH entity lineweight must be a supported DXF hundredth-millimetre value')
+      if (args.resources?.textStyles != null && ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(normalizeName(spec?.type)) && spec?.payload?.styleId !== undefined && !textStyles.has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH text styleId must reference the text style table')
+      if (args.resources?.dimensionStyles != null && ['DIMENSION', 'TOLERANCE'].includes(normalizeName(spec?.type)) && spec?.payload?.styleId !== undefined && !dimensionStyles.has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH dimension styleId must reference the dimension style table')
       if (normalizeName(String(spec?.type ?? '')) === 'INSERT') {
         const blockId = String(spec?.payload?.blockRecordId ?? '')
         const block = transaction.getObject(blockId)
@@ -1999,8 +2167,18 @@ function createEntityBatch({ document, transaction }: KJCommandContext, args: KJ
       payload.styleName = currentDimensionStyleName
     }
     if (['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(normalizeName(spec.type)) && payload.styleId === undefined && currentTextStyleId) payload.styleId = currentTextStyleId
-    created.push(transaction.createEntity(spec.type!, payload, spec.options ?? {}))
+    const entity = transaction.createEntity(spec.type!, payload, spec.options ?? {})
+    const sequence = attributeSequences.get(spec)
+    if (!sequence) { created.push(entity); continue }
+    const attributes = sequence.attributes.map(attribute => transaction.createEntity('ATTRIB', { ...attribute.payload, parentInsertId: entity.id }, { id: attribute.id, ownerId: entity.ownerId }))
+    const sequenceLayerId = sequence.sequenceEnd.layerId ?? entity.payload.layerId
+    const sequenceEnd = transaction.createObject({ id: sequence.sequenceEnd.id, kind: 'custom', type: 'SEQEND', ownerId: entity.id,
+      payload: { dxfOwnerMode: sequence.sequenceEnd.dxfOwnerMode, ...(sequenceLayerId == null ? {} : { layerId: sequenceLayerId }) } })
+    const updated = transaction.updateObject(entity.id, { payload: { attributeIds: attributes.map(attribute => attribute.id), sequenceEndId: sequenceEnd.id } })
+    created.push(updated, ...attributes, sequenceEnd)
   }
+  if (pointDisplay?.PDMODE !== undefined) transaction.setSystemVariable('PDMODE', pointDisplay.PDMODE)
+  if (pointDisplay?.PDSIZE !== undefined) transaction.setSystemVariable('PDSIZE', pointDisplay.PDSIZE)
   if (batchLayout) created.push(createBatchLayout(transaction, batchLayout))
   return created
 }

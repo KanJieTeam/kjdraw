@@ -26,7 +26,7 @@ export declare const KJ_FORMAT_CAPABILITY: Readonly<{
 }>;
 export type KJFormatCapability = typeof KJ_FORMAT_CAPABILITY[keyof typeof KJ_FORMAT_CAPABILITY];
 export declare const KJ_STANDARD_TYPES: Readonly<{
-    readonly entity: readonly ["LINE", "RAY", "XLINE", "LWPOLYLINE", "POLYLINE", "ARC", "CIRCLE", "ELLIPSE", "SPLINE", "POINT", "HATCH", "SOLID", "TRACE", "IMAGE", "TEXT", "MTEXT", "ATTDEF", "ATTRIB", "INSERT", "LEADER", "MLEADER", "DIMENSION", "TABLE", "VIEWPORT", "WIPEOUT", "REVISION_CLOUD", "SOLID3D", "PROXY_ENTITY"];
+    readonly entity: readonly ["LINE", "RAY", "XLINE", "LWPOLYLINE", "POLYLINE", "ARC", "CIRCLE", "ELLIPSE", "SPLINE", "POINT", "HATCH", "SOLID", "TRACE", "IMAGE", "TEXT", "MTEXT", "ATTDEF", "ATTRIB", "INSERT", "LEADER", "MLEADER", "DIMENSION", "TOLERANCE", "TABLE", "VIEWPORT", "WIPEOUT", "REVISION_CLOUD", "SOLID3D", "PROXY_ENTITY"];
     readonly object: readonly ["LAYER", "LINETYPE", "TEXT_STYLE", "DIM_STYLE", "UCS", "VIEW", "BLOCK_RECORD", "LAYOUT", "DICTIONARY", "XRECORD", "GROUP", "MATERIAL", "IMAGE_DEFINITION", "PROXY_OBJECT"];
 }>;
 export type KJStandardEntityType = typeof KJ_STANDARD_TYPES.entity[number];
