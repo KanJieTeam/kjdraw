@@ -195,6 +195,57 @@ test('explicit host candidate policy turns one circle request into independently
   assert.match(await readFile(join(directory, value.candidate.svg.path), 'utf8'), /data-entity-type="CIRCLE"/u)
 })
 
+test('Kimi-safe candidate policy materializes one complete simple mechanical part without overwriting the host drawing', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'kjdraw-mcp-flange-candidate-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await mkdir(join(directory, 'sessions'))
+  await mkdir(join(directory, 'results'))
+  const child = invoke([
+    '--workspace', directory, '--blank', 'host.kjd', '--units', 'millimeter',
+    '--proposal-dir', 'sessions', '--candidate-dir', 'results', '--tool-profile', 'kimi-safe',
+  ], [
+    request(1, 'initialize', { protocolVersion: '2025-11-25' }),
+    request(2, 'tools/list', {}),
+    request(3, 'tools/call', { name: 'cad_propose_mechanical_flange', arguments: {
+      version: '1.0.0', expectedRevision: 0, units: 'millimeter', locale: 'zh-CN',
+      drawingId: 'MCP-SIMPLE-FLANGE', title: '简单法兰零件图',
+      outerDiameter: 120, boreDiameter: 40, thickness: 20,
+      boltCount: 6, boltCircleDiameter: 90, boltHoleDiameter: 10,
+    } }),
+  ])
+  assert.equal(child.status, 0, child.stderr)
+  const responses = child.stdout.trim().split('\n').map(line => JSON.parse(line))
+  assert.ok(responses[1].result.tools.some(tool => tool.name === 'cad_propose_mechanical_flange'))
+  assert.equal(responses[2].error, undefined, JSON.stringify(responses[2]))
+  const value = responses[2].result.structuredContent.value
+  assert.equal(value.product, 'KJDraw')
+  assert.equal(value.tool, 'cad_propose_mechanical_flange')
+  assert.equal(value.status, 'candidate-ready')
+  assert.equal(value.revision, 1)
+  assert.ok(value.candidate.entityCount >= 30)
+  assert.equal(value.candidate.sourceOverwritten, false)
+  assert.equal(value.candidate.transactionCount, 1)
+  assert.equal(value.candidate.svg.diagnosticCount, 0)
+  assert.equal(value.candidate.preview.format, 'interactive-svg-html')
+  const links = responses[2].result.content.filter(item => item.type === 'resource_link')
+  assert.deepEqual(links.map(item => item.mimeType), ['text/html', 'image/svg+xml', 'application/vnd.kanjie.kjdraw+json', 'application/dxf'])
+
+  const sdk = createKJDrawSDK()
+  const source = await sdk.readDocument(await readFile(join(directory, 'host.kjd')), { format: 'KJD' })
+  const kjd = await sdk.readDocument(await readFile(join(directory, value.candidate.kjd)), { format: 'KJD' })
+  const dxf = await sdk.readDocument(await readFile(join(directory, value.candidate.dxf)), { format: 'DXF' })
+  assert.equal(source.revision, 0)
+  assert.equal(source.listEntities().length, 0)
+  for (const candidate of [kjd, dxf]) {
+    assert.equal(candidate.validate().valid, true)
+    assert.equal(candidate.listEntities({ type: 'CIRCLE' }).length, 9)
+    assert.equal(candidate.listEntities({ type: 'DIMENSION' }).length, 4)
+  }
+  const previewHtml = await readFile(join(directory, value.candidate.preview.path), 'utf8')
+  assert.match(previewHtml, /class="canvas-shell cad"/u)
+  assert.match(await readFile(join(directory, value.candidate.svg.path), 'utf8'), /data-entity-type="DIMENSION"/u)
+})
+
 test('explicit host candidate policy materializes a precise existing-object edit without overwriting the attached drawing', async t => {
   const fixture = await drawingFixture('KJD')
   t.after(() => rm(fixture.directory, { recursive: true, force: true }))

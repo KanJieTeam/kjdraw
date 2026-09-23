@@ -355,6 +355,11 @@ function candidateModelBounds(document) {
   }
 }
 
+function candidateModelEntityCount(document) {
+  const modelSpaceId = document.snapshot().spaces.modelSpaceId
+  return document.listEntities().filter(entity => !entity.erased && entity.ownerId === modelSpaceId).length
+}
+
 async function candidateSvgPreview(host) {
   for (const layout of candidateLayouts(host.document)) {
     try { return exportDrawingSvg(host.document, { layoutId: layout.id, allowPartial: true }) }
@@ -437,8 +442,9 @@ async function deliverCandidate(host, proposal) {
   const reopenedKjd = await createKJDrawSDK().readDocument(kjd, { format: 'KJD' })
   const reopenedDxf = await createKJDrawSDK().readDocument(dxf, { format: 'DXF' })
   const entityCount = host.document.listEntities().length
+  const modelEntityCount = candidateModelEntityCount(host.document)
   if (!reopenedKjd.validate().valid || reopenedKjd.id !== host.document.id || reopenedKjd.revision !== host.document.revision || reopenedKjd.listEntities().length !== entityCount) throw new Error('Candidate KJD failed independent reopen validation')
-  if (!reopenedDxf.validate().valid || reopenedDxf.listEntities().length !== entityCount) throw new Error('Candidate DXF failed independent reopen validation')
+  if (!reopenedDxf.validate().valid || candidateModelEntityCount(reopenedDxf) !== modelEntityCount) throw new Error('Candidate DXF failed independent reopen validation')
   await exclusiveAtomicFileCreate(kjdPath, kjd)
   await exclusiveAtomicFileCreate(dxfPath, dxf)
   let svg = null
