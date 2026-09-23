@@ -30,6 +30,7 @@ const KIMI_SAFE_TOOL_NAMES = new Set([
   'cad_propose_text_edit',
   'cad_propose_drawing_compact',
   'cad_propose_manufacturing_sheet',
+  'cad_propose_mechanical_flange',
   'cad_propose_architecture_plan',
   'cad_propose_cartesian_chart',
   'cad_propose_geology_column',
