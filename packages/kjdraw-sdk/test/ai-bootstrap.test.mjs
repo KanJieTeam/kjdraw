@@ -37,6 +37,8 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
   assert.doesNotMatch(powerShell, /IsPathFullyQualified/)
   assert.match(powerShell, /\$KJDrawArgs \+= @\('--mcp-script', \$KJDrawStableMcp\)/)
   assert.match(powerShell, /\$KJDrawArgs \+= '--replace-existing'/)
+  assert.match(powerShell, /\$KJDrawArgs \+= '--replace-existing-skill'/)
+  assert.doesNotMatch(powerShell, /^\s*\+=/mu)
   assert.match(powerShell, /Install-KJDrawAtomicFile \$KJDrawCurrentStage \$KJDrawCurrent/)
   assert.match(powerShell, /UTF8Encoding\(\$false\)/)
   assert.match(powerShell, /earlier KJDraw MCP process is still attached/u)
