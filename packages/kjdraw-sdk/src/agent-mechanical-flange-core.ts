@@ -18,7 +18,18 @@ type Point3 = [number, number, number]
 type Point2Or3 = Point2 | Point3
 type Entity = { type: 'POINT' | 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'WIPEOUT' | 'LEADER' | 'TEXT' | 'MTEXT' | 'ATTDEF' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT'; payload: Record<string, unknown>; options: { id: string };
   attributeSequence?: { attributes: { id: string; payload: Record<string, unknown> }[]; sequenceEnd: { id: string; dxfOwnerMode: 'insert' | 'space'; layerId?: string } } }
-interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } }; getTable?: (name: string) => { records: { id: string; name?: string; payload?: Record<string, unknown> }[] } | undefined }
+interface Document {
+  id: string
+  revision: number
+  snapshot(): { header?: { units?: string } }
+  getTable?: (name: string) => {
+    readonly records: readonly {
+      readonly id: string
+      readonly name?: string | null
+      readonly payload?: Readonly<Record<string, unknown>>
+    }[]
+  } | null | undefined
+}
 
 export interface KJFlangeTitleGrid {
   origin: Point2

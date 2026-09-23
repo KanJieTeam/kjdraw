@@ -3,6 +3,10 @@ import { KJValidationError } from '../errors.js';
 import { clone } from '../utils.js';
 import { hatchPatternLines } from './hatch.js';
 import { determinant3, similarityScale3, transformPoint3, transformVector3 } from './matrix3.js';
+function withoutUndefined(record) {
+    for (const key of Object.keys(record))if (record[key] === undefined) delete record[key];
+    return record;
+}
 function angleOf(vector) {
     const record = vector;
     const coordinates = Array.isArray(vector) ? vector : [

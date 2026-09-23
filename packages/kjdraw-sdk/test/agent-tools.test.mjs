@@ -15,7 +15,7 @@ const circleArgs = (revision = 0) => ({ expectedRevision: revision, units: 'mill
 function value(result) { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 
 test('tool definitions are frozen serializable schemas with no approval or arbitrary execution tool', () => {
-  assert.equal(KJDRAW_AGENT_TOOLS.length, 40)
+  assert.equal(KJDRAW_AGENT_TOOLS.length, 44)
   assert.ok(KJDRAW_AGENT_TOOLS.every(tool => ['read', 'propose'].includes(tool.effect)))
   assert.deepEqual(JSON.parse(JSON.stringify(KJDRAW_AGENT_TOOLS)), KJDRAW_AGENT_TOOLS)
   for (const tool of KJDRAW_AGENT_TOOLS) {
@@ -38,6 +38,8 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
           ? ['segmentIndex', 'vertexIndex', 'point', 'tolerance', 'bulge', 'sweepDegrees', 'startWidth', 'endWidth']
         : tool.name === 'cad_propose_manufacturing_sheet'
           ? ['locale', 'holePatterns', 'boltCirclePatterns', 'slots']
+        : tool.name === 'cad_propose_mechanical_flange'
+          ? ['locale']
         : tool.name === 'cad_propose_architecture_plan'
           ? ['locale', 'exteriorOpenings', 'partitions', 'textHeight']
         : tool.name === 'cad_propose_site_plan'
@@ -47,7 +49,13 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
         : tool.name === 'cad_propose_geology_column'
           ? ['locale', 'verticalScaleDenominator', 'projectName', 'title', 'pageHeightMillimeters', 'documentFacts']
         : tool.name === 'cad_propose_geology_section'
-          ? ['locale', 'projectName', 'title', 'documentFacts']
+          ? ['locale', 'projectName', 'title', 'documentFacts', 'manualConnections', 'sectionReference']
+        : tool.name === 'cad_propose_geology_plan'
+          ? ['locale', 'title', 'revision', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'baseMapStyles', 'baseMapTextStyles', 'baseMapLinework', 'northAngleDegrees', 'baseMapBlocks', 'baseMapInserts']
+        : tool.name === 'cad_propose_geology_plan_example'
+          ? ['version', 'locale', 'spacingMeters', 'title']
+        : tool.name === 'cad_propose_geology_section_example'
+          ? ['version', 'locale', 'spacingMeters', 'title']
         : tool.name === 'cad_propose_structural_edit'
           ? ['reconnections', 'relayer']
         : tool.name === 'cad_check_geometry'

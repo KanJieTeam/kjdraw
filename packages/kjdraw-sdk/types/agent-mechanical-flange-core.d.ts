@@ -29,12 +29,12 @@ interface Document {
         };
     };
     getTable?: (name: string) => {
-        records: {
-            id: string;
-            name?: string;
-            payload?: Record<string, unknown>;
+        readonly records: readonly {
+            readonly id: string;
+            readonly name?: string | null;
+            readonly payload?: Readonly<Record<string, unknown>>;
         }[];
-    } | undefined;
+    } | null | undefined;
 }
 export interface KJFlangeTitleGrid {
     origin: Point2;
@@ -748,6 +748,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
         expectedRevision: number;
         entityCount: number;
         parameters: {
+            endViewPresent: boolean;
             ringCount: number;
             squareHolePitch: number | undefined;
             squareHoleRadius: number | undefined;

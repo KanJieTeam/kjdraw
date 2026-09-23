@@ -21,6 +21,7 @@ import { createAgentTopologyContext } from './agent-topology-context.js';
 import { createEraseImpact } from './erase-impact.js';
 import { createCatalogComponentInsertIdentity, searchComponentCatalog } from './component-library.js';
 import { buildAgentManufacturingSheet } from './agent-manufacturing-sheet.js';
+import { buildAgentMechanicalFlangeCore } from './agent-mechanical-flange-core.js';
 import { buildAgentArchitecturePlan } from './agent-architecture-plan.js';
 import { buildAgentSitePlan } from './agent-site-plan.js';
 import { buildAgentGeologyPlan } from './agent-geology-plan.js';
@@ -966,6 +967,295 @@ const manufacturingSheetSchema = objectWithOptional({
     'boltCirclePatterns',
     'slots'
 ]);
+const mechanicalFlangeLength = {
+    type: 'number',
+    exclusiveMinimum: 0,
+    maximum: 160
+};
+const mechanicalFlangeSchema = objectWithOptional({
+    version: {
+        type: 'string',
+        enum: [
+            '1.0.0'
+        ]
+    },
+    expectedRevision: revision,
+    units: {
+        type: 'string',
+        enum: [
+            'millimeter'
+        ]
+    },
+    locale: {
+        type: 'string',
+        enum: [
+            'zh-CN',
+            'en'
+        ]
+    },
+    drawingId: {
+        ...text,
+        maxLength: 64
+    },
+    title: {
+        ...text,
+        maxLength: 96
+    },
+    outerDiameter: mechanicalFlangeLength,
+    boreDiameter: mechanicalFlangeLength,
+    thickness: {
+        ...mechanicalFlangeLength,
+        maximum: 120
+    },
+    boltCount: {
+        type: 'integer',
+        minimum: 2,
+        maximum: 64
+    },
+    boltCircleDiameter: mechanicalFlangeLength,
+    boltHoleDiameter: mechanicalFlangeLength
+}, [
+    'locale'
+]);
+function mechanicalFlangeIntent(args) {
+    const outerDiameter = Number(args.outerDiameter), boreDiameter = Number(args.boreDiameter), thickness = Number(args.thickness);
+    const boltCount = Number(args.boltCount), boltCircleDiameter = Number(args.boltCircleDiameter), boltHoleDiameter = Number(args.boltHoleDiameter);
+    if (boreDiameter >= outerDiameter) throw new KJValidationError('Mechanical flange boreDiameter must be smaller than outerDiameter');
+    if (boltHoleDiameter >= outerDiameter) throw new KJValidationError('Mechanical flange boltHoleDiameter must be smaller than outerDiameter');
+    if (boltCircleDiameter <= boreDiameter + boltHoleDiameter || boltCircleDiameter >= outerDiameter - boltHoleDiameter) throw new KJValidationError('Mechanical flange bolt circle must keep every hole clear of the bore and outer edge');
+    const locale = args.locale === 'en' ? 'en' : 'zh-CN';
+    const center = [
+        95,
+        165
+    ], outerRadius = outerDiameter / 2, boreRadius = boreDiameter / 2;
+    const sideStart = 220, sideEnd = sideStart + thickness, dimensionHeight = 2.5;
+    const holeNote = locale === 'zh-CN' ? String(boltCount) + '×⌀' + String(boltHoleDiameter) + ' 均布' : String(boltCount) + '×⌀' + String(boltHoleDiameter) + ' EQ SP';
+    return {
+        version: '1.0.0',
+        expectedRevision: Number(args.expectedRevision),
+        units: 'millimeter',
+        drawingId: String(args.drawingId),
+        endView: {
+            center,
+            ringRadii: [
+                boreRadius,
+                boltCircleDiameter / 2,
+                outerRadius
+            ],
+            ringStyleKeys: [
+                null,
+                'pitch-circle',
+                null
+            ],
+            holePatterns: [
+                {
+                    count: boltCount,
+                    pitchRadius: boltCircleDiameter / 2,
+                    holeRadius: boltHoleDiameter / 2,
+                    startAngle: Math.PI / 2
+                }
+            ]
+        },
+        sideViewAxis: {
+            xRange: [
+                sideStart - 10,
+                sideEnd + 10
+            ],
+            axisCoordinate: center[1],
+            symmetricProfiles: [
+                {
+                    vertices: [
+                        {
+                            station: sideStart,
+                            radius: outerRadius
+                        },
+                        {
+                            station: sideEnd,
+                            radius: outerRadius
+                        }
+                    ],
+                    endCaps: 'both'
+                }
+            ]
+        },
+        auxiliaryLines: [
+            {
+                start: [
+                    sideStart,
+                    center[1] + boreRadius
+                ],
+                end: [
+                    sideEnd,
+                    center[1] + boreRadius
+                ],
+                role: 'hidden'
+            },
+            {
+                start: [
+                    sideStart,
+                    center[1] - boreRadius
+                ],
+                end: [
+                    sideEnd,
+                    center[1] - boreRadius
+                ],
+                role: 'hidden'
+            }
+        ],
+        dimensions: [
+            {
+                kind: 'diameter',
+                definitionPoints: [
+                    [
+                        center[0] - outerRadius,
+                        center[1]
+                    ],
+                    [
+                        center[0] + outerRadius,
+                        center[1]
+                    ]
+                ],
+                textPosition: [
+                    center[0],
+                    center[1] + outerRadius + 12
+                ],
+                textHeight: dimensionHeight
+            },
+            {
+                kind: 'diameter',
+                definitionPoints: [
+                    [
+                        center[0] - boreRadius,
+                        center[1]
+                    ],
+                    [
+                        center[0] + boreRadius,
+                        center[1]
+                    ]
+                ],
+                textPosition: [
+                    center[0],
+                    center[1] - boreRadius - 12
+                ],
+                textHeight: dimensionHeight
+            },
+            {
+                kind: 'diameter',
+                definitionPoints: [
+                    [
+                        center[0] - boltCircleDiameter / 2,
+                        center[1]
+                    ],
+                    [
+                        center[0] + boltCircleDiameter / 2,
+                        center[1]
+                    ]
+                ],
+                textPosition: [
+                    center[0] + boltCircleDiameter / 2 + 18,
+                    center[1]
+                ],
+                textOverride: 'PCD <>',
+                textHeight: dimensionHeight
+            },
+            {
+                kind: 'rotated',
+                definitionPoints: [
+                    [
+                        (sideStart + sideEnd) / 2,
+                        center[1] - outerRadius - 18
+                    ],
+                    [
+                        sideStart,
+                        center[1] - outerRadius - 8
+                    ],
+                    [
+                        sideEnd,
+                        center[1] - outerRadius - 8
+                    ]
+                ],
+                textPosition: [
+                    (sideStart + sideEnd) / 2,
+                    center[1] - outerRadius - 18
+                ],
+                rotation: 0,
+                textHeight: dimensionHeight
+            }
+        ],
+        styleProfile: {
+            custom: [
+                {
+                    key: 'pitch-circle',
+                    layerName: 'FLANGE_PITCH',
+                    color: 7,
+                    lineweight: 18,
+                    linetypeName: 'CENTER',
+                    linetypePattern: [
+                        8,
+                        -1,
+                        1,
+                        -1
+                    ]
+                }
+            ]
+        },
+        sheet: {
+            origin: [
+                0,
+                0
+            ],
+            size: [
+                420,
+                297
+            ],
+            inset: 10,
+            titleGrid: {
+                origin: [
+                    260,
+                    10
+                ],
+                size: [
+                    150,
+                    36
+                ],
+                columns: [
+                    0,
+                    22,
+                    72,
+                    112
+                ],
+                rows: [
+                    {
+                        offset: 12
+                    },
+                    {
+                        offset: 24
+                    }
+                ]
+            },
+            notes: [
+                {
+                    kind: 'single-line',
+                    text: String(args.title),
+                    position: [
+                        270,
+                        34
+                    ],
+                    height: 3.5
+                },
+                {
+                    kind: 'single-line',
+                    text: holeNote,
+                    position: [
+                        48,
+                        72
+                    ],
+                    height: 3
+                }
+            ]
+        }
+    };
+}
 const architectureOpening = object({
     wall: {
         type: 'string',
@@ -3071,6 +3361,12 @@ const geologyPlanSchema = objectWithOptional({
 ]);
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
+        name: 'cad_propose_mechanical_flange',
+        effect: 'propose',
+        description: 'Compile one complete editable A3 millimeter drawing of a simple circular flange from exact engineering dimensions. Supply outerDiameter, boreDiameter, thickness, boltCount, boltCircleDiameter and boltHoleDiameter; KJDraw validates edge clearances and generates the end view, aligned side view, pitch circle, equally spaced native holes, hidden bore lines, centerlines, native measured dimensions, title grid, notes and named engineering layers locally. Set locale=zh-CN for Chinese generated notes. Geometry is native 1:1 and intentionally limited to outer diameters up to 160 mm and thickness up to 120 mm so the complete part fits the fixed sheet without hidden rescaling. Requires a blank millimeter drawing. Returns a full preview and engineering evidence; only host approval commits one undoable CREATEBATCH transaction.',
+        inputSchema: mechanicalFlangeSchema
+    },
+    {
         name: 'cad_propose_text_edit',
         effect: 'propose',
         description: 'Propose one atomic batch of 1–64 exact native TEXT/MTEXT content replacements. Query existing object IDs and complete text first. Each change supplies id, expectedText and text; every expectedText must match exactly at expectedRevision. Preserves IDs, handles, positions, layers, styles, ownership and references. Raw MTEXT formatting is part of the text; preserve it unless explicitly asked to change it. No regex, inferred targets, blank replacement, dynamic field expressions, dimension text overrides, block attributes or paper/block-space editing. Hidden, frozen, locked or stale objects reject the whole batch. Review the complete before/after text before host approval; approval is one undoable TEXTEDIT transaction.',
@@ -4287,6 +4583,57 @@ export class KJAgentToolSession {
                             const compiled = buildAgentManufacturingSheet(document, args);
                             commandArgs = structuredClone(compiled.commandArgs);
                             engineeringEvidence = compiled.evidence;
+                        } else if (name === 'cad_propose_mechanical_flange') {
+                            if (document.listEntities().length !== 0) throw new KJValidationError('Mechanical flange requires a blank drawing; existing geometry is not replaced');
+                            const compiled = buildAgentMechanicalFlangeCore(document, mechanicalFlangeIntent(args));
+                            const layoutToken = stableHash({
+                                drawingId: args.drawingId,
+                                kind: 'mechanical-flange-a3'
+                            }).slice(0, 12);
+                            commandArgs = {
+                                ...structuredClone(compiled.commandArgs),
+                                layout: {
+                                    id: 'mechanical-flange-' + layoutToken + '-layout',
+                                    blockRecordId: 'mechanical-flange-' + layoutToken + '-paper-space',
+                                    name: 'KJ_MECH_' + layoutToken.toUpperCase() + '_A3',
+                                    dxfPlotSettings: {
+                                        paperWidth: 420,
+                                        paperHeight: 297,
+                                        marginLeft: 0,
+                                        marginBottom: 0,
+                                        marginRight: 0,
+                                        marginTop: 0,
+                                        originX: 0,
+                                        originY: 0,
+                                        scaleNumerator: 1,
+                                        scaleDenominator: 1,
+                                        flags: 0,
+                                        paperUnits: 1,
+                                        rotation: 0,
+                                        plotType: 5
+                                    },
+                                    viewport: {
+                                        id: 'mechanical-flange-' + layoutToken + '-viewport',
+                                        center: [
+                                            210,
+                                            148.5,
+                                            0
+                                        ],
+                                        width: 420,
+                                        height: 297,
+                                        viewCenter: [
+                                            210,
+                                            148.5,
+                                            0
+                                        ],
+                                        viewHeight: 297,
+                                        twistAngle: 0,
+                                        modelUnits: 'millimeter',
+                                        scaleDenominator: 1
+                                    }
+                                }
+                            };
+                            engineeringEvidence = compiled.evidence;
                         } else if (name === 'cad_propose_architecture_plan') {
                             const compiled = buildAgentArchitecturePlan(document, args);
                             commandArgs = structuredClone(compiled.commandArgs);
@@ -4883,6 +5230,7 @@ export class KJAgentToolSession {
                             'cad_propose_drawing_pattern',
                             'cad_propose_drawing_annotated',
                             'cad_propose_manufacturing_sheet',
+                            'cad_propose_mechanical_flange',
                             'cad_propose_architecture_plan',
                             'cad_propose_site_plan',
                             'cad_propose_cartesian_chart',
@@ -4959,6 +5307,10 @@ export class KJAgentToolSession {
                             ok: true,
                             value
                         })).length > 1048576) throw new KJValidationError('Geology column proposal exceeds the 1 MiB output limit');
+                        if (name === 'cad_propose_mechanical_flange' && new TextEncoder().encode(JSON.stringify({
+                            ok: true,
+                            value
+                        })).length > 1048576) throw new KJValidationError('Mechanical flange proposal exceeds the 1 MiB output limit');
                         if (name === 'cad_propose_geology_section' && new TextEncoder().encode(JSON.stringify({
                             ok: true,
                             value

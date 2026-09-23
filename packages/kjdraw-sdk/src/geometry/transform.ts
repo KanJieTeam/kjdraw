@@ -12,6 +12,11 @@ import type { Point2Input } from './vector2.js'
 
 export type GeometryEntityPayload = Record<string, unknown>
 
+function withoutUndefined<T extends Record<string, unknown>>(record: T): T {
+  for (const key of Object.keys(record)) if (record[key] === undefined) delete record[key]
+  return record
+}
+
 function angleOf(vector: Point2Input): number {
   const record = vector as { readonly x?: unknown; readonly y?: unknown }
   const coordinates = Array.isArray(vector) ? vector : [record.x, record.y]
