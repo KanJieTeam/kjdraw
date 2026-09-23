@@ -5,13 +5,13 @@ import test from 'node:test'
 
 const root = new URL('../../../', import.meta.url)
 const read = path => readFile(new URL(path, root), 'utf8')
-const pinned = 'eda026f3b18b5e9196ecd580356b4419604a07b0'
+const pinned = '73c7975f0b3042b992b1f002cf37c4c47abc2038'
 
 test('one-line AI bootstraps pin one public candidate and connect all clients without npx or force', async () => {
   const [powerShell, shell] = await Promise.all([read('scripts/install-ai.ps1'), read('scripts/install-ai.sh')])
   for (const source of [powerShell, shell]) {
     assert.match(source, new RegExp(pinned))
-    assert.match(source, /source-eda026f/)
+    assert.match(source, /source-73c7975/)
     assert.match(source, /kjdraw-connect\.mjs/)
     assert.match(source, /kjdraw-mcp\.mjs/)
     assert.match(source, /--check-tool-schemas/)
