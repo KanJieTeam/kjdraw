@@ -4,7 +4,7 @@ import { KJRevisionConflictError, KJValidationError } from './errors.js'
 import { resolvePhysicalPlotPaper, resolvePlotScale, validatePlotSettings } from './plot-settings.js'
 import { resolveDxfPlotSource } from './plot-range.js'
 import { insertAttributes, isAttachedAttribute } from './attribute-display.js'
-import { layoutCadMText, textFontFamily } from './geometry/text-layout.js'
+import { KJDRAW_ENGINEERING_FONT_STACK, layoutCadMText, textFontFamily } from './geometry/text-layout.js'
 import { aciColor } from './canvas-renderer.js'
 import { projectDimension } from './geometry/annotation.js'
 import { multiply3, rotation3, scale3, translation3, type AffineMatrix3 } from './geometry/matrix3.js'
@@ -279,7 +279,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
     if (own != null) { if (!Number.isInteger(own) || own < 1 || own > 255) fail('unsupported color index'); return indexed(own) }
     return layerColor()
   }
-  const text = (entity: KJReadonlyObjectRecord, value: string, position: Point, textHeight: number, angle: number, anchor = 'start', baseline = 'alphabetic', stretch: readonly [number,number,number] = [1,1,0], family = 'Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif'): string => {
+  const text = (entity: KJReadonlyObjectRecord, value: string, position: Point, textHeight: number, angle: number, anchor = 'start', baseline = 'alphabetic', stretch: readonly [number,number,number] = [1,1,0], family = KJDRAW_ENGINEERING_FONT_STACK): string => {
     if (!(textHeight > 0)) fail('text height must be positive')
     if (!fontIds.has(entity.id)) { fontIds.add(entity.id); report.approximations.push({ entityId: entity.id, type: entity.type, reason: 'Editable text uses unembedded sans-serif font metrics' }) }
     // Prefer static TrueType CJK fonts: Chromium may emit CFF/variable fonts as
@@ -313,7 +313,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
       const horizontal = numeric(p.horizontalAlignment, 0), vertical = numeric(p.verticalAlignment, 0)
       if (![0,1,2].includes(horizontal) || ![0,1,2,3].includes(vertical)) fail('fitted text alignment is unsupported')
       const position = point((horizontal || vertical) && p.alignmentPoint ? p.alignmentPoint : p.position)
-      return text(entity, String(p.text ?? p.defaultValue ?? ''), position, numeric(p.height, 2.5), numeric(p.rotation, 0), ['start','middle','end'][horizontal], ['alphabetic','text-after-edge','central','text-before-edge'][vertical], stretch, textFontFamily(style, 'Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif'))
+      return text(entity, String(p.text ?? p.defaultValue ?? ''), position, numeric(p.height, 2.5), numeric(p.rotation, 0), ['start','middle','end'][horizontal], ['alphabetic','text-after-edge','central','text-before-edge'][vertical], stretch, textFontFamily(style, KJDRAW_ENGINEERING_FONT_STACK))
     }
     if (entity.type === 'MTEXT') return multilineText(entity)
     if (entity.type === 'DIMENSION') {

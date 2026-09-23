@@ -1,4 +1,5 @@
 import { KJValidationError } from './errors.js'
+import { transformEntityPayload } from './geometry/transform.js'
 import { stableHash } from './utils.js'
 
 export const KJDRAW_GEOLOGY_PLAN_VERSION = '1.0.0' as const
@@ -382,7 +383,9 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
   if (!document || typeof document.id !== 'string' || !Number.isInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Geology plan compiler requires a KJDraw document')
   const input = plain(source, 'input'); exactKeys(input, INPUT_KEYS, 'input')
   if (input.version !== KJDRAW_GEOLOGY_PLAN_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_GEOLOGY_PLAN_VERSION}`)
-  if (input.units !== 'meter' || document.snapshot()?.header?.units !== 'meter') throw new KJValidationError('Geology plan compiler requires meter units')
+  const documentUnits = document.snapshot()?.header?.units
+  if (input.units !== 'meter' || (documentUnits !== 'meter' && documentUnits !== 'millimeter'))
+    throw new KJValidationError('Geology plan compiler requires metre source facts and a metre or millimetre document')
   const expectedRevision = integer(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER)
   if (expectedRevision !== document.revision) throw new KJValidationError(`input.expectedRevision ${expectedRevision} does not match document revision ${document.revision}`)
   if (Object.values(document.snapshot()?.objects ?? {}).some(value => value && typeof value === 'object' && (value as { kind?: unknown }).kind === 'entity')) throw new KJValidationError('Geology plan compiler requires a blank document')
@@ -999,7 +1002,7 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
   const northAngleDegrees = finite(input.northAngleDegrees ?? 0, 'input.northAngleDegrees', -360, 360)
   const locale = input.locale == null ? [...boreholes.map(value => value.id), ...sectionLines.map(value => value.label), input.title].some(value => /[\u3400-\u9fff]/u.test(String(value ?? ''))) ? 'zh-CN' as const : 'en' as const
     : input.locale === 'zh-CN' || input.locale === 'en' ? input.locale : (() => { throw new KJValidationError('input.locale must be zh-CN or en') })()
-  return { expectedRevision, scale, boundary, boreholes, holesById, sectionLines, coordinateGrid, coordinateCallouts, dimensions, buildingFootprints, roadPaths, roadSegmentCount, baseMapStyles, baseMapTextStyles, baseMapLinework, baseMapBlocks, baseMapInserts, northAngleDegrees, locale,
+  return { expectedRevision, documentUnits, scale, boundary, boreholes, holesById, sectionLines, coordinateGrid, coordinateCallouts, dimensions, buildingFootprints, roadPaths, roadSegmentCount, baseMapStyles, baseMapTextStyles, baseMapLinework, baseMapBlocks, baseMapInserts, northAngleDegrees, locale,
     drawingId: text(input.drawingId, 'input.drawingId', 64), title: input.title == null ? undefined : text(input.title, 'input.title', 96), revision: input.revision == null ? undefined : text(input.revision, 'input.revision', 32) }
 }
 
@@ -1270,11 +1273,47 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
   if (resources.linetypes.length > MAX_TABLE_RESOURCES || resources.layers.length > MAX_TABLE_RESOURCES || resources.textStyles.length > MAX_TABLE_RESOURCES) throw new KJValidationError(`Geology plan resources exceed the ${MAX_TABLE_RESOURCES} record table budget`)
   const resourceCount = resources.linetypes.length + resources.layers.length + resources.textStyles.length + resources.blocks.length
   if (resourceCount > MAX_PLAN_RESOURCES) throw new KJValidationError(`Geology plan resources exceed the ${MAX_PLAN_RESOURCES} record proposal budget`)
+  const outputFactor = input.documentUnits === 'millimeter' ? 1000 : 1
+  const outputMatrix = [outputFactor, 0, 0, outputFactor, 0, 0] as const
+  const omitUndefined = (payload: Record<string, unknown>) => {
+    for (const key of Object.keys(payload)) if (payload[key] === undefined) delete payload[key]
+    return payload
+  }
+  const outputSpec = (spec: EntitySpec): EntitySpec => {
+    if (outputFactor === 1) return spec
+    const transformed = omitUndefined(transformEntityPayload(spec.type, spec.payload, outputMatrix))
+    if (spec.type === 'INSERT') transformed.scale = spec.payload.scale
+    if (spec.type === 'DIMENSION' && spec.payload.textHeight != null) transformed.textHeight = Number(spec.payload.textHeight) * outputFactor
+    if (spec.type === 'POLYLINE' && spec.payload.elevation != null) transformed.elevation = Number(spec.payload.elevation) * outputFactor
+    return { ...spec, payload: transformed, ...(spec.attributeSequence ? { attributeSequence: {
+      attributes: spec.attributeSequence.attributes.map(attribute => ({ ...attribute,
+        payload: omitUndefined(transformEntityPayload('ATTRIB', attribute.payload, outputMatrix)) })),
+      sequenceEnd: spec.attributeSequence.sequenceEnd,
+    } } : {}) }
+  }
+  const outputEntities = entities.map(outputSpec)
+  const outputResources = outputFactor === 1 ? resources : {
+    ...resources,
+    linetypes: resources.linetypes.map(value => ({ ...value, pattern: value.pattern.map(item => item * outputFactor) })),
+    textStyles: resources.textStyles.map(value => ({ ...value, payload: { ...value.payload,
+      ...(value.payload.fixedHeight == null ? {} : { fixedHeight: Number(value.payload.fixedHeight) * outputFactor }),
+      ...(value.payload.lastHeight == null ? {} : { lastHeight: Number(value.payload.lastHeight) * outputFactor }),
+    } })),
+    blocks: resources.blocks.map(value => ({ ...value,
+      basePoint: value.basePoint.map(item => item * outputFactor), entities: value.entities.map(outputSpec) })),
+  }
+  const outputLayout = outputFactor === 1 ? layout : { ...layout, viewport: { ...layout.viewport,
+    viewCenter: [layout.viewport.viewCenter[0] * outputFactor, layout.viewport.viewCenter[1] * outputFactor, 0] as Point3,
+    viewHeight: layout.viewport.viewHeight * outputFactor, modelUnits: 'millimeter' as const } }
+  const commandResources = outputResources.textStyles.length ? outputResources : {
+    linetypes: outputResources.linetypes, layers: outputResources.layers, blocks: outputResources.blocks,
+  }
+  const outputCenter: Point2 = [center[0] * outputFactor, center[1] * outputFactor]
   return {
-    commandArgs: { entities, resources, layout },
-    outputConfig: { layoutName, paper: { standard: 'ISO A3', orientation: 'landscape', widthMm: 420, heightMm: 297 }, scaleNumerator: 1, scaleDenominator: input.scale, modelUnits: 'meter' as const,
-      viewport: { center, width: groundWidth, height: groundHeight } },
-    evidence: { drawingId: input.drawingId, skillId: 'geology-plan', skillVersion: KJDRAW_GEOLOGY_PLAN_VERSION, expectedRevision: input.expectedRevision, units: 'meter' as const,
+    commandArgs: { entities: outputEntities, resources: commandResources, layout: outputLayout },
+    outputConfig: { layoutName, paper: { standard: 'ISO A3', orientation: 'landscape', widthMm: 420, heightMm: 297 }, scaleNumerator: 1, scaleDenominator: input.scale, modelUnits: input.documentUnits,
+      viewport: { center: outputCenter, width: groundWidth * outputFactor, height: groundHeight * outputFactor } },
+    evidence: { drawingId: input.drawingId, skillId: 'geology-plan', skillVersion: KJDRAW_GEOLOGY_PLAN_VERSION, expectedRevision: input.expectedRevision, units: input.documentUnits, sourceUnits: 'meter' as const,
       modelEntityCount: entities.length, entityCount: entities.length + 1, boreholeCount: input.boreholes.length, sectionLineCount: input.sectionLines.length, alignedDimensionCount: input.dimensions.length, buildingFootprintCount: input.buildingFootprints.length, roadPathCount: input.roadPaths.length, roadSegmentCount: input.roadSegmentCount,
       baseMapStyleCount: input.baseMapStyles.length, baseMapTextStyleCount: input.baseMapTextStyles.length, baseMapLineworkCount: input.baseMapLinework.length,
       baseMapAttributeDefinitionCount: input.baseMapBlocks.reduce((sum, block) => sum + block.entities.filter(entity => entity.kind === 'attributeDefinition').length, 0), baseMapAttributeCount: input.baseMapInserts.reduce((sum, insert) => sum + insert.attributes.length, 0),

@@ -7,8 +7,11 @@ type MeasureText = (text: string, height: number, family: string) => number
 const number = (value: unknown, fallback = 0): number => value == null ? fallback : typeof value === 'number' && Number.isFinite(value) ? value : NaN
 const point = (value: unknown): Point | null => Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every(v => typeof v === 'number' && Number.isFinite(v)) ? [value[0], value[1]] : null
 
+/** Browser-safe engineering preview stack: neutral Latin glyphs plus installed CJK fallbacks. */
+export const KJDRAW_ENGINEERING_FONT_STACK = '"Arial","Segoe UI","Microsoft YaHei","Microsoft YaHei UI","PingFang SC","Noto Sans CJK SC","Source Han Sans SC","WenQuanYi Micro Hei",sans-serif'
+
 /** Safe local font-family mapping; no URL/file loading or embedded font claims. */
-export function textFontFamily(style: Data = {}, fallback = 'ui-monospace, SFMono-Regular, Consolas, monospace'): string {
+export function textFontFamily(style: Data = {}, fallback = KJDRAW_ENGINEERING_FONT_STACK): string {
   const file = String(style.fontFile ?? style.fontFamily ?? '').split(/[\\/]/).at(-1)!.replace(/\.(?:ttf|ttc|otf|shx)$/i, '')
   const known: Record<string, string> = { times: 'Times New Roman', arial: 'Arial', simsun: 'SimSun', simhei: 'SimHei', simplex_: 'Simplex', txt_____: 'Txt', italic__: 'Italic' }
   const family = known[file.toLowerCase()] ?? (/^[\p{L}\p{N} _-]{1,80}$/u.test(file) ? file : '')

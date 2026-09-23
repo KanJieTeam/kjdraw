@@ -37,6 +37,7 @@ const KIMI_SAFE_TOOL_NAMES = new Set([
   'cad_propose_geology_section_example',
   'cad_propose_geology_plan',
   'cad_propose_road_drawing',
+  'cad_propose_geology_plan_example',
   'cad_propose_site_plan',
 ])
 
@@ -293,7 +294,7 @@ async function toolResponse(id, result, isError = false, host = null) {
   })
 }
 
-const COMPACT_ENGINEERING_PROPOSALS = new Set(['cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_section_example', 'cad_propose_geology_plan'])
+const COMPACT_ENGINEERING_PROPOSALS = new Set(['cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_section_example', 'cad_propose_geology_plan', 'cad_propose_geology_plan_example'])
 function modelVisibleProposal(name, result, host, delivery = null) {
   if (result.ok && delivery) return { ok: true, value: {
     product: 'KJDraw', responseKind: 'verified-cad-candidate@1', tool: name,

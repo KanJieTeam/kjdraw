@@ -37,6 +37,8 @@ test('skill routes reference only real MCP tools and prefer every production dra
     'cad_propose_geology_column',
     'cad_propose_geology_section_example',
     'cad_propose_geology_section',
+    'cad_propose_geology_plan_example',
+    'cad_propose_geology_plan',
     'cad_propose_manufacturing_sheet',
     'cad_propose_architecture_plan',
     'cad_propose_site_plan',

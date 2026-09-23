@@ -3,7 +3,7 @@ import { KJRevisionConflictError, KJValidationError } from './errors.js';
 import { resolvePhysicalPlotPaper, resolvePlotScale, validatePlotSettings } from './plot-settings.js';
 import { resolveDxfPlotSource } from './plot-range.js';
 import { insertAttributes, isAttachedAttribute } from './attribute-display.js';
-import { layoutCadMText, textFontFamily } from './geometry/text-layout.js';
+import { KJDRAW_ENGINEERING_FONT_STACK, layoutCadMText, textFontFamily } from './geometry/text-layout.js';
 import { aciColor } from './canvas-renderer.js';
 import { projectDimension } from './geometry/annotation.js';
 import { multiply3, rotation3, scale3, translation3 } from './geometry/matrix3.js';
@@ -370,7 +370,7 @@ export function exportDrawingSvg(document, options) {
         1,
         1,
         0
-    ], family = 'Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif')=>{
+    ], family = KJDRAW_ENGINEERING_FONT_STACK)=>{
         if (!(textHeight > 0)) fail('text height must be positive');
         if (!fontIds.has(entity.id)) {
             fontIds.add(entity.id);
@@ -461,7 +461,7 @@ export function exportDrawingSvg(document, options) {
                 'text-after-edge',
                 'central',
                 'text-before-edge'
-            ][vertical], stretch, textFontFamily(style, 'Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif'));
+            ][vertical], stretch, textFontFamily(style, KJDRAW_ENGINEERING_FONT_STACK));
         }
         if (entity.type === 'MTEXT') return multilineText(entity);
         if (entity.type === 'DIMENSION') {

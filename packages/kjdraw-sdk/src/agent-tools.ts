@@ -448,6 +448,43 @@ function geologySectionExampleIntent(args: Record<string, unknown>): KJGeologySe
     title: `${baseTitle.slice(0, 64 - notice.length)}${notice}` }
 }
 
+const geologyPlanExampleSchema = objectWithOptional({
+  version: { type: 'string', enum: ['1.0.0'] }, expectedRevision: revision, units: { type: 'string', enum: ['millimeter'] },
+  locale: { type: 'string', enum: ['zh-CN', 'en'] }, pointCount: { type: 'integer', minimum: 2, maximum: 24 },
+  depthMeters: { type: 'number', minimum: 5, maximum: 200 }, spacingMeters: { type: 'number', minimum: 5, maximum: 200 },
+  title: { ...text, maxLength: 96 },
+}, ['version', 'locale', 'spacingMeters', 'title'])
+
+function geologyPlanExampleIntent(args: Record<string, unknown>): KJAgentGeologyPlanInput {
+  const locale = args.locale === 'en' ? 'en' : 'zh-CN'
+  const pointCount = Number(args.pointCount), depth = Number(args.depthMeters), spacing = Number(args.spacingMeters ?? 20)
+  const columns = Math.min(8, pointCount)
+  const originX = 1000, originY = 1000
+  const points = Array.from({ length: pointCount }, (_, index) => {
+    const row = Math.floor(index / columns), offset = index % columns
+    const column = row % 2 === 0 ? offset : columns - 1 - offset
+    return [originX + column * spacing, originY + row * spacing] as [number, number]
+  })
+  const minimumX = Math.min(...points.map(point => point[0])), maximumX = Math.max(...points.map(point => point[0]))
+  const minimumY = Math.min(...points.map(point => point[1])), maximumY = Math.max(...points.map(point => point[1]))
+  const padding = Math.max(12, spacing * 0.75)
+  const width = maximumX - minimumX + padding * 2, height = maximumY - minimumY + padding * 2
+  const standardScales = [50, 100, 200, 500, 1000, 2000] as const
+  const scale = standardScales.find(value => value >= Math.max(width * 1000 / 330, height * 1000 / 190)) ?? 2000
+  const notice = locale === 'zh-CN' ? '（示意数据，非实测）' : ' (illustrative, not measured)'
+  const baseTitle = String(args.title ?? (locale === 'zh-CN' ? `${pointCount}孔勘探点平面位置图` : `${pointCount}-point investigation plan`))
+  const ids = points.map((_, index) => `ZK${String(index + 1).padStart(2, '0')}`)
+  return {
+    version: '1.0.0', expectedRevision: Number(args.expectedRevision), units: 'meter', locale,
+    drawingId: `EXAMPLE-GEO-PLAN-${pointCount}`, title: `${baseTitle.slice(0, 96 - notice.length)}${notice}`, scale,
+    boundary: [[minimumX - padding, minimumY - padding], [maximumX + padding, minimumY - padding], [maximumX + padding, maximumY + padding], [minimumX - padding, maximumY + padding]],
+    boreholes: points.map((position, index) => ({ id: ids[index]!, position, collarElevation: 300 + [0, 0.35, -0.15, 0.25, -0.3, 0.1][index % 6]!, depth, kind: 'borehole' })),
+    sectionLines: [{ id: 'SECTION-A', holeIds: ids, label: 'A—A′', endpointLabels: ['A', 'A′'] }],
+    coordinateGrid: { origin: [Math.floor((minimumX - padding) / spacing) * spacing, Math.floor((minimumY - padding) / spacing) * spacing], spacing },
+    northAngleDegrees: 0,
+  }
+}
+
 const geologyPlanBoreholeLabelLayoutSchema = objectWithOptional({
   idPosition: numericTuple(2), collarElevationPosition: numericTuple(2), depthPosition: numericTuple(2),
   textHeight: { type: 'number', minimum: 0.01, maximum: 1_000 },
@@ -586,7 +623,8 @@ export const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[] = deepFreeze([
   { name: 'cad_propose_architecture_plan', effect: 'propose', description: 'Compile a complete editable millimeter architectural floor plan from compact versioned intent. For a Chinese request set locale=zh-CN; generated sheet labels will be Chinese, and Chinese title/room names also select this automatically. Version 1.0.0 supports one rectangular exterior envelope, straight horizontal or vertical partitions, explicit door and window openings, reusable native block definitions and instances, non-overlapping room boundaries, room names and areas, native dimensions, named layers, and an A3 1:100 equivalent model-space frame. Supply exact dimensions and room bounds; KJDraw validates wall material, openings, room bounds and partition intersections, then generates deterministic native geometry locally. Requires a blank drawing. Host approval applies the full reviewed result as one atomic CREATEBATCH transaction.', inputSchema: architecturePlanSchema },
   { name: 'cad_propose_site_plan', effect: 'propose', description: 'Compile a complete editable meter general site plan from compact versioned intent. For a Chinese request set locale=zh-CN; generated road widths, floor counts, coordinates, north arrow and title notes will be Chinese, and Chinese project labels also select this automatically. Version 1.0.0 supports a bounded site polygon, one or more road centerlines with generated edges, building footprints and labels, water/drainage/power/gas/telecom paths and declared nodes, coordinate reference annotation, north arrow, native dimensions, named layers, and a model-space view sized for ISO A1 landscape at 1:500. Supply actual project coordinates and geometry; KJDraw validates polygon topology, extents, utility requirements and output fit, then expands the result locally. Requires a blank drawing. Host approval applies one atomic CREATEBATCH transaction.', inputSchema: sitePlanSchema },
   { name: 'cad_propose_cartesian_chart', effect: 'propose', description: 'Compile a complete editable millimeter Cartesian category chart from compact versioned data intent. Version 1.0.0 supports line, grouped bar and mixed line/bar series with deterministic axes, nice automatic scales, grids, legends, labels, data marks and named layers. Supply 2-32 categories and 1-8 series with at most 160 values; KJDraw validates data/range relationships and generates native LINE/LWPOLYLINE/CIRCLE/TEXT geometry locally. Requires a blank drawing. Host approval applies the full reviewed chart as one atomic CREATEBATCH transaction.', inputSchema: cartesianChartSchema },
-  { name: 'cad_propose_geology_plan', effect: 'propose', description: 'Compile one editable ISO A3 engineering investigation-point location plan from exact supplied metre coordinates. The request must include a simple site boundary, 2–128 identified investigation points with supplied collar elevations and optional depths, one or more explicit section-line routes referencing existing point IDs in order, a standard drawing scale, and exactly one explicit coordinate expression: a grid origin/spacing or point-coordinate callouts with complete leader and text positions. Each point may supply labelLayout with independent source-backed positions for its identifier, collar elevation and, when depth is present, depth label, plus bounded text height, degree rotation and numeric precision; when omitted, the established combined-facts layout is preserved. Engineering coordinate labels use X=northing and Y=easting; KJDraw never swaps axes, invents coordinates, elevations, depths, section correlations, boundaries or project provenance. Optional aligned dimensions require all three native definition points, an optional in-view text position, a positive numeric display value, precision and only a bounded metre suffix; arbitrary dimension text and inferred measurements are forbidden. Version 1.0.0 draws native coordinate graphics, editable point symbols/facts, paired visible section references, optional explicitly supplied aligned dimensions, closed building footprints and continuous road line/arc paths, a north arrow and an A3 landscape viewport at the declared scale. Road widths and centerlines are never inferred; unsupplied roads, terrain, landscaping and other base-map context remain external source-backed dependencies. Non-fitting sheets, unknown or duplicate references, unsafe geometry, stale revisions and nonblank drawings fail closed. Requires a blank metre drawing. Returns a bounded native CREATEBATCH proposal without modifying the drawing; only a trusted host can approve one undoable transaction. This generic compiler and its tests are not certification that a private source drawing matches 1:1.', inputSchema: geologyPlanSchema },
+  { name: 'cad_propose_geology_plan', effect: 'propose', description: 'Compile one editable ISO A3 engineering investigation-point location plan from exact supplied metre coordinates into a blank metre or millimetre drawing. The request includes a simple site boundary, 2–128 identified investigation points with supplied collar elevations and optional depths, one or more explicit section-line routes, a standard drawing scale, and exactly one coordinate strategy. Engineering coordinate labels use X=northing and Y=easting; KJDraw never swaps axes or invents coordinates, elevations, depths, correlations, boundaries or provenance. Source facts remain metres; millimetre hosts are converted locally without changing displayed engineering coordinate values. Returns a bounded native CREATEBATCH proposal for host approval.', inputSchema: geologyPlanSchema },
+  { name: 'cad_propose_geology_plan_example', effect: 'propose', description: 'Create one deterministic editable investigation-point location plan when the user asks for a generic example without measured coordinates. pointCount supports 2–24 points; depthMeters and spacingMeters remain variable. KJDraw generates illustrative point positions, elevations, one referenced section route, coordinate grid, north arrow and a separate ISO A3 layout, and marks the title as illustrative and not measured. It may run after an illustrative geology section in the same millimetre drawing; never append a generic sketch beside the section. For real project facts use cad_propose_geology_plan.', inputSchema: geologyPlanExampleSchema },
   { name: 'cad_propose_geology_column', effect: 'propose', description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Never merge, omit or rename a requested stratum or lithology to fit A4: there is no five-class limit. Preserve every supplied interval and lithology class; if the default 297 mm sheet cannot fit a deep log, retry with pageHeightMillimeters=841 only when the host-selected style declares that long sheet; undeclared or arbitrary heights are rejected rather than silently changing geological facts. The result reports exact stratumCount and lithologyCount for review. Set locale=zh-CN for a Chinese request so every compiler-generated visible title, heading, legend and note is Chinese; if omitted, Chinese source text is detected automatically. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses either the built-in generic style or one versioned geology column knowledge pack selected and hash-locked by the host before this session; the model cannot supply or replace style code. A bound pack may request up to eight explicit source-backed documentFacts as stable key/value pairs (for example an appendix identifier); undeclared, duplicate, missing or unsafe facts are rejected and never inferred. It does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. Supply verticalScaleDenominator only when it is an explicit source/template fact; otherwise KJDraw selects the smallest fitting standard denominator declared by the style. The model supplies engineering facts, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.', inputSchema: geologyColumnSchema },
   { name: 'cad_propose_geology_section', effect: 'propose', description: 'Compile one editable A3 engineering geological section from 2–24 supplied boreholes with exact station, collar elevation, continuous depth intervals, optional measured water/sample/SPT observations, and explicit compatible interval/layer correlations or source-backed manual boundaries for continuity, pinchout and lens conditions. Set locale=zh-CN for a Chinese request so compiler-generated visible labels and notes are Chinese; if omitted, Chinese source text is detected automatically. Hole facts, station, elevations, depths and datum are metres; CAD page is millimetres. Version 1.0.0 uses the bundled versioned professional section layout and original redistributable semantic hatch patterns. Optional projectName and declared documentFacts populate the title block; missing facts remain blank and are never inferred. It does not infer unsupplied cross-hole continuity, water, observations or raw MDB/DWG provenance. Ambiguous, reverse, duplicate or incompatible correlations and non-fitting scales are rejected; uncorrelated space remains blank. The model supplies facts and identity links, not low-level CAD entities, private hatch assets or approval. Requires a blank millimetre drawing and at least one declared correlation or manual connection. Returns a bounded native CREATEBATCH proposal; only a trusted host can approve one undoable transaction.', inputSchema: geologySectionSchema },
   { name: 'cad_propose_geology_section_example', effect: 'propose', description: 'Create one deterministic editable loess-region geological section for product demonstration when the user asks for a generic example but supplies no measured borehole table. holeCount supports 2–24 boreholes; depthMeters and spacingMeters stay variable. KJDraw creates illustrative strata and exact interval-ID correlations locally in one call, selects fitting scales, and clearly marks the title as illustrative and not measured. Never use this tool for a real project, imported borehole facts or engineering conclusions; use cad_propose_geology_section for those. Requires a blank millimetre drawing and returns the same reviewed KJD/DXF/SVG candidate workflow.', inputSchema: geologySectionExampleSchema },
@@ -840,12 +878,12 @@ export class KJAgentToolSession {
   /** Bind unit schemas to the drawing so models see its canonical unit name. */
   get definitions(): readonly KJAgentToolDefinition[] {
     const units = this.#document.snapshot().header.units
-    const millimeterTools = ['cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_section_example']
+    const millimeterTools = ['cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_section_example', 'cad_propose_geology_plan_example']
     const sectionPack = this.#geologySectionKnowledge?.pack ?? KJDRAW_GEOLOGY_KNOWLEDGE_PACK
     const sectionRule = sectionPack.rules?.['geology-section-layout'] as Record<string, unknown> | undefined
-    return deepFreeze(KJDRAW_AGENT_TOOLS.filter(tool => !millimeterTools.includes(tool.name) || units === 'millimeter').filter(tool => !['cad_propose_site_plan', 'cad_propose_geology_plan'].includes(tool.name) || units === 'meter').map(tool => {
+    return deepFreeze(KJDRAW_AGENT_TOOLS.filter(tool => !millimeterTools.includes(tool.name) || units === 'millimeter').filter(tool => tool.name !== 'cad_propose_site_plan' || units === 'meter').map(tool => {
       if (!tool.inputSchema.properties?.units) return tool
-      let properties: Record<string, KJAgentToolSchema> = { ...tool.inputSchema.properties, units: { ...tool.inputSchema.properties.units, enum: [units] } }
+      let properties: Record<string, KJAgentToolSchema> = { ...tool.inputSchema.properties, units: tool.name === 'cad_propose_geology_plan' ? tool.inputSchema.properties.units : { ...tool.inputSchema.properties.units, enum: [units] } }
       if (tool.name === 'cad_propose_geology_section') {
         if (!sectionRule?.sectionReferenceStyle) { const { sectionReference: _unused, ...supported } = properties; properties = supported }
         const keys = Array.isArray(sectionRule?.footerGrid) ? (sectionRule.footerGrid as Record<string, unknown>[]).map(cell => String(cell.key)).filter(key => key !== 'projectName') : []
@@ -1027,10 +1065,13 @@ export class KJAgentToolSession {
               const compiled = buildAgentSitePlan(document, args as unknown as KJAgentSitePlanInput)
               commandArgs = structuredClone(compiled.commandArgs)
               engineeringEvidence = compiled.evidence
-            } else if (name === 'cad_propose_geology_plan') {
-              const compiled = buildAgentGeologyPlan(document, args as unknown as KJAgentGeologyPlanInput)
+            } else if (name === 'cad_propose_geology_plan' || name === 'cad_propose_geology_plan_example') {
+              const illustrative = name === 'cad_propose_geology_plan_example'
+              const planArgs = illustrative ? geologyPlanExampleIntent(args) : args as unknown as KJAgentGeologyPlanInput
+              const planDocument = illustrative ? { id: document.id, revision: document.revision, snapshot: () => ({ header: document.snapshot().header, objects: {} }) } : document
+              const compiled = buildAgentGeologyPlan(planDocument, planArgs)
               commandArgs = structuredClone(compiled.commandArgs)
-              engineeringEvidence = compiled.evidence
+              engineeringEvidence = illustrative ? { ...compiled.evidence, inputKind: 'illustrative-example', measuredData: false } : compiled.evidence
             } else if (name === 'cad_propose_cartesian_chart') {
               const compiled = buildAgentCartesianChart(document, args as unknown as KJAgentCartesianChartInput)
               commandArgs = structuredClone(compiled.commandArgs)
@@ -1262,18 +1303,18 @@ export class KJAgentToolSession {
             const definition = this.#sdk.commands.resolve(command)
             if (!definition || definition.owner !== '@kanjieteam/kjdraw') throw new KJValidationError('Agent preview requires the built-in core command')
             const geologyPlanProposalByteLimit = 4194304
-            if (name === 'cad_propose_geology_plan') {
+            if (name === 'cad_propose_geology_plan' || name === 'cad_propose_geology_plan_example') {
               if (!engineeringEvidence || typeof engineeringEvidence !== 'object' || Array.isArray(engineeringEvidence)) throw new KJValidationError('Geology plan proposal requires engineering evidence')
               engineeringEvidence = { ...engineeringEvidence, proposalBytes: 0, proposalByteLimit: geologyPlanProposalByteLimit }
             }
-            const expandedPreview = ['cad_propose_geology_plan', 'cad_propose_geology_section_example'].includes(name)
+            const expandedPreview = ['cad_propose_geology_plan', 'cad_propose_geology_plan_example', 'cad_propose_geology_section_example'].includes(name)
             const maxCreatedEntities = name === 'cad_propose_component_insert' ? 65 : expandedPreview ? 2048
               : ['cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_site_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) ? 512 : undefined
             const preview = await createAgentGeometryPreview(document, command, commandArgs, expandedPreview ? { maxCreatedEntities: 2048, maxCreatedResources: 256, maxPreviewEntities: 4096, maxPreviewBytes: 4194304 } : maxCreatedEntities === undefined ? {} : { maxCreatedEntities })
             const envelope = this.#sdk.createCommandEnvelope(command, commandArgs, { document, mode: 'plan', origin: 'ai', expectedRevision: preview.revision })
             value = { planId: envelope.id, documentId: document.id, expectedRevision: envelope.expectedRevision, units: args.units, command, arguments: structuredClone(commandArgs), status: 'awaiting-host-approval', previewKind: 'geometry', preview, ...(engineeringEvidence ? { engineeringEvidence } : {}), ...(sourceAsset ? { sourceAsset } : {}), ...(selectionSet ? { selectionSet: structuredClone(selectionSet) } : {}), ...(unchangedIds ? { unchangedIds: [...unchangedIds] } : {}), ...(layerChange ? { layerChange: structuredClone(layerChange) } : {}), ...(structuralEdit ? { structuralEdit } : {}) }
             if (['cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 1048576) throw new KJValidationError('Road tool proposal exceeds the 1 MiB output limit')
-            if (name === 'cad_propose_geology_plan') {
+            if (name === 'cad_propose_geology_plan' || name === 'cad_propose_geology_plan_example') {
               const evidence = (value as { engineeringEvidence: { proposalBytes: number; proposalByteLimit: number } }).engineeringEvidence
               let previousBytes = -1
               while (previousBytes !== evidence.proposalBytes) {

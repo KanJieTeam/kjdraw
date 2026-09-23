@@ -2,10 +2,17 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJValidationError } from '../src/errors.js'
-import { layoutCadMText, layoutCadText, textFontFamily } from '../src/geometry/text-layout.js'
+import { KJDRAW_ENGINEERING_FONT_STACK, layoutCadMText, layoutCadText, textFontFamily } from '../src/geometry/text-layout.js'
 import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 const textPayload = (text, y = 0) => ({ position: [0, y, 0], text, height: 2.5, rotation: Math.PI / 12 })
+test('default CAD text uses one cross-platform engineering font stack instead of monospace preview', () => {
+  assert.equal(textFontFamily(), KJDRAW_ENGINEERING_FONT_STACK)
+  assert.match(KJDRAW_ENGINEERING_FONT_STACK, /^"Arial","Segoe UI","Microsoft YaHei"/)
+  assert.match(layoutCadMText({ position: [0, 0], text: '黄土 Borehole ZK01', height: 2.5, attachmentPoint: 1 }).family, /Microsoft YaHei/)
+  assert.doesNotMatch(layoutCadMText({ position: [0, 0], text: '黄土', height: 2.5, attachmentPoint: 1 }).family, /monospace/)
+})
+
 
 test('plain MTEXT layout uses its insertion attachment, wraps bounded Unicode lines and rejects rich controls',()=>{
   const measure=value=>[...value].length*2

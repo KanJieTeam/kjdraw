@@ -53,6 +53,15 @@ test('illustrative loess sections compile from variable parameters without model
     assert.equal(proposal.engineeringEvidence.measuredData, false)
     assert.equal(document.listEntities().length, 0)
     assert.ok(proposal.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text.includes(`${holeCount}孔`) && entity.payload.text.includes('非实测')))
+    const firstId = proposal.arguments.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'ZK01')
+    const firstElevation = proposal.arguments.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === '300.00')
+    assert.ok(firstId && firstElevation)
+    const firstX = firstId.payload.position[0]
+    const separator = proposal.arguments.entities.find(entity => entity.type === 'LINE' &&
+      entity.payload.start[0] === firstX - 5 && entity.payload.end[0] === firstX + 5 && entity.payload.start[1] === entity.payload.end[1] &&
+      entity.payload.start[1] < firstId.payload.position[1] && entity.payload.start[1] > firstElevation.payload.position[1])
+    assert.ok(separator, 'Hole identifier separator must stay between the identifier and collar elevation')
+
     assert.ok(proposal.arguments.entities.length > holeCount * 40)
     if (holeCount === 10) {
       accepted(await session.approve(proposal.planId, 'variable-example-test'))

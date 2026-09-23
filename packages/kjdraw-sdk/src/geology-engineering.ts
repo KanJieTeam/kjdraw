@@ -3413,7 +3413,7 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     } else {
       g.line(4, center, layout.footerFrameStyle?.guideY ?? footerTop, center, top)
       g.rect(1, center - half, bottom, center + half, top)
-      g.line(1, center - 5, top + 1.5, center + 5, top + 1.5)
+      g.line(1, center - 5, top + 4.7, center + 5, top + 4.7)
     }
     if (sectionText) {
       const collarLabelOverride = collarElevationLabelOverrides.get(hole.id)
