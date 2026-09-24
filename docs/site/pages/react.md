@@ -8,6 +8,8 @@ summary.zh: 将完整 KJDraw 编辑器作为 React 组件挂载，通过类型�
 :::en
 ## Render the editor component {#editor-component}
 
+Start from the complete [React + Vite project](https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/react-browser) when you want package installation, mounting and production-build commands in one copyable directory.
+
 ```tsx
 import { useRef, useState } from 'react'
 import { KJDraw, type KJDrawEditor, type KJWorkbenchLayout } from '@kanjieteam/kjdraw/react'
@@ -95,6 +97,8 @@ Use `KJDraw` when you need a working CAD surface immediately, or the headless ho
 :::
 :::zh
 ## 渲染编辑器组件 {#editor-component}
+
+需要把包安装、组件挂载和生产构建命令放在一个可复制目录中时，可直接从完整的 [React + Vite 起步工程](https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/react-browser)开始。
 
 ```tsx
 import { useRef, useState } from 'react'

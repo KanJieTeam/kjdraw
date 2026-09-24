@@ -47,6 +47,8 @@ Run `npm run dev`, open the printed local URL, and confirm that the sample drawi
 
 ## Verify the headless SDK {#verify-sdk}
 
+Prefer a complete checked-in project? Copy the maintained [Vanilla browser starter](https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/vanilla-browser), or compare every supported [starter project](https://kanjieteam.github.io/kjdraw/docs/latest/starters/).
+
 The installed package also ships a deterministic Node example. It creates and moves a line, writes KJD, reopens it and prints the verified entity:
 
 ```sh
@@ -123,6 +125,8 @@ editor.fit()
 运行 `npm run dev`，打开命令行显示的本地地址，确认示例图和新建的半径 5 毫米圆均可见。使用 `editor.open(file)` 打开 KJD 或 DXF，使用 `editor.save()` 下载当前图档。这样无需模型或 API Key 就完成了第一个可编辑的创建—检查—保存闭环。[Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/)列出了全部选项、方法与事件。
 
 ## 验证无界面 SDK {#verify-sdk}
+
+需要可直接复制的完整工程时，可使用仓库维护的[原生浏览器起步工程](https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/vanilla-browser)，或对比全部[起步工程](https://kanjieteam.github.io/kjdraw/docs/latest/starters/)。
 
 安装包还附带一个确定性的 Node 示例：创建并移动一条直线，写出 KJD，重新打开后打印已验证的图元。
 

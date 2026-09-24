@@ -21,6 +21,8 @@ For a persistent desktop-client connection, use the absolute installed script pa
 
 ## Configure an MCP client {#client-config}
 
+To see the protocol from a real host process before editing desktop-client configuration, run the maintained [TypeScript MCP client starter](https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/mcp-client). It performs initialize, tool discovery and a reviewable circle proposal against the packaged stdio server.
+
 The exact outer configuration key varies by client. The server entry itself has this shape; replace every placeholder with a real absolute path selected by the host:
 
 ```json
@@ -79,6 +81,8 @@ node /absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --work
 桌面客户端需要长期连接时，应在 stdio 配置中使用已安装脚本的绝对路径，不要依赖包管理器的临时缓存。[智能体客户端安装器](https://github.com/KanJieTeam/kjdraw/blob/main/docs/try-in-ai.zh-CN.md)可以为已支持客户端安全合并当前用户配置。
 
 ## 配置 MCP 客户端 {#client-config}
+
+修改桌面客户端配置前，可以先运行仓库维护的 [TypeScript MCP 客户端起步工程](https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/mcp-client)，查看真实宿主进程完成初始化、工具发现与可审核圆提案。
 
 不同客户端外层配置键名可能不同，服务条目本身如下。请把每个占位符换成宿主选择的真实绝对路径：
 

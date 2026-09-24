@@ -1,0 +1,9 @@
+{
+  "name": "kjdraw-react-browser-starter",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": { "dev": "vite", "build": "tsc --noEmit && vite build" },
+  "dependencies": { "@kanjieteam/kjdraw": "next", "react": "^19.0.0", "react-dom": "^19.0.0" },
+  "devDependencies": { "@types/react": "^19.0.0", "@types/react-dom": "^19.0.0", "typescript": "^7.0.0", "vite": "^7.0.0" }
+}

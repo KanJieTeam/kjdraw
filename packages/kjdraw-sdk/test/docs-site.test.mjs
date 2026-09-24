@@ -15,8 +15,8 @@ test('generated documentation portal covers the complete bilingual learning path
   const manifest = await json('docs/latest/site-manifest.json')
   const search = await json('docs/latest/search-index.json')
   const required = [
-    'introduction', 'showcase', 'quickstart', 'installation', 'workbench', 'architecture', 'react', 'vue',
-    'files', 'commands', 'agent', 'models', 'mcp', 'knowledge-packs', 'plugins', 'deployment', 'capabilities',
+    'introduction', 'showcase', 'quickstart', 'starters', 'installation', 'concepts', 'workbench', 'architecture', 'react', 'vue',
+    'files', 'commands', 'agent', 'models', 'mcp', 'knowledge-packs', 'plugins', 'deployment', 'reference', 'capabilities',
   ]
 
   assert.equal(manifest.schema, 'com.kanjie.kjdraw.docs-site@1')
@@ -100,8 +100,8 @@ test('MCP integration source documents the packaged host-controlled boundary', a
 
 test('public guides describe package contracts instead of repository development state', async () => {
   const pages = [
-    'agent', 'architecture', 'capabilities', 'commands', 'deployment', 'files', 'installation',
-    'introduction', 'models', 'mcp', 'knowledge-packs', 'plugins', 'quickstart', 'react', 'vue', 'workbench', 'showcase',
+    'agent', 'architecture', 'capabilities', 'commands', 'concepts', 'deployment', 'files', 'installation',
+    'introduction', 'models', 'mcp', 'knowledge-packs', 'plugins', 'quickstart', 'starters', 'react', 'reference', 'vue', 'workbench', 'showcase',
   ]
   const forbidden = [
     /current source checkout/iu,

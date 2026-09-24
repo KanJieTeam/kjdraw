@@ -8,6 +8,8 @@ summary.zh: 将完整 KJDraw 编辑器作为 Vue 组件挂载，通过暴露的 
 :::en
 ## Render the editor component {#editor-component}
 
+Start from the complete [Vue + Vite project](https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/vue-browser) when you want package installation, mounting and production-build commands in one copyable directory.
+
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
@@ -83,6 +85,8 @@ Use `KJDraw` for an immediately usable CAD surface or the composable for a produ
 :::
 :::zh
 ## 渲染编辑器组件 {#editor-component}
+
+需要把包安装、组件挂载和生产构建命令放在一个可复制目录中时，可直接从完整的 [Vue + Vite 起步工程](https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/vue-browser)开始。
 
 ```vue
 <script setup lang="ts">
