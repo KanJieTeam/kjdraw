@@ -8,15 +8,16 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
+  <link rel="stylesheet" href="../style.css?v=cbc5bdeee724d98d">
   <title>Quickstart · KJDraw Docs</title>
 </head>
 <body>
   <header class="topbar">
     <button id="menu-button" class="icon-button menu-button" type="button" aria-label="Open navigation">☰</button>
     <a class="brand" href="../"><img src="../../assets/mark.svg" alt=""><b>KJDraw</b><span>Docs</span></a>
+    <nav class="product-nav" aria-label="KJDraw products"><a href="../"><span class="lang-en">Overview</span><span class="lang-zh">概览</span></a><a href="../quickstart/" class="active"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例</span></a><a href="../api/">API</a></nav>
     <button id="search-button" class="search-button" type="button" aria-keyshortcuts="Control+K Meta+K"><span aria-hidden="true">⌕</span><span class="lang-en">Search guides and API</span><span class="lang-zh">搜索指南与 API</span><kbd>Ctrl K</kbd></button>
-    <nav class="top-links"><a href="../api/">API</a><a href="https://kanjieteam.github.io/kjdraw/"><span class="lang-en">Demo</span><span class="lang-zh">演示</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="https://kanjieteam.github.io/kjdraw/">Playground</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
@@ -24,16 +25,19 @@
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
-          <a href="../"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
+          <a href="../"><span class="lang-en">KJDraw</span><span class="lang-zh">KJDraw</span></a>
+          <a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例库</span></a>
           <a href="../quickstart/" class="active" aria-current="page"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
+          <a href="../starters/"><span class="lang-en">Starter projects</span><span class="lang-zh">起步工程</span></a>
           <a href="../installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
-          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
-          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
-          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../concepts/"><span class="lang-en">Core concepts</span><span class="lang-zh">核心概念</span></a>
+          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
           <a href="../commands/"><span class="lang-en">Commands and transactions</span><span class="lang-zh">命令与事务</span></a>
+          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Frameworks</h3><h3 class="lang-zh">前端框架</h3>
@@ -44,11 +48,14 @@
           <h3 class="lang-en">Extend and deploy</h3><h3 class="lang-zh">扩展与部署</h3>
           <a href="../agent/"><span class="lang-en">Agent workflows</span><span class="lang-zh">Agent 工作流</span></a>
           <a href="../models/"><span class="lang-en">Connect your model</span><span class="lang-zh">接入你的模型</span></a>
+          <a href="../mcp/"><span class="lang-en">MCP integration</span><span class="lang-zh">MCP 集成</span></a>
+          <a href="../knowledge-packs/"><span class="lang-en">Compile knowledge packs</span><span class="lang-zh">编译知识包</span></a>
           <a href="../plugins/"><span class="lang-en">Plugins</span><span class="lang-zh">插件</span></a>
           <a href="../deployment/"><span class="lang-en">Deployment</span><span class="lang-zh">部署</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Reference</h3><h3 class="lang-zh">参考</h3>
+          <a href="../reference/"><span class="lang-en">API reference</span><span class="lang-zh">API 参考</span></a>
           <a href="../capabilities/"><span class="lang-en">Capabilities</span><span class="lang-zh">功能能力</span></a>
         </section>
         <section class="nav-group reference-group">
@@ -61,17 +68,22 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-quickstart">
-          <p class="eyebrow">KJDRAW / QUICKSTART</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / QUICKSTART</p>
           <h1>Quickstart</h1>
-          <p class="lead">Install KJDraw, mount a complete editor in minutes and open one of the editable industry samples.</p>
-          <h2 id="en-quickstart-install">Install<a class="heading-anchor" href="#en-quickstart-install" aria-label="Link to Install">#</a></h2>
-<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm install @kanjieteam/kjdraw@next</code></pre>
+          <p class="lead">Install KJDraw, mount a complete editor in minutes and open one of the editable industry samples.</p></header>
+          <h2 id="en-quickstart-install">Run an editor in five minutes</h2>
+<p>Start with Node.js 22 or newer and a small TypeScript project:</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm create vite@latest kjdraw-five-minute -- --template vanilla-ts
+cd kjdraw-five-minute
+npm install
+npm install @kanjieteam/kjdraw@next</code></pre>
 <p>The <code>next</code> tag follows the release-candidate channel. Pin an exact version when you need reproducible builds.</p>
-<h2 id="en-quickstart-mount-editor">Mount a complete editor<a class="heading-anchor" href="#en-quickstart-mount-editor" aria-label="Link to Mount a complete editor">#</a></h2>
-<p>Give the container a height, then create the editor:</p>
-<pre data-language="html"><button class="copy" type="button">Copy</button><code>&lt;div id=&quot;cad&quot;&gt;&lt;/div&gt;
-&lt;style&gt;#cad { width: 100%; height: 720px; }&lt;/style&gt;</code></pre>
+<p>Replace <code>src/main.ts</code> with the complete example below. The workbench injects its own component styles; the host element only needs an explicit height.</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawEditor } from &#39;@kanjieteam/kjdraw&#39;
+
+document.querySelector&lt;HTMLDivElement&gt;(&#39;#app&#39;)!.innerHTML = &#39;&lt;div id=&quot;cad&quot;&gt;&lt;/div&gt;&#39;
+const host = document.querySelector&lt;HTMLElement&gt;(&#39;#cad&#39;)!
+host.style.cssText = &#39;width:100%;height:720px&#39;
 
 const editor = createKJDrawEditor(&#39;#cad&#39;, {
   document: &#39;sample&#39;,
@@ -82,12 +94,17 @@ const editor = createKJDrawEditor(&#39;#cad&#39;, {
 
 await editor.ready
 await editor.execute(&#39;CREATE&#39;, {
-  type: &#39;LINE&#39;,
-  payload: { start: [0, 0, 0], end: [100, 40, 0] },
+  type: &#39;CIRCLE&#39;,
+  payload: { center: [20, 20, 0], radius: 5 },
 })
 editor.fit()</code></pre>
-<p>Use <code>editor.open(file)</code> for KJD or DXF input and <code>editor.save()</code> to download the current drawing. The <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a> lists every option, method and event.</p>
-<h2 id="en-quickstart-industry-samples">Open an industry sample<a class="heading-anchor" href="#en-quickstart-industry-samples" aria-label="Link to Open an industry sample">#</a></h2>
+<p>Run <code>npm run dev</code>, open the printed local URL, and confirm that the sample drawing and the new 5 mm-radius circle are visible. Use <code>editor.open(file)</code> for KJD or DXF input and <code>editor.save()</code> to download the current drawing. This closes the first editable create–inspect–save loop without a model or API key. The <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a> lists every option, method and event.</p>
+<h2 id="en-quickstart-verify-sdk">Verify the headless SDK</h2>
+<p>Prefer a complete checked-in project? Copy the maintained <a href="https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/vanilla-browser">Vanilla browser starter</a>, or compare every supported <a href="https://kanjieteam.github.io/kjdraw/docs/latest/starters/">starter project</a>.</p>
+<p>The installed package also ships a deterministic Node example. It creates and moves a line, writes KJD, reopens it and prints the verified entity:</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs</code></pre>
+<p>Use this check first when a browser integration fails: it separates SDK and package problems from bundler or layout problems.</p>
+<h2 id="en-quickstart-industry-samples">Open an industry sample</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawEditor, createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 import {
   INDUSTRY_SAMPLES,
@@ -101,23 +118,28 @@ const drawing = await createIndustrySample(sdk, &#39;sample-architecture&#39;)
 const editor = createKJDrawEditor(&#39;#cad&#39;, { sdk, document: drawing })
 await editor.ready</code></pre>
 <p>The sample catalogue also includes a site plan, road profile and mechanical manufacturing drawing. Each result is a normal editable <code>KJDocument</code>, so the same file, command and plugin APIs apply.</p>
-<h2 id="en-quickstart-multiple-editors">Use multiple editors<a class="heading-anchor" href="#en-quickstart-multiple-editors" aria-label="Link to Use multiple editors">#</a></h2>
+<h2 id="en-quickstart-multiple-editors">Use multiple editors</h2>
 <p>Pass the same <code>sdk</code> to share plugins and commands, and give each editor its own container with a height. Use <code>editor.execute()</code> to target a specific editor, or pass an explicit <code>document</code> when calling the SDK directly. See <strong>Commands and transactions</strong> for background editing examples.</p>
 <p>Blank and sample drawings created by an editor are released after their last editor view closes. A drawing supplied through <code>document</code> remains owned by your application. Two views can display the same drawing; replacing it by reopening a file with the same ID is rejected while another view still uses it, so that view keeps its drawing and selection.</p>
 <p>Continue to <strong>React</strong> or <strong>Vue</strong> for framework components, <strong>Files</strong> for KJD/KJP/DXF, or <strong>Commands</strong> for programmatic editing.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-quickstart">
-          <p class="eyebrow">KJDRAW / 快速上手</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / 快速上手</p>
           <h1>快速上手</h1>
-          <p class="lead">安装 KJDraw，几分钟内挂载完整编辑器，并打开一张可编辑的行业示例图纸。</p>
-          <h2 id="zh-quickstart-install">安装<a class="heading-anchor" href="#zh-quickstart-install" aria-label="Link to 安装">#</a></h2>
-<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm install @kanjieteam/kjdraw@next</code></pre>
+          <p class="lead">安装 KJDraw，几分钟内挂载完整编辑器，并打开一张可编辑的行业示例图纸。</p></header>
+          <h2 id="zh-quickstart-install">五分钟运行一个编辑器</h2>
+<p>准备 Node.js 22 或更新版本，然后创建一个小型 TypeScript 工程：</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm create vite@latest kjdraw-five-minute -- --template vanilla-ts
+cd kjdraw-five-minute
+npm install
+npm install @kanjieteam/kjdraw@next</code></pre>
 <p><code>next</code> 指向候选版渠道；需要可复现构建时请锁定确切版本。</p>
-<h2 id="zh-quickstart-mount-editor">挂载完整编辑器<a class="heading-anchor" href="#zh-quickstart-mount-editor" aria-label="Link to 挂载完整编辑器">#</a></h2>
-<p>先为容器设置高度，再创建编辑器：</p>
-<pre data-language="html"><button class="copy" type="button">Copy</button><code>&lt;div id=&quot;cad&quot;&gt;&lt;/div&gt;
-&lt;style&gt;#cad { width: 100%; height: 720px; }&lt;/style&gt;</code></pre>
+<p>用下面的完整示例替换 <code>src/main.ts</code>。工作台会注入自身组件样式，宿主元素只需要明确的高度。</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawEditor } from &#39;@kanjieteam/kjdraw&#39;
+
+document.querySelector&lt;HTMLDivElement&gt;(&#39;#app&#39;)!.innerHTML = &#39;&lt;div id=&quot;cad&quot;&gt;&lt;/div&gt;&#39;
+const host = document.querySelector&lt;HTMLElement&gt;(&#39;#cad&#39;)!
+host.style.cssText = &#39;width:100%;height:720px&#39;
 
 const editor = createKJDrawEditor(&#39;#cad&#39;, {
   document: &#39;sample&#39;,
@@ -128,12 +150,17 @@ const editor = createKJDrawEditor(&#39;#cad&#39;, {
 
 await editor.ready
 await editor.execute(&#39;CREATE&#39;, {
-  type: &#39;LINE&#39;,
-  payload: { start: [0, 0, 0], end: [100, 40, 0] },
+  type: &#39;CIRCLE&#39;,
+  payload: { center: [20, 20, 0], radius: 5 },
 })
 editor.fit()</code></pre>
-<p>使用 <code>editor.open(file)</code> 打开 KJD 或 DXF，使用 <code>editor.save()</code> 下载当前图档。<a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a>列出了全部选项、方法与事件。</p>
-<h2 id="zh-quickstart-industry-samples">打开行业示例<a class="heading-anchor" href="#zh-quickstart-industry-samples" aria-label="Link to 打开行业示例">#</a></h2>
+<p>运行 <code>npm run dev</code>，打开命令行显示的本地地址，确认示例图和新建的半径 5 毫米圆均可见。使用 <code>editor.open(file)</code> 打开 KJD 或 DXF，使用 <code>editor.save()</code> 下载当前图档。这样无需模型或 API Key 就完成了第一个可编辑的创建—检查—保存闭环。<a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a>列出了全部选项、方法与事件。</p>
+<h2 id="zh-quickstart-verify-sdk">验证无界面 SDK</h2>
+<p>需要可直接复制的完整工程时，可使用仓库维护的<a href="https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/vanilla-browser">原生浏览器起步工程</a>，或对比全部<a href="https://kanjieteam.github.io/kjdraw/docs/latest/starters/">起步工程</a>。</p>
+<p>安装包还附带一个确定性的 Node 示例：创建并移动一条直线，写出 KJD，重新打开后打印已验证的图元。</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs</code></pre>
+<p>浏览器集成失败时先运行此检查，可以把 SDK/安装包问题与构建工具或布局问题分开。</p>
+<h2 id="zh-quickstart-industry-samples">打开行业示例</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawEditor, createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 import {
   INDUSTRY_SAMPLES,
@@ -147,17 +174,17 @@ const drawing = await createIndustrySample(sdk, &#39;sample-architecture&#39;)
 const editor = createKJDrawEditor(&#39;#cad&#39;, { sdk, document: drawing })
 await editor.ready</code></pre>
 <p>示例目录还包含场地总图、道路纵断面和机械制造图。每个结果都是普通、可编辑的 <code>KJDocument</code>，可以继续使用同一套文件、命令与插件 API。</p>
-<h2 id="zh-quickstart-multiple-editors">使用多个编辑器<a class="heading-anchor" href="#zh-quickstart-multiple-editors" aria-label="Link to 使用多个编辑器">#</a></h2>
+<h2 id="zh-quickstart-multiple-editors">使用多个编辑器</h2>
 <p>传入同一个 <code>sdk</code> 可以共享插件和命令；每个编辑器分别使用设置了高度的容器。操作指定编辑器时调用 <code>editor.execute()</code>，直接使用 SDK 时显式传入 <code>document</code>。后台编辑示例见<strong>命令与事务</strong>。</p>
 <p>编辑器自动创建的空白图或示例图，会在最后一个编辑器视图关闭后释放。通过 <code>document</code> 传入的图纸仍由应用管理。两个视图可以显示同一图纸；如果另一视图仍在使用它，重新打开同 ID 文件来替换图纸的操作会被拒绝，已有图纸和选择集保持不变。</p>
 <p>接着阅读 <strong>React</strong> 或 <strong>Vue</strong> 使用框架组件，阅读<strong>文件</strong>了解 KJD/KJP/DXF，或阅读<strong>命令与事务</strong>进行程序化编辑。</p>
         </article>
-        <nav class="pager" aria-label="Adjacent documentation"><a href="../"><strong class="lang-en">Introduction</strong><strong class="lang-zh">简介</strong></a><a href="../installation/"><strong class="lang-en">Installation</strong><strong class="lang-zh">安装</strong></a></nav>
+        <nav class="pager" aria-label="Adjacent documentation"><a href="../showcase/"><strong class="lang-en">Showcase</strong><strong class="lang-zh">案例库</strong></a><a href="../starters/"><strong class="lang-en">Starter projects</strong><strong class="lang-zh">起步工程</strong></a></nav>
       </div>
-      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-quickstart-install">Install</a><a class="toc-level-2" href="#en-quickstart-mount-editor">Mount a complete editor</a><a class="toc-level-2" href="#en-quickstart-industry-samples">Open an industry sample</a><a class="toc-level-2" href="#en-quickstart-multiple-editors">Use multiple editors</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-quickstart-install">安装</a><a class="toc-level-2" href="#zh-quickstart-mount-editor">挂载完整编辑器</a><a class="toc-level-2" href="#zh-quickstart-industry-samples">打开行业示例</a><a class="toc-level-2" href="#zh-quickstart-multiple-editors">使用多个编辑器</a></div></aside>
+      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-quickstart-install">Run an editor in five minutes</a><a class="toc-level-2" href="#en-quickstart-verify-sdk">Verify the headless SDK</a><a class="toc-level-2" href="#en-quickstart-industry-samples">Open an industry sample</a><a class="toc-level-2" href="#en-quickstart-multiple-editors">Use multiple editors</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-quickstart-install">五分钟运行一个编辑器</a><a class="toc-level-2" href="#zh-quickstart-verify-sdk">验证无界面 SDK</a><a class="toc-level-2" href="#zh-quickstart-industry-samples">打开行业示例</a><a class="toc-level-2" href="#zh-quickstart-multiple-editors">使用多个编辑器</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=011588533eb087da"></script>
+  <script type="module" src="../app.js?v=cbc5bdeee724d98d"></script>
 </body>
 </html>

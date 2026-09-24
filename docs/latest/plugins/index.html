@@ -8,15 +8,16 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/plugins/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
+  <link rel="stylesheet" href="../style.css?v=cbc5bdeee724d98d">
   <title>Plugins · KJDraw Docs</title>
 </head>
 <body>
   <header class="topbar">
     <button id="menu-button" class="icon-button menu-button" type="button" aria-label="Open navigation">☰</button>
     <a class="brand" href="../"><img src="../../assets/mark.svg" alt=""><b>KJDraw</b><span>Docs</span></a>
+    <nav class="product-nav" aria-label="KJDraw products"><a href="../"><span class="lang-en">Overview</span><span class="lang-zh">概览</span></a><a href="../quickstart/" class="active"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例</span></a><a href="../api/">API</a></nav>
     <button id="search-button" class="search-button" type="button" aria-keyshortcuts="Control+K Meta+K"><span aria-hidden="true">⌕</span><span class="lang-en">Search guides and API</span><span class="lang-zh">搜索指南与 API</span><kbd>Ctrl K</kbd></button>
-    <nav class="top-links"><a href="../api/">API</a><a href="https://kanjieteam.github.io/kjdraw/"><span class="lang-en">Demo</span><span class="lang-zh">演示</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="https://kanjieteam.github.io/kjdraw/">Playground</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
@@ -24,16 +25,19 @@
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
-          <a href="../"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
+          <a href="../"><span class="lang-en">KJDraw</span><span class="lang-zh">KJDraw</span></a>
+          <a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例库</span></a>
           <a href="../quickstart/"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
+          <a href="../starters/"><span class="lang-en">Starter projects</span><span class="lang-zh">起步工程</span></a>
           <a href="../installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
-          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
-          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
-          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../concepts/"><span class="lang-en">Core concepts</span><span class="lang-zh">核心概念</span></a>
+          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
           <a href="../commands/"><span class="lang-en">Commands and transactions</span><span class="lang-zh">命令与事务</span></a>
+          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Frameworks</h3><h3 class="lang-zh">前端框架</h3>
@@ -44,11 +48,14 @@
           <h3 class="lang-en">Extend and deploy</h3><h3 class="lang-zh">扩展与部署</h3>
           <a href="../agent/"><span class="lang-en">Agent workflows</span><span class="lang-zh">Agent 工作流</span></a>
           <a href="../models/"><span class="lang-en">Connect your model</span><span class="lang-zh">接入你的模型</span></a>
+          <a href="../mcp/"><span class="lang-en">MCP integration</span><span class="lang-zh">MCP 集成</span></a>
+          <a href="../knowledge-packs/"><span class="lang-en">Compile knowledge packs</span><span class="lang-zh">编译知识包</span></a>
           <a href="../plugins/" class="active" aria-current="page"><span class="lang-en">Plugins</span><span class="lang-zh">插件</span></a>
           <a href="../deployment/"><span class="lang-en">Deployment</span><span class="lang-zh">部署</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Reference</h3><h3 class="lang-zh">参考</h3>
+          <a href="../reference/"><span class="lang-en">API reference</span><span class="lang-zh">API 参考</span></a>
           <a href="../capabilities/"><span class="lang-en">Capabilities</span><span class="lang-zh">功能能力</span></a>
         </section>
         <section class="nav-group reference-group">
@@ -61,10 +68,10 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-plugins">
-          <p class="eyebrow">KJDRAW / PLUGINS</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / PLUGINS</p>
           <h1>Plugins</h1>
-          <p class="lead">Extend commands, entities, files and workbench surfaces through versioned manifests and explicit cooperative grants.</p>
-          <h2 id="en-plugins-declare-the-contract">Declare the contract<a class="heading-anchor" href="#en-plugins-declare-the-contract" aria-label="Link to Declare the contract">#</a></h2>
+          <p class="lead">Extend commands, entities, files and workbench surfaces through versioned manifests and explicit cooperative grants.</p></header>
+          <h2 id="en-plugins-declare-the-contract">Declare the contract</h2>
 <pre data-language="json"><button class="copy" type="button">Copy</button><code>{
   &quot;schema&quot;: &quot;com.kanjie.kjdraw.plugin&quot;,
   &quot;schemaVersion&quot;: 1,
@@ -76,7 +83,7 @@
   &quot;contributes&quot;: { &quot;commands&quot;: [&quot;KJ_MARK_CENTER&quot;] }
 }</code></pre>
 <p>The host inspects the manifest, checks SDK/kernel compatibility and decides which requested permissions to grant. Contributions must be declared before activation.</p>
-<h2 id="en-plugins-activate-through-a-scope">Activate through a scope<a class="heading-anchor" href="#en-plugins-activate-through-a-scope" aria-label="Link to Activate through a scope">#</a></h2>
+<h2 id="en-plugins-activate-through-a-scope">Activate through a scope</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import type {
   KJCommandDefinition,
   KJDrawSDK,
@@ -100,16 +107,16 @@ export function activate(sdk: KJDrawSDK, manifest: KJPluginManifest) {
   return scope
 }</code></pre>
 <p>Disposing the returned scope removes registrations owned by that plugin. Keep geometry changes inside commands so validation, receipts, revisioning and undo remain intact.</p>
-<h2 id="en-plugins-extension-points">Extension points<a class="heading-anchor" href="#en-plugins-extension-points" aria-label="Link to Extension points">#</a></h2>
+<h2 id="en-plugins-extension-points">Extension points</h2>
 <p>The 1.0 contract includes commands, entity definitions/renderers, file adapters, algorithms, tools, snaps, property panels, keymaps, workspaces, scene sources, ribbons, panels and symbols. Use only declared public extension points; do not patch SDK internals.</p>
-<h2 id="en-plugins-security-boundary">Security boundary<a class="heading-anchor" href="#en-plugins-security-boundary" aria-label="Link to Security boundary">#</a></h2>
+<h2 id="en-plugins-security-boundary">Security boundary</h2>
 <p>Plugin permissions are cooperative declarations, not hostile-code isolation. Run untrusted third-party code in a host-owned Worker, process or sandbox. Start from the official <a href="https://github.com/KanJieTeam/kjdraw/tree/main/examples/plugin-starter">TypeScript plugin starter</a>.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-plugins">
-          <p class="eyebrow">KJDRAW / 插件</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / 插件</p>
           <h1>插件</h1>
-          <p class="lead">通过版本化清单和显式协作授权，扩展命令、实体、文件与工作台界面。</p>
-          <h2 id="zh-plugins-declare-the-contract">声明插件契约<a class="heading-anchor" href="#zh-plugins-declare-the-contract" aria-label="Link to 声明插件契约">#</a></h2>
+          <p class="lead">通过版本化清单和显式协作授权，扩展命令、实体、文件与工作台界面。</p></header>
+          <h2 id="zh-plugins-declare-the-contract">声明插件契约</h2>
 <pre data-language="json"><button class="copy" type="button">Copy</button><code>{
   &quot;schema&quot;: &quot;com.kanjie.kjdraw.plugin&quot;,
   &quot;schemaVersion&quot;: 1,
@@ -121,7 +128,7 @@ export function activate(sdk: KJDrawSDK, manifest: KJPluginManifest) {
   &quot;contributes&quot;: { &quot;commands&quot;: [&quot;KJ_MARK_CENTER&quot;] }
 }</code></pre>
 <p>宿主先检查清单与 SDK/kernel 兼容范围，再决定授予哪些申请权限。所有贡献项都必须在激活前声明。</p>
-<h2 id="zh-plugins-activate-through-a-scope">通过作用域激活<a class="heading-anchor" href="#zh-plugins-activate-through-a-scope" aria-label="Link to 通过作用域激活">#</a></h2>
+<h2 id="zh-plugins-activate-through-a-scope">通过作用域激活</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import type {
   KJCommandDefinition,
   KJDrawSDK,
@@ -145,17 +152,17 @@ export function activate(sdk: KJDrawSDK, manifest: KJPluginManifest) {
   return scope
 }</code></pre>
 <p>释放返回的 scope 会移除该插件拥有的注册项。几何修改应始终放在命令中，从而保留校验、回执、修订与撤销。</p>
-<h2 id="zh-plugins-extension-points">扩展点<a class="heading-anchor" href="#zh-plugins-extension-points" aria-label="Link to 扩展点">#</a></h2>
+<h2 id="zh-plugins-extension-points">扩展点</h2>
 <p>1.0 契约包括命令、实体定义/渲染器、文件适配器、算法、工具、捕捉、属性面板、快捷键、工作区、场景源、Ribbon、面板与符号。只使用声明过的公共扩展点，不要修改 SDK 内部实现。</p>
-<h2 id="zh-plugins-security-boundary">安全边界<a class="heading-anchor" href="#zh-plugins-security-boundary" aria-label="Link to 安全边界">#</a></h2>
+<h2 id="zh-plugins-security-boundary">安全边界</h2>
 <p>插件权限是协作式声明，不是恶意代码隔离。第三方不可信代码应运行在宿主控制的 Worker、进程或沙箱中。建议从官方 <a href="https://github.com/KanJieTeam/kjdraw/tree/main/examples/plugin-starter">TypeScript 插件起步工程</a>开始。</p>
         </article>
-        <nav class="pager" aria-label="Adjacent documentation"><a href="../models/"><strong class="lang-en">Connect your model</strong><strong class="lang-zh">接入你的模型</strong></a><a href="../deployment/"><strong class="lang-en">Deployment</strong><strong class="lang-zh">部署</strong></a></nav>
+        <nav class="pager" aria-label="Adjacent documentation"><a href="../knowledge-packs/"><strong class="lang-en">Compile knowledge packs</strong><strong class="lang-zh">编译知识包</strong></a><a href="../deployment/"><strong class="lang-en">Deployment</strong><strong class="lang-zh">部署</strong></a></nav>
       </div>
       <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-plugins-declare-the-contract">Declare the contract</a><a class="toc-level-2" href="#en-plugins-activate-through-a-scope">Activate through a scope</a><a class="toc-level-2" href="#en-plugins-extension-points">Extension points</a><a class="toc-level-2" href="#en-plugins-security-boundary">Security boundary</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-plugins-declare-the-contract">声明插件契约</a><a class="toc-level-2" href="#zh-plugins-activate-through-a-scope">通过作用域激活</a><a class="toc-level-2" href="#zh-plugins-extension-points">扩展点</a><a class="toc-level-2" href="#zh-plugins-security-boundary">安全边界</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=011588533eb087da"></script>
+  <script type="module" src="../app.js?v=cbc5bdeee724d98d"></script>
 </body>
 </html>

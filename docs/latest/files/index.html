@@ -8,15 +8,16 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/files/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
+  <link rel="stylesheet" href="../style.css?v=cbc5bdeee724d98d">
   <title>Files and projects · KJDraw Docs</title>
 </head>
 <body>
   <header class="topbar">
     <button id="menu-button" class="icon-button menu-button" type="button" aria-label="Open navigation">☰</button>
     <a class="brand" href="../"><img src="../../assets/mark.svg" alt=""><b>KJDraw</b><span>Docs</span></a>
+    <nav class="product-nav" aria-label="KJDraw products"><a href="../"><span class="lang-en">Overview</span><span class="lang-zh">概览</span></a><a href="../quickstart/" class="active"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例</span></a><a href="../api/">API</a></nav>
     <button id="search-button" class="search-button" type="button" aria-keyshortcuts="Control+K Meta+K"><span aria-hidden="true">⌕</span><span class="lang-en">Search guides and API</span><span class="lang-zh">搜索指南与 API</span><kbd>Ctrl K</kbd></button>
-    <nav class="top-links"><a href="../api/">API</a><a href="https://kanjieteam.github.io/kjdraw/"><span class="lang-en">Demo</span><span class="lang-zh">演示</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="https://kanjieteam.github.io/kjdraw/">Playground</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
@@ -24,16 +25,19 @@
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
-          <a href="../"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
+          <a href="../"><span class="lang-en">KJDraw</span><span class="lang-zh">KJDraw</span></a>
+          <a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例库</span></a>
           <a href="../quickstart/"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
+          <a href="../starters/"><span class="lang-en">Starter projects</span><span class="lang-zh">起步工程</span></a>
           <a href="../installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
-          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
-          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
-          <a href="../files/" class="active" aria-current="page"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../concepts/"><span class="lang-en">Core concepts</span><span class="lang-zh">核心概念</span></a>
+          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
           <a href="../commands/"><span class="lang-en">Commands and transactions</span><span class="lang-zh">命令与事务</span></a>
+          <a href="../files/" class="active" aria-current="page"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Frameworks</h3><h3 class="lang-zh">前端框架</h3>
@@ -44,11 +48,14 @@
           <h3 class="lang-en">Extend and deploy</h3><h3 class="lang-zh">扩展与部署</h3>
           <a href="../agent/"><span class="lang-en">Agent workflows</span><span class="lang-zh">Agent 工作流</span></a>
           <a href="../models/"><span class="lang-en">Connect your model</span><span class="lang-zh">接入你的模型</span></a>
+          <a href="../mcp/"><span class="lang-en">MCP integration</span><span class="lang-zh">MCP 集成</span></a>
+          <a href="../knowledge-packs/"><span class="lang-en">Compile knowledge packs</span><span class="lang-zh">编译知识包</span></a>
           <a href="../plugins/"><span class="lang-en">Plugins</span><span class="lang-zh">插件</span></a>
           <a href="../deployment/"><span class="lang-en">Deployment</span><span class="lang-zh">部署</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Reference</h3><h3 class="lang-zh">参考</h3>
+          <a href="../reference/"><span class="lang-en">API reference</span><span class="lang-zh">API 参考</span></a>
           <a href="../capabilities/"><span class="lang-en">Capabilities</span><span class="lang-zh">功能能力</span></a>
         </section>
         <section class="nav-group reference-group">
@@ -61,13 +68,13 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-files">
-          <p class="eyebrow">KJDRAW / FILES AND PROJECTS</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / FILES AND PROJECTS</p>
           <h1>Files and projects</h1>
-          <p class="lead">Read and write KJD, package multi-drawing KJP projects and use the explicitly bounded ASCII DXF compatibility profile.</p>
-          <h2 id="en-files-choose-a-format">Choose a format<a class="heading-anchor" href="#en-files-choose-a-format" aria-label="Link to Choose a format">#</a></h2>
+          <p class="lead">Read and write KJD, package multi-drawing KJP projects and use the explicitly bounded ASCII DXF compatibility profile.</p></header>
+          <h2 id="en-files-choose-a-format">Choose a format</h2>
 <div class="table-wrap"><table><thead><tr><th>Format</th><th>Use it for</th><th>Contract boundary</th></tr></thead><tbody><tr><td>KJD</td><td>One canonical transactional drawing</td><td>JSON model, validation and revisions</td></tr><tr><td>KJP</td><td>A portable project with drawings, assets, snapshots and journal</td><td>Deterministic ZIP64 package with hashes and read budgets</td></tr><tr><td>DXF</td><td>Interchange with the published ASCII subset</td><td>Named entities, resources and versions only</td></tr></tbody></table></div>
 <p>The maintained compatibility matrix is the authority for format versions and semantic coverage.</p>
-<h2 id="en-files-read-and-write">Read and write a drawing<a class="heading-anchor" href="#en-files-read-and-write" aria-label="Link to Read and write a drawing">#</a></h2>
+<h2 id="en-files-read-and-write">Read and write a drawing</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const drawing = await sdk.readDocument(await file.arrayBuffer(), {
   format: &#39;DXF&#39;,
 })
@@ -79,7 +86,7 @@ const dxf = await sdk.writeDocument(drawing, {
 })</code></pre>
 <p>Adapters share the same document model. Keep the original input when evaluating interoperability, and treat an exported file as a new artifact rather than proof of application-specific durable storage.</p>
 <p>DXF 2000 and newer exports retain named and empty layout identities, tab order and entity ownership. Import resolves layout/block references even without entity <code>410</code> hints; non-primary paper entities are written inside their space blocks for independent readers. Full paper settings, viewports and plotting fidelity remain outside this guarantee. Conflicting layout identities or ambiguous entity ownership fail the import instead of silently moving geometry.</p>
-<h2 id="en-files-dxf-page-configuration">Preserve DXF page configuration<a class="heading-anchor" href="#en-files-dxf-page-configuration" aria-label="Link to Preserve DXF page configuration">#</a></h2>
+<h2 id="en-files-dxf-page-configuration">Preserve DXF page configuration</h2>
 <p>Imported layout <code>payload.dxfPlotSettings</code> retains 30 scalar <code>AcDbPlotSettings</code> fields, including paper dimensions, margins, offsets, window, units, rotation, scale and resource names. <code>KJDxfPlotSettings</code> is exported from the package; <code>transaction.createLayout({ name, dxfPlotSettings })</code> also accepts it. The fields remain in KJD and DXF 2000+.</p>
 <p>In the embedded editor, open <strong>Page setup</strong> from the top bar, choose a sheet and edit physical paper dimensions, margins, plot units, rotation or custom scale. Blank fields keep existing values. Apply changes only that sheet; Cancel/Escape and applying an unchanged form leave the drawing/history untouched. Changing either custom-scale field clears the standard-scale flag while preserving other flags. If the drawing changes while the form is open, close and reopen it before applying. Readonly editors disable the entry. This form configures exports; it does not provide print preview or drive a printer. Choose a plot area (display, extents, limits, named view, window or layout), enter a view name for named-view output, or four drawing-unit coordinates for a window. Window width and height must be positive. Origin offsets use millimeters. Fit to paper sets the standard-scale flag and scale type 0; custom ratio clears that flag. Existing unrelated flags and unused window/view settings are preserved. Named-view configuration stores the supplied reference; it does not verify or render that view.</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>await sdk.executeCommand(&#39;PAGESETUP&#39;, {
@@ -101,20 +108,20 @@ console.log(svg.report.status, svg.paper.millimetersPerDrawingUnit)
 // svg.svg and print.html are complete document strings.</code></pre>
 <p>Model-space output requires an explicit window (<code>plotType: 4</code>) or named view (<code>plotType: 3</code>). A paper layout uses its layout range. Strict export rejects geometry it cannot represent; inspect <code>report</code> before delivering the file.</p>
 <p>This is configuration preservation, not physical printing or a page preview. Layout limits/extents, viewport projection, named page-setup dictionaries, shade-object handles, transparency XDATA and referenced printer/style files remain outside this guarantee. KJDraw does not execute resource names or load local printer configuration.</p>
-<h2 id="en-files-package-a-project">Package a project<a class="heading-anchor" href="#en-files-package-a-project" aria-label="Link to Package a project">#</a></h2>
+<h2 id="en-files-package-a-project">Package a project</h2>
 <p>Use <code>KJProjectSession</code> when the application needs active-drawing state, membership and a command journal. Use <code>createKjpPackage()</code> and <code>openKjpPackage()</code> for lower-level package assembly and inspection. A browser file binding can download and reopen a KJP; a desktop or server provider defines atomic replacement and fsync guarantees.</p>
-<h2 id="en-files-limits-and-dxf-evidence">Limits and DXF evidence<a class="heading-anchor" href="#en-files-limits-and-dxf-evidence" aria-label="Link to Limits and DXF evidence">#</a></h2>
+<h2 id="en-files-limits-and-dxf-evidence">Limits and DXF evidence</h2>
 <p>KJD, KJP and DXF readers accept configurable byte/object/entity/archive budgets and abort signals. Export diagnostics make format decisions observable to the host.</p>
 <p>The exact versions, entity/resource subset and independent ezdxf audit are maintained in the <a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/dxf-compatibility.md">DXF compatibility contract</a>.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-files">
-          <p class="eyebrow">KJDRAW / 文件与工程</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / 文件与工程</p>
           <h1>文件与工程</h1>
-          <p class="lead">读写 KJD、打包多图档 KJP 工程，并在明确边界内使用 ASCII DXF 兼容能力。</p>
-          <h2 id="zh-files-choose-a-format">选择格式<a class="heading-anchor" href="#zh-files-choose-a-format" aria-label="Link to 选择格式">#</a></h2>
+          <p class="lead">读写 KJD、打包多图档 KJP 工程，并在明确边界内使用 ASCII DXF 兼容能力。</p></header>
+          <h2 id="zh-files-choose-a-format">选择格式</h2>
 <div class="table-wrap"><table><thead><tr><th>格式</th><th>适用场景</th><th>契约边界</th></tr></thead><tbody><tr><td>KJD</td><td>单个规范事务图档</td><td>JSON 模型、校验与修订号</td></tr><tr><td>KJP</td><td>包含图档、资产、快照和日志的可移植工程</td><td>带哈希与读取预算的确定性 ZIP64 包</td></tr><tr><td>DXF</td><td>与公开 ASCII 子集互操作</td><td>仅承诺列明的实体、资源与版本</td></tr></tbody></table></div>
 <p>持续维护的兼容矩阵是格式版本与语义覆盖范围的权威依据。</p>
-<h2 id="zh-files-read-and-write">读取与写出图档<a class="heading-anchor" href="#zh-files-read-and-write" aria-label="Link to 读取与写出图档">#</a></h2>
+<h2 id="zh-files-read-and-write">读取与写出图档</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const drawing = await sdk.readDocument(await file.arrayBuffer(), {
   format: &#39;DXF&#39;,
 })
@@ -126,7 +133,7 @@ const dxf = await sdk.writeDocument(drawing, {
 })</code></pre>
 <p>不同适配器共用同一个图档模型。评估互操作时请保留原始输入；导出文件只是一个新产物，不能自动证明具体应用已经完成持久落盘。</p>
 <p>DXF 2000 及更新版本导出保留命名布局、空布局、标签顺序和实体归属。导入在没有实体 <code>410</code> 提示时仍解析布局与空间块引用；非主图纸空间实体写入对应空间块，供独立读取器正确识别。此保证不包含完整纸张设置、视口和打印保真。布局身份冲突或实体归属无法判定时导入会报错，避免静默移动图形。</p>
-<h2 id="zh-files-dxf-page-configuration">保留 DXF 页面配置<a class="heading-anchor" href="#zh-files-dxf-page-configuration" aria-label="Link to 保留 DXF 页面配置">#</a></h2>
+<h2 id="zh-files-dxf-page-configuration">保留 DXF 页面配置</h2>
 <p>导入布局的 <code>payload.dxfPlotSettings</code> 保留 30 个 <code>AcDbPlotSettings</code> 标量字段，包括纸张尺寸、边距、偏移、窗口、单位、旋转、比例及资源名称。包导出 <code>KJDxfPlotSettings</code> 类型，<code>transaction.createLayout({ name, dxfPlotSettings })</code> 也可设置。字段保存在 KJD 和 DXF 2000+ 中。</p>
 <p>在嵌入式编辑器顶部打开<strong>页面设置</strong>，选择图纸布局，编辑物理纸张尺寸、边距、打印单位、旋转或自定义比例。空字段保留已有值；应用只修改选定布局，取消、按 Esc 或提交未修改的表单都不会改变图档或新增历史。打开表单后若图档发生变化，请关闭后重新打开；只读模式不提供此入口。</p>
 <p>页面设置用于配置导出，不执行打印或生成打印预览。可选范围包括显示、图形范围、图形界限、命名视图、窗口或布局。命名视图需要名称；窗口需要四个绘图单位坐标，且宽高必须为正。原点偏移以毫米计。</p>
@@ -150,18 +157,18 @@ console.log(svg.report.status, svg.paper.millimetersPerDrawingUnit)
 // svg.svg 与 print.html 都是完整文档字符串。</code></pre>
 <p>模型空间输出需要明确窗口（<code>plotType: 4</code>）或命名视图（<code>plotType: 3</code>）；图纸布局使用自身范围。严格导出会拒绝无法表达的几何，交付前应检查 <code>report</code>。</p>
 <p>该接口只保留页面配置，不执行打印或生成页面预览。它不处理布局范围、视口投影、命名页面设置字典、着色对象句柄、透明度 XDATA 以及引用的打印机或样式文件。资源名称不会被执行，也不会自动加载本地打印机配置。</p>
-<h2 id="zh-files-package-a-project">打包工程<a class="heading-anchor" href="#zh-files-package-a-project" aria-label="Link to 打包工程">#</a></h2>
+<h2 id="zh-files-package-a-project">打包工程</h2>
 <p>应用需要活动图档、成员关系和命令日志时使用 <code>KJProjectSession</code>。需要更底层的工程包组装与检查时使用 <code>createKjpPackage()</code> 和 <code>openKjpPackage()</code>。浏览器文件绑定可以下载并重开 KJP；桌面或服务端 Provider 则负责定义原子替换与 fsync 保证。</p>
-<h2 id="zh-files-limits-and-dxf-evidence">资源上限与 DXF 证据<a class="heading-anchor" href="#zh-files-limits-and-dxf-evidence" aria-label="Link to 资源上限与 DXF 证据">#</a></h2>
+<h2 id="zh-files-limits-and-dxf-evidence">资源上限与 DXF 证据</h2>
 <p>KJD、KJP、DXF 读取器支持可配置的字节、对象、实体、压缩包预算与中止信号。导出诊断会让格式决策对宿主保持可观察。</p>
 <p>精确版本、实体/资源子集与独立 ezdxf 审计记录在 <a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/dxf-compatibility.md">DXF 兼容契约</a>中。</p>
         </article>
-        <nav class="pager" aria-label="Adjacent documentation"><a href="../architecture/"><strong class="lang-en">Architecture</strong><strong class="lang-zh">架构</strong></a><a href="../commands/"><strong class="lang-en">Commands and transactions</strong><strong class="lang-zh">命令与事务</strong></a></nav>
+        <nav class="pager" aria-label="Adjacent documentation"><a href="../commands/"><strong class="lang-en">Commands and transactions</strong><strong class="lang-zh">命令与事务</strong></a><a href="../architecture/"><strong class="lang-en">Architecture</strong><strong class="lang-zh">架构</strong></a></nav>
       </div>
       <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-files-choose-a-format">Choose a format</a><a class="toc-level-2" href="#en-files-read-and-write">Read and write a drawing</a><a class="toc-level-2" href="#en-files-dxf-page-configuration">Preserve DXF page configuration</a><a class="toc-level-2" href="#en-files-package-a-project">Package a project</a><a class="toc-level-2" href="#en-files-limits-and-dxf-evidence">Limits and DXF evidence</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-files-choose-a-format">选择格式</a><a class="toc-level-2" href="#zh-files-read-and-write">读取与写出图档</a><a class="toc-level-2" href="#zh-files-dxf-page-configuration">保留 DXF 页面配置</a><a class="toc-level-2" href="#zh-files-package-a-project">打包工程</a><a class="toc-level-2" href="#zh-files-limits-and-dxf-evidence">资源上限与 DXF 证据</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=011588533eb087da"></script>
+  <script type="module" src="../app.js?v=cbc5bdeee724d98d"></script>
 </body>
 </html>

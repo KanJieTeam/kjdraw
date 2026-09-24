@@ -8,7 +8,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   reporter: process.env.CI ? [['line'], ['github'], ['html', { open: 'never' }]] : 'line',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: `http://127.0.0.1:${process.env.PORT ?? 4173}`,
     locale: 'en-US',
     timezoneId: 'Asia/Shanghai',
     reducedMotion: 'reduce',
@@ -17,7 +17,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'node scripts/serve.mjs',
-    url: 'http://127.0.0.1:4173',
+    url: `http://127.0.0.1:${process.env.PORT ?? 4173}`,
     reuseExistingServer: process.env.KJDRAW_ISOLATED_SERVER ? false : !process.env.CI,
     timeout: 30_000,
   },

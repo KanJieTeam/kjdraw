@@ -8,15 +8,16 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/commands/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
+  <link rel="stylesheet" href="../style.css?v=cbc5bdeee724d98d">
   <title>Commands and transactions · KJDraw Docs</title>
 </head>
 <body>
   <header class="topbar">
     <button id="menu-button" class="icon-button menu-button" type="button" aria-label="Open navigation">☰</button>
     <a class="brand" href="../"><img src="../../assets/mark.svg" alt=""><b>KJDraw</b><span>Docs</span></a>
+    <nav class="product-nav" aria-label="KJDraw products"><a href="../"><span class="lang-en">Overview</span><span class="lang-zh">概览</span></a><a href="../quickstart/" class="active"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例</span></a><a href="../api/">API</a></nav>
     <button id="search-button" class="search-button" type="button" aria-keyshortcuts="Control+K Meta+K"><span aria-hidden="true">⌕</span><span class="lang-en">Search guides and API</span><span class="lang-zh">搜索指南与 API</span><kbd>Ctrl K</kbd></button>
-    <nav class="top-links"><a href="../api/">API</a><a href="https://kanjieteam.github.io/kjdraw/"><span class="lang-en">Demo</span><span class="lang-zh">演示</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="https://kanjieteam.github.io/kjdraw/">Playground</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
@@ -24,16 +25,19 @@
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
-          <a href="../"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
+          <a href="../"><span class="lang-en">KJDraw</span><span class="lang-zh">KJDraw</span></a>
+          <a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例库</span></a>
           <a href="../quickstart/"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
+          <a href="../starters/"><span class="lang-en">Starter projects</span><span class="lang-zh">起步工程</span></a>
           <a href="../installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
-          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
-          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
-          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../concepts/"><span class="lang-en">Core concepts</span><span class="lang-zh">核心概念</span></a>
+          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
           <a href="../commands/" class="active" aria-current="page"><span class="lang-en">Commands and transactions</span><span class="lang-zh">命令与事务</span></a>
+          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Frameworks</h3><h3 class="lang-zh">前端框架</h3>
@@ -44,11 +48,14 @@
           <h3 class="lang-en">Extend and deploy</h3><h3 class="lang-zh">扩展与部署</h3>
           <a href="../agent/"><span class="lang-en">Agent workflows</span><span class="lang-zh">Agent 工作流</span></a>
           <a href="../models/"><span class="lang-en">Connect your model</span><span class="lang-zh">接入你的模型</span></a>
+          <a href="../mcp/"><span class="lang-en">MCP integration</span><span class="lang-zh">MCP 集成</span></a>
+          <a href="../knowledge-packs/"><span class="lang-en">Compile knowledge packs</span><span class="lang-zh">编译知识包</span></a>
           <a href="../plugins/"><span class="lang-en">Plugins</span><span class="lang-zh">插件</span></a>
           <a href="../deployment/"><span class="lang-en">Deployment</span><span class="lang-zh">部署</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Reference</h3><h3 class="lang-zh">参考</h3>
+          <a href="../reference/"><span class="lang-en">API reference</span><span class="lang-zh">API 参考</span></a>
           <a href="../capabilities/"><span class="lang-en">Capabilities</span><span class="lang-zh">功能能力</span></a>
         </section>
         <section class="nav-group reference-group">
@@ -61,10 +68,10 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-commands">
-          <p class="eyebrow">KJDRAW / COMMANDS AND TRANSACTIONS</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / COMMANDS AND TRANSACTIONS</p>
           <h1>Commands and transactions</h1>
-          <p class="lead">Make every UI, automation and Agent edit observable through the same revisioned transactional boundary.</p>
-          <h2 id="en-commands-execute-a-command">Execute a command<a class="heading-anchor" href="#en-commands-execute-a-command" aria-label="Link to Execute a command">#</a></h2>
+          <p class="lead">Make every UI, automation and Agent edit observable through the same revisioned transactional boundary.</p></header>
+          <h2 id="en-commands-execute-a-command">Execute a command</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const line = await sdk.executeCommand(&#39;CREATE&#39;, {
   type: &#39;LINE&#39;,
   payload: { start: [0, 0, 0], end: [100, 0, 0] },
@@ -77,10 +84,10 @@ await sdk.executeCommand(
 )</code></pre>
 <p><code>expectedRevision</code> closes stale-write races. A mismatch fails before mutation. Successful commits advance the revision and emit typed events; undo/redo enters the same history.</p>
 <p>When using a mounted editor, prefer <code>editor.execute(command, args)</code>: it always targets that editor&#39;s drawing. With a shared SDK, pass <code>{ document: drawing }</code> explicitly for background tasks. A bare <code>sdk.executeCommand()</code> uses the SDK&#39;s single active drawing, which follows editor focus and can change when another view becomes active.</p>
-<h2 id="en-commands-atomicity-and-rollback">Atomicity and rollback<a class="heading-anchor" href="#en-commands-atomicity-and-rollback" aria-label="Link to Atomicity and rollback">#</a></h2>
+<h2 id="en-commands-atomicity-and-rollback">Atomicity and rollback</h2>
 <p>A command runs against a transaction draft. Validation and any configured authority backend complete before publication. If execution or validation fails, the live document does not expose the partial draft.</p>
 <p>Built-in editing includes declared combinations for creation, properties, move/copy/rotate/scale/mirror, arrays, offset, break/explode, trim/extend, chamfer/fillet and grips. Consult <strong>Capabilities</strong> for exact boundaries rather than inferring support from a command name.</p>
-<h2 id="en-commands-select-geometry">Select geometry<a class="heading-anchor" href="#en-commands-select-geometry" aria-label="Link to Select geometry">#</a></h2>
+<h2 id="en-commands-select-geometry">Select geometry</h2>
 <p>The packaged workbench includes click selection, directional box selection, an open fence and editable grips. For your own toolbar or automation, query the drawing in model coordinates:</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { selectEntitiesInBox, selectEntitiesByFence } from &#39;@kanjieteam/kjdraw/selection&#39;
 
@@ -92,14 +99,14 @@ const crossed = selectEntitiesByFence(drawing, [[0, 20], [100, 20]])</code></pre
 <div class="table-wrap"><table><thead><tr><th>API / option</th><th>Purpose</th></tr></thead><tbody><tr><td><code>selectEntitiesInBox(drawing, first, second, mode, options?)</code></td><td><code>window</code> requires the whole object inside; <code>crossing</code> also accepts geometry touching the frame</td></tr><tr><td><code>selectEntitiesByFence(drawing, points, options?)</code></td><td>At least two points; the last point is not automatically joined to the first</td></tr><tr><td><code>spaceId</code></td><td>Query a particular drawing space; defaults to model space</td></tr><tr><td><code>includeLocked: true</code></td><td>Include visible locked-layer entities for inspection; does not make them editable</td></tr><tr><td><code>tolerance</code></td><td>Non-negative distance in model units; defaults to <code>1e-8</code></td></tr></tbody></table></div>
 <p>Both functions return object IDs without changing selection or undo history. Hidden and frozen layers are excluded. Circles, arcs, ellipses and bulged polyline segments use curve intersections; splines follow the displayed curve and text uses approximate label extents.</p>
 <p>For custom Canvas UI, <code>editor.workbench.renderer.selectBox(first, second)</code> and <code>selectFence(points)</code> accept <strong>canvas-relative CSS pixels</strong>, not model coordinates. <code>selectBox</code> automatically chooses window for left-to-right dragging and crossing for right-to-left. Apply the returned IDs with <code>editor.setSelection(ids)</code>.</p>
-<h2 id="en-commands-protected-layers">Protected layers<a class="heading-anchor" href="#en-commands-protected-layers" aria-label="Link to Protected layers">#</a></h2>
+<h2 id="en-commands-protected-layers">Protected layers</h2>
 <p>Editing commands reject writes to locked, frozen or hidden layers, including moving an object into a protected layer. A multi-object command fails as a whole; it does not move the writable objects and leave the others behind. Read-only measurements and queries still work. Use the Layers panel to unlock, thaw or show a layer, or update it explicitly:</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>await editor.execute(&#39;LAYERUPDATE&#39;, {
   id: layerId,
   patch: { locked: false, frozen: false, visible: true },
 })</code></pre>
 <p>This editing policy applies to transactional commands, including registered extensions. Direct <code>drawing.transact(...)</code> remains available for importers and data migrations that reconstruct protected drawings; it is a low-level data API, not a user permission system.</p>
-<h2 id="en-commands-command-envelopes">Use command envelopes<a class="heading-anchor" href="#en-commands-command-envelopes" aria-label="Link to Use command envelopes">#</a></h2>
+<h2 id="en-commands-command-envelopes">Use command envelopes</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const envelope = sdk.createCommandEnvelope(&#39;MOVE&#39;, {
   ids: selectedIds,
   dx: 3,
@@ -113,14 +120,14 @@ const crossed = selectEntitiesByFence(drawing, [[0, 20], [100, 20]])</code></pre
 const receipt = await sdk.executeCommandEnvelope(envelope)
 console.log(receipt.command, receipt.afterRevision)</code></pre>
 <p>Envelopes make command identity, arguments, origin, target document and expected revision explicit. AI-origin envelopes add the Agent plan review protocol described in <strong>Agent workflows</strong>.</p>
-<h2 id="en-commands-observe-changes">Observe changes<a class="heading-anchor" href="#en-commands-observe-changes" aria-label="Link to Observe changes">#</a></h2>
+<h2 id="en-commands-observe-changes">Observe changes</h2>
 <p>Subscribe through <code>sdk.events.on(&#39;command:committed&#39;, listener)</code> and dispose the returned function when its owning UI scope unmounts. Renderers should derive their display state from the committed document rather than mutate canonical geometry directly.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-commands">
-          <p class="eyebrow">KJDRAW / 命令与事务</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / 命令与事务</p>
           <h1>命令与事务</h1>
-          <p class="lead">让 UI、自动化与 Agent 修改都经过同一条带修订号、可观察的事务边界。</p>
-          <h2 id="zh-commands-execute-a-command">执行命令<a class="heading-anchor" href="#zh-commands-execute-a-command" aria-label="Link to 执行命令">#</a></h2>
+          <p class="lead">让 UI、自动化与 Agent 修改都经过同一条带修订号、可观察的事务边界。</p></header>
+          <h2 id="zh-commands-execute-a-command">执行命令</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const line = await sdk.executeCommand(&#39;CREATE&#39;, {
   type: &#39;LINE&#39;,
   payload: { start: [0, 0, 0], end: [100, 0, 0] },
@@ -133,10 +140,10 @@ await sdk.executeCommand(
 )</code></pre>
 <p><code>expectedRevision</code> 用于关闭陈旧写入竞态。版本不匹配时会在修改前失败。提交成功后修订号递增并发出类型化事件；撤销/重做也进入同一段历史。</p>
 <p>使用已挂载的编辑器时，优先调用 <code>editor.execute(command, args)</code>，它始终操作该编辑器的图纸。多个编辑器共享 SDK 时，后台任务应显式传入 <code>{ document: drawing }</code>。不指定图纸的 <code>sdk.executeCommand()</code> 会使用 SDK 的活动图纸；切换编辑器焦点也会切换这一目标。</p>
-<h2 id="zh-commands-atomicity-and-rollback">原子性与回滚<a class="heading-anchor" href="#zh-commands-atomicity-and-rollback" aria-label="Link to 原子性与回滚">#</a></h2>
+<h2 id="zh-commands-atomicity-and-rollback">原子性与回滚</h2>
 <p>命令在事务草稿上执行。校验与已配置的权威后端都成功后才会发布。执行或校验失败时，活动图档不会暴露部分修改的草稿。</p>
 <p>内置编辑覆盖已声明组合下的创建、属性、移动/复制/旋转/缩放/镜像、阵列、偏移、打断/分解、修剪/延伸、倒角/圆角与夹点。请从<strong>能力与边界</strong>确认精确范围，不要只根据命令名称推断支持程度。</p>
-<h2 id="zh-commands-select-geometry">按几何范围选择<a class="heading-anchor" href="#zh-commands-select-geometry" aria-label="Link to 按几何范围选择">#</a></h2>
+<h2 id="zh-commands-select-geometry">按几何范围选择</h2>
 <p>内置工作台提供单击选择、方向框选、开放围栏和可编辑夹点。开发自己的工具栏或自动化流程时，可直接按模型坐标查询：</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { selectEntitiesInBox, selectEntitiesByFence } from &#39;@kanjieteam/kjdraw/selection&#39;
 
@@ -148,14 +155,14 @@ const crossed = selectEntitiesByFence(drawing, [[0, 20], [100, 20]])</code></pre
 <div class="table-wrap"><table><thead><tr><th>API / 参数</th><th>用途</th></tr></thead><tbody><tr><td><code>selectEntitiesInBox(drawing, first, second, mode, options?)</code></td><td><code>window</code> 要求对象完全位于框内；<code>crossing</code> 也包含与边框相交的图形</td></tr><tr><td><code>selectEntitiesByFence(drawing, points, options?)</code></td><td>至少两个点，不自动连接最后一点与第一点</td></tr><tr><td><code>spaceId</code></td><td>指定绘图空间，默认查询模型空间</td></tr><tr><td><code>includeLocked: true</code></td><td>检查时可包含锁定层对象，但不解除其编辑保护</td></tr><tr><td><code>tolerance</code></td><td>模型单位下的非负距离容差，默认 <code>1e-8</code></td></tr></tbody></table></div>
 <p>两个函数只返回对象 ID，不改变选择和撤销历史。隐藏、冻结图层不参与查询。圆、圆弧、椭圆和带凸度的多段线按曲线求交；样条按显示曲线判断，文字采用近似标签范围。</p>
 <p>自定义 Canvas 界面时，可使用 <code>editor.workbench.renderer.selectBox(first, second)</code> 和 <code>selectFence(points)</code>，坐标为<strong>相对画布的 CSS 像素</strong>，不是模型坐标。<code>selectBox</code> 根据拖动方向自动选择全包含或交叉模式。再调用 <code>editor.setSelection(ids)</code> 应用查询结果。</p>
-<h2 id="zh-commands-protected-layers">图层编辑保护<a class="heading-anchor" href="#zh-commands-protected-layers" aria-label="Link to 图层编辑保护">#</a></h2>
+<h2 id="zh-commands-protected-layers">图层编辑保护</h2>
 <p>编辑命令不能修改锁定、冻结或隐藏图层上的对象，也不能把对象移入这些图层。批量命令整体失败，不会只修改其中可写的对象。测量和只读查询仍可使用。可以通过图层面板解锁、解冻或显示图层，也可以显式更新：</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>await editor.execute(&#39;LAYERUPDATE&#39;, {
   id: layerId,
   patch: { locked: false, frozen: false, visible: true },
 })</code></pre>
 <p>这一编辑策略覆盖事务命令及注册的扩展命令。底层 <code>drawing.transact(...)</code> 仍可用于导入、迁移等需要重建受保护图纸的数据操作；它不是面向用户的权限系统。</p>
-<h2 id="zh-commands-command-envelopes">使用命令信封<a class="heading-anchor" href="#zh-commands-command-envelopes" aria-label="Link to 使用命令信封">#</a></h2>
+<h2 id="zh-commands-command-envelopes">使用命令信封</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const envelope = sdk.createCommandEnvelope(&#39;MOVE&#39;, {
   ids: selectedIds,
   dx: 3,
@@ -169,15 +176,15 @@ const crossed = selectEntitiesByFence(drawing, [[0, 20], [100, 20]])</code></pre
 const receipt = await sdk.executeCommandEnvelope(envelope)
 console.log(receipt.command, receipt.afterRevision)</code></pre>
 <p>命令信封显式记录命令身份、参数、来源、目标图档与预期修订。AI 来源信封还会进入<strong>Agent 工作流</strong>所述的计划审核协议。</p>
-<h2 id="zh-commands-observe-changes">观察变更<a class="heading-anchor" href="#zh-commands-observe-changes" aria-label="Link to 观察变更">#</a></h2>
+<h2 id="zh-commands-observe-changes">观察变更</h2>
 <p>通过 <code>sdk.events.on(&#39;command:committed&#39;, listener)</code> 订阅，并在所属 UI 生命周期结束时调用返回的释放函数。渲染器应从已提交图档派生显示状态，而不是直接修改规范几何。</p>
         </article>
-        <nav class="pager" aria-label="Adjacent documentation"><a href="../files/"><strong class="lang-en">Files and projects</strong><strong class="lang-zh">文件与工程</strong></a><a href="../react/"><strong class="lang-en">React integration</strong><strong class="lang-zh">React 集成</strong></a></nav>
+        <nav class="pager" aria-label="Adjacent documentation"><a href="../workbench/"><strong class="lang-en">Using the workbench</strong><strong class="lang-zh">工作台操作指南</strong></a><a href="../files/"><strong class="lang-en">Files and projects</strong><strong class="lang-zh">文件与工程</strong></a></nav>
       </div>
       <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-commands-execute-a-command">Execute a command</a><a class="toc-level-2" href="#en-commands-atomicity-and-rollback">Atomicity and rollback</a><a class="toc-level-2" href="#en-commands-select-geometry">Select geometry</a><a class="toc-level-2" href="#en-commands-protected-layers">Protected layers</a><a class="toc-level-2" href="#en-commands-command-envelopes">Use command envelopes</a><a class="toc-level-2" href="#en-commands-observe-changes">Observe changes</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-commands-execute-a-command">执行命令</a><a class="toc-level-2" href="#zh-commands-atomicity-and-rollback">原子性与回滚</a><a class="toc-level-2" href="#zh-commands-select-geometry">按几何范围选择</a><a class="toc-level-2" href="#zh-commands-protected-layers">图层编辑保护</a><a class="toc-level-2" href="#zh-commands-command-envelopes">使用命令信封</a><a class="toc-level-2" href="#zh-commands-observe-changes">观察变更</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=011588533eb087da"></script>
+  <script type="module" src="../app.js?v=cbc5bdeee724d98d"></script>
 </body>
 </html>

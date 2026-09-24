@@ -323,7 +323,7 @@ const installTarget = installFromRelease
 const installCommand = `npm install ${installTarget}`
 
 const localized = (en, zh, tag = 'span') => `<${tag} class="lang-en">${escapeHtml(en)}</${tag}><${tag} class="lang-zh">${escapeHtml(zh)}</${tag}>`
-const permalink = (anchor, label) => `<a class="permalink" href="#${anchor}" aria-label="Link to ${escapeHtml(label)}">#</a>`
+const permalink = (anchor, label) => `<a class="permalink" href="#${anchor}" aria-label="Link to ${escapeHtml(label)}"></a>`
 const codeBlock = (code, language = 'ts') => `<pre data-language="${escapeHtml(language)}"><button class="copy" type="button" data-copy-code>Copy</button><code>${escapeHtml(code)}</code></pre>`
 
 const optionRows = editorGuide.options.map(option => {
@@ -336,9 +336,9 @@ const propertyRows = editorGuide.properties.map(property => {
   return `<tr id="${anchor}" data-api-entry data-name="${escapeHtml(property.name)}" data-kind="property" data-search="${escapeHtml(`${property.name} ${property.type} ${property.en} ${property.zh}`.toLowerCase())}"><td><a href="#${anchor}"><code>${escapeHtml(property.name)}</code></a></td><td><code>${escapeHtml(property.type)}</code></td><td>${localized(property.en, property.zh)}</td></tr>`
 }).join('\n')
 
-const methodRows = editorGuide.methods.map(method => {
+const methodCards = editorGuide.methods.map(method => {
   const anchor = `method-${slug(method.name)}`
-  return `<tr id="${anchor}" data-api-entry data-name="${escapeHtml(method.name)}" data-kind="method" data-search="${escapeHtml(`${method.name} ${method.signature} ${method.parameters} ${method.returns} ${method.en} ${method.zh}`.toLowerCase())}"><td><a href="#${anchor}"><code>${escapeHtml(method.signature)}</code></a></td><td><code>${escapeHtml(method.parameters)}</code></td><td><code>${escapeHtml(method.returns)}</code></td><td>${localized(method.en, method.zh)}</td></tr>`
+  return `<section class="api-method" id="${anchor}" data-api-entry data-name="${escapeHtml(method.name)}" data-kind="method" data-search="${escapeHtml(`${method.name} ${method.signature} ${method.parameters} ${method.returns} ${method.en} ${method.zh}`.toLowerCase())}"><div class="api-method-head"><h3><code>editor.${escapeHtml(method.signature)}</code></h3><a href="#${anchor}" aria-label="Link to ${escapeHtml(method.name)}">↗</a></div><p>${localized(method.en, method.zh)}</p><dl><div><dt>${localized('Parameters', '参数')}</dt><dd><code>${escapeHtml(method.parameters)}</code></dd></div><div><dt>${localized('Returns', '返回')}</dt><dd><code>${escapeHtml(method.returns)}</code></dd></div></dl></section>`
 }).join('\n')
 
 const eventRows = editorGuide.events.map(event => {
@@ -413,7 +413,7 @@ ${installFromRelease ? `          <p>${localized('Install the published GitHub r
         <section id="methods">
           <h2>Methods${permalink('methods', 'Methods')}</h2>
           <p>${localized('File operations and edits that return promises can be awaited in application workflows.', '文件操作与返回 Promise 的编辑方法可直接纳入应用异步流程。')}</p>
-          <div class="table-wrap wide-table"><table><thead><tr><th>Method</th><th>${localized('Parameters', '参数')}</th><th>${localized('Returns', '返回')}</th><th>${localized('Purpose', '用途')}</th></tr></thead><tbody>${methodRows}</tbody></table></div>
+          <div class="api-method-list">${methodCards}</div>
         </section>
 
         <section id="events">
@@ -442,6 +442,7 @@ ${installFromRelease ? `          <p>${localized('Install the published GitHub r
         </section>
       </article>
     </main>
+    <aside class="api-toc"><b>${localized('On this page', '本页目录')}</b><a href="#overview">${localized('Overview', '概览')}</a><a href="#quickstart">${localized('Quickstart', '快速接入')}</a><a href="#options">${localized('Options', '选项')}</a><a href="#properties">${localized('Properties', '属性')}</a><a href="#methods">${localized('Methods', '方法')}</a><div class="api-toc-methods">${editorGuide.methods.map(method => `<a href="#method-${slug(method.name)}">${escapeHtml(method.name)}()</a>`).join('')}</div><a href="#events">${localized('Events', '事件')}</a><a href="#frameworks">React / Vue</a><a href="#advanced">${localized('Advanced access', '高级入口')}</a></aside>
   </div>
   <script type="module" src="./app.js"></script>
 </body>
@@ -535,8 +536,20 @@ const apiLayoutCss = `
 .api-hero,.reference-intro{padding-bottom:26px}.api-hero h1,.reference-intro h1{font-size:32px;line-height:1.25}
 .api-hero .lead,.reference-intro .lead{font-size:15px;line-height:1.7}
 .wide-table{width:100%;max-width:none}.api-search-wrap,.api-search{width:min(430px,36vw)}
+.api-method-list{display:grid;gap:0;margin-top:22px;border-top:1px solid #e3e8ed}
+.api-method{padding:23px 0 25px;border-bottom:1px solid #e3e8ed;scroll-margin-top:82px}
+.api-method:target{border-radius:6px;background:#f5f8ff;box-shadow:0 0 0 12px #f5f8ff}
+.api-method-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.api-method-head h3{margin:0;color:#182333;font-size:17px}.api-method-head code{font:600 17px/1.5 Consolas,monospace;overflow-wrap:anywhere}
+.api-method-head>a{font-size:15px;color:#8c99a8}.api-method>p{margin:8px 0 12px;color:#536171;font-size:13px}
+.api-method dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:0}
+.api-method dl>div{min-width:0;padding:11px 13px;border:1px solid #e4e9ef;border-radius:6px;background:#f8fafc}
+.api-method dt{margin-bottom:6px;color:#718093;font-size:11px}.api-method dd{margin:0;color:#25354a;font-size:12px;overflow-wrap:anywhere}.api-method dd code{font:12px/1.5 Consolas,monospace}
+.api-toc{position:fixed;top:106px;left:calc(max(0px,(100vw - 1536px)/2) + 1160px);width:240px;max-height:calc(100vh - 126px);overflow:auto;display:flex;flex-direction:column;gap:9px;padding-left:18px;border-left:1px solid #e2e7ed;font-size:12px;color:#657182}
+.api-toc b{margin-bottom:7px;color:#26323f}.api-toc a:hover{color:#1d56bc}.api-toc-methods{display:flex;flex-direction:column;gap:7px;padding-left:12px;border-left:1px solid #e5eaf0;color:#7a8694}
+@media(max-width:1439px){.api-toc{display:none}}
 @media(max-width:1023px){.api-sidebar,.reference-sidebar{display:none}.api-main,.reference-main{width:auto;margin-left:0;padding:32px 24px 80px}.api-main article,.reference-main article{max-width:800px;margin:0 auto}}
-@media(max-width:767px){.topbar{height:64px;padding:0 16px}.brand{width:auto}.top-links{margin-left:auto;gap:10px}.top-links>a{display:none}.api-search-wrap,.api-search{width:min(170px,42vw)}.api-main,.reference-main{padding:26px 16px 72px}.framework-grid,.advanced-grid{grid-template-columns:1fr}.wide-table{width:100%}}
+@media(max-width:767px){.topbar{height:64px;padding:0 16px}.brand{width:auto}.top-links{margin-left:auto;gap:10px}.top-links>a{display:none}.api-search-wrap,.api-search{width:min(170px,42vw)}.api-main,.reference-main{padding:26px 16px 72px}.framework-grid,.advanced-grid,.api-method dl{grid-template-columns:1fr}.wide-table{width:100%}}
 `
 
 const outputs = new Map([

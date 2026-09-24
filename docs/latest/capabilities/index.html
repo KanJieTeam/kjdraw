@@ -8,15 +8,16 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/capabilities/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
+  <link rel="stylesheet" href="../style.css?v=cbc5bdeee724d98d">
   <title>Capabilities · KJDraw Docs</title>
 </head>
 <body>
   <header class="topbar">
     <button id="menu-button" class="icon-button menu-button" type="button" aria-label="Open navigation">☰</button>
     <a class="brand" href="../"><img src="../../assets/mark.svg" alt=""><b>KJDraw</b><span>Docs</span></a>
+    <nav class="product-nav" aria-label="KJDraw products"><a href="../"><span class="lang-en">Overview</span><span class="lang-zh">概览</span></a><a href="../quickstart/" class="active"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例</span></a><a href="../api/">API</a></nav>
     <button id="search-button" class="search-button" type="button" aria-keyshortcuts="Control+K Meta+K"><span aria-hidden="true">⌕</span><span class="lang-en">Search guides and API</span><span class="lang-zh">搜索指南与 API</span><kbd>Ctrl K</kbd></button>
-    <nav class="top-links"><a href="../api/">API</a><a href="https://kanjieteam.github.io/kjdraw/"><span class="lang-en">Demo</span><span class="lang-zh">演示</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="https://kanjieteam.github.io/kjdraw/">Playground</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
@@ -24,16 +25,19 @@
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
-          <a href="../"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
+          <a href="../"><span class="lang-en">KJDraw</span><span class="lang-zh">KJDraw</span></a>
+          <a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例库</span></a>
           <a href="../quickstart/"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
+          <a href="../starters/"><span class="lang-en">Starter projects</span><span class="lang-zh">起步工程</span></a>
           <a href="../installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
-          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
-          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
-          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../concepts/"><span class="lang-en">Core concepts</span><span class="lang-zh">核心概念</span></a>
+          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
           <a href="../commands/"><span class="lang-en">Commands and transactions</span><span class="lang-zh">命令与事务</span></a>
+          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Frameworks</h3><h3 class="lang-zh">前端框架</h3>
@@ -44,11 +48,14 @@
           <h3 class="lang-en">Extend and deploy</h3><h3 class="lang-zh">扩展与部署</h3>
           <a href="../agent/"><span class="lang-en">Agent workflows</span><span class="lang-zh">Agent 工作流</span></a>
           <a href="../models/"><span class="lang-en">Connect your model</span><span class="lang-zh">接入你的模型</span></a>
+          <a href="../mcp/"><span class="lang-en">MCP integration</span><span class="lang-zh">MCP 集成</span></a>
+          <a href="../knowledge-packs/"><span class="lang-en">Compile knowledge packs</span><span class="lang-zh">编译知识包</span></a>
           <a href="../plugins/"><span class="lang-en">Plugins</span><span class="lang-zh">插件</span></a>
           <a href="../deployment/"><span class="lang-en">Deployment</span><span class="lang-zh">部署</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Reference</h3><h3 class="lang-zh">参考</h3>
+          <a href="../reference/"><span class="lang-en">API reference</span><span class="lang-zh">API 参考</span></a>
           <a href="../capabilities/" class="active" aria-current="page"><span class="lang-en">Capabilities</span><span class="lang-zh">功能能力</span></a>
         </section>
         <section class="nav-group reference-group">
@@ -61,13 +68,13 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-capabilities">
-          <p class="eyebrow">KJDRAW / CAPABILITIES</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / CAPABILITIES</p>
           <h1>Capabilities</h1>
-          <p class="lead">Explore the editor, drawing, file, automation and extension features available to KJDraw applications.</p>
-          <h2 id="en-capabilities-editor-experience">Complete editor experience<a class="heading-anchor" href="#en-capabilities-editor-experience" aria-label="Link to Complete editor experience">#</a></h2>
+          <p class="lead">Explore the editor, drawing, file, automation and extension features available to KJDraw applications.</p></header>
+          <h2 id="en-capabilities-editor-experience">Complete editor experience</h2>
 <p><code>createKJDrawEditor()</code> mounts a CAD workspace with a canvas, ribbon tools, command line, layers, properties, selection, zoom and file actions. It can start with a sample, a blank drawing or an existing <code>KJDocument</code>.</p>
 <div class="table-wrap"><table><thead><tr><th>Task</th><th>Available API</th></tr></thead><tbody><tr><td>Embed in JavaScript or TypeScript</td><td><code>createKJDrawEditor()</code></td></tr><tr><td>Use React</td><td><code>&lt;KJDraw&gt;</code> from <code>@kanjieteam/kjdraw/react</code></td></tr><tr><td>Use Vue</td><td><code>&lt;KJDraw&gt;</code> from <code>@kanjieteam/kjdraw/vue</code></td></tr><tr><td>Open and save drawings</td><td><code>editor.open()</code> and <code>editor.save()</code></td></tr><tr><td>Control the editor</td><td><code>fit()</code>, <code>setSelection()</code>, <code>setTool()</code> and <code>setOptions()</code></td></tr><tr><td>Respond to users</td><td><code>change</code>, <code>selectionchange</code>, <code>documentchange</code> and <code>error</code> events</td></tr></tbody></table></div>
-<h2 id="en-capabilities-drawing-and-editing">Drawing and editing<a class="heading-anchor" href="#en-capabilities-drawing-and-editing" aria-label="Link to Drawing and editing">#</a></h2>
+<h2 id="en-capabilities-drawing-and-editing">Drawing and editing</h2>
 <ul>
 <li>Create and edit common 2D entities including lines, polylines, circles, arcs, ellipses, splines, text, hatches, dimensions and blocks.</li>
 <li>Move, rotate, scale, mirror, offset, trim, extend, break, fillet, chamfer and explode through commands.</li>
@@ -76,23 +83,23 @@
 <li>Use the portable geometry path everywhere, with optional Rust/WebAssembly document, geometry and solid modules for supported workloads.</li>
 <li>Start from editable site-plan, architectural, road-profile and mechanical examples.</li>
 </ul>
-<h2 id="en-capabilities-files-and-projects">Files and projects<a class="heading-anchor" href="#en-capabilities-files-and-projects" aria-label="Link to Files and projects">#</a></h2>
+<h2 id="en-capabilities-files-and-projects">Files and projects</h2>
 <p>KJD stores an individual drawing, KJP packages multi-drawing projects and related assets, and DXF connects the editor to common CAD exchange workflows. Applications can use browser file pickers, return bytes for custom storage, or connect project providers.</p>
 <p>Continue to the <strong>Files and projects</strong> guide for working examples and format-specific details.</p>
-<h2 id="en-capabilities-automation-and-extensions">Automation and extensions<a class="heading-anchor" href="#en-capabilities-automation-and-extensions" aria-label="Link to Automation and extensions">#</a></h2>
+<h2 id="en-capabilities-automation-and-extensions">Automation and extensions</h2>
 <p>The same commands used by the editor are available to application code, plugins and approved AI workflows. Add custom commands and panels through plugins, use the headless core for batch processing, or register project, compute and scene providers for your deployment.</p>
 <p>Use <code>sdk.capabilities()</code> when an application needs to inspect the commands, entities and file adapters registered in its current runtime.</p>
-<h2 id="en-capabilities-compatibility-details">Compatibility details<a class="heading-anchor" href="#en-capabilities-compatibility-details" aria-label="Link to Compatibility details">#</a></h2>
+<h2 id="en-capabilities-compatibility-details">Compatibility details</h2>
 <p>For format-specific coverage and reproducible issue reporting, use the versioned <a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/capability-matrix.md">compatibility matrix</a>. Never attach private customer drawings to a public issue; use a minimal redistributable example.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-capabilities">
-          <p class="eyebrow">KJDRAW / 功能能力</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / 功能能力</p>
           <h1>功能能力</h1>
-          <p class="lead">了解 KJDraw 应用可使用的编辑器、图档、文件、自动化与扩展能力。</p>
-          <h2 id="zh-capabilities-editor-experience">完整编辑器体验<a class="heading-anchor" href="#zh-capabilities-editor-experience" aria-label="Link to 完整编辑器体验">#</a></h2>
+          <p class="lead">了解 KJDraw 应用可使用的编辑器、图档、文件、自动化与扩展能力。</p></header>
+          <h2 id="zh-capabilities-editor-experience">完整编辑器体验</h2>
 <p><code>createKJDrawEditor()</code> 会挂载包含画布、Ribbon 工具、命令行、图层、属性、选择、缩放与文件操作的 CAD 工作区。它可以从示例、空白图档或现有 <code>KJDocument</code> 开始。</p>
 <div class="table-wrap"><table><thead><tr><th>任务</th><th>可用 API</th></tr></thead><tbody><tr><td>嵌入 JavaScript 或 TypeScript</td><td><code>createKJDrawEditor()</code></td></tr><tr><td>使用 React</td><td><code>@kanjieteam/kjdraw/react</code> 的 <code>&lt;KJDraw&gt;</code></td></tr><tr><td>使用 Vue</td><td><code>@kanjieteam/kjdraw/vue</code> 的 <code>&lt;KJDraw&gt;</code></td></tr><tr><td>打开和保存图档</td><td><code>editor.open()</code> 与 <code>editor.save()</code></td></tr><tr><td>控制编辑器</td><td><code>fit()</code>、<code>setSelection()</code>、<code>setTool()</code> 与 <code>setOptions()</code></td></tr><tr><td>响应用户操作</td><td><code>change</code>、<code>selectionchange</code>、<code>documentchange</code> 与 <code>error</code> 事件</td></tr></tbody></table></div>
-<h2 id="zh-capabilities-drawing-and-editing">图档与编辑<a class="heading-anchor" href="#zh-capabilities-drawing-and-editing" aria-label="Link to 图档与编辑">#</a></h2>
+<h2 id="zh-capabilities-drawing-and-editing">图档与编辑</h2>
 <ul>
 <li>创建和编辑直线、多段线、圆、圆弧、椭圆、样条曲线、文字、填充、标注与块等常用二维实体。</li>
 <li>通过命令完成移动、旋转、缩放、镜像、偏移、修剪、延伸、打断、圆角、倒角与分解。</li>
@@ -101,21 +108,21 @@
 <li>默认使用可移植几何能力，并可为适合的任务启用 Rust/WebAssembly 图档、几何与实体模块。</li>
 <li>从可编辑的场地总图、建筑平面、道路纵断面与机械制造图开始。</li>
 </ul>
-<h2 id="zh-capabilities-files-and-projects">文件与工程<a class="heading-anchor" href="#zh-capabilities-files-and-projects" aria-label="Link to 文件与工程">#</a></h2>
+<h2 id="zh-capabilities-files-and-projects">文件与工程</h2>
 <p>KJD 保存单张图档，KJP 打包多图档工程及相关资源，DXF 用于连接常见 CAD 交换流程。应用可以使用浏览器文件选择器、取得字节后接入自有存储，也可以连接工程 Provider。</p>
 <p>继续阅读<strong>文件与工程</strong>指南，查看可运行示例和各格式说明。</p>
-<h2 id="zh-capabilities-automation-and-extensions">自动化与扩展<a class="heading-anchor" href="#zh-capabilities-automation-and-extensions" aria-label="Link to 自动化与扩展">#</a></h2>
+<h2 id="zh-capabilities-automation-and-extensions">自动化与扩展</h2>
 <p>编辑器使用的同一套命令也可供应用代码、插件和经批准的 AI 流程调用。可通过插件增加自定义命令与面板，使用无界面核心进行批处理，或为部署环境注册工程、计算与场景 Provider。</p>
 <p>当应用需要了解当前运行时已注册的命令、实体与文件适配器时，可以调用 <code>sdk.capabilities()</code>。</p>
-<h2 id="zh-capabilities-compatibility-details">兼容性说明<a class="heading-anchor" href="#zh-capabilities-compatibility-details" aria-label="Link to 兼容性说明">#</a></h2>
+<h2 id="zh-capabilities-compatibility-details">兼容性说明</h2>
 <p>各格式的具体覆盖范围与问题复现要求，见版本化的<a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/capability-matrix.md">兼容矩阵</a>。请勿在公开 issue 中附加客户私有图纸，应改用可再分发的最小示例。</p>
         </article>
-        <nav class="pager" aria-label="Adjacent documentation"><a href="../deployment/"><strong class="lang-en">Deployment</strong><strong class="lang-zh">部署</strong></a><span></span></nav>
+        <nav class="pager" aria-label="Adjacent documentation"><a href="../reference/"><strong class="lang-en">API reference</strong><strong class="lang-zh">API 参考</strong></a><span></span></nav>
       </div>
       <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-capabilities-editor-experience">Complete editor experience</a><a class="toc-level-2" href="#en-capabilities-drawing-and-editing">Drawing and editing</a><a class="toc-level-2" href="#en-capabilities-files-and-projects">Files and projects</a><a class="toc-level-2" href="#en-capabilities-automation-and-extensions">Automation and extensions</a><a class="toc-level-2" href="#en-capabilities-compatibility-details">Compatibility details</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-capabilities-editor-experience">完整编辑器体验</a><a class="toc-level-2" href="#zh-capabilities-drawing-and-editing">图档与编辑</a><a class="toc-level-2" href="#zh-capabilities-files-and-projects">文件与工程</a><a class="toc-level-2" href="#zh-capabilities-automation-and-extensions">自动化与扩展</a><a class="toc-level-2" href="#zh-capabilities-compatibility-details">兼容性说明</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=011588533eb087da"></script>
+  <script type="module" src="../app.js?v=cbc5bdeee724d98d"></script>
 </body>
 </html>

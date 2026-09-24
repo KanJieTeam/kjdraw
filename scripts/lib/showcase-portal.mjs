@@ -184,6 +184,8 @@ export async function buildShowcasePortal(repositoryRoot) {
     const thumbnail = rendered ? normalizeSpecimenPreview(rendered.svg) : renderThumbnail(document, entry)
     const thumbnailPath = `showcase/assets/${entry.id}.svg`
     outputs.set(thumbnailPath, thumbnail)
+    outputs.set(`showcase/assets/${entry.id}.kjd`, await (specimen?.sdk ?? sdk).writeDocument(document, { format: 'KJD', version: '1' }))
+    outputs.set(`showcase/assets/${entry.id}.dxf`, await (specimen?.sdk ?? sdk).writeDocument(document, { format: 'DXF', version: '2018' }))
     entries.push({
       ...entry,
       categoryTitle: categories[entry.category],
@@ -195,7 +197,8 @@ export async function buildShowcasePortal(repositoryRoot) {
         entityTypes,
       },
       links: {
-        ...(entry.kind === 'sample' ? { playground: `https://kanjieteam.github.io/kjdraw/?sample=${encodeURIComponent(entry.sampleId)}` } : { preview: `./assets/${entry.id}.svg` }),
+        playground: `https://kanjieteam.github.io/kjdraw/?sample=${encodeURIComponent(entry.sampleId ?? `specimen-${entry.id}`)}`,
+        detail: `./${entry.id}/`,
         source: `https://github.com/KanJieTeam/kjdraw/blob/main/${entry.source}`,
       },
       artifact: {
@@ -217,6 +220,9 @@ export async function buildShowcasePortal(repositoryRoot) {
     entries,
   }
   outputs.set('showcase/catalog.json', `${JSON.stringify(manifest, null, 2)}\n`)
+  outputs.set('showcase/detail.js', showcaseDetailScript)
+  outputs.set('showcase/detail.css', showcaseDetailStyle)
+  for (const entry of entries) outputs.set(`showcase/${entry.id}/index.html`, renderShowcaseDetail(entry))
   return { catalogSource, manifest, outputs }
 }
 
@@ -224,13 +230,68 @@ function localized(locale, value) {
   return escapeHtml(value?.[locale] ?? value?.en ?? '')
 }
 
+const showcaseDetailScript = `const html=document.documentElement,preview=document.getElementById('preview-tab'),sourceTab=document.getElementById('source-tab'),viewport=document.getElementById('viewport'),source=document.getElementById('source')
+let locale=localStorage.getItem('kjdraw.docs.language')||(navigator.language.toLowerCase().startsWith('zh')?'zh':'en')
+function language(){html.dataset.locale=locale;html.lang=locale==='zh'?'zh-CN':'en';document.getElementById('language').textContent=locale==='zh'?'EN':'中文'}
+document.getElementById('language').onclick=()=>{locale=locale==='zh'?'en':'zh';localStorage.setItem('kjdraw.docs.language',locale);language()};language()
+function tab(showSource){source.hidden=!showSource;viewport.hidden=showSource;sourceTab.classList.toggle('active',showSource);preview.classList.toggle('active',!showSource);sourceTab.setAttribute('aria-selected',String(showSource));preview.setAttribute('aria-selected',String(!showSource))}
+preview.onclick=()=>tab(false)
+sourceTab.onclick=async()=>{tab(true);if(source.dataset.loaded)return;try{const sourcePath=document.querySelector('main.wrap').dataset.source;const response=await fetch(new URL('../../../../'+sourcePath,location.href));if(!response.ok)throw Error('Source unavailable');source.textContent=await response.text();source.dataset.loaded='true'}catch{source.textContent=locale==='zh'?'此处无法读取源码，请打开仓库源码链接。':'Source unavailable here. Open the repository source link.'}}
+document.getElementById('fullscreen').onclick=()=>document.querySelector('.workspace').requestFullscreen?.()
+`
+
+const showcaseDetailStyle = `
+:root{font-family:Inter,"Noto Sans SC","Segoe UI",Arial,sans-serif;color:#17212b;background:#fff;font-synthesis:none}
+*{box-sizing:border-box}body{margin:0}a{color:inherit;text-decoration:none}button{font:inherit;cursor:pointer}
+header.site{height:54px;display:flex;align-items:center;gap:22px;padding:0 24px;border-bottom:1px solid #e7e9ed}
+.brand{font-size:17px;font-weight:750;letter-spacing:-.04em}.brand i{display:inline-grid;place-items:center;width:25px;height:25px;margin-right:8px;border-radius:5px;background:#bdf878;color:#163218;font-style:normal}
+header.site nav{display:flex;gap:18px;color:#5d6673;font-size:13px}header.site .right{margin-left:auto;display:flex;align-items:center;gap:18px;font-size:13px}
+.wrap{max-width:1680px;margin:auto;padding:26px 24px 60px}.crumb{display:flex;gap:8px;color:#727d89;font-size:12px}.crumb a:hover,.links a:hover{color:#2761d8}
+.heading{display:flex;align-items:start;gap:24px;margin:19px 0 22px}.heading>div{flex:1}.eyebrow{margin:0 0 7px;color:#42734a;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+h1{margin:0 0 9px;font-size:32px;line-height:1.18;letter-spacing:-.04em}.summary{max-width:780px;margin:0;color:#66717d;font-size:14px;line-height:1.6}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.meta span{padding:5px 9px;border:1px solid #e4e8ee;border-radius:5px;color:#566272;font-size:11px}
+.heading>a{padding:9px 13px;border:1px solid #dce2e8;border-radius:6px;font-size:12px}.heading>a:hover{border-color:#9ebad3}
+.workspace{border:1px solid #dfe4e9;border-radius:8px;overflow:hidden;background:#f7f9fa}.workspace-bar,.tabs{display:flex;align-items:center;gap:18px;padding:0 14px;border-bottom:1px solid #e1e5e9;background:#fff}
+.workspace-bar{min-height:38px;justify-content:space-between;font-size:12px}.live:before{content:"";display:inline-block;width:6px;height:6px;margin-right:7px;border-radius:50%;background:#26ae54}
+.links{display:flex;gap:16px}.tabs{height:38px;gap:5px}.tabs button{height:100%;padding:0 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:#65717e;font-size:12px}.tabs button.active{border-bottom-color:#17212b;color:#17212b;font-weight:650}
+.viewport{height:min(72vh,850px);min-height:480px;background:#111920}.viewport iframe{display:block;width:100%;height:100%;border:0}.source{height:min(72vh,850px);min-height:480px;margin:0;padding:22px;overflow:auto;background:#101722;color:#dbe8ef;font:12px/1.7 Consolas,monospace}
+.foot{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:15px 4px;color:#6b7581;font-size:12px}.facts{display:flex;flex-wrap:wrap;gap:12px}.facts span{white-space:nowrap}.facts b{color:#303a46}
+[hidden]{display:none!important}html[data-locale="zh"] .en,html:not([data-locale="zh"]) .zh{display:none!important}
+@media(max-width:700px){header.site{padding:0 14px}header.site nav{display:none}.wrap{padding:20px 12px 35px}.heading{display:block}.heading>a{display:inline-block;margin-top:14px}h1{font-size:25px}.viewport,.source{height:70vh;min-height:440px}.workspace-bar{gap:7px}.links{gap:8px}}
+`
+
+function renderShowcaseDetail(entry) {
+  const sample = encodeURIComponent(entry.sampleId ?? `specimen-${entry.id}`)
+  const root = '../../../../'
+  const facts = Object.entries(entry.facts.entityTypes).map(([type, count]) => `<span>${escapeHtml(type)} <b>${count}</b></span>`).join('')
+  return `<!doctype html>
+<html lang="en" data-locale="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="${escapeHtml(entry.summary.en)}">
+  <title>${escapeHtml(entry.title.en)} · KJDraw Showcase</title>
+  <link rel="icon" href="../../../../docs/assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../detail.css">
+</head>
+<body>
+  <header class="site"><a class="brand" href="${root}"><i>K</i>KJDraw</a><nav><a href="../">Showcase</a><a href="../../quickstart/">Docs</a><a href="../../api/">API</a></nav><div class="right"><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></div></header>
+  <main class="wrap" data-source="${escapeHtml(entry.source)}">
+    <div class="crumb"><a href="../">Showcase</a><span>›</span><span class="en">${escapeHtml(entry.categoryTitle.en)}</span><span class="zh">${escapeHtml(entry.categoryTitle.zh)}</span><span>›</span><span class="en">${escapeHtml(entry.title.en)}</span><span class="zh">${escapeHtml(entry.title.zh)}</span></div>
+    <div class="heading"><div><p class="eyebrow"><span class="en">${escapeHtml(entry.drawingType.en)}</span><span class="zh">${escapeHtml(entry.drawingType.zh)}</span></p><h1><span class="en">${escapeHtml(entry.title.en)}</span><span class="zh">${escapeHtml(entry.title.zh)}</span></h1><p class="summary"><span class="en">${escapeHtml(entry.summary.en)}</span><span class="zh">${escapeHtml(entry.summary.zh)}</span></p><div class="meta"><span>${entry.facts.editableObjects.toLocaleString()} <span class="en">editable objects</span><span class="zh">可编辑对象</span></span><span>${entry.facts.layers} <span class="en">layers</span><span class="zh">图层</span></span><span>${escapeHtml(entry.facts.units)}</span></div></div><a href="../"><span class="en">Browse examples</span><span class="zh">浏览案例</span> →</a></div>
+    <section class="workspace" aria-label="Interactive KJDraw workspace"><div class="workspace-bar"><b class="live"><span class="en">Live workspace</span><span class="zh">实时工作区</span></b><div class="links"><a href="${root}?sample=${sample}" target="_blank" rel="noopener"><span class="en">Open Playground</span><span class="zh">打开工作台</span> ↗</a><a href="../assets/${escapeHtml(entry.id)}.kjd" download>KJD ↓</a><a href="../assets/${escapeHtml(entry.id)}.dxf" download>DXF ↓</a><button id="fullscreen" type="button"><span class="en">Fullscreen</span><span class="zh">全屏</span></button></div></div><div class="tabs" role="tablist"><button id="preview-tab" class="active" type="button" role="tab" aria-selected="true"><span class="en">Interactive drawing</span><span class="zh">交互图纸</span></button><button id="source-tab" type="button" role="tab" aria-selected="false"><span class="en">Source code</span><span class="zh">源码</span></button></div><div class="viewport" id="viewport"><iframe src="${root}?sample=${sample}" title="${escapeHtml(entry.title.en)} editable CAD workspace" loading="eager"></iframe></div><pre class="source" id="source" hidden>Loading source…</pre></section>
+    <div class="foot"><span class="en">Public synthetic example · not measured project data</span><span class="zh">公开示例图纸 · 非实测项目数据</span><div class="facts">${facts}</div></div>
+  </main>
+  <script type="module" src="../detail.js"></script>
+</body></html>\n`
+}
+
 export function renderShowcasePortal(manifest, locale) {
   const text = locale === 'zh' ? {
     all: '全部案例', search: '搜索图纸、对象或工作流', tag: '全部标签', grid: '网格', list: '列表',
-    objects: '可编辑对象', layers: '图层', source: '查看源码', playground: '在线体验', preview: '打开预览', detail: '验证详情', types: '图元事实', empty: '没有匹配的案例。', shown: '个案例',
+    objects: '可编辑对象', layers: '图层', source: '查看源码', playground: '打开案例', preview: '打开案例', detail: '验证详情', types: '图元事实', empty: '没有匹配的案例。', shown: '个案例',
   } : {
     all: 'All examples', search: 'Search drawings, objects or workflows', tag: 'All tags', grid: 'Grid', list: 'List',
-    objects: 'editable objects', layers: 'layers', source: 'Source', playground: 'Open Playground', preview: 'Open preview', detail: 'Verified details', types: 'Entity facts', empty: 'No matching examples.', shown: 'examples',
+    objects: 'editable objects', layers: 'layers', source: 'Source', playground: 'Open case', preview: 'Open case', detail: 'Verified details', types: 'Entity facts', empty: 'No matching examples.', shown: 'examples',
   }
   const tags = [...new Set(manifest.entries.flatMap(entry => entry.tags[locale]))].sort((a, b) => a.localeCompare(b, locale === 'zh' ? 'zh-CN' : 'en'))
   const categoryButtons = [
@@ -241,11 +302,9 @@ export function renderShowcasePortal(manifest, locale) {
     const referenceId = entry.sampleId ?? entry.specimenId
     const search = [referenceId, entry.title.en, entry.title.zh, entry.drawingType.en, entry.drawingType.zh, entry.summary.en, entry.summary.zh, ...entry.tags.en, ...entry.tags.zh, ...Object.keys(entry.facts.entityTypes)].join(' ').toLowerCase()
     const tagList = entry.tags[locale].map(tag => `<button type="button" class="showcase-tag" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}</button>`).join('')
-    const thumbnailHref = entry.links.playground ? `#${locale}-showcase-${entry.detailAnchor}` : entry.links.preview
+    const thumbnailHref = entry.links.detail
     const entityFacts = Object.entries(entry.facts.entityTypes).map(([type, count]) => `<span><b>${escapeHtml(type)}</b> ${count}</span>`).join('')
-    const primary = entry.links.playground
-      ? `<a class="primary" href="${escapeHtml(entry.links.playground)}">${escapeHtml(text.playground)} ↗</a>`
-      : `<a class="primary" href="${escapeHtml(entry.links.preview)}">${escapeHtml(text.preview)} ↗</a>`
+    const primary = `<a class="primary" href="${escapeHtml(entry.links.detail)}">${escapeHtml(text.playground)} →</a>`
     return `<article class="showcase-card" data-case-id="${escapeHtml(entry.id)}" data-category="${escapeHtml(entry.category)}" data-tags="${escapeHtml(entry.tags[locale].join('|'))}" data-search="${escapeHtml(search)}">
       <a class="showcase-thumb" href="${escapeHtml(thumbnailHref)}" aria-label="${escapeHtml(text.detail)}: ${localized(locale, entry.title)}"><img src="${escapeHtml(entry.thumbnail)}" alt="${localized(locale, entry.title)} · ${localized(locale, entry.drawingType)}" loading="lazy" width="720" height="420"></a>
       <div class="showcase-card-body"><p class="showcase-discipline">${localized(locale, entry.categoryTitle)}</p><h3>${localized(locale, entry.title)}</h3><p class="showcase-type">${localized(locale, entry.drawingType)}</p><p class="showcase-summary">${localized(locale, entry.summary)}</p>

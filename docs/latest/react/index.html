@@ -8,15 +8,16 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/react/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
+  <link rel="stylesheet" href="../style.css?v=cbc5bdeee724d98d">
   <title>React integration · KJDraw Docs</title>
 </head>
 <body>
   <header class="topbar">
     <button id="menu-button" class="icon-button menu-button" type="button" aria-label="Open navigation">☰</button>
     <a class="brand" href="../"><img src="../../assets/mark.svg" alt=""><b>KJDraw</b><span>Docs</span></a>
+    <nav class="product-nav" aria-label="KJDraw products"><a href="../"><span class="lang-en">Overview</span><span class="lang-zh">概览</span></a><a href="../quickstart/" class="active"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例</span></a><a href="../api/">API</a></nav>
     <button id="search-button" class="search-button" type="button" aria-keyshortcuts="Control+K Meta+K"><span aria-hidden="true">⌕</span><span class="lang-en">Search guides and API</span><span class="lang-zh">搜索指南与 API</span><kbd>Ctrl K</kbd></button>
-    <nav class="top-links"><a href="../api/">API</a><a href="https://kanjieteam.github.io/kjdraw/"><span class="lang-en">Demo</span><span class="lang-zh">演示</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="https://kanjieteam.github.io/kjdraw/">Playground</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
@@ -24,16 +25,19 @@
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
-          <a href="../"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
+          <a href="../"><span class="lang-en">KJDraw</span><span class="lang-zh">KJDraw</span></a>
+          <a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例库</span></a>
           <a href="../quickstart/"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
+          <a href="../starters/"><span class="lang-en">Starter projects</span><span class="lang-zh">起步工程</span></a>
           <a href="../installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
-          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
-          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
-          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../concepts/"><span class="lang-en">Core concepts</span><span class="lang-zh">核心概念</span></a>
+          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
           <a href="../commands/"><span class="lang-en">Commands and transactions</span><span class="lang-zh">命令与事务</span></a>
+          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Frameworks</h3><h3 class="lang-zh">前端框架</h3>
@@ -44,11 +48,14 @@
           <h3 class="lang-en">Extend and deploy</h3><h3 class="lang-zh">扩展与部署</h3>
           <a href="../agent/"><span class="lang-en">Agent workflows</span><span class="lang-zh">Agent 工作流</span></a>
           <a href="../models/"><span class="lang-en">Connect your model</span><span class="lang-zh">接入你的模型</span></a>
+          <a href="../mcp/"><span class="lang-en">MCP integration</span><span class="lang-zh">MCP 集成</span></a>
+          <a href="../knowledge-packs/"><span class="lang-en">Compile knowledge packs</span><span class="lang-zh">编译知识包</span></a>
           <a href="../plugins/"><span class="lang-en">Plugins</span><span class="lang-zh">插件</span></a>
           <a href="../deployment/"><span class="lang-en">Deployment</span><span class="lang-zh">部署</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Reference</h3><h3 class="lang-zh">参考</h3>
+          <a href="../reference/"><span class="lang-en">API reference</span><span class="lang-zh">API 参考</span></a>
           <a href="../capabilities/"><span class="lang-en">Capabilities</span><span class="lang-zh">功能能力</span></a>
         </section>
         <section class="nav-group reference-group">
@@ -61,10 +68,11 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-react">
-          <p class="eyebrow">KJDRAW / REACT INTEGRATION</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / REACT INTEGRATION</p>
           <h1>React integration</h1>
-          <p class="lead">Mount the complete KJDraw editor as a React component, control it through a typed ref, or build a custom headless integration.</p>
-          <h2 id="en-react-editor-component">Render the editor component<a class="heading-anchor" href="#en-react-editor-component" aria-label="Link to Render the editor component">#</a></h2>
+          <p class="lead">Mount the complete KJDraw editor as a React component, control it through a typed ref, or build a custom headless integration.</p></header>
+          <h2 id="en-react-editor-component">Render the editor component</h2>
+<p>Start from the complete <a href="https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/react-browser">React + Vite project</a> when you want package installation, mounting and production-build commands in one copyable directory.</p>
 <pre data-language="tsx"><button class="copy" type="button">Copy</button><code>import { useRef, useState } from &#39;react&#39;
 import { KJDraw, type KJDrawEditor, type KJWorkbenchLayout } from &#39;@kanjieteam/kjdraw/react&#39;
 
@@ -96,7 +104,7 @@ export function DrawingEditor() {
   )
 }</code></pre>
 <p><code>KJDraw</code> mounts the complete editor and gives the ref a <code>KJDrawEditor</code>. Use the ref for <code>open()</code>, <code>save()</code>, <code>execute()</code>, selection and view methods. <code>layout=&quot;classic&quot;</code> provides the full CAD ribbon and panels, <code>compact</code> shortens the ribbon, and <code>focus</code> prioritizes the canvas. Changing <code>layout</code> updates the existing editor in place, so its drawing, selection and undo history stay intact. React unmount disposes the editor. See the <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a> for every prop and method.</p>
-<h2 id="en-react-minimal-hook">A minimal hook<a class="heading-anchor" href="#en-react-minimal-hook" aria-label="Link to A minimal hook">#</a></h2>
+<h2 id="en-react-minimal-hook">A minimal hook</h2>
 <pre data-language="tsx"><button class="copy" type="button">Copy</button><code>import { useEffect, useRef, useState } from &#39;react&#39;
 import { createKJDrawSDK, type KJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 
@@ -129,22 +137,23 @@ export function useKJDraw() {
 
   return { sdk, document, revision, drawLine }
 }</code></pre>
-<h2 id="en-react-lifecycle-rules">Lifecycle rules<a class="heading-anchor" href="#en-react-lifecycle-rules" aria-label="Link to Lifecycle rules">#</a></h2>
+<h2 id="en-react-lifecycle-rules">Lifecycle rules</h2>
 <ul>
 <li>Create the SDK once for the editor scope, not during every render.</li>
 <li>Return the event disposer from <code>useEffect</code>; React will unsubscribe on cleanup.</li>
 <li>Store small reactive signals such as revision, selection or active tool. Keep canonical geometry in <code>KJDocument</code>.</li>
 <li>Execute edits through SDK commands so React, plugins and agents share transactions and undo.</li>
 </ul>
-<h2 id="en-react-rendering">Rendering<a class="heading-anchor" href="#en-react-rendering" aria-label="Link to Rendering">#</a></h2>
+<h2 id="en-react-rendering">Rendering</h2>
 <p>The <code>/core</code> headless entry does not impose a React renderer or state library. A custom canvas component can redraw after committed events, while property panels select typed records from the active document. For large drawings, derive viewport-specific display data instead of copying the entire object graph into React state.</p>
 <p>Use <code>KJDraw</code> when you need a working CAD surface immediately, or the headless hook when your product owns every interface layer. See the <a href="https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples">maintained examples</a> for complete applications that use the same public package exports.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-react">
-          <p class="eyebrow">KJDRAW / React 集成</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / React 集成</p>
           <h1>React 集成</h1>
-          <p class="lead">将完整 KJDraw 编辑器作为 React 组件挂载，通过类型化 ref 控制，或构建自定义无界面集成。</p>
-          <h2 id="zh-react-editor-component">渲染编辑器组件<a class="heading-anchor" href="#zh-react-editor-component" aria-label="Link to 渲染编辑器组件">#</a></h2>
+          <p class="lead">将完整 KJDraw 编辑器作为 React 组件挂载，通过类型化 ref 控制，或构建自定义无界面集成。</p></header>
+          <h2 id="zh-react-editor-component">渲染编辑器组件</h2>
+<p>需要把包安装、组件挂载和生产构建命令放在一个可复制目录中时，可直接从完整的 <a href="https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/react-browser">React + Vite 起步工程</a>开始。</p>
 <pre data-language="tsx"><button class="copy" type="button">Copy</button><code>import { useRef, useState } from &#39;react&#39;
 import { KJDraw, type KJDrawEditor, type KJWorkbenchLayout } from &#39;@kanjieteam/kjdraw/react&#39;
 
@@ -176,7 +185,7 @@ export function DrawingEditor() {
   )
 }</code></pre>
 <p><code>KJDraw</code> 会挂载完整编辑器，并把 <code>KJDrawEditor</code> 暴露给 ref。可通过 ref 调用 <code>open()</code>、<code>save()</code>、<code>execute()</code>、选择与视图方法。<code>layout=&quot;classic&quot;</code> 提供完整 CAD Ribbon 与面板，<code>compact</code> 使用较矮的 Ribbon，<code>focus</code> 让画布优先。修改 <code>layout</code> 会原位更新同一个编辑器，因此图档、选择集与撤销历史都保持不变；React 卸载组件时会自动释放编辑器。全部属性与方法见 <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a>。</p>
-<h2 id="zh-react-minimal-hook">最小 Hook<a class="heading-anchor" href="#zh-react-minimal-hook" aria-label="Link to 最小 Hook">#</a></h2>
+<h2 id="zh-react-minimal-hook">最小 Hook</h2>
 <pre data-language="tsx"><button class="copy" type="button">Copy</button><code>import { useEffect, useRef, useState } from &#39;react&#39;
 import { createKJDrawSDK, type KJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 
@@ -209,23 +218,23 @@ export function useKJDraw() {
 
   return { sdk, document, revision, drawLine }
 }</code></pre>
-<h2 id="zh-react-lifecycle-rules">生命周期规则<a class="heading-anchor" href="#zh-react-lifecycle-rules" aria-label="Link to 生命周期规则">#</a></h2>
+<h2 id="zh-react-lifecycle-rules">生命周期规则</h2>
 <ul>
 <li>每个编辑器作用域只创建一次 SDK，不要在每次渲染时重新创建。</li>
 <li>从 <code>useEffect</code> 返回事件释放函数，React 会在清理时取消订阅。</li>
 <li>React 状态只保存修订号、选择集、活动工具等小型响应信号；规范几何留在 <code>KJDocument</code>。</li>
 <li>所有编辑通过 SDK 命令执行，让 React、插件与 Agent 共用事务和撤销历史。</li>
 </ul>
-<h2 id="zh-react-rendering">渲染方式<a class="heading-anchor" href="#zh-react-rendering" aria-label="Link to 渲染方式">#</a></h2>
+<h2 id="zh-react-rendering">渲染方式</h2>
 <p><code>/core</code> 无界面入口不强制 React 渲染器或状态库。自定义 Canvas 组件可以在命令提交后重绘，属性面板则从活动图档读取类型化记录。面对大型图纸，应按视口派生显示数据，不要把完整对象图复制进 React state。</p>
 <p>需要立即可用的 CAD 界面时使用 <code>KJDraw</code>，产品希望完全掌控每层界面时使用无界面 Hook。<a href="https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples">持续维护的示例</a>提供使用相同公开包入口的完整应用。</p>
         </article>
-        <nav class="pager" aria-label="Adjacent documentation"><a href="../commands/"><strong class="lang-en">Commands and transactions</strong><strong class="lang-zh">命令与事务</strong></a><a href="../vue/"><strong class="lang-en">Vue integration</strong><strong class="lang-zh">Vue 集成</strong></a></nav>
+        <nav class="pager" aria-label="Adjacent documentation"><a href="../architecture/"><strong class="lang-en">Architecture</strong><strong class="lang-zh">架构</strong></a><a href="../vue/"><strong class="lang-en">Vue integration</strong><strong class="lang-zh">Vue 集成</strong></a></nav>
       </div>
       <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-react-editor-component">Render the editor component</a><a class="toc-level-2" href="#en-react-minimal-hook">A minimal hook</a><a class="toc-level-2" href="#en-react-lifecycle-rules">Lifecycle rules</a><a class="toc-level-2" href="#en-react-rendering">Rendering</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-react-editor-component">渲染编辑器组件</a><a class="toc-level-2" href="#zh-react-minimal-hook">最小 Hook</a><a class="toc-level-2" href="#zh-react-lifecycle-rules">生命周期规则</a><a class="toc-level-2" href="#zh-react-rendering">渲染方式</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=011588533eb087da"></script>
+  <script type="module" src="../app.js?v=cbc5bdeee724d98d"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:6319d06e7c17088aa25094bac91fd69cfb3261ea8f683273d6c9e69a4df3f7f6",
+  "sourceDigest": "sha256:e1548faa47a603f5ae679545637369610aa68de2623b0923981674f21618eeb4",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -729,6 +729,13 @@
           "anchor": "agent-tools-interface-kjagentgeologycolumnknowledgebinding"
         },
         {
+          "name": "KJAgentGeologySectionKnowledgeBinding",
+          "kind": "interface",
+          "declaration": "export interface KJAgentGeologySectionKnowledgeBinding {\n    pack: unknown;\n    sha256: string;\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-interface-kjagentgeologysectionknowledgebinding"
+        },
+        {
           "name": "KJAgentGeometryValidationInput",
           "kind": "interface",
           "declaration": "export interface KJAgentGeometryValidationInput {\n    expectedRevision: number;\n    units: string;\n    lineLengths: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    circleRadii: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    ellipseMajorRadii?: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    ellipseMinorRadii?: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    splineLengths?: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    dimensionMeasurements?: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    hatchAreas?: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    pointDistances: {\n        id: string;\n        from: KJDrawingValidationPointReference;\n        to: KJDrawingValidationPointReference;\n        expected: number;\n        tolerance: number;\n    }[];\n    polylineClosures: {\n        id: string;\n        objectId: string;\n        expected: boolean;\n    }[];\n    polylineVertexCounts?: {\n        id: string;\n        objectId: string;\n        expected: number;\n    }[];\n    hatchLoopCounts?: {\n        id: string;\n        objectId: string;\n        expected: number;\n    }[];\n    polylineSegmentBulges?: {\n        id: string;\n        objectId: string;\n        segmentIndex: number;\n        expected: number;\n        tolerance: number;\n    }[];\n}",
@@ -787,7 +794,7 @@
         {
           "name": "KJAgentToolSession",
           "kind": "class",
-          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Read-only identity used to bind persisted tasks to this exact drawing. */\n    get documentId(): string;\n    get revision(): number;\n    get units(): string;\n    get geologyColumnKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    /** Exact instance/SDK attachment check for trusted host orchestration. */\n    isBoundTo(document: KJDocument): boolean;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument, options?: {\n        geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n    });\n    /** Trusted host operation: verify saved parameters against all current generated objects.\n     * Registration is bound to this exact document revision and is not model-callable. */\n    registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;\n    /** Host-only registration of explicitly selected data. Assets belong to this\n     * exact session/document instance; they are never loaded by model paths or URLs. */\n    registerInputAsset(input: unknown): Promise<ReadonlyDeep<KJAgentInputAssetDescriptor>>;\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Bind one in-memory reviewed proposal to the exact persisted running task. Host-only. */\n    bindTaskProposal(planId: string, input: KJAgentTaskProposalBinding): void;\n    /** Approve an exact task-bound mutation; geometry, checks and task receipt commit atomically. */\n    approveTask(planId: string, reviewerId: string, at: string): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
+          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Read-only identity used to bind persisted tasks to this exact drawing. */\n    get documentId(): string;\n    get revision(): number;\n    get units(): string;\n    get geologyColumnKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    /** Exact instance/SDK attachment check for trusted host orchestration. */\n    get geologySectionKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    isBoundTo(document: KJDocument): boolean;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument, options?: {\n        geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n        geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n    });\n    /** Trusted host operation: verify saved parameters against all current generated objects.\n     * Registration is bound to this exact document revision and is not model-callable. */\n    registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;\n    /** Host-only registration of explicitly selected data. Assets belong to this\n     * exact session/document instance; they are never loaded by model paths or URLs. */\n    registerInputAsset(input: unknown): Promise<ReadonlyDeep<KJAgentInputAssetDescriptor>>;\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Bind one in-memory reviewed proposal to the exact persisted running task. Host-only. */\n    bindTaskProposal(planId: string, input: KJAgentTaskProposalBinding): void;\n    /** Approve an exact task-bound mutation; geometry, checks and task receipt commit atomically. */\n    approveTask(planId: string, reviewerId: string, at: string): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-class-kjagenttoolsession"
         },
@@ -816,9 +823,16 @@
         {
           "name": "buildAgentManufacturingSheet",
           "kind": "function",
-          "declaration": "export declare function buildAgentManufacturingSheet(document: ManufacturingDocument, source: KJAgentManufacturingSheetInput): {\n    commandArgs: {\n        entities: EntitySpec[];\n        resources: {\n            linetypes: {\n                id: string;\n                name: string;\n                pattern: number[];\n            }[];\n            layers: ({\n                id: `${string}-layer-object`;\n                color: 7;\n                linetypeId: string;\n                lineweight: 35;\n                name: string;\n            } | {\n                id: `${string}-layer-center`;\n                color: 3;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            } | {\n                id: `${string}-layer-hidden`;\n                color: 8;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            } | {\n                id: `${string}-layer-dim`;\n                color: 2;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            } | {\n                id: `${string}-layer-frame`;\n                color: 7;\n                linetypeId: string;\n                lineweight: 25;\n                name: string;\n            } | {\n                id: `${string}-layer-text`;\n                color: 7;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            })[];\n        };\n    };\n    evidence: {\n        drawingId: string;\n        skillId: string;\n        skillVersion: \"1.0.0\";\n        units: string;\n        expectedRevision: number;\n        entityCount: number;\n        bounds: {\n            min: [number, number];\n            max: [number, number];\n            width: number;\n            height: number;\n        };\n        parameters: {\n            title: string;\n            revision: string;\n            material: string;\n            quantity: number;\n            length: number;\n            width: number;\n            thickness: number;\n            holePatternCount: number;\n            holeCount: number;\n            slotCount: number;\n            sheet: {\n                origin: [number, number];\n                size: [number, number];\n            };\n            textHeight: number;\n            viewScale: number;\n        };\n        limitations: string[];\n    };\n};",
+          "declaration": "export declare function buildAgentManufacturingSheet(document: ManufacturingDocument, source: KJAgentManufacturingSheetInput): {\n    commandArgs: {\n        entities: EntitySpec[];\n        resources: {\n            linetypes: {\n                id: string;\n                name: string;\n                pattern: number[];\n            }[];\n            layers: ({\n                id: `${string}-layer-object`;\n                color: 7;\n                linetypeId: string;\n                lineweight: 35;\n                name: string;\n            } | {\n                id: `${string}-layer-center`;\n                color: 3;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            } | {\n                id: `${string}-layer-hidden`;\n                color: 8;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            } | {\n                id: `${string}-layer-dim`;\n                color: 2;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            } | {\n                id: `${string}-layer-frame`;\n                color: 7;\n                linetypeId: string;\n                lineweight: 25;\n                name: string;\n            } | {\n                id: `${string}-layer-text`;\n                color: 7;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            })[];\n        };\n    };\n    evidence: {\n        drawingId: string;\n        skillId: string;\n        skillVersion: \"1.0.0\";\n        units: string;\n        expectedRevision: number;\n        entityCount: number;\n        bounds: {\n            min: [number, number];\n            max: [number, number];\n            width: number;\n            height: number;\n        };\n        parameters: {\n            title: string;\n            revision: string;\n            material: string;\n            quantity: number;\n            length: number;\n            width: number;\n            thickness: number;\n            holePatternCount: number;\n            boltCirclePatternCount: number;\n            holeCount: number;\n            slotCount: number;\n            sheet: {\n                origin: [number, number];\n                size: [number, number];\n            };\n            textHeight: number;\n            viewScale: number;\n        };\n        limitations: string[];\n    };\n};",
           "source": "agent-manufacturing-sheet.d.ts",
           "anchor": "agent-manufacturing-sheet-function-buildagentmanufacturingsheet"
+        },
+        {
+          "name": "KJAgentManufacturingBoltCirclePattern",
+          "kind": "interface",
+          "declaration": "export interface KJAgentManufacturingBoltCirclePattern {\n    count: number;\n    center: [number, number];\n    pitchDiameter: number;\n    throughDiameter: number;\n    startAngleDegrees?: number;\n    counterboreDiameter?: number;\n    counterboreDepth?: number;\n}",
+          "source": "agent-manufacturing-sheet.d.ts",
+          "anchor": "agent-manufacturing-sheet-interface-kjagentmanufacturingboltcirclepattern"
         },
         {
           "name": "KJAgentManufacturingHolePattern",
@@ -830,7 +844,7 @@
         {
           "name": "KJAgentManufacturingSheetInput",
           "kind": "interface",
-          "declaration": "export interface KJAgentManufacturingSheetInput {\n    version: typeof KJDRAW_MANUFACTURING_SHEET_VERSION;\n    expectedRevision: number;\n    units: 'millimeter';\n    locale?: 'zh-CN' | 'en';\n    drawingId: string;\n    title: string;\n    revision: string;\n    material: string;\n    quantity: number;\n    length: number;\n    width: number;\n    thickness: number;\n    holePatterns?: KJAgentManufacturingHolePattern[];\n    slots?: KJAgentManufacturingSlot[];\n    sheet: {\n        origin: [number, number];\n        size: [number, number];\n    };\n    textHeight: number;\n}",
+          "declaration": "export interface KJAgentManufacturingSheetInput {\n    version: typeof KJDRAW_MANUFACTURING_SHEET_VERSION;\n    expectedRevision: number;\n    units: 'millimeter';\n    locale?: 'zh-CN' | 'en';\n    drawingId: string;\n    title: string;\n    revision: string;\n    material: string;\n    quantity: number;\n    length: number;\n    width: number;\n    thickness: number;\n    holePatterns?: KJAgentManufacturingHolePattern[];\n    boltCirclePatterns?: KJAgentManufacturingBoltCirclePattern[];\n    slots?: KJAgentManufacturingSlot[];\n    sheet: {\n        origin: [number, number];\n        size: [number, number];\n    };\n    textHeight: number;\n}",
           "source": "agent-manufacturing-sheet.d.ts",
           "anchor": "agent-manufacturing-sheet-interface-kjagentmanufacturingsheetinput"
         },
@@ -1679,7 +1693,7 @@
         {
           "name": "auditSDKReadiness",
           "kind": "function",
-          "declaration": "export declare function auditSDKReadiness(sdk: KJCapabilitySDK, profile?: KJSDKReadinessProfile): Readonly<{\n    profileId: string;\n    passed: boolean;\n    status: \"blocked\" | \"passed\";\n    findings: readonly KJReadinessFinding[];\n    manifest: Readonly<{\n        product: \"KJDraw SDK\";\n        sdkVersion: string;\n        documentSchemaVersion: number;\n        geometry: Readonly<{\n            mode: 'native' | 'reference';\n            authoritative: boolean;\n            backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n            operations: readonly string[];\n            lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n        }>;\n        commands: readonly Readonly<{\n            id: string;\n            title: string | undefined;\n            aliases: readonly string[];\n            transactional: boolean;\n            owner: string | undefined;\n            capabilities: Readonly<Record<string, unknown>>;\n        }>[];\n        commandIds: readonly string[];\n        entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n        fileAdapters: readonly KJFileAdapterCapability[];\n    }>;\n}>;",
+          "declaration": "export declare function auditSDKReadiness(sdk: KJCapabilitySDK, profile?: KJSDKReadinessProfile): Readonly<{\n    profileId: string;\n    passed: boolean;\n    status: \"blocked\" | \"passed\";\n    findings: readonly KJReadinessFinding[];\n    manifest: Readonly<{\n        product: \"KJDraw SDK\";\n        sdkVersion: string;\n        documentSchemaVersion: number;\n        geometry: Readonly<{\n            mode: 'native' | 'reference';\n            authoritative: boolean;\n            backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n            operations: readonly string[];\n            lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n        }>;\n        commands: readonly Readonly<{\n            id: string;\n            title: string | undefined;\n            aliases: readonly string[];\n            transactional: boolean;\n            owner: string | undefined;\n            capabilities: Readonly<Record<string, unknown>>;\n        }>[];\n        commandIds: readonly string[];\n        entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TOLERANCE\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n        fileAdapters: readonly KJFileAdapterCapability[];\n    }>;\n}>;",
           "source": "capabilities.d.ts",
           "anchor": "core-function-auditsdkreadiness"
         },
@@ -1714,7 +1728,7 @@
         {
           "name": "buildSDKCapabilityManifest",
           "kind": "function",
-          "declaration": "export declare function buildSDKCapabilityManifest(sdk: KJCapabilitySDK): Readonly<{\n    product: \"KJDraw SDK\";\n    sdkVersion: string;\n    documentSchemaVersion: number;\n    geometry: Readonly<{\n        mode: 'native' | 'reference';\n        authoritative: boolean;\n        backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n        operations: readonly string[];\n        lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n    }>;\n    commands: readonly Readonly<{\n        id: string;\n        title: string | undefined;\n        aliases: readonly string[];\n        transactional: boolean;\n        owner: string | undefined;\n        capabilities: Readonly<Record<string, unknown>>;\n    }>[];\n    commandIds: readonly string[];\n    entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n    fileAdapters: readonly KJFileAdapterCapability[];\n}>;",
+          "declaration": "export declare function buildSDKCapabilityManifest(sdk: KJCapabilitySDK): Readonly<{\n    product: \"KJDraw SDK\";\n    sdkVersion: string;\n    documentSchemaVersion: number;\n    geometry: Readonly<{\n        mode: 'native' | 'reference';\n        authoritative: boolean;\n        backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n        operations: readonly string[];\n        lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n    }>;\n    commands: readonly Readonly<{\n        id: string;\n        title: string | undefined;\n        aliases: readonly string[];\n        transactional: boolean;\n        owner: string | undefined;\n        capabilities: Readonly<Record<string, unknown>>;\n    }>[];\n    commandIds: readonly string[];\n    entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TOLERANCE\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n    fileAdapters: readonly KJFileAdapterCapability[];\n}>;",
           "source": "capabilities.d.ts",
           "anchor": "core-function-buildsdkcapabilitymanifest"
         },
@@ -2442,7 +2456,7 @@
         {
           "name": "KJ_STANDARD_TYPES",
           "kind": "const",
-          "declaration": "export declare const KJ_STANDARD_TYPES: Readonly<{\n    readonly entity: readonly [\"LINE\", \"RAY\", \"XLINE\", \"LWPOLYLINE\", \"POLYLINE\", \"ARC\", \"CIRCLE\", \"ELLIPSE\", \"SPLINE\", \"POINT\", \"HATCH\", \"SOLID\", \"TRACE\", \"IMAGE\", \"TEXT\", \"MTEXT\", \"ATTDEF\", \"ATTRIB\", \"INSERT\", \"LEADER\", \"MLEADER\", \"DIMENSION\", \"TABLE\", \"VIEWPORT\", \"WIPEOUT\", \"REVISION_CLOUD\", \"SOLID3D\", \"PROXY_ENTITY\"];\n    readonly object: readonly [\"LAYER\", \"LINETYPE\", \"TEXT_STYLE\", \"DIM_STYLE\", \"UCS\", \"VIEW\", \"BLOCK_RECORD\", \"LAYOUT\", \"DICTIONARY\", \"XRECORD\", \"GROUP\", \"MATERIAL\", \"IMAGE_DEFINITION\", \"PROXY_OBJECT\"];\n}>;",
+          "declaration": "export declare const KJ_STANDARD_TYPES: Readonly<{\n    readonly entity: readonly [\"LINE\", \"RAY\", \"XLINE\", \"LWPOLYLINE\", \"POLYLINE\", \"ARC\", \"CIRCLE\", \"ELLIPSE\", \"SPLINE\", \"POINT\", \"HATCH\", \"SOLID\", \"TRACE\", \"IMAGE\", \"TEXT\", \"MTEXT\", \"ATTDEF\", \"ATTRIB\", \"INSERT\", \"LEADER\", \"MLEADER\", \"DIMENSION\", \"TOLERANCE\", \"TABLE\", \"VIEWPORT\", \"WIPEOUT\", \"REVISION_CLOUD\", \"SOLID3D\", \"PROXY_ENTITY\"];\n    readonly object: readonly [\"LAYER\", \"LINETYPE\", \"TEXT_STYLE\", \"DIM_STYLE\", \"UCS\", \"VIEW\", \"BLOCK_RECORD\", \"LAYOUT\", \"DICTIONARY\", \"XRECORD\", \"GROUP\", \"MATERIAL\", \"IMAGE_DEFINITION\", \"PROXY_OBJECT\"];\n}>;",
           "source": "constants.d.ts",
           "anchor": "core-const-kj-standard-types"
         },
@@ -2554,7 +2568,7 @@
         {
           "name": "KJCommandArguments",
           "kind": "interface",
-          "declaration": "export interface KJCommandArguments extends Record<string, unknown> {\n    resources?: KJEntityBatchResources;\n    layout?: KJEntityBatchLayout;\n    id?: string;\n    ids?: readonly string[];\n    firstId?: string;\n    secondId?: string;\n    boundaryIds?: readonly string[];\n    ownerId?: string | null;\n    layerId?: string;\n    layoutId?: string;\n    layoutName?: string;\n    blockRecordId?: string;\n    name?: string;\n    newName?: string | null;\n    type?: string;\n    operation?: string;\n    operator?: string;\n    mode?: string;\n    query?: string;\n    property?: string;\n    status?: string;\n    referenceType?: string;\n    componentId?: string;\n    version?: string;\n    locale?: string;\n    category?: string;\n    cursor?: string | number;\n    gripId?: string;\n    sha256?: string | null;\n    checkedAt?: unknown;\n    author?: unknown;\n    value?: unknown;\n    source?: unknown;\n    other?: unknown;\n    otherDocument?: unknown;\n    payload?: KJObjectPayload;\n    patch?: KJObjectPatch;\n    properties?: KJObjectPayload;\n    options?: KJObjectSpec;\n    payloadPatch?: KJObjectPayload;\n    connectorPayloadPatch?: KJObjectPayload;\n    entities?: readonly KJEntityBatchSpec[];\n    modes?: readonly string[];\n    kinds?: readonly string[];\n    types?: readonly string[];\n    boundaryLoops?: unknown;\n    vertices?: readonly KJPointInput[];\n    sourceIds?: readonly string[];\n    loopIndex?: unknown;\n    attributes?: unknown;\n    attributeValues?: Readonly<Record<string, unknown>>;\n    attributeDefinitions?: readonly KJBlockAttributeDefinitionInput[];\n    mappings?: unknown;\n    pattern?: unknown;\n    settings?: Record<string, unknown>;\n    parameters?: unknown;\n    position?: unknown;\n    insertionPoint?: unknown;\n    center?: KJPointInput;\n    basePoint?: KJPointInput;\n    from?: KJPointInput;\n    to?: KJPointInput;\n    start?: KJPointInput;\n    end?: KJPointInput;\n    lineStart?: KJPointInput;\n    lineEnd?: KJPointInput;\n    point?: KJPointInput;\n    firstPoint?: KJPointInput;\n    secondPoint?: KJPointInput;\n    firstVector?: KJPointInput;\n    secondVector?: KJPointInput;\n    vertex?: KJPointInput;\n    pickPoint?: KJPointInput;\n    sidePoint?: KJPointInput;\n    points?: readonly KJPointInput[];\n    origin?: unknown;\n    xAxis?: unknown;\n    yAxis?: unknown;\n    viewCenter?: unknown;\n    frozenLayerIds?: readonly string[];\n    matrix?: unknown;\n    scale?: unknown;\n    factor?: unknown;\n    angle?: unknown;\n    angleDegrees?: unknown;\n    rotation?: unknown;\n    radius?: unknown;\n    text?: unknown;\n    textPosition?: unknown;\n    textHeight?: unknown;\n    styleId?: unknown;\n    attachmentPoint?: unknown;\n    arrowEnabled?: unknown;\n    distance?: unknown;\n    tolerance?: unknown;\n    segmentIndex?: unknown;\n    vertexIndex?: unknown;\n    bulge?: unknown;\n    sweepDegrees?: unknown;\n    distance1?: unknown;\n    distance2?: unknown;\n    dx?: unknown;\n    dy?: unknown;\n    rows?: unknown;\n    columns?: unknown;\n    rowSpacing?: unknown;\n    columnSpacing?: unknown;\n    count?: unknown;\n    items?: unknown;\n    width?: unknown;\n    height?: unknown;\n    viewHeight?: unknown;\n    twistAngle?: unknown;\n    patternScale?: unknown;\n    patternAngle?: unknown;\n    color?: unknown;\n    lineweight?: unknown;\n    linetypeId?: unknown;\n    fontFamily?: unknown;\n    fontFile?: unknown;\n    bigFontFile?: unknown;\n    fixedHeight?: unknown;\n    widthFactor?: unknown;\n    obliqueAngle?: unknown;\n    current?: unknown;\n    description?: unknown;\n    patternName?: unknown;\n    enabled?: unknown;\n    visible?: unknown;\n    frozen?: unknown;\n    locked?: unknown;\n    plottable?: unknown;\n    solid?: unknown;\n    append?: unknown;\n    keepSource?: unknown;\n    eraseSource?: unknown;\n    eraseSources?: unknown;\n    includeErased?: unknown;\n    includeSource?: unknown;\n    rotateItems?: unknown;\n    selectable?: unknown;\n    side?: unknown;\n    limit?: unknown;\n    maxDefinitionEntities?: unknown;\n    maxBlockDepth?: unknown;\n    maxExpandedEntities?: unknown;\n}",
+          "declaration": "export interface KJCommandArguments extends Record<string, unknown> {\n    resources?: KJEntityBatchResources;\n    layout?: KJEntityBatchLayout;\n    systemVariables?: {\n        readonly PDMODE?: number;\n        readonly PDSIZE?: number;\n    };\n    id?: string;\n    ids?: readonly string[];\n    firstId?: string;\n    secondId?: string;\n    boundaryIds?: readonly string[];\n    ownerId?: string | null;\n    layerId?: string;\n    layoutId?: string;\n    layoutName?: string;\n    blockRecordId?: string;\n    name?: string;\n    newName?: string | null;\n    type?: string;\n    operation?: string;\n    operator?: string;\n    mode?: string;\n    query?: string;\n    property?: string;\n    status?: string;\n    referenceType?: string;\n    componentId?: string;\n    version?: string;\n    locale?: string;\n    category?: string;\n    cursor?: string | number;\n    gripId?: string;\n    sha256?: string | null;\n    checkedAt?: unknown;\n    author?: unknown;\n    value?: unknown;\n    source?: unknown;\n    other?: unknown;\n    otherDocument?: unknown;\n    payload?: KJObjectPayload;\n    patch?: KJObjectPatch;\n    properties?: KJObjectPayload;\n    options?: KJObjectSpec;\n    payloadPatch?: KJObjectPayload;\n    connectorPayloadPatch?: KJObjectPayload;\n    entities?: readonly KJEntityBatchSpec[];\n    modes?: readonly string[];\n    kinds?: readonly string[];\n    types?: readonly string[];\n    boundaryLoops?: unknown;\n    vertices?: readonly KJPointInput[];\n    sourceIds?: readonly string[];\n    loopIndex?: unknown;\n    attributes?: unknown;\n    attributeValues?: Readonly<Record<string, unknown>>;\n    attributeDefinitions?: readonly KJBlockAttributeDefinitionInput[];\n    mappings?: unknown;\n    pattern?: unknown;\n    settings?: Record<string, unknown>;\n    parameters?: unknown;\n    position?: unknown;\n    insertionPoint?: unknown;\n    center?: KJPointInput;\n    basePoint?: KJPointInput;\n    from?: KJPointInput;\n    to?: KJPointInput;\n    start?: KJPointInput;\n    end?: KJPointInput;\n    lineStart?: KJPointInput;\n    lineEnd?: KJPointInput;\n    point?: KJPointInput;\n    firstPoint?: KJPointInput;\n    secondPoint?: KJPointInput;\n    firstVector?: KJPointInput;\n    secondVector?: KJPointInput;\n    vertex?: KJPointInput;\n    pickPoint?: KJPointInput;\n    sidePoint?: KJPointInput;\n    points?: readonly KJPointInput[];\n    origin?: unknown;\n    xAxis?: unknown;\n    yAxis?: unknown;\n    viewCenter?: unknown;\n    frozenLayerIds?: readonly string[];\n    matrix?: unknown;\n    scale?: unknown;\n    factor?: unknown;\n    angle?: unknown;\n    angleDegrees?: unknown;\n    rotation?: unknown;\n    radius?: unknown;\n    text?: unknown;\n    textPosition?: unknown;\n    textHeight?: unknown;\n    styleId?: unknown;\n    attachmentPoint?: unknown;\n    arrowEnabled?: unknown;\n    distance?: unknown;\n    tolerance?: unknown;\n    segmentIndex?: unknown;\n    vertexIndex?: unknown;\n    bulge?: unknown;\n    sweepDegrees?: unknown;\n    distance1?: unknown;\n    distance2?: unknown;\n    dx?: unknown;\n    dy?: unknown;\n    rows?: unknown;\n    columns?: unknown;\n    rowSpacing?: unknown;\n    columnSpacing?: unknown;\n    count?: unknown;\n    items?: unknown;\n    width?: unknown;\n    height?: unknown;\n    viewHeight?: unknown;\n    twistAngle?: unknown;\n    patternScale?: unknown;\n    patternAngle?: unknown;\n    color?: unknown;\n    lineweight?: unknown;\n    linetypeId?: unknown;\n    fontFamily?: unknown;\n    fontFile?: unknown;\n    bigFontFile?: unknown;\n    fixedHeight?: unknown;\n    widthFactor?: unknown;\n    obliqueAngle?: unknown;\n    current?: unknown;\n    description?: unknown;\n    patternName?: unknown;\n    enabled?: unknown;\n    visible?: unknown;\n    frozen?: unknown;\n    locked?: unknown;\n    plottable?: unknown;\n    solid?: unknown;\n    append?: unknown;\n    keepSource?: unknown;\n    eraseSource?: unknown;\n    eraseSources?: unknown;\n    includeErased?: unknown;\n    includeSource?: unknown;\n    rotateItems?: unknown;\n    selectable?: unknown;\n    side?: unknown;\n    limit?: unknown;\n    maxDefinitionEntities?: unknown;\n    maxBlockDepth?: unknown;\n    maxExpandedEntities?: unknown;\n}",
           "source": "commands.d.ts",
           "anchor": "core-interface-kjcommandarguments"
         },
@@ -3322,6 +3336,13 @@
           "anchor": "core-type-kjentity"
         },
         {
+          "name": "KJEntityBatchAttributeSequence",
+          "kind": "interface",
+          "declaration": "export interface KJEntityBatchAttributeSequence {\n    attributes: {\n        id: string;\n        payload: KJObjectPayload;\n    }[];\n    sequenceEnd: {\n        id: string;\n        dxfOwnerMode: 'insert' | 'space';\n        layerId?: string;\n    };\n}",
+          "source": "commands.d.ts",
+          "anchor": "core-interface-kjentitybatchattributesequence"
+        },
+        {
           "name": "KJEntityBatchLayout",
           "kind": "interface",
           "declaration": "export interface KJEntityBatchLayout {\n    id: string;\n    blockRecordId: string;\n    name: string;\n    dxfPlotSettings: KJDxfPlotSettings;\n    viewport: {\n        id: string;\n        center: KJPointInput;\n        width: number;\n        height: number;\n        viewCenter: KJPointInput;\n        viewHeight: number;\n        twistAngle: number;\n        modelUnits: 'millimeter' | 'meter' | 'inch' | 'foot';\n        scaleDenominator: number;\n    };\n}",
@@ -3331,14 +3352,14 @@
         {
           "name": "KJEntityBatchResources",
           "kind": "interface",
-          "declaration": "export interface KJEntityBatchResources {\n    linetypes: {\n        id: string;\n        name: string;\n        pattern: number[];\n    }[];\n    layers: {\n        id: string;\n        name: string;\n        color: number;\n        linetypeId: string;\n        lineweight: number;\n    }[];\n    blocks?: {\n        id: string;\n        name: string;\n        basePoint: KJPointInput;\n        entities: KJEntityBatchSpec[];\n    }[];\n}",
+          "declaration": "export interface KJEntityBatchResources {\n    linetypes: {\n        id: string;\n        name: string;\n        pattern: number[];\n    }[];\n    layers: {\n        id: string;\n        name: string;\n        color: number;\n        linetypeId: string;\n        lineweight: number;\n    }[];\n    textStyles?: {\n        id: string;\n        name: string;\n        payload: KJObjectPayload;\n    }[];\n    dimensionStyles?: {\n        id: string;\n        name: string;\n        payload: KJObjectPayload;\n    }[];\n    blocks?: {\n        id: string;\n        name: string;\n        basePoint: KJPointInput;\n        entities: KJEntityBatchSpec[];\n    }[];\n}",
           "source": "commands.d.ts",
           "anchor": "core-interface-kjentitybatchresources"
         },
         {
           "name": "KJEntityBatchSpec",
           "kind": "interface",
-          "declaration": "export interface KJEntityBatchSpec extends Record<string, unknown> {\n    type?: string;\n    payload?: KJObjectPayload;\n    options?: KJObjectSpec;\n    layerName?: string;\n    layer?: {\n        color?: unknown;\n        visible?: unknown;\n        frozen?: unknown;\n        locked?: unknown;\n        plottable?: unknown;\n    };\n}",
+          "declaration": "export interface KJEntityBatchSpec extends Record<string, unknown> {\n    type?: string;\n    payload?: KJObjectPayload;\n    options?: KJObjectSpec;\n    attributeSequence?: KJEntityBatchAttributeSequence;\n    layerName?: string;\n    layer?: {\n        color?: unknown;\n        visible?: unknown;\n        frozen?: unknown;\n        locked?: unknown;\n        plottable?: unknown;\n    };\n}",
           "source": "commands.d.ts",
           "anchor": "core-interface-kjentitybatchspec"
         },
@@ -6018,7 +6039,7 @@
         {
           "name": "auditSDKReadiness",
           "kind": "function",
-          "declaration": "export declare function auditSDKReadiness(sdk: KJCapabilitySDK, profile?: KJSDKReadinessProfile): Readonly<{\n    profileId: string;\n    passed: boolean;\n    status: \"blocked\" | \"passed\";\n    findings: readonly KJReadinessFinding[];\n    manifest: Readonly<{\n        product: \"KJDraw SDK\";\n        sdkVersion: string;\n        documentSchemaVersion: number;\n        geometry: Readonly<{\n            mode: 'native' | 'reference';\n            authoritative: boolean;\n            backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n            operations: readonly string[];\n            lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n        }>;\n        commands: readonly Readonly<{\n            id: string;\n            title: string | undefined;\n            aliases: readonly string[];\n            transactional: boolean;\n            owner: string | undefined;\n            capabilities: Readonly<Record<string, unknown>>;\n        }>[];\n        commandIds: readonly string[];\n        entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n        fileAdapters: readonly KJFileAdapterCapability[];\n    }>;\n}>;",
+          "declaration": "export declare function auditSDKReadiness(sdk: KJCapabilitySDK, profile?: KJSDKReadinessProfile): Readonly<{\n    profileId: string;\n    passed: boolean;\n    status: \"blocked\" | \"passed\";\n    findings: readonly KJReadinessFinding[];\n    manifest: Readonly<{\n        product: \"KJDraw SDK\";\n        sdkVersion: string;\n        documentSchemaVersion: number;\n        geometry: Readonly<{\n            mode: 'native' | 'reference';\n            authoritative: boolean;\n            backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n            operations: readonly string[];\n            lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n        }>;\n        commands: readonly Readonly<{\n            id: string;\n            title: string | undefined;\n            aliases: readonly string[];\n            transactional: boolean;\n            owner: string | undefined;\n            capabilities: Readonly<Record<string, unknown>>;\n        }>[];\n        commandIds: readonly string[];\n        entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TOLERANCE\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n        fileAdapters: readonly KJFileAdapterCapability[];\n    }>;\n}>;",
           "source": "capabilities.d.ts",
           "anchor": "root-function-auditsdkreadiness"
         },
@@ -6065,11 +6086,25 @@
           "anchor": "root-function-buildagentcartesianchart"
         },
         {
+          "name": "buildAgentGeologyPlan",
+          "kind": "function",
+          "declaration": "export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJAgentGeologyPlanInput): {\n    commandArgs: {\n        entities: EntitySpec[];\n        resources: {\n            linetypes: {\n                id: string;\n                name: string;\n                pattern: number[];\n            }[];\n            layers: {\n                id: string;\n                name: string;\n                color: number;\n                linetypeId: string;\n                lineweight: number;\n            }[];\n            textStyles: {\n                id: string;\n                name: string;\n                payload: {\n                    [k: string]: string | number | null | undefined;\n                };\n            }[];\n            blocks: {\n                id: string;\n                name: string;\n                basePoint: Point3;\n                entities: EntitySpec[];\n            }[];\n        } | {\n            layers: {\n                id: string;\n                name: string;\n                color: number;\n                linetypeId: string;\n                lineweight: number;\n            }[];\n            linetypes: {\n                id: string;\n                name: string;\n                pattern: number[];\n            }[];\n            textStyles: {\n                id: string;\n                name: string;\n                payload: {\n                    fixedHeight?: number;\n                    lastHeight?: number;\n                };\n            }[];\n            blocks: {\n                id: string;\n                name: string;\n                basePoint: number[];\n                entities: EntitySpec[];\n            }[];\n        } | {\n            linetypes: {\n                id: string;\n                name: string;\n                pattern: number[];\n            }[] | {\n                id: string;\n                name: string;\n                pattern: number[];\n            }[];\n            layers: {\n                id: string;\n                name: string;\n                color: number;\n                linetypeId: string;\n                lineweight: number;\n            }[];\n            blocks: {\n                id: string;\n                name: string;\n                basePoint: Point3;\n                entities: EntitySpec[];\n            }[] | {\n                id: string;\n                name: string;\n                basePoint: number[];\n                entities: EntitySpec[];\n            }[];\n        };\n        layout: {\n            id: string;\n            blockRecordId: string;\n            name: string;\n            dxfPlotSettings: {\n                paperWidth: number;\n                paperHeight: number;\n                marginLeft: number;\n                marginBottom: number;\n                marginRight: number;\n                marginTop: number;\n                originX: number;\n                originY: number;\n                scaleNumerator: number;\n                scaleDenominator: number;\n                flags: number;\n                paperUnits: 1;\n                rotation: 0;\n                plotType: 5;\n            };\n            viewport: {\n                id: string;\n                center: Point3;\n                width: number;\n                height: number;\n                viewCenter: Point3;\n                viewHeight: number;\n                twistAngle: number;\n                modelUnits: 'meter';\n                scaleDenominator: ScaleDenominator;\n            };\n        } | {\n            id: string;\n            blockRecordId: string;\n            name: string;\n            dxfPlotSettings: {\n                paperWidth: number;\n                paperHeight: number;\n                marginLeft: number;\n                marginBottom: number;\n                marginRight: number;\n                marginTop: number;\n                originX: number;\n                originY: number;\n                scaleNumerator: number;\n                scaleDenominator: number;\n                flags: number;\n                paperUnits: 1;\n                rotation: 0;\n                plotType: 5;\n            };\n            viewport: {\n                id: string;\n                center: Point3;\n                width: number;\n                height: number;\n                twistAngle: number;\n                scaleDenominator: ScaleDenominator;\n                viewCenter: Point3;\n                viewHeight: number;\n                modelUnits: 'millimeter';\n            };\n        };\n    };\n    outputConfig: {\n        layoutName: string;\n        paper: {\n            standard: string;\n            orientation: string;\n            widthMm: number;\n            heightMm: number;\n        };\n        scaleNumerator: number;\n        scaleDenominator: ScaleDenominator;\n        modelUnits: string;\n        viewport: {\n            center: Point2;\n            width: number;\n            height: number;\n        };\n    };\n    evidence: {\n        drawingId: string;\n        skillId: string;\n        skillVersion: \"1.0.0\";\n        expectedRevision: number;\n        units: string;\n        sourceUnits: 'meter';\n        modelEntityCount: number;\n        entityCount: number;\n        boreholeCount: number;\n        sectionLineCount: number;\n        alignedDimensionCount: number;\n        buildingFootprintCount: number;\n        roadPathCount: number;\n        roadSegmentCount: number;\n        baseMapStyleCount: number;\n        baseMapTextStyleCount: number;\n        baseMapLineworkCount: number;\n        baseMapAttributeDefinitionCount: number;\n        baseMapAttributeCount: number;\n        baseMapHatchCount: number;\n        baseMapSolidCount: number;\n        baseMapPointCount: number;\n        baseMapLineworkTypeCounts: {\n            [k: string]: number;\n        };\n        baseMapBlockCount: number;\n        baseMapBlockMemberCount: number;\n        baseMapInsertCount: number;\n        sectionReferences: {\n            id: string;\n            label: string;\n            holeIds: string[];\n            endpointLabels: string[];\n            markerClearance: number[] | undefined;\n            endpointTailLengths: number[] | undefined;\n            endpointLabelPositions: number[][] | undefined;\n            segmentCount: number | undefined;\n        }[];\n        gridLineCount: number;\n        coordinateCalloutCount: number;\n        coordinateConvention: 'engineering X=northing, Y=easting';\n        coordinateBounds: {\n            minimum: Point2;\n            maximum: Point2;\n        };\n        scaleDenominator: ScaleDenominator;\n        northAngleDegrees: number;\n        externalBaseMapDependencies: string[];\n        limitations: string[];\n    };\n};",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-function-buildagentgeologyplan"
+        },
+        {
           "name": "buildAgentManufacturingSheet",
           "kind": "function",
-          "declaration": "export declare function buildAgentManufacturingSheet(document: ManufacturingDocument, source: KJAgentManufacturingSheetInput): {\n    commandArgs: {\n        entities: EntitySpec[];\n        resources: {\n            linetypes: {\n                id: string;\n                name: string;\n                pattern: number[];\n            }[];\n            layers: ({\n                id: `${string}-layer-object`;\n                color: 7;\n                linetypeId: string;\n                lineweight: 35;\n                name: string;\n            } | {\n                id: `${string}-layer-center`;\n                color: 3;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            } | {\n                id: `${string}-layer-hidden`;\n                color: 8;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            } | {\n                id: `${string}-layer-dim`;\n                color: 2;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            } | {\n                id: `${string}-layer-frame`;\n                color: 7;\n                linetypeId: string;\n                lineweight: 25;\n                name: string;\n            } | {\n                id: `${string}-layer-text`;\n                color: 7;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            })[];\n        };\n    };\n    evidence: {\n        drawingId: string;\n        skillId: string;\n        skillVersion: \"1.0.0\";\n        units: string;\n        expectedRevision: number;\n        entityCount: number;\n        bounds: {\n            min: [number, number];\n            max: [number, number];\n            width: number;\n            height: number;\n        };\n        parameters: {\n            title: string;\n            revision: string;\n            material: string;\n            quantity: number;\n            length: number;\n            width: number;\n            thickness: number;\n            holePatternCount: number;\n            holeCount: number;\n            slotCount: number;\n            sheet: {\n                origin: [number, number];\n                size: [number, number];\n            };\n            textHeight: number;\n            viewScale: number;\n        };\n        limitations: string[];\n    };\n};",
+          "declaration": "export declare function buildAgentManufacturingSheet(document: ManufacturingDocument, source: KJAgentManufacturingSheetInput): {\n    commandArgs: {\n        entities: EntitySpec[];\n        resources: {\n            linetypes: {\n                id: string;\n                name: string;\n                pattern: number[];\n            }[];\n            layers: ({\n                id: `${string}-layer-object`;\n                color: 7;\n                linetypeId: string;\n                lineweight: 35;\n                name: string;\n            } | {\n                id: `${string}-layer-center`;\n                color: 3;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            } | {\n                id: `${string}-layer-hidden`;\n                color: 8;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            } | {\n                id: `${string}-layer-dim`;\n                color: 2;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            } | {\n                id: `${string}-layer-frame`;\n                color: 7;\n                linetypeId: string;\n                lineweight: 25;\n                name: string;\n            } | {\n                id: `${string}-layer-text`;\n                color: 7;\n                linetypeId: string;\n                lineweight: 18;\n                name: string;\n            })[];\n        };\n    };\n    evidence: {\n        drawingId: string;\n        skillId: string;\n        skillVersion: \"1.0.0\";\n        units: string;\n        expectedRevision: number;\n        entityCount: number;\n        bounds: {\n            min: [number, number];\n            max: [number, number];\n            width: number;\n            height: number;\n        };\n        parameters: {\n            title: string;\n            revision: string;\n            material: string;\n            quantity: number;\n            length: number;\n            width: number;\n            thickness: number;\n            holePatternCount: number;\n            boltCirclePatternCount: number;\n            holeCount: number;\n            slotCount: number;\n            sheet: {\n                origin: [number, number];\n                size: [number, number];\n            };\n            textHeight: number;\n            viewScale: number;\n        };\n        limitations: string[];\n    };\n};",
           "source": "agent-manufacturing-sheet.d.ts",
           "anchor": "root-function-buildagentmanufacturingsheet"
+        },
+        {
+          "name": "buildAgentMechanicalFlangeCore",
+          "kind": "function",
+          "declaration": "export declare function buildAgentMechanicalFlangeCore(document: Document, source: KJAgentMechanicalFlangeCoreInput): {\n    commandArgs: {\n        entities: Entity[];\n        systemVariables?: {\n            PDMODE: number;\n            PDSIZE: number;\n        };\n        resources: {\n            linetypes: {\n                id: string;\n                name: string;\n                pattern: number[];\n            }[];\n            layers: {\n                id: string;\n                name: string;\n                color: number;\n                linetypeId: string;\n                lineweight: number;\n            }[];\n            textStyles?: {\n                id: string;\n                name: string;\n                payload: Record<string, unknown>;\n            }[];\n            dimensionStyles?: {\n                id: string;\n                name: string;\n                payload: Record<string, unknown>;\n            }[];\n            blocks?: {\n                id: string;\n                name: string;\n                basePoint: Point3;\n                entities: {\n                    type: \"ARC\" | \"ATTDEF\" | \"CIRCLE\" | \"HATCH\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MTEXT\" | \"SOLID\" | \"TEXT\";\n                    payload: Record<string, unknown>;\n                    options: {\n                        id: string;\n                    };\n                }[];\n            }[];\n        };\n    };\n    evidence: {\n        knowledgePackId: string;\n        knowledgePackVersion: string;\n        expectedRevision: number;\n        entityCount: number;\n        parameters: {\n            endViewPresent: boolean;\n            ringCount: number;\n            squareHolePitch: number | undefined;\n            squareHoleRadius: number | undefined;\n            holePatternCount: number;\n            holeCount: number;\n            titleGrid: boolean;\n            sideViewAxis: boolean;\n            sideViewOrientation: {};\n            sideViewAxisVisible: boolean;\n            outlineSegmentCount: number;\n            cuttingPlaneMarkCount: number;\n            symmetricProfileCount: number;\n            sideOutlineSegmentCount: number;\n            sectionHatchCount: number;\n            auxiliaryHatchCount: number;\n            auxiliaryLineCount: number;\n            auxiliaryLineBudget: number;\n            auxiliaryPointCount: number;\n            pointDisplay: KJFlangePointDisplay | null;\n            auxiliarySolidCount: number;\n            auxiliaryWipeoutCount: number;\n            auxiliaryWipeoutBudget: number;\n            auxiliaryCurveCount: number;\n            auxiliaryCurveBudget: number;\n            auxiliaryArcRadiusMinimum: number;\n            symbolDefinitionCount: number;\n            symbolDefinitionBudget: number;\n            symbolMemberCount: number;\n            symbolMemberBudgetPerDefinition: number;\n            symbolMemberBudgetTotal: number;\n            symbolInstanceCount: number;\n            symbolInstanceBudget: number;\n            symbolAttributeCount: number;\n            featureControlFrameCount: number;\n            entityStyleCount: number;\n            linetypePatternSegmentBudget: number;\n            textStyleCount: number;\n            dimensionStyleCount: number;\n            noteCount: number;\n            dimensionCount: number;\n            ordinateDimensionCount: number;\n            leaderCount: number;\n        };\n        limitations: string[];\n    };\n};",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-function-buildagentmechanicalflangecore"
         },
         {
           "name": "buildAgentSitePlan",
@@ -6095,7 +6130,7 @@
         {
           "name": "buildSDKCapabilityManifest",
           "kind": "function",
-          "declaration": "export declare function buildSDKCapabilityManifest(sdk: KJCapabilitySDK): Readonly<{\n    product: \"KJDraw SDK\";\n    sdkVersion: string;\n    documentSchemaVersion: number;\n    geometry: Readonly<{\n        mode: 'native' | 'reference';\n        authoritative: boolean;\n        backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n        operations: readonly string[];\n        lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n    }>;\n    commands: readonly Readonly<{\n        id: string;\n        title: string | undefined;\n        aliases: readonly string[];\n        transactional: boolean;\n        owner: string | undefined;\n        capabilities: Readonly<Record<string, unknown>>;\n    }>[];\n    commandIds: readonly string[];\n    entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n    fileAdapters: readonly KJFileAdapterCapability[];\n}>;",
+          "declaration": "export declare function buildSDKCapabilityManifest(sdk: KJCapabilitySDK): Readonly<{\n    product: \"KJDraw SDK\";\n    sdkVersion: string;\n    documentSchemaVersion: number;\n    geometry: Readonly<{\n        mode: 'native' | 'reference';\n        authoritative: boolean;\n        backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n        operations: readonly string[];\n        lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n    }>;\n    commands: readonly Readonly<{\n        id: string;\n        title: string | undefined;\n        aliases: readonly string[];\n        transactional: boolean;\n        owner: string | undefined;\n        capabilities: Readonly<Record<string, unknown>>;\n    }>[];\n    commandIds: readonly string[];\n    entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TOLERANCE\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n    fileAdapters: readonly KJFileAdapterCapability[];\n}>;",
           "source": "capabilities.d.ts",
           "anchor": "root-function-buildsdkcapabilitymanifest"
         },
@@ -6595,6 +6630,13 @@
           "declaration": "export declare function deleteDesignRelations(document: KJDocument, tx: KJTransaction, id: string): KJObjectRecord;",
           "source": "design-relations.d.ts",
           "anchor": "root-function-deletedesignrelations"
+        },
+        {
+          "name": "detectMechanicalBearingSeatEndView",
+          "kind": "function",
+          "declaration": "export declare function detectMechanicalBearingSeatEndView(entities: readonly KJMechanicalTopologyEntity[]): KJMechanicalBearingSeatDetection;",
+          "source": "mechanical-topology.d.ts",
+          "anchor": "root-function-detectmechanicalbearingseatendview"
         },
         {
           "name": "determinant3",
@@ -7180,7 +7222,7 @@
         {
           "name": "KJ_STANDARD_TYPES",
           "kind": "const",
-          "declaration": "export declare const KJ_STANDARD_TYPES: Readonly<{\n    readonly entity: readonly [\"LINE\", \"RAY\", \"XLINE\", \"LWPOLYLINE\", \"POLYLINE\", \"ARC\", \"CIRCLE\", \"ELLIPSE\", \"SPLINE\", \"POINT\", \"HATCH\", \"SOLID\", \"TRACE\", \"IMAGE\", \"TEXT\", \"MTEXT\", \"ATTDEF\", \"ATTRIB\", \"INSERT\", \"LEADER\", \"MLEADER\", \"DIMENSION\", \"TABLE\", \"VIEWPORT\", \"WIPEOUT\", \"REVISION_CLOUD\", \"SOLID3D\", \"PROXY_ENTITY\"];\n    readonly object: readonly [\"LAYER\", \"LINETYPE\", \"TEXT_STYLE\", \"DIM_STYLE\", \"UCS\", \"VIEW\", \"BLOCK_RECORD\", \"LAYOUT\", \"DICTIONARY\", \"XRECORD\", \"GROUP\", \"MATERIAL\", \"IMAGE_DEFINITION\", \"PROXY_OBJECT\"];\n}>;",
+          "declaration": "export declare const KJ_STANDARD_TYPES: Readonly<{\n    readonly entity: readonly [\"LINE\", \"RAY\", \"XLINE\", \"LWPOLYLINE\", \"POLYLINE\", \"ARC\", \"CIRCLE\", \"ELLIPSE\", \"SPLINE\", \"POINT\", \"HATCH\", \"SOLID\", \"TRACE\", \"IMAGE\", \"TEXT\", \"MTEXT\", \"ATTDEF\", \"ATTRIB\", \"INSERT\", \"LEADER\", \"MLEADER\", \"DIMENSION\", \"TOLERANCE\", \"TABLE\", \"VIEWPORT\", \"WIPEOUT\", \"REVISION_CLOUD\", \"SOLID3D\", \"PROXY_ENTITY\"];\n    readonly object: readonly [\"LAYER\", \"LINETYPE\", \"TEXT_STYLE\", \"DIM_STYLE\", \"UCS\", \"VIEW\", \"BLOCK_RECORD\", \"LAYOUT\", \"DICTIONARY\", \"XRECORD\", \"GROUP\", \"MATERIAL\", \"IMAGE_DEFINITION\", \"PROXY_OBJECT\"];\n}>;",
           "source": "constants.d.ts",
           "anchor": "root-const-kj-standard-types"
         },
@@ -7416,6 +7458,20 @@
           "anchor": "root-interface-kjagentgeologycolumnknowledgebinding"
         },
         {
+          "name": "KJAgentGeologyPlanInput",
+          "kind": "interface",
+          "declaration": "export interface KJAgentGeologyPlanInput {\n    version: typeof KJDRAW_GEOLOGY_PLAN_VERSION;\n    expectedRevision: number;\n    units: 'meter';\n    locale?: 'zh-CN' | 'en';\n    drawingId: string;\n    title?: string;\n    revision?: string;\n    scale: ScaleDenominator;\n    boundary: Point2[];\n    boreholes: KJGeologyPlanBorehole[];\n    sectionLines: KJGeologyPlanSectionLine[];\n    coordinateGrid?: KJGeologyPlanCoordinateGrid;\n    coordinateCallouts?: KJGeologyPlanCoordinateCallout[];\n    dimensions?: KJGeologyPlanAlignedDimension[];\n    buildingFootprints?: KJGeologyPlanBuildingFootprint[];\n    roadPaths?: KJGeologyPlanRoadPath[];\n    baseMapStyles?: KJGeologyPlanBaseMapStyle[];\n    baseMapTextStyles?: KJGeologyPlanBaseMapTextStyle[];\n    baseMapLinework?: KJGeologyPlanBaseMapLinework[];\n    baseMapBlocks?: KJGeologyPlanBaseMapBlock[];\n    baseMapInserts?: KJGeologyPlanBaseMapInsert[];\n    northAngleDegrees?: number;\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjagentgeologyplaninput"
+        },
+        {
+          "name": "KJAgentGeologySectionKnowledgeBinding",
+          "kind": "interface",
+          "declaration": "export interface KJAgentGeologySectionKnowledgeBinding {\n    pack: unknown;\n    sha256: string;\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-interface-kjagentgeologysectionknowledgebinding"
+        },
+        {
           "name": "KJAgentGeometryValidationInput",
           "kind": "interface",
           "declaration": "export interface KJAgentGeometryValidationInput {\n    expectedRevision: number;\n    units: string;\n    lineLengths: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    circleRadii: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    ellipseMajorRadii?: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    ellipseMinorRadii?: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    splineLengths?: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    dimensionMeasurements?: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    hatchAreas?: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    pointDistances: {\n        id: string;\n        from: KJDrawingValidationPointReference;\n        to: KJDrawingValidationPointReference;\n        expected: number;\n        tolerance: number;\n    }[];\n    polylineClosures: {\n        id: string;\n        objectId: string;\n        expected: boolean;\n    }[];\n    polylineVertexCounts?: {\n        id: string;\n        objectId: string;\n        expected: number;\n    }[];\n    hatchLoopCounts?: {\n        id: string;\n        objectId: string;\n        expected: number;\n    }[];\n    polylineSegmentBulges?: {\n        id: string;\n        objectId: string;\n        segmentIndex: number;\n        expected: number;\n        tolerance: number;\n    }[];\n}",
@@ -7430,6 +7486,13 @@
           "anchor": "root-interface-kjagentlayoutquery"
         },
         {
+          "name": "KJAgentManufacturingBoltCirclePattern",
+          "kind": "interface",
+          "declaration": "export interface KJAgentManufacturingBoltCirclePattern {\n    count: number;\n    center: [number, number];\n    pitchDiameter: number;\n    throughDiameter: number;\n    startAngleDegrees?: number;\n    counterboreDiameter?: number;\n    counterboreDepth?: number;\n}",
+          "source": "agent-manufacturing-sheet.d.ts",
+          "anchor": "root-interface-kjagentmanufacturingboltcirclepattern"
+        },
+        {
           "name": "KJAgentManufacturingHolePattern",
           "kind": "interface",
           "declaration": "export interface KJAgentManufacturingHolePattern {\n    rows: number;\n    columns: number;\n    origin: [number, number];\n    spacing: [number, number];\n    throughDiameter: number;\n    counterboreDiameter?: number;\n    counterboreDepth?: number;\n}",
@@ -7439,7 +7502,7 @@
         {
           "name": "KJAgentManufacturingSheetInput",
           "kind": "interface",
-          "declaration": "export interface KJAgentManufacturingSheetInput {\n    version: typeof KJDRAW_MANUFACTURING_SHEET_VERSION;\n    expectedRevision: number;\n    units: 'millimeter';\n    locale?: 'zh-CN' | 'en';\n    drawingId: string;\n    title: string;\n    revision: string;\n    material: string;\n    quantity: number;\n    length: number;\n    width: number;\n    thickness: number;\n    holePatterns?: KJAgentManufacturingHolePattern[];\n    slots?: KJAgentManufacturingSlot[];\n    sheet: {\n        origin: [number, number];\n        size: [number, number];\n    };\n    textHeight: number;\n}",
+          "declaration": "export interface KJAgentManufacturingSheetInput {\n    version: typeof KJDRAW_MANUFACTURING_SHEET_VERSION;\n    expectedRevision: number;\n    units: 'millimeter';\n    locale?: 'zh-CN' | 'en';\n    drawingId: string;\n    title: string;\n    revision: string;\n    material: string;\n    quantity: number;\n    length: number;\n    width: number;\n    thickness: number;\n    holePatterns?: KJAgentManufacturingHolePattern[];\n    boltCirclePatterns?: KJAgentManufacturingBoltCirclePattern[];\n    slots?: KJAgentManufacturingSlot[];\n    sheet: {\n        origin: [number, number];\n        size: [number, number];\n    };\n    textHeight: number;\n}",
           "source": "agent-manufacturing-sheet.d.ts",
           "anchor": "root-interface-kjagentmanufacturingsheetinput"
         },
@@ -7449,6 +7512,13 @@
           "declaration": "export interface KJAgentManufacturingSlot {\n    center: [number, number];\n    length: number;\n    width: number;\n    orientationDegrees: 0 | 90;\n}",
           "source": "agent-manufacturing-sheet.d.ts",
           "anchor": "root-interface-kjagentmanufacturingslot"
+        },
+        {
+          "name": "KJAgentMechanicalFlangeCoreInput",
+          "kind": "interface",
+          "declaration": "export interface KJAgentMechanicalFlangeCoreInput {\n    version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;\n    expectedRevision: number;\n    units: 'millimeter';\n    drawingId: string;\n    entityDrawOrder?: number[];\n    endView?: {\n        center: Point2;\n        ringRadii: number[];\n        ringStyleKeys?: (string | null)[];\n        squareHoles?: {\n            pitch: number;\n            radius: number;\n        };\n        holePatterns?: KJFlangePolarHolePattern[];\n        outlineSegments?: KJFlangeEndViewOutlineSegment[];\n        cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[];\n    };\n    sideViewAxis?: {\n        xRange?: Point2;\n        stationRange?: Point2;\n        orientation?: 'horizontal' | 'vertical';\n        axisCoordinate?: number;\n        axisVisible?: boolean;\n        axisDirection?: 'forward' | 'reverse';\n        axisStyleKey?: string;\n        symmetricProfiles?: KJFlangeSymmetricProfile[];\n        outlineSegments?: KJFlangeSideViewOutlineSegment[];\n        sectionHatches?: KJFlangeSectionHatch[];\n    };\n    dimensions?: KJFlangeDimension[];\n    leaders?: KJFlangeLeader[];\n    featureControlFrames?: KJFlangeFeatureControlFrame[];\n    auxiliaryLines?: KJFlangeAuxiliaryLine[];\n    auxiliaryPoints?: KJFlangeAuxiliaryPoint[];\n    pointDisplay?: KJFlangePointDisplay;\n    auxiliarySolids?: KJFlangeAuxiliarySolid[];\n    auxiliaryWipeouts?: KJFlangeAuxiliaryWipeout[];\n    auxiliaryCurves?: KJFlangeAuxiliaryCurve[];\n    auxiliaryHatches?: KJFlangeAuxiliaryHatch[];\n    symbols?: {\n        definitions: KJFlangeSymbolDefinition[];\n        instances: KJFlangeSymbolInstance[];\n    };\n    styleResources?: {\n        textStyles: KJFlangeTextStyleDefinition[];\n        dimensionStyles: KJFlangeDimensionStyleDefinition[];\n    };\n    styleProfile?: KJFlangeStyleProfile;\n    sheet: {\n        origin: Point2;\n        size: Point2;\n        inset: number;\n        outerFrameOffset?: Point2;\n        outerFrameStyleKey?: string;\n        insetFrameStyleKey?: string;\n        outerFrameSideStyleKeys?: Partial<Record<KJFlangeFrameSide, string>>;\n        insetFrameSideStyleKeys?: Partial<Record<KJFlangeFrameSide, string>>;\n        outerFrameSides?: KJFlangeFrameSide[];\n        insetFrameSides?: KJFlangeFrameSide[];\n        titleGrid?: KJFlangeTitleGrid;\n        notes?: KJFlangeSheetNote[];\n    };\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjagentmechanicalflangecoreinput"
         },
         {
           "name": "KJAgentModel",
@@ -7908,7 +7978,7 @@
         {
           "name": "KJAgentToolSession",
           "kind": "class",
-          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Read-only identity used to bind persisted tasks to this exact drawing. */\n    get documentId(): string;\n    get revision(): number;\n    get units(): string;\n    get geologyColumnKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    /** Exact instance/SDK attachment check for trusted host orchestration. */\n    isBoundTo(document: KJDocument): boolean;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument, options?: {\n        geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n    });\n    /** Trusted host operation: verify saved parameters against all current generated objects.\n     * Registration is bound to this exact document revision and is not model-callable. */\n    registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;\n    /** Host-only registration of explicitly selected data. Assets belong to this\n     * exact session/document instance; they are never loaded by model paths or URLs. */\n    registerInputAsset(input: unknown): Promise<ReadonlyDeep<KJAgentInputAssetDescriptor>>;\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Bind one in-memory reviewed proposal to the exact persisted running task. Host-only. */\n    bindTaskProposal(planId: string, input: KJAgentTaskProposalBinding): void;\n    /** Approve an exact task-bound mutation; geometry, checks and task receipt commit atomically. */\n    approveTask(planId: string, reviewerId: string, at: string): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
+          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Read-only identity used to bind persisted tasks to this exact drawing. */\n    get documentId(): string;\n    get revision(): number;\n    get units(): string;\n    get geologyColumnKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    /** Exact instance/SDK attachment check for trusted host orchestration. */\n    get geologySectionKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    isBoundTo(document: KJDocument): boolean;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument, options?: {\n        geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n        geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n    });\n    /** Trusted host operation: verify saved parameters against all current generated objects.\n     * Registration is bound to this exact document revision and is not model-callable. */\n    registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;\n    /** Host-only registration of explicitly selected data. Assets belong to this\n     * exact session/document instance; they are never loaded by model paths or URLs. */\n    registerInputAsset(input: unknown): Promise<ReadonlyDeep<KJAgentInputAssetDescriptor>>;\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Bind one in-memory reviewed proposal to the exact persisted running task. Host-only. */\n    bindTaskProposal(planId: string, input: KJAgentTaskProposalBinding): void;\n    /** Approve an exact task-bound mutation; geometry, checks and task receipt commit atomically. */\n    approveTask(planId: string, reviewerId: string, at: string): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "root-class-kjagenttoolsession"
         },
@@ -8034,7 +8104,7 @@
         {
           "name": "KJCommandArguments",
           "kind": "interface",
-          "declaration": "export interface KJCommandArguments extends Record<string, unknown> {\n    resources?: KJEntityBatchResources;\n    layout?: KJEntityBatchLayout;\n    id?: string;\n    ids?: readonly string[];\n    firstId?: string;\n    secondId?: string;\n    boundaryIds?: readonly string[];\n    ownerId?: string | null;\n    layerId?: string;\n    layoutId?: string;\n    layoutName?: string;\n    blockRecordId?: string;\n    name?: string;\n    newName?: string | null;\n    type?: string;\n    operation?: string;\n    operator?: string;\n    mode?: string;\n    query?: string;\n    property?: string;\n    status?: string;\n    referenceType?: string;\n    componentId?: string;\n    version?: string;\n    locale?: string;\n    category?: string;\n    cursor?: string | number;\n    gripId?: string;\n    sha256?: string | null;\n    checkedAt?: unknown;\n    author?: unknown;\n    value?: unknown;\n    source?: unknown;\n    other?: unknown;\n    otherDocument?: unknown;\n    payload?: KJObjectPayload;\n    patch?: KJObjectPatch;\n    properties?: KJObjectPayload;\n    options?: KJObjectSpec;\n    payloadPatch?: KJObjectPayload;\n    connectorPayloadPatch?: KJObjectPayload;\n    entities?: readonly KJEntityBatchSpec[];\n    modes?: readonly string[];\n    kinds?: readonly string[];\n    types?: readonly string[];\n    boundaryLoops?: unknown;\n    vertices?: readonly KJPointInput[];\n    sourceIds?: readonly string[];\n    loopIndex?: unknown;\n    attributes?: unknown;\n    attributeValues?: Readonly<Record<string, unknown>>;\n    attributeDefinitions?: readonly KJBlockAttributeDefinitionInput[];\n    mappings?: unknown;\n    pattern?: unknown;\n    settings?: Record<string, unknown>;\n    parameters?: unknown;\n    position?: unknown;\n    insertionPoint?: unknown;\n    center?: KJPointInput;\n    basePoint?: KJPointInput;\n    from?: KJPointInput;\n    to?: KJPointInput;\n    start?: KJPointInput;\n    end?: KJPointInput;\n    lineStart?: KJPointInput;\n    lineEnd?: KJPointInput;\n    point?: KJPointInput;\n    firstPoint?: KJPointInput;\n    secondPoint?: KJPointInput;\n    firstVector?: KJPointInput;\n    secondVector?: KJPointInput;\n    vertex?: KJPointInput;\n    pickPoint?: KJPointInput;\n    sidePoint?: KJPointInput;\n    points?: readonly KJPointInput[];\n    origin?: unknown;\n    xAxis?: unknown;\n    yAxis?: unknown;\n    viewCenter?: unknown;\n    frozenLayerIds?: readonly string[];\n    matrix?: unknown;\n    scale?: unknown;\n    factor?: unknown;\n    angle?: unknown;\n    angleDegrees?: unknown;\n    rotation?: unknown;\n    radius?: unknown;\n    text?: unknown;\n    textPosition?: unknown;\n    textHeight?: unknown;\n    styleId?: unknown;\n    attachmentPoint?: unknown;\n    arrowEnabled?: unknown;\n    distance?: unknown;\n    tolerance?: unknown;\n    segmentIndex?: unknown;\n    vertexIndex?: unknown;\n    bulge?: unknown;\n    sweepDegrees?: unknown;\n    distance1?: unknown;\n    distance2?: unknown;\n    dx?: unknown;\n    dy?: unknown;\n    rows?: unknown;\n    columns?: unknown;\n    rowSpacing?: unknown;\n    columnSpacing?: unknown;\n    count?: unknown;\n    items?: unknown;\n    width?: unknown;\n    height?: unknown;\n    viewHeight?: unknown;\n    twistAngle?: unknown;\n    patternScale?: unknown;\n    patternAngle?: unknown;\n    color?: unknown;\n    lineweight?: unknown;\n    linetypeId?: unknown;\n    fontFamily?: unknown;\n    fontFile?: unknown;\n    bigFontFile?: unknown;\n    fixedHeight?: unknown;\n    widthFactor?: unknown;\n    obliqueAngle?: unknown;\n    current?: unknown;\n    description?: unknown;\n    patternName?: unknown;\n    enabled?: unknown;\n    visible?: unknown;\n    frozen?: unknown;\n    locked?: unknown;\n    plottable?: unknown;\n    solid?: unknown;\n    append?: unknown;\n    keepSource?: unknown;\n    eraseSource?: unknown;\n    eraseSources?: unknown;\n    includeErased?: unknown;\n    includeSource?: unknown;\n    rotateItems?: unknown;\n    selectable?: unknown;\n    side?: unknown;\n    limit?: unknown;\n    maxDefinitionEntities?: unknown;\n    maxBlockDepth?: unknown;\n    maxExpandedEntities?: unknown;\n}",
+          "declaration": "export interface KJCommandArguments extends Record<string, unknown> {\n    resources?: KJEntityBatchResources;\n    layout?: KJEntityBatchLayout;\n    systemVariables?: {\n        readonly PDMODE?: number;\n        readonly PDSIZE?: number;\n    };\n    id?: string;\n    ids?: readonly string[];\n    firstId?: string;\n    secondId?: string;\n    boundaryIds?: readonly string[];\n    ownerId?: string | null;\n    layerId?: string;\n    layoutId?: string;\n    layoutName?: string;\n    blockRecordId?: string;\n    name?: string;\n    newName?: string | null;\n    type?: string;\n    operation?: string;\n    operator?: string;\n    mode?: string;\n    query?: string;\n    property?: string;\n    status?: string;\n    referenceType?: string;\n    componentId?: string;\n    version?: string;\n    locale?: string;\n    category?: string;\n    cursor?: string | number;\n    gripId?: string;\n    sha256?: string | null;\n    checkedAt?: unknown;\n    author?: unknown;\n    value?: unknown;\n    source?: unknown;\n    other?: unknown;\n    otherDocument?: unknown;\n    payload?: KJObjectPayload;\n    patch?: KJObjectPatch;\n    properties?: KJObjectPayload;\n    options?: KJObjectSpec;\n    payloadPatch?: KJObjectPayload;\n    connectorPayloadPatch?: KJObjectPayload;\n    entities?: readonly KJEntityBatchSpec[];\n    modes?: readonly string[];\n    kinds?: readonly string[];\n    types?: readonly string[];\n    boundaryLoops?: unknown;\n    vertices?: readonly KJPointInput[];\n    sourceIds?: readonly string[];\n    loopIndex?: unknown;\n    attributes?: unknown;\n    attributeValues?: Readonly<Record<string, unknown>>;\n    attributeDefinitions?: readonly KJBlockAttributeDefinitionInput[];\n    mappings?: unknown;\n    pattern?: unknown;\n    settings?: Record<string, unknown>;\n    parameters?: unknown;\n    position?: unknown;\n    insertionPoint?: unknown;\n    center?: KJPointInput;\n    basePoint?: KJPointInput;\n    from?: KJPointInput;\n    to?: KJPointInput;\n    start?: KJPointInput;\n    end?: KJPointInput;\n    lineStart?: KJPointInput;\n    lineEnd?: KJPointInput;\n    point?: KJPointInput;\n    firstPoint?: KJPointInput;\n    secondPoint?: KJPointInput;\n    firstVector?: KJPointInput;\n    secondVector?: KJPointInput;\n    vertex?: KJPointInput;\n    pickPoint?: KJPointInput;\n    sidePoint?: KJPointInput;\n    points?: readonly KJPointInput[];\n    origin?: unknown;\n    xAxis?: unknown;\n    yAxis?: unknown;\n    viewCenter?: unknown;\n    frozenLayerIds?: readonly string[];\n    matrix?: unknown;\n    scale?: unknown;\n    factor?: unknown;\n    angle?: unknown;\n    angleDegrees?: unknown;\n    rotation?: unknown;\n    radius?: unknown;\n    text?: unknown;\n    textPosition?: unknown;\n    textHeight?: unknown;\n    styleId?: unknown;\n    attachmentPoint?: unknown;\n    arrowEnabled?: unknown;\n    distance?: unknown;\n    tolerance?: unknown;\n    segmentIndex?: unknown;\n    vertexIndex?: unknown;\n    bulge?: unknown;\n    sweepDegrees?: unknown;\n    distance1?: unknown;\n    distance2?: unknown;\n    dx?: unknown;\n    dy?: unknown;\n    rows?: unknown;\n    columns?: unknown;\n    rowSpacing?: unknown;\n    columnSpacing?: unknown;\n    count?: unknown;\n    items?: unknown;\n    width?: unknown;\n    height?: unknown;\n    viewHeight?: unknown;\n    twistAngle?: unknown;\n    patternScale?: unknown;\n    patternAngle?: unknown;\n    color?: unknown;\n    lineweight?: unknown;\n    linetypeId?: unknown;\n    fontFamily?: unknown;\n    fontFile?: unknown;\n    bigFontFile?: unknown;\n    fixedHeight?: unknown;\n    widthFactor?: unknown;\n    obliqueAngle?: unknown;\n    current?: unknown;\n    description?: unknown;\n    patternName?: unknown;\n    enabled?: unknown;\n    visible?: unknown;\n    frozen?: unknown;\n    locked?: unknown;\n    plottable?: unknown;\n    solid?: unknown;\n    append?: unknown;\n    keepSource?: unknown;\n    eraseSource?: unknown;\n    eraseSources?: unknown;\n    includeErased?: unknown;\n    includeSource?: unknown;\n    rotateItems?: unknown;\n    selectable?: unknown;\n    side?: unknown;\n    limit?: unknown;\n    maxDefinitionEntities?: unknown;\n    maxBlockDepth?: unknown;\n    maxExpandedEntities?: unknown;\n}",
           "source": "commands.d.ts",
           "anchor": "root-interface-kjcommandarguments"
         },
@@ -9026,6 +9096,13 @@
           "anchor": "root-const-kjdraw-geology-knowledge-pack"
         },
         {
+          "name": "KJDRAW_GEOLOGY_PLAN_VERSION",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_GEOLOGY_PLAN_VERSION: '1.0.0';",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-const-kjdraw-geology-plan-version"
+        },
+        {
           "name": "KJDRAW_KNOWLEDGE_PACK_SCHEMA",
           "kind": "const",
           "declaration": "export declare const KJDRAW_KNOWLEDGE_PACK_SCHEMA: 'kjdraw.knowledge-pack.v1';",
@@ -9038,6 +9115,20 @@
           "declaration": "export declare const KJDRAW_MANUFACTURING_SHEET_VERSION: '1.0.0';",
           "source": "agent-manufacturing-sheet.d.ts",
           "anchor": "root-const-kjdraw-manufacturing-sheet-version"
+        },
+        {
+          "name": "KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK: {\n    readonly schema: typeof import(\"../knowledge-pack.js\").KJDRAW_KNOWLEDGE_PACK_SCHEMA;\n    readonly id: string;\n    readonly version: string;\n    readonly title: string;\n    readonly domain: string;\n    readonly license: {\n        readonly spdx: string;\n        readonly redistributable: boolean;\n        readonly trainingAllowed: boolean;\n    };\n    readonly sources: readonly {\n        readonly id: string;\n        readonly title: string;\n        readonly license: string;\n        readonly contentHash: string;\n        readonly uri?: string;\n    }[];\n    readonly ontology: {\n        readonly objectKinds: readonly string[];\n        readonly relationKinds: readonly string[];\n    };\n    readonly templates?: {\n        readonly [x: string]: unknown;\n    };\n    readonly rules?: {\n        readonly [x: string]: unknown;\n    };\n};",
+          "source": "knowledge-packs/mechanical-flange-core.d.ts",
+          "anchor": "root-const-kjdraw-mechanical-flange-core-knowledge-pack"
+        },
+        {
+          "name": "KJDRAW_MECHANICAL_FLANGE_CORE_VERSION",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-const-kjdraw-mechanical-flange-core-version"
         },
         {
           "name": "KJDRAW_PLUGIN_PERMISSIONS",
@@ -9411,6 +9502,13 @@
           "anchor": "root-type-kjentity"
         },
         {
+          "name": "KJEntityBatchAttributeSequence",
+          "kind": "interface",
+          "declaration": "export interface KJEntityBatchAttributeSequence {\n    attributes: {\n        id: string;\n        payload: KJObjectPayload;\n    }[];\n    sequenceEnd: {\n        id: string;\n        dxfOwnerMode: 'insert' | 'space';\n        layerId?: string;\n    };\n}",
+          "source": "commands.d.ts",
+          "anchor": "root-interface-kjentitybatchattributesequence"
+        },
+        {
           "name": "KJEntityBatchLayout",
           "kind": "interface",
           "declaration": "export interface KJEntityBatchLayout {\n    id: string;\n    blockRecordId: string;\n    name: string;\n    dxfPlotSettings: KJDxfPlotSettings;\n    viewport: {\n        id: string;\n        center: KJPointInput;\n        width: number;\n        height: number;\n        viewCenter: KJPointInput;\n        viewHeight: number;\n        twistAngle: number;\n        modelUnits: 'millimeter' | 'meter' | 'inch' | 'foot';\n        scaleDenominator: number;\n    };\n}",
@@ -9420,14 +9518,14 @@
         {
           "name": "KJEntityBatchResources",
           "kind": "interface",
-          "declaration": "export interface KJEntityBatchResources {\n    linetypes: {\n        id: string;\n        name: string;\n        pattern: number[];\n    }[];\n    layers: {\n        id: string;\n        name: string;\n        color: number;\n        linetypeId: string;\n        lineweight: number;\n    }[];\n    blocks?: {\n        id: string;\n        name: string;\n        basePoint: KJPointInput;\n        entities: KJEntityBatchSpec[];\n    }[];\n}",
+          "declaration": "export interface KJEntityBatchResources {\n    linetypes: {\n        id: string;\n        name: string;\n        pattern: number[];\n    }[];\n    layers: {\n        id: string;\n        name: string;\n        color: number;\n        linetypeId: string;\n        lineweight: number;\n    }[];\n    textStyles?: {\n        id: string;\n        name: string;\n        payload: KJObjectPayload;\n    }[];\n    dimensionStyles?: {\n        id: string;\n        name: string;\n        payload: KJObjectPayload;\n    }[];\n    blocks?: {\n        id: string;\n        name: string;\n        basePoint: KJPointInput;\n        entities: KJEntityBatchSpec[];\n    }[];\n}",
           "source": "commands.d.ts",
           "anchor": "root-interface-kjentitybatchresources"
         },
         {
           "name": "KJEntityBatchSpec",
           "kind": "interface",
-          "declaration": "export interface KJEntityBatchSpec extends Record<string, unknown> {\n    type?: string;\n    payload?: KJObjectPayload;\n    options?: KJObjectSpec;\n    layerName?: string;\n    layer?: {\n        color?: unknown;\n        visible?: unknown;\n        frozen?: unknown;\n        locked?: unknown;\n        plottable?: unknown;\n    };\n}",
+          "declaration": "export interface KJEntityBatchSpec extends Record<string, unknown> {\n    type?: string;\n    payload?: KJObjectPayload;\n    options?: KJObjectSpec;\n    attributeSequence?: KJEntityBatchAttributeSequence;\n    layerName?: string;\n    layer?: {\n        color?: unknown;\n        visible?: unknown;\n        frozen?: unknown;\n        locked?: unknown;\n        plottable?: unknown;\n    };\n}",
           "source": "commands.d.ts",
           "anchor": "root-interface-kjentitybatchspec"
         },
@@ -9649,6 +9747,272 @@
           "anchor": "root-interface-kjfilereadprogress"
         },
         {
+          "name": "KJFlangeAuxiliaryCurve",
+          "kind": "type",
+          "declaration": "export type KJFlangeAuxiliaryCurve = {\n    kind: 'arc';\n    center: Point2;\n    radius: number;\n    startAngle: number;\n    endAngle: number;\n    clockwise?: boolean;\n    role: KJFlangeAuxiliaryLine['role'];\n    styleKey?: string;\n} | {\n    kind: 'ellipse';\n    center: Point2;\n    majorAxis: Point2;\n    ratio: number;\n    startParameter: number;\n    endParameter: number;\n    role: KJFlangeAuxiliaryLine['role'];\n    styleKey?: string;\n} | {\n    kind: 'polyline';\n    vertices: {\n        point: Point2;\n        bulge?: number;\n        startWidth?: number;\n        endWidth?: number;\n    }[];\n    closed?: boolean;\n    role: KJFlangeAuxiliaryLine['role'];\n    styleKey?: string;\n} | {\n    kind: 'spline';\n    degree: number;\n    controlPoints: Point2[];\n    knots: number[];\n    fitPoints?: Point2[];\n    weights?: number[];\n    closed?: boolean;\n    periodic?: boolean;\n    role: KJFlangeAuxiliaryLine['role'];\n    styleKey?: string;\n};",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-type-kjflangeauxiliarycurve"
+        },
+        {
+          "name": "KJFlangeAuxiliaryHatch",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeAuxiliaryHatch {\n    /** Legacy single-loop shorthand. Exactly one of edges or boundaryLoops is required. */\n    edges?: KJFlangeAuxiliaryHatchEdge[];\n    /** Explicit bounded topology, including inner loops and spline edges. */\n    boundaryLoops?: KJFlangeAuxiliaryHatchBoundaryLoop[];\n    solid?: boolean;\n    patternName?: string;\n    lineAngle?: number;\n    lineSpacing?: number;\n    patternOrigin?: Point2;\n    patternLines?: KJFlangeHatchPatternLine[];\n    styleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangeauxiliaryhatch"
+        },
+        {
+          "name": "KJFlangeAuxiliaryHatchBoundaryLoop",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeAuxiliaryHatchBoundaryLoop {\n    edges: KJFlangeAuxiliaryHatchEdge[];\n    external?: boolean;\n    flags?: number;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangeauxiliaryhatchboundaryloop"
+        },
+        {
+          "name": "KJFlangeAuxiliaryHatchEdge",
+          "kind": "type",
+          "declaration": "export type KJFlangeAuxiliaryHatchEdge = {\n    kind: 'line';\n    start: Point2;\n    end: Point2;\n} | {\n    kind: 'arc';\n    center: Point2;\n    radius: number;\n    startAngle: number;\n    endAngle: number;\n    counterClockwise?: boolean;\n} | {\n    kind: 'ellipse';\n    center: Point2;\n    majorAxis: Point2;\n    ratio: number;\n    startAngle: number;\n    endAngle: number;\n    counterClockwise?: boolean;\n} | KJFlangeAuxiliaryHatchSplineEdge;",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-type-kjflangeauxiliaryhatchedge"
+        },
+        {
+          "name": "KJFlangeAuxiliaryHatchSplineEdge",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeAuxiliaryHatchSplineEdge {\n    kind: 'spline';\n    degree: number;\n    controlPoints: Point2[];\n    knots?: number[];\n    weights?: number[];\n    fitPoints?: Point2[];\n    periodic?: boolean;\n    startTangent?: Point2;\n    endTangent?: Point2;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangeauxiliaryhatchsplineedge"
+        },
+        {
+          "name": "KJFlangeAuxiliaryLine",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeAuxiliaryLine {\n    start: Point2;\n    end: Point2;\n    role: 'geometry' | 'center' | 'hidden' | 'notes' | 'grid' | 'frame';\n    styleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangeauxiliaryline"
+        },
+        {
+          "name": "KJFlangeAuxiliaryPoint",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeAuxiliaryPoint {\n    position: Point2;\n    role: KJFlangeAuxiliaryLine['role'];\n    styleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangeauxiliarypoint"
+        },
+        {
+          "name": "KJFlangeAuxiliarySolid",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeAuxiliarySolid {\n    vertices: Point2[];\n    role: KJFlangeAuxiliaryLine['role'];\n    styleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangeauxiliarysolid"
+        },
+        {
+          "name": "KJFlangeAuxiliaryWipeout",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeAuxiliaryWipeout {\n    position: Point2;\n    uVector: Point2;\n    vVector: Point2;\n    clipBoundary: Point2[];\n    boundaryType: 1 | 2;\n    role: KJFlangeAuxiliaryLine['role'];\n    styleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangeauxiliarywipeout"
+        },
+        {
+          "name": "KJFlangeCuttingPlaneMark",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeCuttingPlaneMark {\n    anchorOffset: Point2;\n    stemVector: Point2;\n    tickVector: Point2;\n    arrowhead?: {\n        length: number;\n        width: number;\n    };\n    stemStyleKey?: string;\n    tickStyleKey?: string;\n    arrowheadStyleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangecuttingplanemark"
+        },
+        {
+          "name": "KJFlangeDatumReference",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeDatumReference {\n    label: string;\n    materialCondition?: KJFlangeMaterialCondition;\n    slot?: number;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangedatumreference"
+        },
+        {
+          "name": "KJFlangeDimension",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeDimension {\n    kind: 'aligned' | 'rotated' | 'diameter' | 'radius' | 'angular' | 'ordinate';\n    /** Ordinate measurement axis; required only when kind is ordinate. */\n    axis?: 'x' | 'y';\n    definitionPoints: Point2[];\n    textPosition?: Point2;\n    textOverride?: string;\n    rotation?: number;\n    /** Optional entity-local native DIMENSION overrides. */\n    textHeight?: number;\n    arrowSize?: number;\n    /** References styleProfile.custom for the DIMENSION entity's visual layer,\n     * color, lineweight, linetype and linetype scale. This is independent from\n     * styleKey, which continues to reference only a native DIMSTYLE resource. */\n    entityStyleKey?: string;\n    styleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangedimension"
+        },
+        {
+          "name": "KJFlangeDimensionStyleDefinition",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeDimensionStyleDefinition {\n    key: string;\n    name: string;\n    overallScale?: number;\n    arrowSize?: number;\n    extensionOffset?: number;\n    baselineSpacing?: number;\n    extensionBeyond?: number;\n    rounding?: number;\n    textHeight?: number;\n    decimalPlaces?: number;\n    angularDecimalPlaces?: number;\n    angularUnits?: number;\n    centerMarkSize?: number;\n    textGap?: number;\n    dxfFlags?: number;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangedimensionstyledefinition"
+        },
+        {
+          "name": "KJFlangeEndViewOutlineSegment",
+          "kind": "type",
+          "declaration": "export type KJFlangeEndViewOutlineSegment = {\n    kind: 'line';\n    startOffset: Point2;\n    endOffset: Point2;\n    styleKey?: string;\n} | {\n    kind: 'arc';\n    centerOffset: Point2;\n    radius: number;\n    startAngle: number;\n    endAngle: number;\n    styleKey?: string;\n} | {\n    kind: 'circle';\n    centerOffset: Point2;\n    radius: number;\n    styleKey?: string;\n};",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-type-kjflangeendviewoutlinesegment"
+        },
+        {
+          "name": "KJFlangeFeatureControlFrame",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeFeatureControlFrame {\n    position: Point2;\n    rows: {\n        characteristic: KJFlangeGeometricCharacteristic;\n        tolerance: string;\n        diameterZone?: boolean;\n        materialCondition?: KJFlangeMaterialCondition;\n        datumReferences?: KJFlangeDatumReference[];\n    }[];\n    datumColumnCount?: number;\n    trailingRowBreak?: boolean;\n    xAxisDirection?: Point2;\n    styleKey?: string;\n    role: 'dimensions' | 'notes';\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangefeaturecontrolframe"
+        },
+        {
+          "name": "KJFlangeFrameSide",
+          "kind": "type",
+          "declaration": "export type KJFlangeFrameSide = 'bottom' | 'right' | 'top' | 'left';",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-type-kjflangeframeside"
+        },
+        {
+          "name": "KJFlangeGeometricCharacteristic",
+          "kind": "type",
+          "declaration": "export type KJFlangeGeometricCharacteristic = 'position' | 'concentricity' | 'symmetry' | 'parallelism' | 'perpendicularity' | 'angularity' | 'cylindricity' | 'flatness' | 'circularity' | 'straightness' | 'surface-profile' | 'line-profile' | 'circular-runout' | 'total-runout';",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-type-kjflangegeometriccharacteristic"
+        },
+        {
+          "name": "KJFlangeHatchPatternLine",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeHatchPatternLine {\n    angle: number;\n    base: Point2;\n    offset: Point2;\n    dashes?: number[];\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangehatchpatternline"
+        },
+        {
+          "name": "KJFlangeLeader",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeLeader {\n    vertices: Point2[];\n    arrowEnabled?: boolean;\n    pathType?: number;\n    annotationType?: number;\n    hookLineDirection?: number;\n    hookLineEnabled?: boolean;\n    /** Native DXF leader annotation height/width (groups 40/41). */\n    textHeight?: number;\n    textWidth?: number;\n    styleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangeleader"
+        },
+        {
+          "name": "KJFlangeLineDirection",
+          "kind": "type",
+          "declaration": "export type KJFlangeLineDirection = 'forward' | 'reverse';",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-type-kjflangelinedirection"
+        },
+        {
+          "name": "KJFlangeMaterialCondition",
+          "kind": "type",
+          "declaration": "export type KJFlangeMaterialCondition = 'maximum' | 'least' | 'regardless';",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-type-kjflangematerialcondition"
+        },
+        {
+          "name": "KJFlangePointDisplay",
+          "kind": "interface",
+          "declaration": "export interface KJFlangePointDisplay {\n    /** Legal DXF PDMODE base modes 0..4, optionally combined with circle/square flags 32 and 64. */\n    mode: number;\n    /** DXF PDSIZE: zero is 5% of the viewport, positive is drawing units, negative is viewport percent. */\n    size: number;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangepointdisplay"
+        },
+        {
+          "name": "KJFlangePolarHolePattern",
+          "kind": "interface",
+          "declaration": "export interface KJFlangePolarHolePattern {\n    count: number;\n    pitchRadius: number;\n    holeRadius: number;\n    startAngle?: number;\n    styleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangepolarholepattern"
+        },
+        {
+          "name": "KJFlangeSectionHatch",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeSectionHatch {\n    /** Legacy single-loop shorthand. Exactly one of edges or boundaryLoops is required. */\n    edges?: KJFlangeSectionHatchEdge[];\n    /** Explicit bounded topology, including inner loops and spline edges. */\n    boundaryLoops?: KJFlangeSectionHatchBoundaryLoop[];\n    /** Solid fills do not accept pattern-line fields. */\n    solid?: boolean;\n    /** Defaults to SOLID for solid fills and ANSI31 for patterned fills. */\n    patternName?: string;\n    /** Legacy one-family shorthand retained for existing callers. */\n    lineAngle?: number;\n    lineSpacing?: number;\n    patternOrigin?: Point2;\n    /** Exact bounded line families for patterns such as ANSI32. */\n    patternLines?: KJFlangeHatchPatternLine[];\n    styleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangesectionhatch"
+        },
+        {
+          "name": "KJFlangeSectionHatchBoundaryLoop",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeSectionHatchBoundaryLoop {\n    edges: KJFlangeSectionHatchEdge[];\n    external?: boolean;\n    flags?: number;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangesectionhatchboundaryloop"
+        },
+        {
+          "name": "KJFlangeSectionHatchEdge",
+          "kind": "type",
+          "declaration": "export type KJFlangeSectionHatchEdge = {\n    kind: 'line';\n    start: {\n        station: number;\n        offset: number;\n    };\n    end: {\n        station: number;\n        offset: number;\n    };\n} | {\n    kind: 'arc';\n    center: {\n        station: number;\n        offset: number;\n    };\n    radius: number;\n    startAngle: number;\n    endAngle: number;\n    counterClockwise?: boolean;\n} | {\n    kind: 'ellipse';\n    center: {\n        station: number;\n        offset: number;\n    };\n    majorAxis: Point2;\n    ratio: number;\n    startAngle: number;\n    endAngle: number;\n    counterClockwise?: boolean;\n} | KJFlangeSectionHatchSplineEdge;",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-type-kjflangesectionhatchedge"
+        },
+        {
+          "name": "KJFlangeSectionHatchSplineEdge",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeSectionHatchSplineEdge {\n    kind: 'spline';\n    degree: number;\n    controlPoints: {\n        station: number;\n        offset: number;\n    }[];\n    knots?: number[];\n    weights?: number[];\n    fitPoints?: {\n        station: number;\n        offset: number;\n    }[];\n    periodic?: boolean;\n    startTangent?: Point2;\n    endTangent?: Point2;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangesectionhatchsplineedge"
+        },
+        {
+          "name": "KJFlangeSheetNote",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeSheetNote {\n    kind: 'single-line' | 'multiline';\n    text: string;\n    position: Point2;\n    height: number;\n    rotation?: number;\n    /** Entity-local TEXT width factor; valid only for single-line notes. */\n    widthFactor?: number;\n    width?: number;\n    attachmentPoint?: number;\n    styleKey?: string;\n    entityStyleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangesheetnote"
+        },
+        {
+          "name": "KJFlangeSideViewOutlineSegment",
+          "kind": "type",
+          "declaration": "export type KJFlangeSideViewOutlineSegment = {\n    kind: 'line';\n    start: {\n        station: number;\n        offset: number;\n    };\n    end: {\n        station: number;\n        offset: number;\n    };\n    styleKey?: string;\n} | {\n    kind: 'arc';\n    center: {\n        station: number;\n        offset: number;\n    };\n    radius: number;\n    startAngle: number;\n    endAngle: number;\n    styleKey?: string;\n} | {\n    kind: 'circle';\n    center: {\n        station: number;\n        offset: number;\n    };\n    radius: number;\n    styleKey?: string;\n};",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-type-kjflangesideviewoutlinesegment"
+        },
+        {
+          "name": "KJFlangeStyleProfile",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeStyleProfile {\n    frame?: KJFlangeStyleRole;\n    grid?: KJFlangeStyleRole;\n    geometry?: KJFlangeStyleRole;\n    center?: KJFlangeStyleRole;\n    notes?: KJFlangeStyleRole;\n    dimensions?: KJFlangeStyleRole;\n    hatch?: KJFlangeStyleRole;\n    hidden?: KJFlangeStyleRole;\n    custom?: ({\n        key: string;\n    } & KJFlangeStyleRole)[];\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangestyleprofile"
+        },
+        {
+          "name": "KJFlangeStyleRole",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeStyleRole {\n    layerName?: string;\n    color?: number;\n    lineweight?: number;\n    linetypeName?: string;\n    linetypePattern?: number[];\n    /** Per-entity linetype scale. The referenced linetype definition remains reusable. */\n    linetypeScale?: number;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangestylerole"
+        },
+        {
+          "name": "KJFlangeSymbolAttribute",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeSymbolAttribute {\n    text: string;\n    tag: string;\n    prompt?: string;\n    position: Point2;\n    alignmentPoint?: Point2;\n    height: number;\n    rotation?: number;\n    widthFactor?: number;\n    obliqueAngle?: number;\n    horizontalAlignment?: number;\n    verticalAlignment?: number;\n    generationFlags?: number;\n    flags?: number;\n    lockPosition?: boolean;\n    styleKey?: string;\n    role: KJFlangeAuxiliaryLine['role'];\n    entityStyleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangesymbolattribute"
+        },
+        {
+          "name": "KJFlangeSymbolDefinition",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeSymbolDefinition {\n    key: string;\n    basePoint: Point2;\n    members: KJFlangeSymbolMember[];\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangesymboldefinition"
+        },
+        {
+          "name": "KJFlangeSymbolInstance",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeSymbolInstance {\n    symbolKey: string;\n    position: Point2Or3;\n    scale?: Point2;\n    rotation?: number;\n    role: KJFlangeAuxiliaryLine['role'];\n    styleKey?: string;\n    attributes?: KJFlangeSymbolAttribute[];\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangesymbolinstance"
+        },
+        {
+          "name": "KJFlangeSymbolMember",
+          "kind": "type",
+          "declaration": "export type KJFlangeSymbolMember = {\n    kind: 'line';\n    start: Point2;\n    end: Point2;\n    role: KJFlangeAuxiliaryLine['role'];\n    entityStyleKey?: string;\n} | {\n    kind: 'polyline';\n    vertices: {\n        point: Point2;\n        bulge?: number;\n        startWidth?: number;\n        endWidth?: number;\n    }[];\n    closed?: boolean;\n    role: KJFlangeAuxiliaryLine['role'];\n    entityStyleKey?: string;\n} | {\n    kind: 'circle';\n    center: Point2;\n    radius: number;\n    role: KJFlangeAuxiliaryLine['role'];\n    entityStyleKey?: string;\n} | {\n    kind: 'arc';\n    center: Point2;\n    radius: number;\n    startAngle: number;\n    endAngle: number;\n    clockwise?: boolean;\n    role: KJFlangeAuxiliaryLine['role'];\n    entityStyleKey?: string;\n} | {\n    kind: 'single-line-text';\n    text: string;\n    position: Point2;\n    alignmentPoint?: Point2;\n    height: number;\n    rotation?: number;\n    widthFactor?: number;\n    obliqueAngle?: number;\n    horizontalAlignment?: number;\n    verticalAlignment?: number;\n    generationFlags?: number;\n    styleKey?: string;\n    role: KJFlangeAuxiliaryLine['role'];\n    entityStyleKey?: string;\n} | {\n    kind: 'multiline-text';\n    text: string;\n    position: Point2;\n    height: number;\n    rotation?: number;\n    width?: number;\n    attachmentPoint?: number;\n    styleKey?: string;\n    role: KJFlangeAuxiliaryLine['role'];\n    entityStyleKey?: string;\n} | ({\n    kind: 'hatch';\n    role: KJFlangeAuxiliaryLine['role'];\n    entityStyleKey?: string;\n} & Omit<KJFlangeAuxiliaryHatch, 'styleKey'>) | {\n    kind: 'solid';\n    vertices: Point2[];\n    role: KJFlangeAuxiliaryLine['role'];\n    entityStyleKey?: string;\n} | {\n    kind: 'leader';\n    vertices: Point2[];\n    arrowEnabled?: boolean;\n    pathType?: number;\n    annotationType?: number;\n    hookLineDirection?: number;\n    hookLineEnabled?: boolean;\n    textHeight?: number;\n    textWidth?: number;\n    role: KJFlangeAuxiliaryLine['role'];\n    entityStyleKey?: string;\n} | ({\n    kind: 'attribute-definition';\n} & KJFlangeSymbolAttribute) | {\n    kind: 'instance';\n    symbolKey: string;\n    position: Point2Or3;\n    scale?: Point2;\n    rotation?: number;\n    role: KJFlangeAuxiliaryLine['role'];\n    entityStyleKey?: string;\n};",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-type-kjflangesymbolmember"
+        },
+        {
+          "name": "KJFlangeSymmetricProfile",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeSymmetricProfile {\n    vertices: {\n        station: number;\n        radius: number;\n    }[];\n    endCaps?: 'none' | 'start' | 'end' | 'both';\n    segmentDirections?: {\n        upper?: KJFlangeLineDirection;\n        lower?: KJFlangeLineDirection;\n    }[];\n    startCapDirection?: KJFlangeLineDirection;\n    endCapDirection?: KJFlangeLineDirection;\n    styleKey?: string;\n    startCapStyleKey?: string;\n    endCapStyleKey?: string;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangesymmetricprofile"
+        },
+        {
+          "name": "KJFlangeTextStyleDefinition",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeTextStyleDefinition {\n    key: string;\n    name: string;\n    fontFamily?: string | null;\n    fontFile?: string | null;\n    bigFontFile?: string | null;\n    fixedHeight?: number;\n    widthFactor?: number;\n    obliqueAngle?: number;\n    dxfFlags?: number;\n    generationFlags?: number;\n    lastHeight?: number;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangetextstyledefinition"
+        },
+        {
+          "name": "KJFlangeTitleGrid",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeTitleGrid {\n    origin: Point2;\n    size: Point2;\n    /** Full-height column boundaries measured from the grid's left edge. */\n    columns: (number | {\n        offset: number;\n        styleKey?: string;\n    })[];\n    /** Column boundaries that stop below the grid's top edge. */\n    partialColumns?: {\n        offset: number;\n        height: number;\n        styleKey?: string;\n    }[];\n    /** Row boundaries measured from the bottom; breaks split one row into segments. */\n    rows: {\n        offset: number;\n        breaks?: number[];\n        styleKey?: string;\n    }[];\n    /** Bounded horizontal rules measured from the grid's bottom and left edges. */\n    horizontalSegments?: {\n        offset: number;\n        start: number;\n        end: number;\n        styleKey?: string;\n    }[];\n    /** Bounded vertical rules measured from the grid's left and bottom edges. */\n    verticalSegments?: {\n        offset: number;\n        start: number;\n        end: number;\n        styleKey?: string;\n    }[];\n    topStyleKey?: string;\n    diagonalHeader?: {\n        width: number;\n        drop: number;\n        styleKey?: string;\n    };\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangetitlegrid"
+        },
+        {
           "name": "KJFormatCapability",
           "kind": "type",
           "declaration": "export type KJFormatCapability = typeof KJ_FORMAT_CAPABILITY[keyof typeof KJ_FORMAT_CAPABILITY];",
@@ -9665,37 +10029,317 @@
         {
           "name": "KJGeologyBorehole",
           "kind": "interface",
-          "declaration": "export interface KJGeologyBorehole {\n    id: string;\n    collarElevation: number;\n    depth: number;\n    x?: number;\n    y?: number;\n    startDate?: string;\n    endDate?: string;\n    /** Measured stable groundwater depth; never inferred from another hole. */\n    stableWaterDepth?: number;\n    station?: number;\n    strata: KJGeologyStratum[];\n    observations?: KJGeologyObservation[];\n}",
+          "declaration": "export interface KJGeologyBorehole {\n    id: string;\n    collarElevation: number;\n    depth: number;\n    x?: number;\n    y?: number;\n    startDate?: string;\n    endDate?: string;\n    /** Measured groundwater depth first observed while drilling; distinct from the later stable level. */\n    initialWaterDepth?: number;\n    /** Measured stable groundwater depth; never inferred from another hole. */\n    stableWaterDepth?: number;\n    /** Independent down-hole groundwater readings. These are never copied from summary header values. */\n    groundwaterObservations?: KJGeologyGroundwaterObservation[];\n    station?: number;\n    strata: KJGeologyStratum[];\n    observations?: KJGeologyObservation[];\n}",
           "source": "geology-engineering.d.ts",
           "anchor": "root-interface-kjgeologyborehole"
         },
         {
           "name": "KJGeologyColumnInput",
           "kind": "interface",
-          "declaration": "export interface KJGeologyColumnInput {\n    /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */\n    locale?: 'zh-CN' | 'en';\n    hole: KJGeologyBorehole;\n    projectName?: string;\n    /** Exact source-backed document facts requested by a host-selected style pack; never inferred. */\n    documentFacts?: Record<string, string>;\n    /** Explicit source/template fact. Omit to select from the style pack's standard scales. */\n    verticalScaleDenominator?: number;\n    /** Physical long-log sheet or ordinary A4 sheet, in millimetres. */\n    pageHeightMillimeters?: 297 | 841;\n    /** Host-selected, versioned physical table geometry; independent of model text. */\n    columnStylePack?: KJKnowledgePack;\n    /** Optional licensed, versioned pattern knowledge; no purchased pattern is built into KJDraw. */\n    hatchPack?: KJKnowledgePack;\n    expectedRevision: number;\n    title?: string;\n}",
+          "declaration": "export interface KJGeologyColumnInput {\n    /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */\n    locale?: 'zh-CN' | 'en';\n    hole: KJGeologyBorehole;\n    projectName?: string;\n    /** Exact source-backed document facts requested by a host-selected style pack; never inferred. */\n    documentFacts?: Record<string, string>;\n    /** Explicit source/template fact. Omit to select from the style pack's standard scales. */\n    verticalScaleDenominator?: number;\n    /** Physical long-log sheet or ordinary A4 sheet, in millimetres. */\n    pageHeightMillimeters?: 297 | 841;\n    /** Host-selected, versioned physical table geometry; independent of model text. */\n    columnStylePack?: ReadonlyDeep<KJKnowledgePack>;\n    /** Refuse a source-template mismatch or an unrenderable observation kind. This is a template gate, not 1:1 certification. */\n    strictSourceTemplate?: boolean;\n    /** Optional licensed, versioned pattern knowledge; no purchased pattern is built into KJDraw. */\n    hatchPack?: ReadonlyDeep<KJKnowledgePack>;\n    expectedRevision: number;\n    title?: string;\n}",
           "source": "geology-engineering.d.ts",
           "anchor": "root-interface-kjgeologycolumninput"
         },
         {
+          "name": "KJGeologyDefaultTextStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyDefaultTextStyle {\n    name: string;\n    fontFamily: string;\n    fontFile: string;\n    bigFontFile: string;\n    fixedHeight: number;\n    widthFactor: number;\n    obliqueAngleDegrees: number;\n    dxfFlags: number;\n    generationFlags: number;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologydefaulttextstyle"
+        },
+        {
+          "name": "KJGeologyDescriptionTextStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyDescriptionTextStyle {\n    fieldRole: 'description';\n    anchor: 'declared-major-group-boundary';\n    height: number;\n    /** Optional source-declared MTEXT paragraph width in physical millimetres. */\n    width?: number;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologydescriptiontextstyle"
+        },
+        {
+          "name": "KJGeologyFieldHeaderTextPlacement",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyFieldHeaderTextPlacement {\n    offset: [number, number];\n    height: number;\n    textWidthFactor: number;\n    horizontalAlignment: 'left' | 'center' | 'right';\n    verticalAlignment: 'baseline' | 'middle';\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologyfieldheadertextplacement"
+        },
+        {
+          "name": "KJGeologyFieldHeaderTextStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyFieldHeaderTextStyle {\n    main: KJGeologyFieldHeaderTextPlacement;\n    sub?: KJGeologyFieldHeaderTextPlacement;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologyfieldheadertextstyle"
+        },
+        {
+          "name": "KJGeologyFooterFactTextStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyFooterFactTextStyle {\n    label: KJGeologyFieldHeaderTextPlacement;\n    value: KJGeologyFieldHeaderTextPlacement;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologyfooterfacttextstyle"
+        },
+        {
+          "name": "KJGeologyGroundwaterAnnotationStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyGroundwaterAnnotationStyle {\n    fieldRole: 'pattern';\n    textHeight: number;\n    markerHeight: number;\n    textWidthFactor: number;\n    gap: number;\n    valueOffset: number;\n    markerOffset: number;\n    dateOffset: number;\n    guide?: 'field-top-to-reading';\n    /** Source-measured delta from the field-right/exact-depth guide endpoint, in millimetres. */\n    guideEndpointOffset?: [number, number];\n    placements?: {\n        depth: KJGeologyFieldHeaderTextPlacement;\n        elevation: KJGeologyFieldHeaderTextPlacement;\n        marker: KJGeologyFieldHeaderTextPlacement;\n        observedOn: KJGeologyFieldHeaderTextPlacement;\n    };\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologygroundwaterannotationstyle"
+        },
+        {
+          "name": "KJGeologyGroundwaterObservation",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyGroundwaterObservation {\n    /** Measured depth below the collar in metres. */\n    depth: number;\n    /** Independently supplied absolute groundwater elevation in metres. */\n    elevation: number;\n    /** Source-recorded observation date or timestamp. */\n    observedOn: string;\n    /** Source-recorded water-level symbol. */\n    marker: 'filled-down-triangle';\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologygroundwaterobservation"
+        },
+        {
+          "name": "KJGeologyHeaderFactTextStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyHeaderFactTextStyle {\n    label: KJGeologyFieldHeaderTextPlacement;\n    value: KJGeologyFieldHeaderTextPlacement;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologyheaderfacttextstyle"
+        },
+        {
+          "name": "KJGeologyIntervalDepthTextStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyIntervalDepthTextStyle {\n    fieldRole: 'depth';\n    principal: KJGeologyFieldHeaderTextPlacement;\n    lens: KJGeologyFieldHeaderTextPlacement;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologyintervaldepthtextstyle"
+        },
+        {
+          "name": "KJGeologyMajorGroupValueStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyMajorGroupValueStyle {\n    anchor: 'major-group-midpoint';\n    layerNumber: KJGeologyFieldHeaderTextPlacement;\n    layerName: KJGeologyFieldHeaderTextPlacement;\n    baseElevation: KJGeologyFieldHeaderTextPlacement;\n    thickness: KJGeologyFieldHeaderTextPlacement;\n    /** Optional semantic override for the group touching the body top boundary. */\n    topBoundary?: {\n        layerName: KJGeologyFieldHeaderTextPlacement;\n    };\n    /** Physical radius used only with the explicit circular layer-number style. */\n    layerNumberCircleRadius?: number;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologymajorgroupvaluestyle"
+        },
+        {
           "name": "KJGeologyObservation",
           "kind": "interface",
-          "declaration": "export interface KJGeologyObservation {\n    kind: 'sample' | 'spt';\n    id: string;\n    depth: number;\n    value?: number;\n    /** Short visible text; id remains the exact stable observation identity. */\n    displayLabel?: string;\n    /** Direct numeric laboratory facts keyed by a host-selected, versioned field grid. */\n    measurements?: Record<string, number>;\n    /** Exact source-supplied interval for a sampled specimen; never inferred from the point depth. */\n    rangeTop?: number;\n    rangeBottom?: number;\n}",
+          "declaration": "export interface KJGeologyObservation {\n    kind: 'sample' | 'spt';\n    id: string;\n    depth: number;\n    value?: number;\n    /** Short visible text; id remains the exact stable observation identity. */\n    displayLabel?: string;\n    /** Source-recorded specimen marker; its visible glyph and spacing remain a versioned layout choice. */\n    sampleMarker?: 'filled-circle' | 'open-circle';\n    /** Direct numeric laboratory facts keyed by a host-selected, versioned field grid. */\n    measurements?: Record<string, number>;\n    /** Exact source-supplied interval for a sampled specimen; never inferred from the point depth. */\n    rangeTop?: number;\n    rangeBottom?: number;\n}",
           "source": "geology-engineering.d.ts",
           "anchor": "root-interface-kjgeologyobservation"
         },
         {
+          "name": "KJGeologyPlanAlignedDimension",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanAlignedDimension {\n    id: string;\n    dimensionLinePoint: Point2;\n    firstExtensionOrigin: Point2;\n    secondExtensionOrigin: Point2;\n    textPosition?: Point2;\n    displayValue: number;\n    precision?: number;\n    unitSuffix?: 'none' | 'm' | 'M';\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanaligneddimension"
+        },
+        {
+          "name": "KJGeologyPlanBaseMapAttribute",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanBaseMapAttribute {\n    id: string;\n    styleId: string;\n    textStyleId: string;\n    tag: string;\n    text: string;\n    position: Point3;\n    alignmentPoint?: Point3;\n    height: number;\n    rotationDegrees: number;\n    widthFactor: number;\n    obliqueAngleDegrees: number;\n    horizontalAlignment: number;\n    verticalAlignment: number;\n    generationFlags: number;\n    flags: number;\n    lockPosition: boolean;\n    extrusion: Point3;\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanbasemapattribute"
+        },
+        {
+          "name": "KJGeologyPlanBaseMapAttributeDefinition",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanBaseMapAttributeDefinition extends KJGeologyPlanBaseMapAttribute {\n    kind: 'attributeDefinition';\n    prompt: string;\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanbasemapattributedefinition"
+        },
+        {
+          "name": "KJGeologyPlanBaseMapBlock",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanBaseMapBlock {\n    id: string;\n    extrusion?: Point3;\n    attributes?: KJGeologyPlanBaseMapAttribute[];\n    basePoint: Point2;\n    entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapHatch | KJGeologyPlanBaseMapSolid | KJGeologyPlanBaseMapPoint | KJGeologyPlanBaseMapAttributeDefinition | KJGeologyPlanBaseMapInsert)[];\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanbasemapblock"
+        },
+        {
+          "name": "KJGeologyPlanBaseMapHatch",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanBaseMapHatch {\n    id: string;\n    styleId: string;\n    kind: 'hatch';\n    patternName: string;\n    solid: boolean;\n    associative: boolean;\n    patternAngleDegrees: number;\n    patternScale: number;\n    patternLines: {\n        angleDegrees: number;\n        base: Point2;\n        offset: Point2;\n        dashes: number[];\n    }[];\n    seedPoints: Point2[];\n    boundaryLoops: {\n        external: boolean;\n        flags: number;\n        closed: true;\n        vertices: {\n            point: Point2;\n            bulge: number;\n        }[];\n        sourceMemberIds: string[];\n    }[];\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanbasemaphatch"
+        },
+        {
+          "name": "KJGeologyPlanBaseMapInsert",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanBaseMapInsert {\n    id: string;\n    styleId: string;\n    blockId: string;\n    position: Point2;\n    scale: Point3;\n    rotationDegrees: number;\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanbasemapinsert"
+        },
+        {
+          "name": "KJGeologyPlanBaseMapLinework",
+          "kind": "type",
+          "declaration": "export type KJGeologyPlanBaseMapLinework = {\n    id: string;\n    styleId: string;\n    kind: 'line';\n    start: Point2;\n    end: Point2;\n} | {\n    id: string;\n    styleId: string;\n    kind: 'arc';\n    center: Point2;\n    radius: number;\n    startAngleDegrees: number;\n    endAngleDegrees: number;\n    clockwise?: boolean;\n} | {\n    id: string;\n    styleId: string;\n    kind: 'circle';\n    center: Point2;\n    radius: number;\n} | {\n    id: string;\n    styleId: string;\n    kind: 'polyline';\n    points: Point2[];\n    closed?: boolean;\n    bulges?: number[];\n    startWidths?: number[];\n    endWidths?: number[];\n} | {\n    id: string;\n    styleId: string;\n    kind: 'legacyPolyline';\n    legacyPoints: Point3[];\n    closed: boolean;\n    elevation: number;\n    dxfFlags: number;\n    vertexFlags: number[];\n    bulges: number[];\n    startWidths: number[];\n    endWidths: number[];\n};",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-type-kjgeologyplanbasemaplinework"
+        },
+        {
+          "name": "KJGeologyPlanBaseMapPoint",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanBaseMapPoint {\n    id: string;\n    styleId: string;\n    kind: 'point';\n    position: Point2;\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanbasemappoint"
+        },
+        {
+          "name": "KJGeologyPlanBaseMapSolid",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanBaseMapSolid {\n    id: string;\n    styleId: string;\n    kind: 'solid';\n    solidVertices: [Point2, Point2, Point2, Point2];\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanbasemapsolid"
+        },
+        {
+          "name": "KJGeologyPlanBaseMapStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanBaseMapStyle {\n    id: string;\n    color: number;\n    lineweight: number;\n    pattern: number[];\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanbasemapstyle"
+        },
+        {
+          "name": "KJGeologyPlanBaseMapTextStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanBaseMapTextStyle {\n    id: string;\n    fontFamily?: string | null;\n    fontFile?: string | null;\n    bigFontFile?: string | null;\n    fixedHeight?: number;\n    widthFactor?: number;\n    obliqueAngleDegrees?: number;\n    dxfFlags?: number;\n    generationFlags?: number;\n    lastHeight?: number;\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanbasemaptextstyle"
+        },
+        {
+          "name": "KJGeologyPlanBorehole",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanBorehole {\n    id: string;\n    position: Point2;\n    collarElevation: number;\n    depth?: number;\n    kind?: 'borehole' | 'test-pit' | 'in-situ-test';\n    labelLayout?: KJGeologyPlanBoreholeLabelLayout;\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanborehole"
+        },
+        {
+          "name": "KJGeologyPlanBoreholeLabelLayout",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanBoreholeLabelLayout {\n    idPosition: Point2;\n    collarElevationPosition: Point2;\n    depthPosition?: Point2;\n    textHeight?: number;\n    rotationDegrees?: number;\n    precision?: number;\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanboreholelabellayout"
+        },
+        {
+          "name": "KJGeologyPlanBuildingFootprint",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanBuildingFootprint {\n    id: string;\n    outline: Point2[];\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanbuildingfootprint"
+        },
+        {
+          "name": "KJGeologyPlanCoordinateCallout",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanCoordinateCallout {\n    id: string;\n    point: Point2;\n    elbow: Point2;\n    landingEnd: Point2;\n    xLabelPosition: Point2;\n    yLabelPosition: Point2;\n    precision?: number;\n    textHeight?: number;\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplancoordinatecallout"
+        },
+        {
+          "name": "KJGeologyPlanCoordinateGrid",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanCoordinateGrid {\n    origin: Point2;\n    spacing: number;\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplancoordinategrid"
+        },
+        {
+          "name": "KJGeologyPlanRoadPath",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanRoadPath {\n    id: string;\n    start: Point2;\n    segments: KJGeologyPlanRoadSegment[];\n    closed?: boolean;\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplanroadpath"
+        },
+        {
+          "name": "KJGeologyPlanRoadSegment",
+          "kind": "type",
+          "declaration": "export type KJGeologyPlanRoadSegment = {\n    kind: 'line';\n    end: Point2;\n} | {\n    kind: 'arc';\n    center: Point2;\n    end: Point2;\n    clockwise?: boolean;\n};",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-type-kjgeologyplanroadsegment"
+        },
+        {
+          "name": "KJGeologyPlanSectionLine",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyPlanSectionLine {\n    id: string;\n    holeIds: string[];\n    label: string;\n    endpointLabels?: [string, string];\n    markerClearance?: [number, number];\n    endpointTailLengths?: [number, number];\n    endpointLabelPositions?: [Point2, Point2];\n}",
+          "source": "agent-geology-plan.d.ts",
+          "anchor": "root-interface-kjgeologyplansectionline"
+        },
+        {
+          "name": "KJGeologyRoleTextStyles",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyRoleTextStyles {\n    layerName?: KJGeologyDefaultTextStyle;\n    patternLabel?: KJGeologyDefaultTextStyle;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologyroletextstyles"
+        },
+        {
+          "name": "KJGeologySampleAnnotationStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologySampleAnnotationStyle {\n    depthAnchor: 'observation-depth' | 'range-top' | 'range-bottom';\n    label: KJGeologyFieldHeaderTextPlacement;\n    marker: KJGeologyFieldHeaderTextPlacement;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologysampleannotationstyle"
+        },
+        {
+          "name": "KJGeologySampleRangeBaselineStyle",
+          "kind": "type",
+          "declaration": "export type KJGeologySampleRangeBaselineStyle = {\n    boundaries: ('top' | 'bottom')[];\n    continuity: 'collision-safe' | 'continuous';\n} & ({\n    insetMm: number;\n} | {\n    fieldRole: 'sample';\n    startInsetMm: number;\n    endInsetMm: number;\n});",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-type-kjgeologysamplerangebaselinestyle"
+        },
+        {
+          "name": "KJGeologySampleRangeTextFormat",
+          "kind": "interface",
+          "declaration": "export interface KJGeologySampleRangeTextFormat {\n    fieldRole: 'sample';\n    prefix: string;\n    separator: string;\n    suffix: string;\n    decimals: number;\n    trailingZeros: 'preserve' | 'trim';\n    anchor?: 'range-top' | 'range-midpoint' | 'range-bottom';\n    placement?: KJGeologyFieldHeaderTextPlacement;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologysamplerangetextformat"
+        },
+        {
+          "name": "KJGeologySectionConnection",
+          "kind": "interface",
+          "declaration": "export interface KJGeologySectionConnection {\n    fromHoleId: string;\n    toHoleId: string;\n    fromDepth: number;\n    toDepth: number;\n    kind?: 'continuity' | 'pinchout' | 'lens' | 'manualBoundary';\n    layerCode?: string;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologysectionconnection"
+        },
+        {
           "name": "KJGeologySectionInput",
           "kind": "interface",
-          "declaration": "export interface KJGeologySectionInput {\n    /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */\n    locale?: 'zh-CN' | 'en';\n    holes: KJGeologyBorehole[];\n    /** Only explicitly correlated layers are drawn between holes. */\n    correlations: {\n        fromHoleId: string;\n        toHoleId: string;\n        fromStratumCode?: string;\n        toStratumCode?: string;\n        fromIntervalId?: string;\n        toIntervalId?: string;\n    }[];\n    horizontalScaleDenominator: number;\n    verticalScaleDenominator: number;\n    datumElevation: number;\n    surfaceRule: 'straight-between-supplied-collars';\n    hatchPack?: KJKnowledgePack;\n    expectedRevision: number;\n    title?: string;\n}",
+          "declaration": "export interface KJGeologySectionInput {\n    /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */\n    locale?: 'zh-CN' | 'en';\n    holes: KJGeologyBorehole[];\n    /** Only explicitly correlated layers are drawn between holes. */\n    correlations: {\n        fromHoleId: string;\n        toHoleId: string;\n        fromStratumCode?: string;\n        toStratumCode?: string;\n        fromIntervalId?: string;\n        toIntervalId?: string;\n    }[];\n    /** Explicit opt-in for source-declared group topology. The default keeps the\n     * existing caller-supplied correlation contract unchanged. */\n    correlationMode?: 'explicit-correlations' | 'source-group-topology';\n    /** Explicit source-backed boundaries are rendered before inferred correlations. */\n    manualConnections?: KJGeologySectionConnection[];\n    /** Exact source-backed identifiers shown at the two ends of the section. */\n    sectionReference?: KJGeologySectionReference;\n    horizontalScaleDenominator: number;\n    verticalScaleDenominator: number;\n    datumElevation: number;\n    surfaceRule: 'straight-between-supplied-collars';\n    projectName?: string;\n    /** Exact source-backed title-block facts; absent facts remain blank. */\n    documentFacts?: Record<string, string>;\n    /** Host-selected, versioned physical sheet geometry. Project-specific values stay in the pack. */\n    sectionStylePack?: ReadonlyDeep<KJKnowledgePack>;\n    hatchPack?: ReadonlyDeep<KJKnowledgePack>;\n    expectedRevision: number;\n    title?: string;\n}",
           "source": "geology-engineering.d.ts",
           "anchor": "root-interface-kjgeologysectioninput"
         },
         {
+          "name": "KJGeologySectionObservationSymbolStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologySectionObservationSymbolStyle {\n    sample: {\n        centerOffset: [number, number];\n        radius: number;\n        fill: 'solid' | 'none';\n        labelPlacement?: KJGeologyFieldHeaderTextPlacement;\n    };\n    spt: {\n        topRightOffset: [number, number];\n        width: number;\n        height: number;\n        labelPlacement: KJGeologySectionTextPlacement;\n        labelOverrides?: {\n            holeId: string;\n            observationId: string;\n            placement: KJGeologySectionTextPlacement;\n        }[];\n    };\n    groundwater?: {\n        insertOffset: [number, number];\n        lineSegments: [[number, number], [number, number]][];\n        markerPolygon: [number, number][];\n        fill: 'solid' | 'none';\n        labelPlacement?: KJGeologyFieldHeaderTextPlacement;\n        labelFormat?: 'role-depth' | 'depth-elevation';\n        labelPrecision?: 0 | 1 | 2 | 3 | 4;\n        labelOverrides?: {\n            holeId: string;\n            observationRole: 'stable-water';\n            depth: number;\n            elevation: number;\n            placement: KJGeologyFieldHeaderTextPlacement;\n        }[];\n    };\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologysectionobservationsymbolstyle"
+        },
+        {
+          "name": "KJGeologySectionReference",
+          "kind": "interface",
+          "declaration": "export interface KJGeologySectionReference {\n    start: string;\n    end: string;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologysectionreference"
+        },
+        {
+          "name": "KJGeologyStratigraphicNotationPlacementSet",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyStratigraphicNotationPlacementSet {\n    symbol: KJGeologyFieldHeaderTextPlacement;\n    superscript: KJGeologyFieldHeaderTextPlacement;\n    subscript: KJGeologyFieldHeaderTextPlacement;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologystratigraphicnotationplacementset"
+        },
+        {
+          "name": "KJGeologyStratigraphicNotationStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyStratigraphicNotationStyle {\n    symbolHeight: number;\n    qualifierHeight: number;\n    placement?: {\n        fieldRole: 'layerName';\n        anchor: 'major-group-midpoint';\n        principal: KJGeologyStratigraphicNotationPlacementSet;\n        topBoundary: KJGeologyStratigraphicNotationPlacementSet;\n    };\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologystratigraphicnotationstyle"
+        },
+        {
           "name": "KJGeologyStratum",
           "kind": "interface",
-          "declaration": "export interface KJGeologyStratum {\n    /** Exact interval identity when one layer code appears more than once in a hole. */\n    intervalId?: string;\n    /** Explicit source-backed continuous major group; never inferred from lithology or band thickness. */\n    groupId?: string;\n    /** Principal strata define the major group label; lenses keep exact sublayer geometry. */\n    groupRole?: 'principal' | 'lens';\n    code: string;\n    name: string;\n    top: number;\n    bottom: number;\n    lithology: 'fill' | 'clay' | 'silt' | 'sand' | 'gravel' | 'rock' | 'weathered-rock';\n    /** Semantic pattern role in a licensed pack, e.g. fine-sand versus medium-sand. */\n    patternKey?: string;\n    description?: string;\n    /** Interval text is never merged; a project layer definition may repeat through lenses. */\n    descriptionSource?: 'interval' | 'layer-definition';\n}",
+          "declaration": "export interface KJGeologyStratum {\n    /** Exact interval identity when one layer code appears more than once in a hole. */\n    intervalId?: string;\n    /** Explicit source-backed continuous major group; never inferred from lithology or band thickness. */\n    groupId?: string;\n    /** Principal strata define the major group label; lenses keep exact sublayer geometry. */\n    groupRole?: 'principal' | 'lens';\n    code: string;\n    name: string;\n    /** Source-backed geologic notation displayed with the stratum name; qualifiers are never inferred. */\n    stratigraphicNotation?: {\n        symbol: string;\n        subscript?: string;\n        superscript?: string;\n    };\n    top: number;\n    bottom: number;\n    lithology: 'fill' | 'cultivated-soil' | 'clay' | 'silty-clay' | 'silt' | 'sand' | 'gravel' | 'rock' | 'weathered-rock' | 'loess' | 'loess-collapsible' | 'loess-like' | 'paleosol' | 'calcareous-nodule';\n    /** Semantic pattern role in a licensed pack, e.g. fine-sand versus medium-sand. */\n    patternKey?: string;\n    /** Source-backed display fact: omit or filled draws the hatch; boundary-only preserves the interval without inventing fill. */\n    patternVisibility?: 'filled' | 'boundary-only';\n    /** Exact source-visible label printed inside this interval's pattern lane. */\n    patternLabel?: string;\n    /** Exact source visibility of this interval's bottom rule in independently\n     * rendered depth/pattern fields. Depth facts and closed fill boundaries remain. */\n    bottomBoundaryLineVisibility?: {\n        depth: 'visible' | 'hidden';\n        pattern: 'visible' | 'hidden';\n    };\n    description?: string;\n    /** Interval text is never merged; a project layer definition may repeat through lenses. */\n    descriptionSource?: 'interval' | 'layer-definition';\n    /** Optional source-measured paragraph anchor for this principal stratum.\n     * The boundary role is explicit; the compiler never derives it from layer thickness. */\n    descriptionPlacement?: {\n        boundaryRole: 'top' | 'bottom' | 'midpoint';\n        offsetMm: number;\n    };\n}",
           "source": "geology-engineering.d.ts",
           "anchor": "root-interface-kjgeologystratum"
+        },
+        {
+          "name": "KJGeologyTitleMarginDecoration",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyTitleMarginDecoration {\n    kind: 'top-edge-elbow-underline';\n    elbowOffset: [number, number];\n    horizontalEnd: 'frame-right';\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologytitlemargindecoration"
+        },
+        {
+          "name": "KJGeologyTitleTextStyle",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyTitleTextStyle {\n    anchor: 'frame-left-top';\n    placement: KJGeologyFieldHeaderTextPlacement;\n    rotationDegrees: number;\n}",
+          "source": "geology-engineering.d.ts",
+          "anchor": "root-interface-kjgeologytitletextstyle"
         },
         {
           "name": "KJGeometryBackend",
@@ -9955,6 +10599,27 @@
           "declaration": "export interface KJLocalizedControlText {\n    readonly en: string;\n    readonly zh: string;\n}",
           "source": "modification-controls.d.ts",
           "anchor": "root-interface-kjlocalizedcontroltext"
+        },
+        {
+          "name": "KJMechanicalBearingSeatDetection",
+          "kind": "interface",
+          "declaration": "export interface KJMechanicalBearingSeatDetection {\n    status: 'match' | 'none' | 'ambiguous';\n    candidates: readonly KJMechanicalBearingSeatEndView[];\n}",
+          "source": "mechanical-topology.d.ts",
+          "anchor": "root-interface-kjmechanicalbearingseatdetection"
+        },
+        {
+          "name": "KJMechanicalBearingSeatEndView",
+          "kind": "interface",
+          "declaration": "export interface KJMechanicalBearingSeatEndView {\n    center: readonly [number, number];\n    crownRadius: number;\n    housingDiameter: number;\n    boreDiameter: number;\n    mountingHoleDiameter: number;\n    mountingHoleSpacing: number;\n}",
+          "source": "mechanical-topology.d.ts",
+          "anchor": "root-interface-kjmechanicalbearingseatendview"
+        },
+        {
+          "name": "KJMechanicalTopologyEntity",
+          "kind": "interface",
+          "declaration": "export interface KJMechanicalTopologyEntity {\n    type: string;\n    payload: Readonly<Record<string, unknown>>;\n}",
+          "source": "mechanical-topology.d.ts",
+          "anchor": "root-interface-kjmechanicaltopologyentity"
         },
         {
           "name": "KJModelAdapterOptions",
@@ -11830,14 +12495,14 @@
         {
           "name": "auditSDKReadiness",
           "kind": "function",
-          "declaration": "export declare function auditSDKReadiness(sdk: KJCapabilitySDK, profile?: KJSDKReadinessProfile): Readonly<{\n    profileId: string;\n    passed: boolean;\n    status: \"blocked\" | \"passed\";\n    findings: readonly KJReadinessFinding[];\n    manifest: Readonly<{\n        product: \"KJDraw SDK\";\n        sdkVersion: string;\n        documentSchemaVersion: number;\n        geometry: Readonly<{\n            mode: 'native' | 'reference';\n            authoritative: boolean;\n            backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n            operations: readonly string[];\n            lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n        }>;\n        commands: readonly Readonly<{\n            id: string;\n            title: string | undefined;\n            aliases: readonly string[];\n            transactional: boolean;\n            owner: string | undefined;\n            capabilities: Readonly<Record<string, unknown>>;\n        }>[];\n        commandIds: readonly string[];\n        entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n        fileAdapters: readonly KJFileAdapterCapability[];\n    }>;\n}>;",
+          "declaration": "export declare function auditSDKReadiness(sdk: KJCapabilitySDK, profile?: KJSDKReadinessProfile): Readonly<{\n    profileId: string;\n    passed: boolean;\n    status: \"blocked\" | \"passed\";\n    findings: readonly KJReadinessFinding[];\n    manifest: Readonly<{\n        product: \"KJDraw SDK\";\n        sdkVersion: string;\n        documentSchemaVersion: number;\n        geometry: Readonly<{\n            mode: 'native' | 'reference';\n            authoritative: boolean;\n            backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n            operations: readonly string[];\n            lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n        }>;\n        commands: readonly Readonly<{\n            id: string;\n            title: string | undefined;\n            aliases: readonly string[];\n            transactional: boolean;\n            owner: string | undefined;\n            capabilities: Readonly<Record<string, unknown>>;\n        }>[];\n        commandIds: readonly string[];\n        entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TOLERANCE\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n        fileAdapters: readonly KJFileAdapterCapability[];\n    }>;\n}>;",
           "source": "capabilities.d.ts",
           "anchor": "capabilities-function-auditsdkreadiness"
         },
         {
           "name": "buildSDKCapabilityManifest",
           "kind": "function",
-          "declaration": "export declare function buildSDKCapabilityManifest(sdk: KJCapabilitySDK): Readonly<{\n    product: \"KJDraw SDK\";\n    sdkVersion: string;\n    documentSchemaVersion: number;\n    geometry: Readonly<{\n        mode: 'native' | 'reference';\n        authoritative: boolean;\n        backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n        operations: readonly string[];\n        lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n    }>;\n    commands: readonly Readonly<{\n        id: string;\n        title: string | undefined;\n        aliases: readonly string[];\n        transactional: boolean;\n        owner: string | undefined;\n        capabilities: Readonly<Record<string, unknown>>;\n    }>[];\n    commandIds: readonly string[];\n    entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n    fileAdapters: readonly KJFileAdapterCapability[];\n}>;",
+          "declaration": "export declare function buildSDKCapabilityManifest(sdk: KJCapabilitySDK): Readonly<{\n    product: \"KJDraw SDK\";\n    sdkVersion: string;\n    documentSchemaVersion: number;\n    geometry: Readonly<{\n        mode: 'native' | 'reference';\n        authoritative: boolean;\n        backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n        operations: readonly string[];\n        lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n    }>;\n    commands: readonly Readonly<{\n        id: string;\n        title: string | undefined;\n        aliases: readonly string[];\n        transactional: boolean;\n        owner: string | undefined;\n        capabilities: Readonly<Record<string, unknown>>;\n    }>[];\n    commandIds: readonly string[];\n    entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TOLERANCE\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n    fileAdapters: readonly KJFileAdapterCapability[];\n}>;",
           "source": "capabilities.d.ts",
           "anchor": "capabilities-function-buildsdkcapabilitymanifest"
         },
@@ -14475,7 +15140,7 @@
         {
           "name": "KJCanvasRenderer",
           "kind": "class",
-          "declaration": "export declare class KJCanvasRenderer {\n    #private;\n    readonly canvas: HTMLCanvasElement;\n    readonly context: CanvasRenderingContext2D;\n    readonly camera: KJCanvasCamera;\n    constructor(canvas: HTMLCanvasElement, options?: KJCanvasRendererOptions);\n    get document(): KJDocument | null;\n    get spaceId(): string | null;\n    get theme(): KJCanvasTheme;\n    get grid(): boolean;\n    get selection(): readonly string[];\n    get report(): Readonly<KJCanvasRenderReport>;\n    setDocument(document: KJDocument | null): this;\n    setTheme(theme: KJCanvasTheme): this;\n    setGrid(enabled: boolean): this;\n    setSelection(ids?: readonly string[]): this;\n    setSpace(spaceId: string | null): this;\n    setSceneProvider(provider: KJCanvasSceneProvider | null): this;\n    resize(width?: number, height?: number): this;\n    worldToScreen(input: Point2): Point2;\n    screenToWorld(input: Point2): Point2;\n    panBy(screenDx: number, screenDy: number): this;\n    zoomAt(factor: number, screenPoint?: Point2, options?: {\n        render?: boolean;\n    }): this;\n    fit(): this;\n    hitTest(screenPoint: Point2, tolerancePixels?: number, options?: KJCanvasSelectionOptions): KJCanvasHit | null;\n    /** Screen-coordinate box query. Left to right defaults to window; right to left to crossing. */\n    selectBox(first: Point2, second: Point2, options?: KJCanvasBoxSelectionOptions): readonly string[];\n    selectFence(points: readonly Point2[], options?: KJCanvasSelectionOptions): readonly string[];\n    selectAll(options?: KJCanvasSelectionOptions): readonly string[];\n    /** Returns editable model-space handles without changing selection or document history. */\n    getGrips(ids?: readonly string[]): readonly KJEntityGrip[];\n    hitGrip(screenPoint: Point2, tolerancePixels?: number): KJEntityGrip | null;\n    /** Optional handle overlay; render() clears it, leaving inspect/read-only hosts in control. */\n    drawGrips(hoverId?: string): this;\n    render(): Readonly<KJCanvasRenderReport>;\n    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2, resources?: readonly KJCanvasPreviewResource[]): this;\n    dispose(): void;\n}",
+          "declaration": "export declare class KJCanvasRenderer {\n    #private;\n    readonly canvas: HTMLCanvasElement;\n    readonly context: CanvasRenderingContext2D;\n    readonly camera: KJCanvasCamera;\n    constructor(canvas: HTMLCanvasElement, options?: KJCanvasRendererOptions);\n    get document(): KJDocument | null;\n    get spaceId(): string | null;\n    get theme(): KJCanvasTheme;\n    get grid(): boolean;\n    get selection(): readonly string[];\n    get report(): Readonly<KJCanvasRenderReport>;\n    setDocument(document: KJDocument | null): this;\n    setTheme(theme: KJCanvasTheme): this;\n    setGrid(enabled: boolean): this;\n    setBackground(background: string | null): this;\n    setSelection(ids?: readonly string[]): this;\n    setSpace(spaceId: string | null): this;\n    setSceneProvider(provider: KJCanvasSceneProvider | null): this;\n    resize(width?: number, height?: number): this;\n    worldToScreen(input: Point2): Point2;\n    screenToWorld(input: Point2): Point2;\n    panBy(screenDx: number, screenDy: number): this;\n    zoomAt(factor: number, screenPoint?: Point2, options?: {\n        render?: boolean;\n    }): this;\n    fit(): this;\n    hitTest(screenPoint: Point2, tolerancePixels?: number, options?: KJCanvasSelectionOptions): KJCanvasHit | null;\n    /** Screen-coordinate box query. Left to right defaults to window; right to left to crossing. */\n    selectBox(first: Point2, second: Point2, options?: KJCanvasBoxSelectionOptions): readonly string[];\n    selectFence(points: readonly Point2[], options?: KJCanvasSelectionOptions): readonly string[];\n    selectAll(options?: KJCanvasSelectionOptions): readonly string[];\n    /** Returns editable model-space handles without changing selection or document history. */\n    getGrips(ids?: readonly string[]): readonly KJEntityGrip[];\n    hitGrip(screenPoint: Point2, tolerancePixels?: number): KJEntityGrip | null;\n    /** Optional handle overlay; render() clears it, leaving inspect/read-only hosts in control. */\n    drawGrips(hoverId?: string): this;\n    render(): Readonly<KJCanvasRenderReport>;\n    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2, resources?: readonly KJCanvasPreviewResource[]): this;\n    dispose(): void;\n}",
           "source": "canvas-renderer.d.ts",
           "anchor": "renderer-canvas-class-kjcanvasrenderer"
         },

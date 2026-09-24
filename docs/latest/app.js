@@ -1,7 +1,7 @@
 const html=document.documentElement
 const docsRoot=html.dataset.docsRoot||'./'
 const docsBase=new URL(docsRoot,location.href)
-const searchRevision="011588533eb087da"
+const searchRevision="cbc5bdeee724d98d"
 const languageButton=document.getElementById('language')
 const searchButton=document.getElementById('search-button')
 const dialog=document.getElementById('search-dialog')
@@ -63,3 +63,14 @@ async function fetchSearchEntries(path,label){
 function finishIndex(){indexesPending=Math.max(0,indexesPending-1);updateSearchStats();renderSearch()}
 void fetchSearchEntries('search-index.json','Guide').then(entries=>{guideEntries=entries.map(normalizeGuide);finishIndex()})
 void fetchSearchEntries('api/search-index.json','API').then(entries=>{apiEntries=entries.map(normalizeApi);finishIndex()})
+function initializeShowcase(portal){
+  const query=portal.querySelector('.showcase-query'),tag=portal.querySelector('.showcase-tag-filter'),grid=portal.querySelector('.showcase-grid'),output=portal.querySelector('.showcase-result-head output'),empty=portal.querySelector('.showcase-empty'),cards=[...portal.querySelectorAll('.showcase-card')]
+  let category='all',view='grid'
+  const apply=()=>{const needles=query.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);let count=0;for(const card of cards){const haystack=card.dataset.search||'';const matchesCategory=category==='all'||card.dataset.category===category;const matchesTag=tag.value==='all'||(card.dataset.tags||'').split('|').includes(tag.value);const matchesQuery=needles.every(needle=>haystack.includes(needle));card.hidden=!(matchesCategory&&matchesTag&&matchesQuery);if(!card.hidden)count++}output.querySelector('b').textContent=String(count);empty.hidden=count!==0;grid.classList.toggle('list',view==='list')}
+  query.addEventListener('input',apply);tag.addEventListener('change',apply)
+  for(const button of portal.querySelectorAll('.showcase-category'))button.addEventListener('click',()=>{category=button.dataset.category;for(const item of portal.querySelectorAll('.showcase-category')){const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-pressed',String(active))}apply()})
+  for(const button of portal.querySelectorAll('.showcase-view button'))button.addEventListener('click',()=>{view=button.dataset.view;for(const item of portal.querySelectorAll('.showcase-view button')){const active=item===button;item.classList.toggle('active',active);item.setAttribute('aria-pressed',String(active))}apply()})
+  for(const button of portal.querySelectorAll('.showcase-tag'))button.addEventListener('click',()=>{tag.value=button.dataset.tag;apply();query.focus()})
+  apply()
+}
+for(const portal of document.querySelectorAll('.showcase-portal'))initializeShowcase(portal)

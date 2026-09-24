@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:011588533eb087da06c19091d03edc0683dc906b4df1e9c5ed3ae1f34f578ab1",
+  "sourceDigest": "sha256:cbc5bdeee724d98d7f3740c07aed7e364b99dc0f4040642461c367c014c6144f",
   "locales": [
     "en",
     "zh"
@@ -13,21 +13,58 @@
       "output": "index.html",
       "source": "docs/site/pages/introduction.md",
       "title": {
-        "en": "Introduction",
-        "zh": "简介"
+        "en": "KJDraw",
+        "zh": "KJDraw"
       },
       "anchors": {
         "en": [
           "en-introduction",
           "en-introduction-what-it-is",
+          "en-introduction-what-you-can-do",
           "en-introduction-starting-point",
-          "en-introduction-what-you-can-do"
+          "en-introduction-runtime",
+          "en-introduction-integrations",
+          "en-introduction-next-step"
         ],
         "zh": [
           "zh-introduction",
           "zh-introduction-what-it-is",
+          "zh-introduction-what-you-can-do",
           "zh-introduction-starting-point",
-          "zh-introduction-what-you-can-do"
+          "zh-introduction-runtime",
+          "zh-introduction-integrations",
+          "zh-introduction-next-step"
+        ]
+      }
+    },
+    {
+      "slug": "showcase",
+      "output": "showcase/index.html",
+      "source": "docs/site/pages/showcase.md",
+      "title": {
+        "en": "Showcase",
+        "zh": "案例库"
+      },
+      "anchors": {
+        "en": [
+          "en-showcase",
+          "en-showcase-find-an-example",
+          "en-showcase-multidisciplinary-coordination",
+          "en-showcase-civil-site-plan",
+          "en-showcase-architectural-floor-plan",
+          "en-showcase-road-longitudinal-profile",
+          "en-showcase-mechanical-manufacturing-drawing",
+          "en-showcase-build-from-the-same-catalog"
+        ],
+        "zh": [
+          "zh-showcase",
+          "zh-showcase-find-an-example",
+          "zh-showcase-multidisciplinary-coordination",
+          "zh-showcase-civil-site-plan",
+          "zh-showcase-architectural-floor-plan",
+          "zh-showcase-road-longitudinal-profile",
+          "zh-showcase-mechanical-manufacturing-drawing",
+          "zh-showcase-build-from-the-same-catalog"
         ]
       }
     },
@@ -43,16 +80,39 @@
         "en": [
           "en-quickstart",
           "en-quickstart-install",
-          "en-quickstart-mount-editor",
+          "en-quickstart-verify-sdk",
           "en-quickstart-industry-samples",
           "en-quickstart-multiple-editors"
         ],
         "zh": [
           "zh-quickstart",
           "zh-quickstart-install",
-          "zh-quickstart-mount-editor",
+          "zh-quickstart-verify-sdk",
           "zh-quickstart-industry-samples",
           "zh-quickstart-multiple-editors"
+        ]
+      }
+    },
+    {
+      "slug": "starters",
+      "output": "starters/index.html",
+      "source": "docs/site/pages/starters.md",
+      "title": {
+        "en": "Starter projects",
+        "zh": "起步工程"
+      },
+      "anchors": {
+        "en": [
+          "en-starters",
+          "en-starters-choose",
+          "en-starters-expected-results",
+          "en-starters-troubleshoot"
+        ],
+        "zh": [
+          "zh-starters",
+          "zh-starters-choose",
+          "zh-starters-expected-results",
+          "zh-starters-troubleshoot"
         ]
       }
     },
@@ -78,6 +138,35 @@
           "zh-installation-release-channels",
           "zh-installation-verify-installation",
           "zh-installation-public-imports"
+        ]
+      }
+    },
+    {
+      "slug": "concepts",
+      "output": "concepts/index.html",
+      "source": "docs/site/pages/concepts.md",
+      "title": {
+        "en": "Core concepts",
+        "zh": "核心概念"
+      },
+      "anchors": {
+        "en": [
+          "en-concepts",
+          "en-concepts-document",
+          "en-concepts-identity",
+          "en-concepts-commands",
+          "en-concepts-adapters",
+          "en-concepts-proposals",
+          "en-concepts-knowledge-packs"
+        ],
+        "zh": [
+          "zh-concepts",
+          "zh-concepts-document",
+          "zh-concepts-identity",
+          "zh-concepts-commands",
+          "zh-concepts-adapters",
+          "zh-concepts-proposals",
+          "zh-concepts-knowledge-packs"
         ]
       }
     },
@@ -127,27 +216,31 @@
       }
     },
     {
-      "slug": "architecture",
-      "output": "architecture/index.html",
-      "source": "docs/site/pages/architecture.md",
+      "slug": "commands",
+      "output": "commands/index.html",
+      "source": "docs/site/pages/commands.md",
       "title": {
-        "en": "Architecture",
-        "zh": "架构"
+        "en": "Commands and transactions",
+        "zh": "命令与事务"
       },
       "anchors": {
         "en": [
-          "en-architecture",
-          "en-architecture-layer-model",
-          "en-architecture-documents-and-transactions",
-          "en-architecture-typescript-and-rust-authority",
-          "en-architecture-host-responsibilities"
+          "en-commands",
+          "en-commands-execute-a-command",
+          "en-commands-atomicity-and-rollback",
+          "en-commands-select-geometry",
+          "en-commands-protected-layers",
+          "en-commands-command-envelopes",
+          "en-commands-observe-changes"
         ],
         "zh": [
-          "zh-architecture",
-          "zh-architecture-layer-model",
-          "zh-architecture-documents-and-transactions",
-          "zh-architecture-typescript-and-rust-authority",
-          "zh-architecture-host-responsibilities"
+          "zh-commands",
+          "zh-commands-execute-a-command",
+          "zh-commands-atomicity-and-rollback",
+          "zh-commands-select-geometry",
+          "zh-commands-protected-layers",
+          "zh-commands-command-envelopes",
+          "zh-commands-observe-changes"
         ]
       }
     },
@@ -179,31 +272,27 @@
       }
     },
     {
-      "slug": "commands",
-      "output": "commands/index.html",
-      "source": "docs/site/pages/commands.md",
+      "slug": "architecture",
+      "output": "architecture/index.html",
+      "source": "docs/site/pages/architecture.md",
       "title": {
-        "en": "Commands and transactions",
-        "zh": "命令与事务"
+        "en": "Architecture",
+        "zh": "架构"
       },
       "anchors": {
         "en": [
-          "en-commands",
-          "en-commands-execute-a-command",
-          "en-commands-atomicity-and-rollback",
-          "en-commands-select-geometry",
-          "en-commands-protected-layers",
-          "en-commands-command-envelopes",
-          "en-commands-observe-changes"
+          "en-architecture",
+          "en-architecture-layer-model",
+          "en-architecture-documents-and-transactions",
+          "en-architecture-typescript-and-rust-authority",
+          "en-architecture-host-responsibilities"
         ],
         "zh": [
-          "zh-commands",
-          "zh-commands-execute-a-command",
-          "zh-commands-atomicity-and-rollback",
-          "zh-commands-select-geometry",
-          "zh-commands-protected-layers",
-          "zh-commands-command-envelopes",
-          "zh-commands-observe-changes"
+          "zh-architecture",
+          "zh-architecture-layer-model",
+          "zh-architecture-documents-and-transactions",
+          "zh-architecture-typescript-and-rust-authority",
+          "zh-architecture-host-responsibilities"
         ]
       }
     },
@@ -324,6 +413,56 @@
       }
     },
     {
+      "slug": "mcp",
+      "output": "mcp/index.html",
+      "source": "docs/site/pages/mcp.md",
+      "title": {
+        "en": "MCP integration",
+        "zh": "MCP 集成"
+      },
+      "anchors": {
+        "en": [
+          "en-mcp",
+          "en-mcp-start-server",
+          "en-mcp-client-config",
+          "en-mcp-tool-call",
+          "en-mcp-verify-boundary"
+        ],
+        "zh": [
+          "zh-mcp",
+          "zh-mcp-start-server",
+          "zh-mcp-client-config",
+          "zh-mcp-tool-call",
+          "zh-mcp-verify-boundary"
+        ]
+      }
+    },
+    {
+      "slug": "knowledge-packs",
+      "output": "knowledge-packs/index.html",
+      "source": "docs/site/pages/knowledge-packs.md",
+      "title": {
+        "en": "Compile knowledge packs",
+        "zh": "编译知识包"
+      },
+      "anchors": {
+        "en": [
+          "en-knowledge-packs",
+          "en-knowledge-packs-pipeline",
+          "en-knowledge-packs-compile-example",
+          "en-knowledge-packs-author-pack",
+          "en-knowledge-packs-regression-loop"
+        ],
+        "zh": [
+          "zh-knowledge-packs",
+          "zh-knowledge-packs-pipeline",
+          "zh-knowledge-packs-compile-example",
+          "zh-knowledge-packs-author-pack",
+          "zh-knowledge-packs-regression-loop"
+        ]
+      }
+    },
+    {
       "slug": "plugins",
       "output": "plugins/index.html",
       "source": "docs/site/pages/plugins.md",
@@ -374,6 +513,29 @@
       }
     },
     {
+      "slug": "reference",
+      "output": "reference/index.html",
+      "source": "docs/site/pages/reference.md",
+      "title": {
+        "en": "API reference",
+        "zh": "API 参考"
+      },
+      "anchors": {
+        "en": [
+          "en-reference",
+          "en-reference-layers",
+          "en-reference-tasks",
+          "en-reference-packages"
+        ],
+        "zh": [
+          "zh-reference",
+          "zh-reference-layers",
+          "zh-reference-tasks",
+          "zh-reference-packages"
+        ]
+      }
+    },
+    {
       "slug": "capabilities",
       "output": "capabilities/index.html",
       "source": "docs/site/pages/capabilities.md",
@@ -407,16 +569,73 @@
     "architecture/index.html",
     "capabilities/index.html",
     "commands/index.html",
+    "concepts/index.html",
     "deployment/index.html",
     "files/index.html",
     "index.html",
     "installation/index.html",
+    "knowledge-packs/index.html",
+    "mcp/index.html",
     "models/index.html",
     "plugins/index.html",
     "quickstart/index.html",
     "react/index.html",
+    "reference/index.html",
     "search-index.json",
+    "showcase/a4-print-layout/index.html",
+    "showcase/architecture-floor-plan/index.html",
+    "showcase/assets/a4-print-layout.dxf",
+    "showcase/assets/a4-print-layout.kjd",
+    "showcase/assets/a4-print-layout.svg",
+    "showcase/assets/architecture-floor-plan.dxf",
+    "showcase/assets/architecture-floor-plan.kjd",
+    "showcase/assets/architecture-floor-plan.svg",
+    "showcase/assets/bilingual-typography.dxf",
+    "showcase/assets/bilingual-typography.kjd",
+    "showcase/assets/bilingual-typography.svg",
+    "showcase/assets/block-references.dxf",
+    "showcase/assets/block-references.kjd",
+    "showcase/assets/block-references.svg",
+    "showcase/assets/dxf-import.dxf",
+    "showcase/assets/dxf-import.kjd",
+    "showcase/assets/dxf-import.svg",
+    "showcase/assets/editable-entities.dxf",
+    "showcase/assets/editable-entities.kjd",
+    "showcase/assets/editable-entities.svg",
+    "showcase/assets/editing-history.dxf",
+    "showcase/assets/editing-history.kjd",
+    "showcase/assets/editing-history.svg",
+    "showcase/assets/mechanical-bracket.dxf",
+    "showcase/assets/mechanical-bracket.kjd",
+    "showcase/assets/mechanical-bracket.svg",
+    "showcase/assets/native-dimensions.dxf",
+    "showcase/assets/native-dimensions.kjd",
+    "showcase/assets/native-dimensions.svg",
+    "showcase/assets/resilient-campus.dxf",
+    "showcase/assets/resilient-campus.kjd",
+    "showcase/assets/resilient-campus.svg",
+    "showcase/assets/road-profile.dxf",
+    "showcase/assets/road-profile.kjd",
+    "showcase/assets/road-profile.svg",
+    "showcase/assets/site-plan.dxf",
+    "showcase/assets/site-plan.kjd",
+    "showcase/assets/site-plan.svg",
+    "showcase/bilingual-typography/index.html",
+    "showcase/block-references/index.html",
+    "showcase/catalog.json",
+    "showcase/detail.css",
+    "showcase/detail.js",
+    "showcase/dxf-import/index.html",
+    "showcase/editable-entities/index.html",
+    "showcase/editing-history/index.html",
+    "showcase/index.html",
+    "showcase/mechanical-bracket/index.html",
+    "showcase/native-dimensions/index.html",
+    "showcase/resilient-campus/index.html",
+    "showcase/road-profile/index.html",
+    "showcase/site-plan/index.html",
     "site-manifest.json",
+    "starters/index.html",
     "style.css",
     "vue/index.html",
     "workbench/index.html"

@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:6319d06e7c17088aa25094bac91fd69cfb3261ea8f683273d6c9e69a4df3f7f6",
+  "sourceDigest": "sha256:e1548faa47a603f5ae679545637369610aa68de2623b0923981674f21618eeb4",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -733,6 +733,14 @@
       "summary": "export interface KJAgentGeologyColumnKnowledgeBinding { pack: unknown; sha256: string; }"
     },
     {
+      "name": "KJAgentGeologySectionKnowledgeBinding",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-interface-kjagentgeologysectionknowledgebinding",
+      "anchor": "agent-tools-interface-kjagentgeologysectionknowledgebinding",
+      "summary": "export interface KJAgentGeologySectionKnowledgeBinding { pack: unknown; sha256: string; }"
+    },
+    {
       "name": "KJAgentGeometryValidationInput",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw/agent-tools",
@@ -827,6 +835,14 @@
       "href": "./api/reference/#agent-manufacturing-sheet-function-buildagentmanufacturingsheet",
       "anchor": "agent-manufacturing-sheet-function-buildagentmanufacturingsheet",
       "summary": "export declare function buildAgentManufacturingSheet(document: ManufacturingDocument, source: KJAgentManufacturingSheetInput): { commandArgs: { entities: EntitySpec[]; resources: { linetypes: { id: string; name: string; "
+    },
+    {
+      "name": "KJAgentManufacturingBoltCirclePattern",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-manufacturing-sheet",
+      "href": "./api/reference/#agent-manufacturing-sheet-interface-kjagentmanufacturingboltcirclepattern",
+      "anchor": "agent-manufacturing-sheet-interface-kjagentmanufacturingboltcirclepattern",
+      "summary": "export interface KJAgentManufacturingBoltCirclePattern { count: number; center: [number, number]; pitchDiameter: number; throughDiameter: number; startAngleDegrees?: number; counterboreDiameter?: number; counterboreDepth"
     },
     {
       "name": "KJAgentManufacturingHolePattern",
@@ -2730,7 +2746,7 @@
       "module": "@kanjieteam/kjdraw/core",
       "href": "./api/reference/#core-interface-kjcommandarguments",
       "anchor": "core-interface-kjcommandarguments",
-      "summary": "export interface KJCommandArguments extends Record<string, unknown> { resources?: KJEntityBatchResources; layout?: KJEntityBatchLayout; id?: string; ids?: readonly string[]; firstId?: string; secondId?: string; boundaryI"
+      "summary": "export interface KJCommandArguments extends Record<string, unknown> { resources?: KJEntityBatchResources; layout?: KJEntityBatchLayout; systemVariables?: { readonly PDMODE?: number; readonly PDSIZE?: number; }; id?: stri"
     },
     {
       "name": "KJCommandBeforeExecuteEvent",
@@ -3605,6 +3621,14 @@
       "summary": "export type KJEntity<TPayload extends KJObjectPayload = KJObjectPayload> = KJObjectRecord<TPayload> & { kind: 'entity'; };"
     },
     {
+      "name": "KJEntityBatchAttributeSequence",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-interface-kjentitybatchattributesequence",
+      "anchor": "core-interface-kjentitybatchattributesequence",
+      "summary": "export interface KJEntityBatchAttributeSequence { attributes: { id: string; payload: KJObjectPayload; }[]; sequenceEnd: { id: string; dxfOwnerMode: 'insert' | 'space'; layerId?: string; }; }"
+    },
+    {
       "name": "KJEntityBatchLayout",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw/core",
@@ -3618,7 +3642,7 @@
       "module": "@kanjieteam/kjdraw/core",
       "href": "./api/reference/#core-interface-kjentitybatchresources",
       "anchor": "core-interface-kjentitybatchresources",
-      "summary": "export interface KJEntityBatchResources { linetypes: { id: string; name: string; pattern: number[]; }[]; layers: { id: string; name: string; color: number; linetypeId: string; lineweight: number; }[]; blocks?: { id: stri"
+      "summary": "export interface KJEntityBatchResources { linetypes: { id: string; name: string; pattern: number[]; }[]; layers: { id: string; name: string; color: number; linetypeId: string; lineweight: number; }[]; textStyles?: { id: "
     },
     {
       "name": "KJEntityBatchSpec",
@@ -3626,7 +3650,7 @@
       "module": "@kanjieteam/kjdraw/core",
       "href": "./api/reference/#core-interface-kjentitybatchspec",
       "anchor": "core-interface-kjentitybatchspec",
-      "summary": "export interface KJEntityBatchSpec extends Record<string, unknown> { type?: string; payload?: KJObjectPayload; options?: KJObjectSpec; layerName?: string; layer?: { color?: unknown; visible?: unknown; frozen?: unknown; l"
+      "summary": "export interface KJEntityBatchSpec extends Record<string, unknown> { type?: string; payload?: KJObjectPayload; options?: KJObjectSpec; attributeSequence?: KJEntityBatchAttributeSequence; layerName?: string; layer?: { col"
     },
     {
       "name": "KJEntityGrip",
@@ -6685,12 +6709,28 @@
       "summary": "export declare function buildAgentCartesianChart(document: ChartDocument, source: KJAgentCartesianChartInput): { commandArgs: { entities: EntitySpec[]; resources: { linetypes: { id: string; name: string; pattern: number["
     },
     {
+      "name": "buildAgentGeologyPlan",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-buildagentgeologyplan",
+      "anchor": "root-function-buildagentgeologyplan",
+      "summary": "export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJAgentGeologyPlanInput): { commandArgs: { entities: EntitySpec[]; resources: { linetypes: { id: string; name: string; pattern: number["
+    },
+    {
       "name": "buildAgentManufacturingSheet",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-function-buildagentmanufacturingsheet",
       "anchor": "root-function-buildagentmanufacturingsheet",
       "summary": "export declare function buildAgentManufacturingSheet(document: ManufacturingDocument, source: KJAgentManufacturingSheetInput): { commandArgs: { entities: EntitySpec[]; resources: { linetypes: { id: string; name: string; "
+    },
+    {
+      "name": "buildAgentMechanicalFlangeCore",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-buildagentmechanicalflangecore",
+      "anchor": "root-function-buildagentmechanicalflangecore",
+      "summary": "export declare function buildAgentMechanicalFlangeCore(document: Document, source: KJAgentMechanicalFlangeCoreInput): { commandArgs: { entities: Entity[]; systemVariables?: { PDMODE: number; PDSIZE: number; }; resources:"
     },
     {
       "name": "buildAgentSitePlan",
@@ -7291,6 +7331,14 @@
       "href": "./api/reference/#root-function-deletedesignrelations",
       "anchor": "root-function-deletedesignrelations",
       "summary": "export declare function deleteDesignRelations(document: KJDocument, tx: KJTransaction, id: string): KJObjectRecord;"
+    },
+    {
+      "name": "detectMechanicalBearingSeatEndView",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-detectmechanicalbearingseatendview",
+      "anchor": "root-function-detectmechanicalbearingseatendview",
+      "summary": "export declare function detectMechanicalBearingSeatEndView(entities: readonly KJMechanicalTopologyEntity[]): KJMechanicalBearingSeatDetection;"
     },
     {
       "name": "determinant3",
@@ -8229,6 +8277,22 @@
       "summary": "export interface KJAgentGeologyColumnKnowledgeBinding { pack: unknown; sha256: string; }"
     },
     {
+      "name": "KJAgentGeologyPlanInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentgeologyplaninput",
+      "anchor": "root-interface-kjagentgeologyplaninput",
+      "summary": "export interface KJAgentGeologyPlanInput { version: typeof KJDRAW_GEOLOGY_PLAN_VERSION; expectedRevision: number; units: 'meter'; locale?: 'zh-CN' | 'en'; drawingId: string; title?: string; revision?: string; scale: Scal"
+    },
+    {
+      "name": "KJAgentGeologySectionKnowledgeBinding",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentgeologysectionknowledgebinding",
+      "anchor": "root-interface-kjagentgeologysectionknowledgebinding",
+      "summary": "export interface KJAgentGeologySectionKnowledgeBinding { pack: unknown; sha256: string; }"
+    },
+    {
       "name": "KJAgentGeometryValidationInput",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -8243,6 +8307,14 @@
       "href": "./api/reference/#root-interface-kjagentlayoutquery",
       "anchor": "root-interface-kjagentlayoutquery",
       "summary": "export interface KJAgentLayoutQuery { expectedRevision: number; offset: number; limit: number; maxBytes: number; }"
+    },
+    {
+      "name": "KJAgentManufacturingBoltCirclePattern",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentmanufacturingboltcirclepattern",
+      "anchor": "root-interface-kjagentmanufacturingboltcirclepattern",
+      "summary": "export interface KJAgentManufacturingBoltCirclePattern { count: number; center: [number, number]; pitchDiameter: number; throughDiameter: number; startAngleDegrees?: number; counterboreDiameter?: number; counterboreDepth"
     },
     {
       "name": "KJAgentManufacturingHolePattern",
@@ -8267,6 +8339,14 @@
       "href": "./api/reference/#root-interface-kjagentmanufacturingslot",
       "anchor": "root-interface-kjagentmanufacturingslot",
       "summary": "export interface KJAgentManufacturingSlot { center: [number, number]; length: number; width: number; orientationDegrees: 0 | 90; }"
+    },
+    {
+      "name": "KJAgentMechanicalFlangeCoreInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentmechanicalflangecoreinput",
+      "anchor": "root-interface-kjagentmechanicalflangecoreinput",
+      "summary": "export interface KJAgentMechanicalFlangeCoreInput { version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION; expectedRevision: number; units: 'millimeter'; drawingId: string; entityDrawOrder?: number[]; endView?: { center:"
     },
     {
       "name": "KJAgentModel",
@@ -8938,7 +9018,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjcommandarguments",
       "anchor": "root-interface-kjcommandarguments",
-      "summary": "export interface KJCommandArguments extends Record<string, unknown> { resources?: KJEntityBatchResources; layout?: KJEntityBatchLayout; id?: string; ids?: readonly string[]; firstId?: string; secondId?: string; boundaryI"
+      "summary": "export interface KJCommandArguments extends Record<string, unknown> { resources?: KJEntityBatchResources; layout?: KJEntityBatchLayout; systemVariables?: { readonly PDMODE?: number; readonly PDSIZE?: number; }; id?: stri"
     },
     {
       "name": "KJCommandBeforeExecuteEvent",
@@ -10069,6 +10149,14 @@
       "summary": "export declare const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack>;"
     },
     {
+      "name": "KJDRAW_GEOLOGY_PLAN_VERSION",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kjdraw-geology-plan-version",
+      "anchor": "root-const-kjdraw-geology-plan-version",
+      "summary": "export declare const KJDRAW_GEOLOGY_PLAN_VERSION: '1.0.0';"
+    },
+    {
       "name": "KJDRAW_KNOWLEDGE_PACK_SCHEMA",
       "kind": "const",
       "module": "@kanjieteam/kjdraw",
@@ -10083,6 +10171,22 @@
       "href": "./api/reference/#root-const-kjdraw-manufacturing-sheet-version",
       "anchor": "root-const-kjdraw-manufacturing-sheet-version",
       "summary": "export declare const KJDRAW_MANUFACTURING_SHEET_VERSION: '1.0.0';"
+    },
+    {
+      "name": "KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kjdraw-mechanical-flange-core-knowledge-pack",
+      "anchor": "root-const-kjdraw-mechanical-flange-core-knowledge-pack",
+      "summary": "export declare const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK: { readonly schema: typeof import(\"../knowledge-pack.js\").KJDRAW_KNOWLEDGE_PACK_SCHEMA; readonly id: string; readonly version: string; readonly title: str"
+    },
+    {
+      "name": "KJDRAW_MECHANICAL_FLANGE_CORE_VERSION",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kjdraw-mechanical-flange-core-version",
+      "anchor": "root-const-kjdraw-mechanical-flange-core-version",
+      "summary": "export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';"
     },
     {
       "name": "KJDRAW_PLUGIN_PERMISSIONS",
@@ -10509,6 +10613,14 @@
       "summary": "export type KJEntity<TPayload extends KJObjectPayload = KJObjectPayload> = KJObjectRecord<TPayload> & { kind: 'entity'; };"
     },
     {
+      "name": "KJEntityBatchAttributeSequence",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjentitybatchattributesequence",
+      "anchor": "root-interface-kjentitybatchattributesequence",
+      "summary": "export interface KJEntityBatchAttributeSequence { attributes: { id: string; payload: KJObjectPayload; }[]; sequenceEnd: { id: string; dxfOwnerMode: 'insert' | 'space'; layerId?: string; }; }"
+    },
+    {
       "name": "KJEntityBatchLayout",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -10522,7 +10634,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjentitybatchresources",
       "anchor": "root-interface-kjentitybatchresources",
-      "summary": "export interface KJEntityBatchResources { linetypes: { id: string; name: string; pattern: number[]; }[]; layers: { id: string; name: string; color: number; linetypeId: string; lineweight: number; }[]; blocks?: { id: stri"
+      "summary": "export interface KJEntityBatchResources { linetypes: { id: string; name: string; pattern: number[]; }[]; layers: { id: string; name: string; color: number; linetypeId: string; lineweight: number; }[]; textStyles?: { id: "
     },
     {
       "name": "KJEntityBatchSpec",
@@ -10530,7 +10642,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjentitybatchspec",
       "anchor": "root-interface-kjentitybatchspec",
-      "summary": "export interface KJEntityBatchSpec extends Record<string, unknown> { type?: string; payload?: KJObjectPayload; options?: KJObjectSpec; layerName?: string; layer?: { color?: unknown; visible?: unknown; frozen?: unknown; l"
+      "summary": "export interface KJEntityBatchSpec extends Record<string, unknown> { type?: string; payload?: KJObjectPayload; options?: KJObjectSpec; attributeSequence?: KJEntityBatchAttributeSequence; layerName?: string; layer?: { col"
     },
     {
       "name": "KJEntityGrip",
@@ -10781,6 +10893,310 @@
       "summary": "export interface KJFileReadProgress { phase: 'validate' | 'upload' | 'convert' | 'download' | 'source' | 'parse' | 'import'; completed: number; total?: number; unit: 'bytes' | 'percent' | 'steps' | 'tags' | 'entities'; }"
     },
     {
+      "name": "KJFlangeAuxiliaryCurve",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjflangeauxiliarycurve",
+      "anchor": "root-type-kjflangeauxiliarycurve",
+      "summary": "export type KJFlangeAuxiliaryCurve = { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise?: boolean; role: KJFlangeAuxiliaryLine['role']; styleKey?: string; } | { kind: 'ellipse'"
+    },
+    {
+      "name": "KJFlangeAuxiliaryHatch",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangeauxiliaryhatch",
+      "anchor": "root-interface-kjflangeauxiliaryhatch",
+      "summary": "export interface KJFlangeAuxiliaryHatch { /** Legacy single-loop shorthand. Exactly one of edges or boundaryLoops is required. */ edges?: KJFlangeAuxiliaryHatchEdge[]; /** Explicit bounded topology, including inner loops"
+    },
+    {
+      "name": "KJFlangeAuxiliaryHatchBoundaryLoop",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangeauxiliaryhatchboundaryloop",
+      "anchor": "root-interface-kjflangeauxiliaryhatchboundaryloop",
+      "summary": "export interface KJFlangeAuxiliaryHatchBoundaryLoop { edges: KJFlangeAuxiliaryHatchEdge[]; external?: boolean; flags?: number; }"
+    },
+    {
+      "name": "KJFlangeAuxiliaryHatchEdge",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjflangeauxiliaryhatchedge",
+      "anchor": "root-type-kjflangeauxiliaryhatchedge",
+      "summary": "export type KJFlangeAuxiliaryHatchEdge = { kind: 'line'; start: Point2; end: Point2; } | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; counterClockwise?: boolean; } | { kind: 'ellip"
+    },
+    {
+      "name": "KJFlangeAuxiliaryHatchSplineEdge",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangeauxiliaryhatchsplineedge",
+      "anchor": "root-interface-kjflangeauxiliaryhatchsplineedge",
+      "summary": "export interface KJFlangeAuxiliaryHatchSplineEdge { kind: 'spline'; degree: number; controlPoints: Point2[]; knots?: number[]; weights?: number[]; fitPoints?: Point2[]; periodic?: boolean; startTangent?: Point2; endTange"
+    },
+    {
+      "name": "KJFlangeAuxiliaryLine",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangeauxiliaryline",
+      "anchor": "root-interface-kjflangeauxiliaryline",
+      "summary": "export interface KJFlangeAuxiliaryLine { start: Point2; end: Point2; role: 'geometry' | 'center' | 'hidden' | 'notes' | 'grid' | 'frame'; styleKey?: string; }"
+    },
+    {
+      "name": "KJFlangeAuxiliaryPoint",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangeauxiliarypoint",
+      "anchor": "root-interface-kjflangeauxiliarypoint",
+      "summary": "export interface KJFlangeAuxiliaryPoint { position: Point2; role: KJFlangeAuxiliaryLine['role']; styleKey?: string; }"
+    },
+    {
+      "name": "KJFlangeAuxiliarySolid",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangeauxiliarysolid",
+      "anchor": "root-interface-kjflangeauxiliarysolid",
+      "summary": "export interface KJFlangeAuxiliarySolid { vertices: Point2[]; role: KJFlangeAuxiliaryLine['role']; styleKey?: string; }"
+    },
+    {
+      "name": "KJFlangeAuxiliaryWipeout",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangeauxiliarywipeout",
+      "anchor": "root-interface-kjflangeauxiliarywipeout",
+      "summary": "export interface KJFlangeAuxiliaryWipeout { position: Point2; uVector: Point2; vVector: Point2; clipBoundary: Point2[]; boundaryType: 1 | 2; role: KJFlangeAuxiliaryLine['role']; styleKey?: string; }"
+    },
+    {
+      "name": "KJFlangeCuttingPlaneMark",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangecuttingplanemark",
+      "anchor": "root-interface-kjflangecuttingplanemark",
+      "summary": "export interface KJFlangeCuttingPlaneMark { anchorOffset: Point2; stemVector: Point2; tickVector: Point2; arrowhead?: { length: number; width: number; }; stemStyleKey?: string; tickStyleKey?: string; arrowheadStyleKey?: "
+    },
+    {
+      "name": "KJFlangeDatumReference",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangedatumreference",
+      "anchor": "root-interface-kjflangedatumreference",
+      "summary": "export interface KJFlangeDatumReference { label: string; materialCondition?: KJFlangeMaterialCondition; slot?: number; }"
+    },
+    {
+      "name": "KJFlangeDimension",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangedimension",
+      "anchor": "root-interface-kjflangedimension",
+      "summary": "export interface KJFlangeDimension { kind: 'aligned' | 'rotated' | 'diameter' | 'radius' | 'angular' | 'ordinate'; /** Ordinate measurement axis; required only when kind is ordinate. */ axis?: 'x' | 'y'; definitionPoints"
+    },
+    {
+      "name": "KJFlangeDimensionStyleDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangedimensionstyledefinition",
+      "anchor": "root-interface-kjflangedimensionstyledefinition",
+      "summary": "export interface KJFlangeDimensionStyleDefinition { key: string; name: string; overallScale?: number; arrowSize?: number; extensionOffset?: number; baselineSpacing?: number; extensionBeyond?: number; rounding?: number; t"
+    },
+    {
+      "name": "KJFlangeEndViewOutlineSegment",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjflangeendviewoutlinesegment",
+      "anchor": "root-type-kjflangeendviewoutlinesegment",
+      "summary": "export type KJFlangeEndViewOutlineSegment = { kind: 'line'; startOffset: Point2; endOffset: Point2; styleKey?: string; } | { kind: 'arc'; centerOffset: Point2; radius: number; startAngle: number; endAngle: number; styleK"
+    },
+    {
+      "name": "KJFlangeFeatureControlFrame",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangefeaturecontrolframe",
+      "anchor": "root-interface-kjflangefeaturecontrolframe",
+      "summary": "export interface KJFlangeFeatureControlFrame { position: Point2; rows: { characteristic: KJFlangeGeometricCharacteristic; tolerance: string; diameterZone?: boolean; materialCondition?: KJFlangeMaterialCondition; datumRef"
+    },
+    {
+      "name": "KJFlangeFrameSide",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjflangeframeside",
+      "anchor": "root-type-kjflangeframeside",
+      "summary": "export type KJFlangeFrameSide = 'bottom' | 'right' | 'top' | 'left';"
+    },
+    {
+      "name": "KJFlangeGeometricCharacteristic",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjflangegeometriccharacteristic",
+      "anchor": "root-type-kjflangegeometriccharacteristic",
+      "summary": "export type KJFlangeGeometricCharacteristic = 'position' | 'concentricity' | 'symmetry' | 'parallelism' | 'perpendicularity' | 'angularity' | 'cylindricity' | 'flatness' | 'circularity' | 'straightness' | 'surface-profil"
+    },
+    {
+      "name": "KJFlangeHatchPatternLine",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangehatchpatternline",
+      "anchor": "root-interface-kjflangehatchpatternline",
+      "summary": "export interface KJFlangeHatchPatternLine { angle: number; base: Point2; offset: Point2; dashes?: number[]; }"
+    },
+    {
+      "name": "KJFlangeLeader",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangeleader",
+      "anchor": "root-interface-kjflangeleader",
+      "summary": "export interface KJFlangeLeader { vertices: Point2[]; arrowEnabled?: boolean; pathType?: number; annotationType?: number; hookLineDirection?: number; hookLineEnabled?: boolean; /** Native DXF leader annotation height/wid"
+    },
+    {
+      "name": "KJFlangeLineDirection",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjflangelinedirection",
+      "anchor": "root-type-kjflangelinedirection",
+      "summary": "export type KJFlangeLineDirection = 'forward' | 'reverse';"
+    },
+    {
+      "name": "KJFlangeMaterialCondition",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjflangematerialcondition",
+      "anchor": "root-type-kjflangematerialcondition",
+      "summary": "export type KJFlangeMaterialCondition = 'maximum' | 'least' | 'regardless';"
+    },
+    {
+      "name": "KJFlangePointDisplay",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangepointdisplay",
+      "anchor": "root-interface-kjflangepointdisplay",
+      "summary": "export interface KJFlangePointDisplay { /** Legal DXF PDMODE base modes 0..4, optionally combined with circle/square flags 32 and 64. */ mode: number; /** DXF PDSIZE: zero is 5% of the viewport, positive is drawing units"
+    },
+    {
+      "name": "KJFlangePolarHolePattern",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangepolarholepattern",
+      "anchor": "root-interface-kjflangepolarholepattern",
+      "summary": "export interface KJFlangePolarHolePattern { count: number; pitchRadius: number; holeRadius: number; startAngle?: number; styleKey?: string; }"
+    },
+    {
+      "name": "KJFlangeSectionHatch",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangesectionhatch",
+      "anchor": "root-interface-kjflangesectionhatch",
+      "summary": "export interface KJFlangeSectionHatch { /** Legacy single-loop shorthand. Exactly one of edges or boundaryLoops is required. */ edges?: KJFlangeSectionHatchEdge[]; /** Explicit bounded topology, including inner loops and"
+    },
+    {
+      "name": "KJFlangeSectionHatchBoundaryLoop",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangesectionhatchboundaryloop",
+      "anchor": "root-interface-kjflangesectionhatchboundaryloop",
+      "summary": "export interface KJFlangeSectionHatchBoundaryLoop { edges: KJFlangeSectionHatchEdge[]; external?: boolean; flags?: number; }"
+    },
+    {
+      "name": "KJFlangeSectionHatchEdge",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjflangesectionhatchedge",
+      "anchor": "root-type-kjflangesectionhatchedge",
+      "summary": "export type KJFlangeSectionHatchEdge = { kind: 'line'; start: { station: number; offset: number; }; end: { station: number; offset: number; }; } | { kind: 'arc'; center: { station: number; offset: number; }; radius: numb"
+    },
+    {
+      "name": "KJFlangeSectionHatchSplineEdge",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangesectionhatchsplineedge",
+      "anchor": "root-interface-kjflangesectionhatchsplineedge",
+      "summary": "export interface KJFlangeSectionHatchSplineEdge { kind: 'spline'; degree: number; controlPoints: { station: number; offset: number; }[]; knots?: number[]; weights?: number[]; fitPoints?: { station: number; offset: number"
+    },
+    {
+      "name": "KJFlangeSheetNote",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangesheetnote",
+      "anchor": "root-interface-kjflangesheetnote",
+      "summary": "export interface KJFlangeSheetNote { kind: 'single-line' | 'multiline'; text: string; position: Point2; height: number; rotation?: number; /** Entity-local TEXT width factor; valid only for single-line notes. */ widthFac"
+    },
+    {
+      "name": "KJFlangeSideViewOutlineSegment",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjflangesideviewoutlinesegment",
+      "anchor": "root-type-kjflangesideviewoutlinesegment",
+      "summary": "export type KJFlangeSideViewOutlineSegment = { kind: 'line'; start: { station: number; offset: number; }; end: { station: number; offset: number; }; styleKey?: string; } | { kind: 'arc'; center: { station: number; offset"
+    },
+    {
+      "name": "KJFlangeStyleProfile",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangestyleprofile",
+      "anchor": "root-interface-kjflangestyleprofile",
+      "summary": "export interface KJFlangeStyleProfile { frame?: KJFlangeStyleRole; grid?: KJFlangeStyleRole; geometry?: KJFlangeStyleRole; center?: KJFlangeStyleRole; notes?: KJFlangeStyleRole; dimensions?: KJFlangeStyleRole; hatch?: KJ"
+    },
+    {
+      "name": "KJFlangeStyleRole",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangestylerole",
+      "anchor": "root-interface-kjflangestylerole",
+      "summary": "export interface KJFlangeStyleRole { layerName?: string; color?: number; lineweight?: number; linetypeName?: string; linetypePattern?: number[]; /** Per-entity linetype scale. The referenced linetype definition remains r"
+    },
+    {
+      "name": "KJFlangeSymbolAttribute",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangesymbolattribute",
+      "anchor": "root-interface-kjflangesymbolattribute",
+      "summary": "export interface KJFlangeSymbolAttribute { text: string; tag: string; prompt?: string; position: Point2; alignmentPoint?: Point2; height: number; rotation?: number; widthFactor?: number; obliqueAngle?: number; horizontal"
+    },
+    {
+      "name": "KJFlangeSymbolDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangesymboldefinition",
+      "anchor": "root-interface-kjflangesymboldefinition",
+      "summary": "export interface KJFlangeSymbolDefinition { key: string; basePoint: Point2; members: KJFlangeSymbolMember[]; }"
+    },
+    {
+      "name": "KJFlangeSymbolInstance",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangesymbolinstance",
+      "anchor": "root-interface-kjflangesymbolinstance",
+      "summary": "export interface KJFlangeSymbolInstance { symbolKey: string; position: Point2Or3; scale?: Point2; rotation?: number; role: KJFlangeAuxiliaryLine['role']; styleKey?: string; attributes?: KJFlangeSymbolAttribute[]; }"
+    },
+    {
+      "name": "KJFlangeSymbolMember",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjflangesymbolmember",
+      "anchor": "root-type-kjflangesymbolmember",
+      "summary": "export type KJFlangeSymbolMember = { kind: 'line'; start: Point2; end: Point2; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string; } | { kind: 'polyline'; vertices: { point: Point2; bulge?: number; startWidth?:"
+    },
+    {
+      "name": "KJFlangeSymmetricProfile",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangesymmetricprofile",
+      "anchor": "root-interface-kjflangesymmetricprofile",
+      "summary": "export interface KJFlangeSymmetricProfile { vertices: { station: number; radius: number; }[]; endCaps?: 'none' | 'start' | 'end' | 'both'; segmentDirections?: { upper?: KJFlangeLineDirection; lower?: KJFlangeLineDirectio"
+    },
+    {
+      "name": "KJFlangeTextStyleDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangetextstyledefinition",
+      "anchor": "root-interface-kjflangetextstyledefinition",
+      "summary": "export interface KJFlangeTextStyleDefinition { key: string; name: string; fontFamily?: string | null; fontFile?: string | null; bigFontFile?: string | null; fixedHeight?: number; widthFactor?: number; obliqueAngle?: numb"
+    },
+    {
+      "name": "KJFlangeTitleGrid",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangetitlegrid",
+      "anchor": "root-interface-kjflangetitlegrid",
+      "summary": "export interface KJFlangeTitleGrid { origin: Point2; size: Point2; /** Full-height column boundaries measured from the grid's left edge. */ columns: (number | { offset: number; styleKey?: string; })[]; /** Column boundar"
+    },
+    {
       "name": "KJFormatCapability",
       "kind": "type",
       "module": "@kanjieteam/kjdraw",
@@ -10802,7 +11218,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjgeologyborehole",
       "anchor": "root-interface-kjgeologyborehole",
-      "summary": "export interface KJGeologyBorehole { id: string; collarElevation: number; depth: number; x?: number; y?: number; startDate?: string; endDate?: string; /** Measured stable groundwater depth; never inferred from another ho"
+      "summary": "export interface KJGeologyBorehole { id: string; collarElevation: number; depth: number; x?: number; y?: number; startDate?: string; endDate?: string; /** Measured groundwater depth first observed while drilling; distinc"
     },
     {
       "name": "KJGeologyColumnInput",
@@ -10813,12 +11229,284 @@
       "summary": "export interface KJGeologyColumnInput { /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */ locale?: 'zh-CN' | 'en'; hole: KJGeologyBorehole; projectName?: string; /** Exact so"
     },
     {
+      "name": "KJGeologyDefaultTextStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologydefaulttextstyle",
+      "anchor": "root-interface-kjgeologydefaulttextstyle",
+      "summary": "export interface KJGeologyDefaultTextStyle { name: string; fontFamily: string; fontFile: string; bigFontFile: string; fixedHeight: number; widthFactor: number; obliqueAngleDegrees: number; dxfFlags: number; generationFla"
+    },
+    {
+      "name": "KJGeologyDescriptionTextStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologydescriptiontextstyle",
+      "anchor": "root-interface-kjgeologydescriptiontextstyle",
+      "summary": "export interface KJGeologyDescriptionTextStyle { fieldRole: 'description'; anchor: 'declared-major-group-boundary'; height: number; /** Optional source-declared MTEXT paragraph width in physical millimetres. */ width?: n"
+    },
+    {
+      "name": "KJGeologyFieldHeaderTextPlacement",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyfieldheadertextplacement",
+      "anchor": "root-interface-kjgeologyfieldheadertextplacement",
+      "summary": "export interface KJGeologyFieldHeaderTextPlacement { offset: [number, number]; height: number; textWidthFactor: number; horizontalAlignment: 'left' | 'center' | 'right'; verticalAlignment: 'baseline' | 'middle'; }"
+    },
+    {
+      "name": "KJGeologyFieldHeaderTextStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyfieldheadertextstyle",
+      "anchor": "root-interface-kjgeologyfieldheadertextstyle",
+      "summary": "export interface KJGeologyFieldHeaderTextStyle { main: KJGeologyFieldHeaderTextPlacement; sub?: KJGeologyFieldHeaderTextPlacement; }"
+    },
+    {
+      "name": "KJGeologyFooterFactTextStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyfooterfacttextstyle",
+      "anchor": "root-interface-kjgeologyfooterfacttextstyle",
+      "summary": "export interface KJGeologyFooterFactTextStyle { label: KJGeologyFieldHeaderTextPlacement; value: KJGeologyFieldHeaderTextPlacement; }"
+    },
+    {
+      "name": "KJGeologyGroundwaterAnnotationStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologygroundwaterannotationstyle",
+      "anchor": "root-interface-kjgeologygroundwaterannotationstyle",
+      "summary": "export interface KJGeologyGroundwaterAnnotationStyle { fieldRole: 'pattern'; textHeight: number; markerHeight: number; textWidthFactor: number; gap: number; valueOffset: number; markerOffset: number; dateOffset: number; "
+    },
+    {
+      "name": "KJGeologyGroundwaterObservation",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologygroundwaterobservation",
+      "anchor": "root-interface-kjgeologygroundwaterobservation",
+      "summary": "export interface KJGeologyGroundwaterObservation { /** Measured depth below the collar in metres. */ depth: number; /** Independently supplied absolute groundwater elevation in metres. */ elevation: number; /** Source-re"
+    },
+    {
+      "name": "KJGeologyHeaderFactTextStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyheaderfacttextstyle",
+      "anchor": "root-interface-kjgeologyheaderfacttextstyle",
+      "summary": "export interface KJGeologyHeaderFactTextStyle { label: KJGeologyFieldHeaderTextPlacement; value: KJGeologyFieldHeaderTextPlacement; }"
+    },
+    {
+      "name": "KJGeologyIntervalDepthTextStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyintervaldepthtextstyle",
+      "anchor": "root-interface-kjgeologyintervaldepthtextstyle",
+      "summary": "export interface KJGeologyIntervalDepthTextStyle { fieldRole: 'depth'; principal: KJGeologyFieldHeaderTextPlacement; lens: KJGeologyFieldHeaderTextPlacement; }"
+    },
+    {
+      "name": "KJGeologyMajorGroupValueStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologymajorgroupvaluestyle",
+      "anchor": "root-interface-kjgeologymajorgroupvaluestyle",
+      "summary": "export interface KJGeologyMajorGroupValueStyle { anchor: 'major-group-midpoint'; layerNumber: KJGeologyFieldHeaderTextPlacement; layerName: KJGeologyFieldHeaderTextPlacement; baseElevation: KJGeologyFieldHeaderTextPlacem"
+    },
+    {
       "name": "KJGeologyObservation",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjgeologyobservation",
       "anchor": "root-interface-kjgeologyobservation",
-      "summary": "export interface KJGeologyObservation { kind: 'sample' | 'spt'; id: string; depth: number; value?: number; /** Short visible text; id remains the exact stable observation identity. */ displayLabel?: string; /** Direct nu"
+      "summary": "export interface KJGeologyObservation { kind: 'sample' | 'spt'; id: string; depth: number; value?: number; /** Short visible text; id remains the exact stable observation identity. */ displayLabel?: string; /** Source-re"
+    },
+    {
+      "name": "KJGeologyPlanAlignedDimension",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanaligneddimension",
+      "anchor": "root-interface-kjgeologyplanaligneddimension",
+      "summary": "export interface KJGeologyPlanAlignedDimension { id: string; dimensionLinePoint: Point2; firstExtensionOrigin: Point2; secondExtensionOrigin: Point2; textPosition?: Point2; displayValue: number; precision?: number; unitS"
+    },
+    {
+      "name": "KJGeologyPlanBaseMapAttribute",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanbasemapattribute",
+      "anchor": "root-interface-kjgeologyplanbasemapattribute",
+      "summary": "export interface KJGeologyPlanBaseMapAttribute { id: string; styleId: string; textStyleId: string; tag: string; text: string; position: Point3; alignmentPoint?: Point3; height: number; rotationDegrees: number; widthFacto"
+    },
+    {
+      "name": "KJGeologyPlanBaseMapAttributeDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanbasemapattributedefinition",
+      "anchor": "root-interface-kjgeologyplanbasemapattributedefinition",
+      "summary": "export interface KJGeologyPlanBaseMapAttributeDefinition extends KJGeologyPlanBaseMapAttribute { kind: 'attributeDefinition'; prompt: string; }"
+    },
+    {
+      "name": "KJGeologyPlanBaseMapBlock",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanbasemapblock",
+      "anchor": "root-interface-kjgeologyplanbasemapblock",
+      "summary": "export interface KJGeologyPlanBaseMapBlock { id: string; extrusion?: Point3; attributes?: KJGeologyPlanBaseMapAttribute[]; basePoint: Point2; entities: (KJGeologyPlanBaseMapLinework | KJGeologyPlanBaseMapHatch | KJGeolog"
+    },
+    {
+      "name": "KJGeologyPlanBaseMapHatch",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanbasemaphatch",
+      "anchor": "root-interface-kjgeologyplanbasemaphatch",
+      "summary": "export interface KJGeologyPlanBaseMapHatch { id: string; styleId: string; kind: 'hatch'; patternName: string; solid: boolean; associative: boolean; patternAngleDegrees: number; patternScale: number; patternLines: { angle"
+    },
+    {
+      "name": "KJGeologyPlanBaseMapInsert",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanbasemapinsert",
+      "anchor": "root-interface-kjgeologyplanbasemapinsert",
+      "summary": "export interface KJGeologyPlanBaseMapInsert { id: string; styleId: string; blockId: string; position: Point2; scale: Point3; rotationDegrees: number; }"
+    },
+    {
+      "name": "KJGeologyPlanBaseMapLinework",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjgeologyplanbasemaplinework",
+      "anchor": "root-type-kjgeologyplanbasemaplinework",
+      "summary": "export type KJGeologyPlanBaseMapLinework = { id: string; styleId: string; kind: 'line'; start: Point2; end: Point2; } | { id: string; styleId: string; kind: 'arc'; center: Point2; radius: number; startAngleDegrees: numbe"
+    },
+    {
+      "name": "KJGeologyPlanBaseMapPoint",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanbasemappoint",
+      "anchor": "root-interface-kjgeologyplanbasemappoint",
+      "summary": "export interface KJGeologyPlanBaseMapPoint { id: string; styleId: string; kind: 'point'; position: Point2; }"
+    },
+    {
+      "name": "KJGeologyPlanBaseMapSolid",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanbasemapsolid",
+      "anchor": "root-interface-kjgeologyplanbasemapsolid",
+      "summary": "export interface KJGeologyPlanBaseMapSolid { id: string; styleId: string; kind: 'solid'; solidVertices: [Point2, Point2, Point2, Point2]; }"
+    },
+    {
+      "name": "KJGeologyPlanBaseMapStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanbasemapstyle",
+      "anchor": "root-interface-kjgeologyplanbasemapstyle",
+      "summary": "export interface KJGeologyPlanBaseMapStyle { id: string; color: number; lineweight: number; pattern: number[]; }"
+    },
+    {
+      "name": "KJGeologyPlanBaseMapTextStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanbasemaptextstyle",
+      "anchor": "root-interface-kjgeologyplanbasemaptextstyle",
+      "summary": "export interface KJGeologyPlanBaseMapTextStyle { id: string; fontFamily?: string | null; fontFile?: string | null; bigFontFile?: string | null; fixedHeight?: number; widthFactor?: number; obliqueAngleDegrees?: number; dx"
+    },
+    {
+      "name": "KJGeologyPlanBorehole",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanborehole",
+      "anchor": "root-interface-kjgeologyplanborehole",
+      "summary": "export interface KJGeologyPlanBorehole { id: string; position: Point2; collarElevation: number; depth?: number; kind?: 'borehole' | 'test-pit' | 'in-situ-test'; labelLayout?: KJGeologyPlanBoreholeLabelLayout; }"
+    },
+    {
+      "name": "KJGeologyPlanBoreholeLabelLayout",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanboreholelabellayout",
+      "anchor": "root-interface-kjgeologyplanboreholelabellayout",
+      "summary": "export interface KJGeologyPlanBoreholeLabelLayout { idPosition: Point2; collarElevationPosition: Point2; depthPosition?: Point2; textHeight?: number; rotationDegrees?: number; precision?: number; }"
+    },
+    {
+      "name": "KJGeologyPlanBuildingFootprint",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanbuildingfootprint",
+      "anchor": "root-interface-kjgeologyplanbuildingfootprint",
+      "summary": "export interface KJGeologyPlanBuildingFootprint { id: string; outline: Point2[]; }"
+    },
+    {
+      "name": "KJGeologyPlanCoordinateCallout",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplancoordinatecallout",
+      "anchor": "root-interface-kjgeologyplancoordinatecallout",
+      "summary": "export interface KJGeologyPlanCoordinateCallout { id: string; point: Point2; elbow: Point2; landingEnd: Point2; xLabelPosition: Point2; yLabelPosition: Point2; precision?: number; textHeight?: number; }"
+    },
+    {
+      "name": "KJGeologyPlanCoordinateGrid",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplancoordinategrid",
+      "anchor": "root-interface-kjgeologyplancoordinategrid",
+      "summary": "export interface KJGeologyPlanCoordinateGrid { origin: Point2; spacing: number; }"
+    },
+    {
+      "name": "KJGeologyPlanRoadPath",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplanroadpath",
+      "anchor": "root-interface-kjgeologyplanroadpath",
+      "summary": "export interface KJGeologyPlanRoadPath { id: string; start: Point2; segments: KJGeologyPlanRoadSegment[]; closed?: boolean; }"
+    },
+    {
+      "name": "KJGeologyPlanRoadSegment",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjgeologyplanroadsegment",
+      "anchor": "root-type-kjgeologyplanroadsegment",
+      "summary": "export type KJGeologyPlanRoadSegment = { kind: 'line'; end: Point2; } | { kind: 'arc'; center: Point2; end: Point2; clockwise?: boolean; };"
+    },
+    {
+      "name": "KJGeologyPlanSectionLine",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyplansectionline",
+      "anchor": "root-interface-kjgeologyplansectionline",
+      "summary": "export interface KJGeologyPlanSectionLine { id: string; holeIds: string[]; label: string; endpointLabels?: [string, string]; markerClearance?: [number, number]; endpointTailLengths?: [number, number]; endpointLabelPositi"
+    },
+    {
+      "name": "KJGeologyRoleTextStyles",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyroletextstyles",
+      "anchor": "root-interface-kjgeologyroletextstyles",
+      "summary": "export interface KJGeologyRoleTextStyles { layerName?: KJGeologyDefaultTextStyle; patternLabel?: KJGeologyDefaultTextStyle; }"
+    },
+    {
+      "name": "KJGeologySampleAnnotationStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologysampleannotationstyle",
+      "anchor": "root-interface-kjgeologysampleannotationstyle",
+      "summary": "export interface KJGeologySampleAnnotationStyle { depthAnchor: 'observation-depth' | 'range-top' | 'range-bottom'; label: KJGeologyFieldHeaderTextPlacement; marker: KJGeologyFieldHeaderTextPlacement; }"
+    },
+    {
+      "name": "KJGeologySampleRangeBaselineStyle",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjgeologysamplerangebaselinestyle",
+      "anchor": "root-type-kjgeologysamplerangebaselinestyle",
+      "summary": "export type KJGeologySampleRangeBaselineStyle = { boundaries: ('top' | 'bottom')[]; continuity: 'collision-safe' | 'continuous'; } & ({ insetMm: number; } | { fieldRole: 'sample'; startInsetMm: number; endInsetMm: number"
+    },
+    {
+      "name": "KJGeologySampleRangeTextFormat",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologysamplerangetextformat",
+      "anchor": "root-interface-kjgeologysamplerangetextformat",
+      "summary": "export interface KJGeologySampleRangeTextFormat { fieldRole: 'sample'; prefix: string; separator: string; suffix: string; decimals: number; trailingZeros: 'preserve' | 'trim'; anchor?: 'range-top' | 'range-midpoint' | 'r"
+    },
+    {
+      "name": "KJGeologySectionConnection",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologysectionconnection",
+      "anchor": "root-interface-kjgeologysectionconnection",
+      "summary": "export interface KJGeologySectionConnection { fromHoleId: string; toHoleId: string; fromDepth: number; toDepth: number; kind?: 'continuity' | 'pinchout' | 'lens' | 'manualBoundary'; layerCode?: string; }"
     },
     {
       "name": "KJGeologySectionInput",
@@ -10829,12 +11517,60 @@
       "summary": "export interface KJGeologySectionInput { /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */ locale?: 'zh-CN' | 'en'; holes: KJGeologyBorehole[]; /** Only explicitly correlated"
     },
     {
+      "name": "KJGeologySectionObservationSymbolStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologysectionobservationsymbolstyle",
+      "anchor": "root-interface-kjgeologysectionobservationsymbolstyle",
+      "summary": "export interface KJGeologySectionObservationSymbolStyle { sample: { centerOffset: [number, number]; radius: number; fill: 'solid' | 'none'; labelPlacement?: KJGeologyFieldHeaderTextPlacement; }; spt: { topRightOffset: [n"
+    },
+    {
+      "name": "KJGeologySectionReference",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologysectionreference",
+      "anchor": "root-interface-kjgeologysectionreference",
+      "summary": "export interface KJGeologySectionReference { start: string; end: string; }"
+    },
+    {
+      "name": "KJGeologyStratigraphicNotationPlacementSet",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologystratigraphicnotationplacementset",
+      "anchor": "root-interface-kjgeologystratigraphicnotationplacementset",
+      "summary": "export interface KJGeologyStratigraphicNotationPlacementSet { symbol: KJGeologyFieldHeaderTextPlacement; superscript: KJGeologyFieldHeaderTextPlacement; subscript: KJGeologyFieldHeaderTextPlacement; }"
+    },
+    {
+      "name": "KJGeologyStratigraphicNotationStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologystratigraphicnotationstyle",
+      "anchor": "root-interface-kjgeologystratigraphicnotationstyle",
+      "summary": "export interface KJGeologyStratigraphicNotationStyle { symbolHeight: number; qualifierHeight: number; placement?: { fieldRole: 'layerName'; anchor: 'major-group-midpoint'; principal: KJGeologyStratigraphicNotationPlaceme"
+    },
+    {
       "name": "KJGeologyStratum",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjgeologystratum",
       "anchor": "root-interface-kjgeologystratum",
       "summary": "export interface KJGeologyStratum { /** Exact interval identity when one layer code appears more than once in a hole. */ intervalId?: string; /** Explicit source-backed continuous major group; never inferred from litholo"
+    },
+    {
+      "name": "KJGeologyTitleMarginDecoration",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologytitlemargindecoration",
+      "anchor": "root-interface-kjgeologytitlemargindecoration",
+      "summary": "export interface KJGeologyTitleMarginDecoration { kind: 'top-edge-elbow-underline'; elbowOffset: [number, number]; horizontalEnd: 'frame-right'; }"
+    },
+    {
+      "name": "KJGeologyTitleTextStyle",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologytitletextstyle",
+      "anchor": "root-interface-kjgeologytitletextstyle",
+      "summary": "export interface KJGeologyTitleTextStyle { anchor: 'frame-left-top'; placement: KJGeologyFieldHeaderTextPlacement; rotationDegrees: number; }"
     },
     {
       "name": "KJGeometryBackend",
@@ -11131,6 +11867,30 @@
       "href": "./api/reference/#root-interface-kjlocalizedcontroltext",
       "anchor": "root-interface-kjlocalizedcontroltext",
       "summary": "export interface KJLocalizedControlText { readonly en: string; readonly zh: string; }"
+    },
+    {
+      "name": "KJMechanicalBearingSeatDetection",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjmechanicalbearingseatdetection",
+      "anchor": "root-interface-kjmechanicalbearingseatdetection",
+      "summary": "export interface KJMechanicalBearingSeatDetection { status: 'match' | 'none' | 'ambiguous'; candidates: readonly KJMechanicalBearingSeatEndView[]; }"
+    },
+    {
+      "name": "KJMechanicalBearingSeatEndView",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjmechanicalbearingseatendview",
+      "anchor": "root-interface-kjmechanicalbearingseatendview",
+      "summary": "export interface KJMechanicalBearingSeatEndView { center: readonly [number, number]; crownRadius: number; housingDiameter: number; boreDiameter: number; mountingHoleDiameter: number; mountingHoleSpacing: number; }"
+    },
+    {
+      "name": "KJMechanicalTopologyEntity",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjmechanicaltopologyentity",
+      "anchor": "root-interface-kjmechanicaltopologyentity",
+      "summary": "export interface KJMechanicalTopologyEntity { type: string; payload: Readonly<Record<string, unknown>>; }"
     },
     {
       "name": "KJModelAdapterOptions",

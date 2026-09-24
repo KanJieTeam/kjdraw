@@ -8,15 +8,16 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
+  <link rel="stylesheet" href="../style.css?v=cbc5bdeee724d98d">
   <title>Agent workflows · KJDraw Docs</title>
 </head>
 <body>
   <header class="topbar">
     <button id="menu-button" class="icon-button menu-button" type="button" aria-label="Open navigation">☰</button>
     <a class="brand" href="../"><img src="../../assets/mark.svg" alt=""><b>KJDraw</b><span>Docs</span></a>
+    <nav class="product-nav" aria-label="KJDraw products"><a href="../"><span class="lang-en">Overview</span><span class="lang-zh">概览</span></a><a href="../quickstart/" class="active"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例</span></a><a href="../api/">API</a></nav>
     <button id="search-button" class="search-button" type="button" aria-keyshortcuts="Control+K Meta+K"><span aria-hidden="true">⌕</span><span class="lang-en">Search guides and API</span><span class="lang-zh">搜索指南与 API</span><kbd>Ctrl K</kbd></button>
-    <nav class="top-links"><a href="../api/">API</a><a href="https://kanjieteam.github.io/kjdraw/"><span class="lang-en">Demo</span><span class="lang-zh">演示</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="https://kanjieteam.github.io/kjdraw/">Playground</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
@@ -24,16 +25,19 @@
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
-          <a href="../"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
+          <a href="../"><span class="lang-en">KJDraw</span><span class="lang-zh">KJDraw</span></a>
+          <a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例库</span></a>
           <a href="../quickstart/"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
+          <a href="../starters/"><span class="lang-en">Starter projects</span><span class="lang-zh">起步工程</span></a>
           <a href="../installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
-          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
-          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
-          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../concepts/"><span class="lang-en">Core concepts</span><span class="lang-zh">核心概念</span></a>
+          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
           <a href="../commands/"><span class="lang-en">Commands and transactions</span><span class="lang-zh">命令与事务</span></a>
+          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Frameworks</h3><h3 class="lang-zh">前端框架</h3>
@@ -44,11 +48,14 @@
           <h3 class="lang-en">Extend and deploy</h3><h3 class="lang-zh">扩展与部署</h3>
           <a href="../agent/" class="active" aria-current="page"><span class="lang-en">Agent workflows</span><span class="lang-zh">Agent 工作流</span></a>
           <a href="../models/"><span class="lang-en">Connect your model</span><span class="lang-zh">接入你的模型</span></a>
+          <a href="../mcp/"><span class="lang-en">MCP integration</span><span class="lang-zh">MCP 集成</span></a>
+          <a href="../knowledge-packs/"><span class="lang-en">Compile knowledge packs</span><span class="lang-zh">编译知识包</span></a>
           <a href="../plugins/"><span class="lang-en">Plugins</span><span class="lang-zh">插件</span></a>
           <a href="../deployment/"><span class="lang-en">Deployment</span><span class="lang-zh">部署</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Reference</h3><h3 class="lang-zh">参考</h3>
+          <a href="../reference/"><span class="lang-en">API reference</span><span class="lang-zh">API 参考</span></a>
           <a href="../capabilities/"><span class="lang-en">Capabilities</span><span class="lang-zh">功能能力</span></a>
         </section>
         <section class="nav-group reference-group">
@@ -61,13 +68,13 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-agent">
-          <p class="eyebrow">KJDRAW / AGENT WORKFLOWS</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / AGENT WORKFLOWS</p>
           <h1>Agent workflows</h1>
-          <p class="lead">Let an AI read an authorized drawing, propose exact CAD changes, and hand the final decision to a trusted host.</p>
-          <h2 id="en-agent-agent-tools">Build a reviewed CAD workflow<a class="heading-anchor" href="#en-agent-agent-tools" aria-label="Link to Build a reviewed CAD workflow">#</a></h2>
+          <p class="lead">Let an AI read an authorized drawing, propose exact CAD changes, and hand the final decision to a trusted host.</p></header>
+          <h2 id="en-agent-agent-tools">Build a reviewed CAD workflow</h2>
 <p>The <code>@kanjieteam/kjdraw/agent-tools</code> entry point exports <code>KJAgentToolSession</code>, which gives any tool-calling model a controlled way to work with a KJDraw document. It exposes JSON-serializable tool definitions for reading, querying, measuring, checking and proposing CAD changes. Proposal tools return exact geometry for review and do not edit the document.</p>
 <p>The host creates the session for one authorized <code>KJDocument</code>, sends selected tool definitions to the model, dispatches model calls through <code>session.call(name, arguments)</code>, and keeps approval in its own trusted user interface. The same API works with different model providers; provider connection examples are covered in <a href="https://kanjieteam.github.io/kjdraw/docs/latest/models/">Models and harnesses</a>.</p>
-<h3 id="en-agent-capabilities">Capabilities<a class="heading-anchor" href="#en-agent-capabilities" aria-label="Link to Capabilities">#</a></h3>
+<h3 id="en-agent-capabilities">Capabilities</h3>
 <ul>
 <li>Read the current revision, units, layers, layouts and bounded drawing geometry.</li>
 <li>Query a user selection, object types, layers, owner space or an XY region without sending the entire file.</li>
@@ -77,7 +84,7 @@
 <li>Add project-specific guidance through host-trusted <code>KJAgentCapabilityRegistry</code> manifests without adding executable code to the model tool path.</li>
 </ul>
 <p>KJDraw enforces the published input schemas again when <code>call()</code> runs. Tool descriptions guide the model, while the CAD core remains responsible for geometry, document revisions, limits and commit behavior.</p>
-<h2 id="en-agent-install">Install and import<a class="heading-anchor" href="#en-agent-install" aria-label="Link to Install and import">#</a></h2>
+<h2 id="en-agent-install">Install and import</h2>
 <p>Install the package in the application that owns the drawing and review UI:</p>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm install @kanjieteam/kjdraw@next</code></pre>
 <p>Import the SDK from the package root and Agent tools from the <code>agent-tools</code> entry point:</p>
@@ -91,7 +98,7 @@ const session = new KJAgentToolSession(sdk, drawing)</code></pre>
 <p>The package requires Node.js 22 or later for its Node examples. To verify the installed tool-session path without a model or API key, run:</p>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs</code></pre>
 <p>The example proposes a circle, simulates the host approval step, rejects a duplicate approval, reopens the native file and verifies Undo. It checks integration behavior rather than natural-language drawing quality.</p>
-<h2 id="en-agent-quickstart">Shortest working flow<a class="heading-anchor" href="#en-agent-quickstart" aria-label="Link to Shortest working flow">#</a></h2>
+<h2 id="en-agent-quickstart">Shortest working flow</h2>
 <p>This runnable example creates a session and asks for a circle proposal. The document remains unchanged while the proposal is waiting for review:</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 import {
@@ -124,14 +131,14 @@ if (drawing.revision !== 0) throw new Error(&#39;A proposal must not edit the dr
 <li>After the host authenticates the reviewer and checks permission, call <code>session.approve(planId, reviewerId)</code> or <code>session.reject(planId, reviewerId)</code> from the host action.</li>
 </ol>
 <p>Do not include <code>approve</code> or <code>reject</code> in the model&#39;s tool list. A reviewer ID string identifies the decision in KJDraw; authentication and authorization happen in the host application.</p>
-<h2 id="en-agent-tool-selection">Choose the right tool<a class="heading-anchor" href="#en-agent-tool-selection" aria-label="Link to Choose the right tool">#</a></h2>
+<h2 id="en-agent-tool-selection">Choose the right tool</h2>
 <p>Start with the narrowest tool that matches the task. The table lists the common entry points; inspect <code>session.definitions</code> for the complete tool set and its current schemas.</p>
 <div class="table-wrap"><table><thead><tr><th>Tool</th><th>Use it for</th></tr></thead><tbody><tr><td><code>cad_read_drawing</code></td><td>Read the first bounded page of visible model-space objects, layers, units and revision</td></tr><tr><td><code>cad_read_page</code></td><td>Continue the unfiltered read with the returned entity and layer offsets</td></tr><tr><td><code>cad_read_layouts</code></td><td>Discover model and paper layouts, exact owner-space IDs and numeric page settings</td></tr><tr><td><code>cad_query_drawing</code></td><td>Read a revision-bound page filtered by ID, type, layer, owner space or XY bounds</td></tr><tr><td><code>cad_measure_distance</code></td><td>Calculate an exact planar distance between two supplied points in drawing units</td></tr><tr><td><code>cad_check_geometry</code></td><td>Compare explicit lengths, radii, feature distances or topology checks with native objects</td></tr><tr><td><code>cad_propose_lines</code></td><td>Propose 1–64 model-space XY lines</td></tr><tr><td><code>cad_propose_circles</code></td><td>Propose 1–64 model-space XY circles</td></tr><tr><td><code>cad_propose_move</code></td><td>Propose one XY move for supported visible, editable objects or a named selection set</td></tr><tr><td><code>cad_propose_drawing</code></td><td>Propose a mixed batch of native lines, circles, arcs, ellipses, splines, polylines and hatches</td></tr></tbody></table></div>
 <p>Use <code>cad_read_drawing</code> when the model needs an initial overview. Use <code>cad_query_drawing</code> for a user selection or a known region, and continue with identical filters plus the returned <code>nextOffset</code> and <code>nextLayerOffset</code>. Call <code>cad_read_layouts</code> first when paper space is involved, then pass its exact <code>spaceId</code> to <code>cad_query_drawing</code>. <code>cad_read_page</code> continues only an unfiltered read and does not remember query filters.</p>
 <p>Use <code>cad_check_geometry</code> only after reading the real object IDs. An unmet requirement returns <code>ok: true</code> with <code>value.passed: false</code>: the tool executed successfully and the geometry failed the requested check. The result proves only the expectations and tolerances supplied by the host; it does not certify a complete design.</p>
 <p>Choose a specific proposal tool for a focused edit. Use <code>cad_propose_drawing</code> for a mixed batch; the installed <code>examples/agent-drawing.mjs</code> builds a profile with holes and a slot, then verifies preview, approval, file reopen and history. More specialized proposal tools in <code>session.definitions</code> cover transforms, compact patterns, annotations and packaged engineering workflows.</p>
 <p>Native coordinates can be object-local or block-local. Read tools do not expand block definitions or promise world coordinates, and XY bounds are drawing coordinates rather than screen pixels or paper viewport projections. Treat <code>spatialMatch: &#39;unclassified&#39;</code> as requiring inspection, never as proof that an object intersects the requested region.</p>
-<h3 id="en-agent-drawing-context">Direct host-side drawing context<a class="heading-anchor" href="#en-agent-drawing-context" aria-label="Link to Direct host side drawing context">#</a></h3>
+<h3 id="en-agent-drawing-context">Direct host-side drawing context</h3>
 <p>If the host needs drawing data outside a model tool loop, use the same bounded query implementation directly. <code>createLayoutContext(document, options)</code> provides the corresponding immutable layout catalog.</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 import { createDrawingContext } from &#39;@kanjieteam/kjdraw/drawing-context&#39;
@@ -151,11 +158,11 @@ const context = createDrawingContext(drawing, {
 })
 // context.entities contains native geometry, IDs and editing eligibility.
 // Reading context does not change the drawing or contact a model.</code></pre>
-<h2 id="en-agent-review-and-apply">Review and apply proposals<a class="heading-anchor" href="#en-agent-review-and-apply" aria-label="Link to Review and apply proposals">#</a></h2>
+<h2 id="en-agent-review-and-apply">Review and apply proposals</h2>
 <p>Every successful proposal contains the document ID, expected revision, normalized arguments, a <code>planId</code> and exact before/after geometry in <code>value.preview</code>. Render that preview over the current drawing and show the proposed parameters. If the camera changes, redraw the overlay from the stored preview.</p>
 <p>Approval is a one-shot host operation. KJDraw checks that the plan is still pending, the bound document and revision are unchanged, and the committed geometry matches the reviewed proposal. A successful commit becomes one normal Undo step. Rejecting a proposal consumes it without changing the drawing.</p>
 <p>For lower-level SDK commands, the equivalent protocol uses <code>sdk.createCommandEnvelope(..., { mode: &#39;plan&#39;, origin: &#39;ai&#39; })</code>, followed by a confirmed execution envelope after review. Keep the plan ID, command arguments and document revision unchanged between these steps.</p>
-<h3 id="en-agent-geometric-preview">Preview and apply a trim<a class="heading-anchor" href="#en-agent-geometric-preview" aria-label="Link to Preview and apply a trim">#</a></h3>
+<h3 id="en-agent-geometric-preview">Preview and apply a trim</h3>
 <p>The boundary-editing API can preview the exact retained geometry used by the workbench Trim/Extend tools. The example below creates a circle and cutting line, then proposes keeping the lower semicircle as an editable ARC:</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 import { createBoundaryEditSession } from &#39;@kanjieteam/kjdraw/boundary-edit&#39;
@@ -195,7 +202,7 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
   return receipt
 }</code></pre>
 <p>Reject with <code>sdk.agentPlans.reject(plan.id, reviewerId)</code> and <code>edit.cancel()</code>. Keep the original in-process preview object until review ends; create a new preview after any document change.</p>
-<h2 id="en-agent-errors-and-boundaries">Handle errors and enforce boundaries<a class="heading-anchor" href="#en-agent-errors-and-boundaries" aria-label="Link to Handle errors and enforce boundaries">#</a></h2>
+<h2 id="en-agent-errors-and-boundaries">Handle errors and enforce boundaries</h2>
 <p><code>session.call()</code> resolves to a discriminated result. Read <code>value</code> only when <code>ok</code> is <code>true</code>; otherwise log the stable <code>error.code</code> and show an action-oriented message to the user.</p>
 <div class="table-wrap"><table><thead><tr><th>Result</th><th>Host response</th></tr></thead><tbody><tr><td><code>KJDOCUMENT_REVISION_CONFLICT</code></td><td>Re-read the drawing and ask the model to produce a new proposal against the new revision</td></tr><tr><td><code>KJDOCUMENT_INVALID</code></td><td>Correct the tool name or arguments using this session&#39;s definition; do not retry unchanged input</td></tr><tr><td><code>KJAGENT_TOOL_FAILED</code></td><td>Stop automatic retries and let the host inspect the underlying failure</td></tr><tr><td>Successful read with <code>value.passed: false</code></td><td>Report the failed geometric checks; do not convert it into a successful design result</td></tr></tbody></table></div>
 <p>The session permits one operation at a time and at most 128 proposals. Individual definitions set their own object, byte and pagination limits. Start a new session only when the host intentionally begins a new authorized work period; do not use session replacement to bypass a rejected or stale plan.</p>
@@ -212,13 +219,13 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
 <p>For the lifecycle and trust model, read the <a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent.md">Agent integration contract</a> and <a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent-protocol.md">Agent protocol</a>.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-agent">
-          <p class="eyebrow">KJDRAW / Agent 工作流</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / Agent 工作流</p>
           <h1>Agent 工作流</h1>
-          <p class="lead">让 AI 读取获准访问的图纸、提出明确的 CAD 修改方案，并由可信宿主决定是否应用。</p>
-          <h2 id="zh-agent-agent-tools">构建可审核的 CAD 工作流<a class="heading-anchor" href="#zh-agent-agent-tools" aria-label="Link to 构建可审核的 CAD 工作流">#</a></h2>
+          <p class="lead">让 AI 读取获准访问的图纸、提出明确的 CAD 修改方案，并由可信宿主决定是否应用。</p></header>
+          <h2 id="zh-agent-agent-tools">构建可审核的 CAD 工作流</h2>
 <p><code>@kanjieteam/kjdraw/agent-tools</code> 入口导出的 <code>KJAgentToolSession</code> 为支持工具调用的模型提供受控的 KJDraw 图纸操作入口。它以可序列化的 JSON 定义提供读取、查询、测量、校核和修改提案能力。提案工具返回可供审核的准确几何，不会直接修改图纸。</p>
 <p>宿主为一份获准访问的 <code>KJDocument</code> 创建会话，把选定的工具定义交给模型，通过 <code>session.call(name, arguments)</code> 分派模型调用，并在自己的可信界面中保留批准权。这套 API 不绑定模型厂商；厂商接入示例见<a href="https://kanjieteam.github.io/kjdraw/docs/latest/models/">模型与执行框架</a>。</p>
-<h3 id="zh-agent-capabilities">能力<a class="heading-anchor" href="#zh-agent-capabilities" aria-label="Link to 能力">#</a></h3>
+<h3 id="zh-agent-capabilities">能力</h3>
 <ul>
 <li>读取当前修订号、单位、图层、布局和有界的图纸几何。</li>
 <li>按用户选择、对象类型、图层、归属空间或 XY 范围查询，无需发送整个文件。</li>
@@ -228,7 +235,7 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
 <li>通过宿主信任的 <code>KJAgentCapabilityRegistry</code> 清单添加项目能力说明，不向模型工具路径注入可执行代码。</li>
 </ul>
 <p><code>call()</code> 执行时，KJDraw 会再次按公开输入结构校验参数。工具描述用于指导模型，几何、图纸修订、用量限制和提交行为仍由 CAD 核心负责。</p>
-<h2 id="zh-agent-install">安装与导入<a class="heading-anchor" href="#zh-agent-install" aria-label="Link to 安装与导入">#</a></h2>
+<h2 id="zh-agent-install">安装与导入</h2>
 <p>在持有图纸和审核界面的应用中安装软件包：</p>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm install @kanjieteam/kjdraw@next</code></pre>
 <p>从包根目录导入 SDK，从 <code>agent-tools</code> 入口导入 Agent 工具：</p>
@@ -242,7 +249,7 @@ const session = new KJAgentToolSession(sdk, drawing)</code></pre>
 <p>Node.js 示例要求 Node.js 22 或更高版本。无需模型或 API Key，即可验证安装包中的工具会话入口：</p>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs</code></pre>
 <p>该示例会提出圆形绘制方案、模拟宿主批准、拒绝重复批准、重新打开原生文件并验证撤销。它验证接入行为，不代表自然语言绘图质量。</p>
-<h2 id="zh-agent-quickstart">最短工作流<a class="heading-anchor" href="#zh-agent-quickstart" aria-label="Link to 最短工作流">#</a></h2>
+<h2 id="zh-agent-quickstart">最短工作流</h2>
 <p>下面的可运行示例创建会话并提出一个圆形方案。方案等待审核时，图纸保持不变：</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 import {
@@ -275,14 +282,14 @@ if (drawing.revision !== 0) throw new Error(&#39;提案不得直接修改图纸&
 <li>宿主完成审核人认证和权限检查后，在宿主操作中调用 <code>session.approve(planId, reviewerId)</code> 或 <code>session.reject(planId, reviewerId)</code>。</li>
 </ol>
 <p>不要把 <code>approve</code> 或 <code>reject</code> 放进模型工具清单。审核人 ID 字符串只用于在 KJDraw 中标记决策，身份认证和权限判断由宿主应用完成。</p>
-<h2 id="zh-agent-tool-selection">选择合适的工具<a class="heading-anchor" href="#zh-agent-tool-selection" aria-label="Link to 选择合适的工具">#</a></h2>
+<h2 id="zh-agent-tool-selection">选择合适的工具</h2>
 <p>优先选择刚好满足任务的最小工具。下表列出常用入口；完整工具集和当前参数结构以 <code>session.definitions</code> 为准。</p>
 <div class="table-wrap"><table><thead><tr><th>工具</th><th>适用场景</th></tr></thead><tbody><tr><td><code>cad_read_drawing</code></td><td>读取可见模型空间对象、图层、单位和修订号的首个有界页面</td></tr><tr><td><code>cad_read_page</code></td><td>使用返回的对象和图层偏移继续未筛选读取</td></tr><tr><td><code>cad_read_layouts</code></td><td>发现模型/图纸布局、准确归属空间 ID 和数值页面设置</td></tr><tr><td><code>cad_query_drawing</code></td><td>按 ID、类型、图层、归属空间或 XY 范围读取绑定修订的分页结果</td></tr><tr><td><code>cad_measure_distance</code></td><td>用图纸单位计算两个给定点之间的准确平面距离</td></tr><tr><td><code>cad_check_geometry</code></td><td>将明确的长度、半径、特征点距离或拓扑检查与原生对象对比</td></tr><tr><td><code>cad_propose_lines</code></td><td>提出 1–64 条模型空间 XY 直线</td></tr><tr><td><code>cad_propose_circles</code></td><td>提出 1–64 个模型空间 XY 圆</td></tr><tr><td><code>cad_propose_move</code></td><td>对受支持的可见可编辑对象或命名选择集提出一次 XY 移动</td></tr><tr><td><code>cad_propose_drawing</code></td><td>成批提出原生直线、圆、圆弧、椭圆、样条、多段线和填充</td></tr></tbody></table></div>
 <p>模型首次了解图纸时使用 <code>cad_read_drawing</code>；目标是用户选择或已知范围时使用 <code>cad_query_drawing</code>，并保持筛选条件不变，以返回的 <code>nextOffset</code> 和 <code>nextLayerOffset</code> 继续分页。涉及图纸空间时，先调用 <code>cad_read_layouts</code>，再把返回的准确 <code>spaceId</code> 传给 <code>cad_query_drawing</code>。<code>cad_read_page</code> 只继续未筛选读取，不保存查询条件。</p>
 <p>读取真实对象 ID 后再调用 <code>cad_check_geometry</code>。要求未满足时会返回 <code>ok: true</code> 和 <code>value.passed: false</code>：工具执行成功，但几何未通过指定检查。结果只证明宿主给出的期望和容差，不代表整套设计已经合格。</p>
 <p>单一修改使用对应的专用提案工具；混合图形批量创建使用 <code>cad_propose_drawing</code>。安装包中的 <code>examples/agent-drawing.mjs</code> 会生成带孔和槽的轮廓，并验证预览、批准、文件重开和历史记录。<code>session.definitions</code> 中还有变换、紧凑阵列、标注和成套工程制图等专用提案工具。</p>
 <p>原生坐标可能属于对象局部坐标或块内坐标。读取工具不会展开块定义，也不保证返回世界坐标；XY 范围使用图纸坐标，不是屏幕像素或图纸视口投影。<code>spatialMatch: &#39;unclassified&#39;</code> 表示需要人工检查，不能作为对象与查询范围相交的证明。</p>
-<h3 id="zh-agent-drawing-context">宿主直接读取图纸上下文<a class="heading-anchor" href="#zh-agent-drawing-context" aria-label="Link to 宿主直接读取图纸上下文">#</a></h3>
+<h3 id="zh-agent-drawing-context">宿主直接读取图纸上下文</h3>
 <p>宿主需要在模型工具循环之外读取数据时，可以直接使用同一套有界查询实现。<code>createLayoutContext(document, options)</code> 提供对应的不可变布局目录。</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 import { createDrawingContext } from &#39;@kanjieteam/kjdraw/drawing-context&#39;
@@ -302,11 +309,11 @@ const context = createDrawingContext(drawing, {
 })
 // context.entities 包含原生几何、对象 ID 和编辑条件。
 // 读取不会修改图纸，也不会连接模型。</code></pre>
-<h2 id="zh-agent-review-and-apply">审核并应用提案<a class="heading-anchor" href="#zh-agent-review-and-apply" aria-label="Link to 审核并应用提案">#</a></h2>
+<h2 id="zh-agent-review-and-apply">审核并应用提案</h2>
 <p>每个成功提案都包含图档 ID、预期修订号、规范化参数、<code>planId</code>，以及 <code>value.preview</code> 中准确的修改前后几何。把预览叠加到当前图纸，并展示提案参数；相机改变后，应根据保存的预览重新绘制覆盖层。</p>
 <p>批准是一次性的宿主操作。KJDraw 会检查方案仍在等待处理、绑定图纸和修订号没有变化，且提交几何与已审核提案一致。成功提交后可用一次普通撤销恢复；拒绝会消费该提案，但不修改图纸。</p>
 <p>直接使用底层 SDK 命令时，对应流程先调用 <code>sdk.createCommandEnvelope(..., { mode: &#39;plan&#39;, origin: &#39;ai&#39; })</code>，审核后再执行带确认信息的命令信封。两步之间必须保持方案 ID、命令参数和图纸修订号不变。</p>
-<h3 id="zh-agent-geometric-preview">先预览，再应用修剪<a class="heading-anchor" href="#zh-agent-geometric-preview" aria-label="Link to 先预览，再应用修剪">#</a></h3>
+<h3 id="zh-agent-geometric-preview">先预览，再应用修剪</h3>
 <p>边界编辑 API 可以预览工作台修剪/延伸工具使用的准确保留几何。以下示例创建一个圆和一条切割线，随后提出保留下半圆弧的方案：</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 import { createBoundaryEditSession } from &#39;@kanjieteam/kjdraw/boundary-edit&#39;
@@ -346,7 +353,7 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
   return receipt
 }</code></pre>
 <p>拒绝时调用 <code>sdk.agentPlans.reject(plan.id, reviewerId)</code> 和 <code>edit.cancel()</code>。审核结束前保留原始的进程内预览对象；图纸发生任何变化后都应重新生成预览。</p>
-<h2 id="zh-agent-errors-and-boundaries">处理错误与守住边界<a class="heading-anchor" href="#zh-agent-errors-and-boundaries" aria-label="Link to 处理错误与守住边界">#</a></h2>
+<h2 id="zh-agent-errors-and-boundaries">处理错误与守住边界</h2>
 <p><code>session.call()</code> 返回可区分的结果。仅当 <code>ok</code> 为 <code>true</code> 时读取 <code>value</code>；失败时记录稳定的 <code>error.code</code>，并向用户说明下一步操作。</p>
 <div class="table-wrap"><table><thead><tr><th>结果</th><th>宿主处理方式</th></tr></thead><tbody><tr><td><code>KJDOCUMENT_REVISION_CONFLICT</code></td><td>重新读取图纸，让模型基于新修订号生成新的提案</td></tr><tr><td><code>KJDOCUMENT_INVALID</code></td><td>按当前会话的工具定义修正工具名或参数，不要原样重试</td></tr><tr><td><code>KJAGENT_TOOL_FAILED</code></td><td>停止自动重试，由宿主检查底层失败原因</td></tr><tr><td>读取成功但 <code>value.passed: false</code></td><td>报告未通过的几何检查，不得把结果改写为设计成功</td></tr></tbody></table></div>
 <p>同一会话每次只允许一个操作，最多接受 128 个提案。每项工具定义还规定对象数量、字节数和分页上限。只有宿主明确开始新的授权工作阶段时才创建新会话；不能通过更换会话绕过被拒绝或已经过期的方案。</p>
@@ -368,6 +375,6 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=011588533eb087da"></script>
+  <script type="module" src="../app.js?v=cbc5bdeee724d98d"></script>
 </body>
 </html>

@@ -8,15 +8,16 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/models/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
+  <link rel="stylesheet" href="../style.css?v=cbc5bdeee724d98d">
   <title>Connect your model · KJDraw Docs</title>
 </head>
 <body>
   <header class="topbar">
     <button id="menu-button" class="icon-button menu-button" type="button" aria-label="Open navigation">☰</button>
     <a class="brand" href="../"><img src="../../assets/mark.svg" alt=""><b>KJDraw</b><span>Docs</span></a>
+    <nav class="product-nav" aria-label="KJDraw products"><a href="../"><span class="lang-en">Overview</span><span class="lang-zh">概览</span></a><a href="../quickstart/" class="active"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例</span></a><a href="../api/">API</a></nav>
     <button id="search-button" class="search-button" type="button" aria-keyshortcuts="Control+K Meta+K"><span aria-hidden="true">⌕</span><span class="lang-en">Search guides and API</span><span class="lang-zh">搜索指南与 API</span><kbd>Ctrl K</kbd></button>
-    <nav class="top-links"><a href="../api/">API</a><a href="https://kanjieteam.github.io/kjdraw/"><span class="lang-en">Demo</span><span class="lang-zh">演示</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="https://kanjieteam.github.io/kjdraw/">Playground</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
@@ -24,16 +25,19 @@
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
-          <a href="../"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
+          <a href="../"><span class="lang-en">KJDraw</span><span class="lang-zh">KJDraw</span></a>
+          <a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例库</span></a>
           <a href="../quickstart/"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
+          <a href="../starters/"><span class="lang-en">Starter projects</span><span class="lang-zh">起步工程</span></a>
           <a href="../installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
-          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
-          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
-          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../concepts/"><span class="lang-en">Core concepts</span><span class="lang-zh">核心概念</span></a>
+          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
           <a href="../commands/"><span class="lang-en">Commands and transactions</span><span class="lang-zh">命令与事务</span></a>
+          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Frameworks</h3><h3 class="lang-zh">前端框架</h3>
@@ -44,11 +48,14 @@
           <h3 class="lang-en">Extend and deploy</h3><h3 class="lang-zh">扩展与部署</h3>
           <a href="../agent/"><span class="lang-en">Agent workflows</span><span class="lang-zh">Agent 工作流</span></a>
           <a href="../models/" class="active" aria-current="page"><span class="lang-en">Connect your model</span><span class="lang-zh">接入你的模型</span></a>
+          <a href="../mcp/"><span class="lang-en">MCP integration</span><span class="lang-zh">MCP 集成</span></a>
+          <a href="../knowledge-packs/"><span class="lang-en">Compile knowledge packs</span><span class="lang-zh">编译知识包</span></a>
           <a href="../plugins/"><span class="lang-en">Plugins</span><span class="lang-zh">插件</span></a>
           <a href="../deployment/"><span class="lang-en">Deployment</span><span class="lang-zh">部署</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Reference</h3><h3 class="lang-zh">参考</h3>
+          <a href="../reference/"><span class="lang-en">API reference</span><span class="lang-zh">API 参考</span></a>
           <a href="../capabilities/"><span class="lang-en">Capabilities</span><span class="lang-zh">功能能力</span></a>
         </section>
         <section class="nav-group reference-group">
@@ -61,14 +68,14 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-models">
-          <p class="eyebrow">KJDRAW / CONNECT YOUR MODEL</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / CONNECT YOUR MODEL</p>
           <h1>Connect your model</h1>
-          <p class="lead">Bring your model, gateway or agent framework. Keep one CAD engine and one set of drawing tools.</p>
-          <h2 id="en-models-connection">Choose a connection<a class="heading-anchor" href="#en-models-connection" aria-label="Link to Choose a connection">#</a></h2>
+          <p class="lead">Bring your model, gateway or agent framework. Keep one CAD engine and one set of drawing tools.</p></header>
+          <h2 id="en-models-connection">Choose a connection</h2>
 <p>KJDraw does not require a particular AI vendor. Choose a protocol adapter, supply your model and host transport, and run the same CAD tools. A custom <code>KJAgentModel</code> connects frameworks, local models or other protocols without changing the drawing engine.</p>
 <div class="table-wrap"><table><thead><tr><th>Connection</th><th>Adapter value</th><th>Host transport</th></tr></thead><tbody><tr><td>OpenAI Responses</td><td><code>responses</code></td><td>Responses REST endpoint</td></tr><tr><td>Chat Completions-compatible services</td><td><code>chat-completions</code></td><td>The selected service&#39;s compatible endpoint; DeepSeek is one evaluation option</td></tr><tr><td>Claude Messages</td><td><code>anthropic-messages</code></td><td>Messages REST endpoint</td></tr><tr><td>Gemini GenerateContent</td><td><code>gemini-generate-content</code></td><td>GenerateContent REST endpoint, with model in the URL</td></tr><tr><td>Your framework, gateway or local model</td><td>Custom <code>KJAgentModel</code></td><td>Your own conversation bridge</td></tr></tbody></table></div>
 <p>The built-in adapters support the protocols listed above. Compatibility with a particular model or vendor extension depends on that endpoint&#39;s function-calling behavior. For text-only models, a custom bridge can parse and validate a structured response; never execute model-generated JavaScript.</p>
-<h2 id="en-models-quickstart">Wire the model once<a class="heading-anchor" href="#en-models-quickstart" aria-label="Link to Wire the model once">#</a></h2>
+<h2 id="en-models-quickstart">Wire the model once</h2>
 <p>Install KJDraw, then import the model adapter and bounded task runner from their public package entries:</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 import { KJAgentToolSession } from &#39;@kanjieteam/kjdraw/agent-tools&#39;
@@ -93,40 +100,38 @@ const result = await runKJAgentTask({
 })</code></pre>
 <p><code>selectedModel</code> and <code>hostModelGateway</code> belong to your application. The gateway returns parsed, non-streaming provider JSON and rejects HTTP failures. For Gemini, send the body to the configured model URL; this is a REST adapter, not the Google SDK&#39;s nested <code>config</code> argument. Keep keys, endpoint allowlists and user permissions on your server. The CAD package does not discover keys, choose an endpoint or send network requests by itself.</p>
 <p>Chat-compatible endpoints differ in output token fields: the default is <code>max_tokens</code>; set <code>chatTokenParameter: &#39;max_completion_tokens&#39;</code> when required. The other adapters map <code>maxOutputTokens</code> to their protocol. Full runtime argument validation remains enabled; Responses explicitly uses non-strict tool generation rather than promising identical provider-side schema support.</p>
-<h2 id="en-models-task-tools">Choose tools for a task<a class="heading-anchor" href="#en-models-task-tools" aria-label="Link to Choose tools for a task">#</a></h2>
+<h2 id="en-models-task-tools">Choose tools for a task</h2>
 <p><code>toolNames</code> is an optional host policy for one run. Omit it to retain all session tools. Supply a nonempty list of unique exact names from <code>session.definitions</code>; unknown names, duplicates and empty lists fail before opening a model conversation. Definitions retain their canonical order and complete schemas, including drawing units. The runner snapshots the selection before invoking the model, so later array changes cannot widen access.</p>
 <p>Every adapter and custom bridge receives the same selected definitions. If a response requests an omitted tool, the runner returns <code>failed</code> with <code>KJAGENT_TOOL_NOT_ALLOWED</code> before dispatching any call in that batch. The next run selects its own policy. This does not restrict trusted host calls made directly on the session, replace authentication, or allow the model to approve proposals. Include reading and pagination tools when the task needs them. Smaller schemas reduce JSON bytes; actual model token counts and task success still require provider measurements.</p>
-<h2 id="en-models-review">Review the result<a class="heading-anchor" href="#en-models-review" aria-label="Link to Review the result">#</a></h2>
+<h2 id="en-models-review">Review the result</h2>
 <div class="table-wrap"><table><thead><tr><th>Status</th><th>What the host should do</th></tr></thead><tbody><tr><td><code>awaiting-approval</code></td><td>Display the exact proposals in <code>outputs</code>; use <code>proposalIds</code> to approve or reject from your review UI</td></tr><tr><td><code>responded</code></td><td>Show the model&#39;s answer or clarification; it is not evidence that a drawing task succeeded</td></tr><tr><td><code>limit-reached</code></td><td>Inspect results and adjust the task or budget; do not automatically retry forever</td></tr><tr><td><code>cancelled</code></td><td>The host cancelled or the run timed out; late model calls are not dispatched</td></tr><tr><td><code>failed</code></td><td>Handle the structured error; inspect private transport diagnostics on the server</td></tr></tbody></table></div>
 <p>The runner stops when it has proposals. It never calls <code>approve()</code>. After an authenticated user reviews the exact arguments, your host calls <code>session.approve(planId, user.id)</code> or <code>session.reject(planId, user.id)</code> and checks the result. Model text must be displayed as untrusted text, not unsanitized HTML.</p>
 <p>Each run starts from the drawing&#39;s current revision. After applying a proposal, submit the next request as a new run so the model reads the updated geometry. Your application owns conversation persistence and save policy. See <a href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/">Agent workflows</a> for CAD tools, proposal previews and geometry checks.</p>
-<p>To expose the same tool registry to an MCP client, run the packaged local stdio host with paths chosen by your application:</p>
-<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npx --package @kanjieteam/kjdraw kjdraw-mcp --workspace ./project --input drawing.kjd --proposals pending.json</code></pre>
-<p>The host reads the selected KJD or DXF and exposes drawing queries and proposals. It never approves a proposal or writes the input drawing; your application reviews and applies accepted work. The pending-proposal file is created exclusively, so an existing file is rejected instead of overwritten.</p>
-<h2 id="en-models-usage">Measure tokens and time<a class="heading-anchor" href="#en-models-usage" aria-label="Link to Measure tokens and time">#</a></h2>
+<p>To expose the same tool registry through a packaged local stdio server, follow the <a href="https://kanjieteam.github.io/kjdraw/docs/latest/mcp/">MCP integration</a> guide. It includes persistent client configuration, a real JSON-RPC call and the host-controlled file and approval boundary.</p>
+<h2 id="en-models-usage">Measure tokens and time</h2>
 <p><code>result.measurements</code> retains each attempted turn&#39;s usage, normalized totals, transport wall time and runner wall time. Counters come from provider response fields; missing or invalid counters remain <code>null</code>. Cache and reasoning counters are subsets or additional components according to each protocol, so they are not blindly added twice. A cancelled request without a received response has missing usage. <code>complete</code> describes observed token counters, not design completion or a billing receipt.</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const { totals, transportWallMs, runWallMs, complete } = result.measurements
 // Keep null as unavailable; do not replace it with zero in a benchmark.
 console.log({ totals, transportWallMs, runWallMs, complete })</code></pre>
 <p>Adapters also accept <code>onUsage: usage =&gt; hostMetrics.record(usage)</code> for response observations, including rejected or truncated responses. Observer failures do not change drawing behavior. A late response after cancellation may still reach that host observer; it cannot rewrite the runner&#39;s returned measurement snapshot. <code>extractKJModelUsage</code> is available from <code>/model-usage</code> for a custom transport. No response text, credentials, inferred token counts or prices are included. Controlled live-model comparisons still require repeated matched tasks and actual provider configuration.</p>
-<h2 id="en-models-example">Run the packaged example<a class="heading-anchor" href="#en-models-example" aria-label="Link to Run the packaged example">#</a></h2>
+<h2 id="en-models-example">Run the packaged example</h2>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/model-agent.mjs</code></pre>
 <p>By default, the example runs offline and demonstrates all four wire formats, host approval, saved geometry and undo without contacting a model.</p>
 <p>To connect an online model, configure <code>KJDRAW_MODEL_PROTOCOL</code>, <code>KJDRAW_MODEL_NAME</code>, <code>KJDRAW_MODEL_ENDPOINT</code> and <code>KJDRAW_MODEL_API_KEY</code> in a trusted server or CLI environment, then add <code>--live</code>. The endpoint is the complete trusted REST URL. The example rejects redirects and URL credentials, limits response bytes and never applies live proposals automatically. It sends at most four model requests and eight tool calls; provider charges may apply.</p>
-<h2 id="en-models-extend">Extend and validate<a class="heading-anchor" href="#en-models-extend" aria-label="Link to Extend and validate">#</a></h2>
+<h2 id="en-models-extend">Extend and validate</h2>
 <p>Implement <code>KJAgentModel.createConversation({ instructions, tools })</code> and return <code>next(input, signal)</code>. A turn returns <code>text</code> plus <code>calls</code> containing <code>id</code>, <code>name</code> and <code>arguments</code>. Inputs are either the initial prompt or ordered tool results. Keep vendor continuation data private to that conversation and preserve call/result IDs. Existing Agent runtimes can also use <code>KJAgentToolSession</code> directly and manage their own execution loop.</p>
 <p>Adapters retain Responses reasoning items, chat reasoning fields, Claude signed thinking blocks and Gemini thought signatures in their original conversation. They do not place those fields in the public answer. Truncated, blocked, malformed or unsupported responses stop before tool dispatch. Tool validation errors can be returned to the model for bounded correction. Timeouts cannot stop a transport that ignores its signal from consuming remote resources; the host must enforce its own network and billing limits.</p>
 <p>Protocol references: <a href="https://developers.openai.com/api/docs/guides/function-calling">OpenAI function calling</a>, <a href="https://api-docs.deepseek.com/guides/tool_calls/">DeepSeek tool calls</a>, <a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls">Claude tool results</a>, <a href="https://ai.google.dev/api/generate-content">Gemini GenerateContent</a>.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-models">
-          <p class="eyebrow">KJDRAW / 接入你的模型</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / 接入你的模型</p>
           <h1>接入你的模型</h1>
-          <p class="lead">接入你选择的模型、网关或 Agent 框架，共用一套 CAD 引擎与绘图工具。</p>
-          <h2 id="zh-models-connection">选择接入方式<a class="heading-anchor" href="#zh-models-connection" aria-label="Link to 选择接入方式">#</a></h2>
+          <p class="lead">接入你选择的模型、网关或 Agent 框架，共用一套 CAD 引擎与绘图工具。</p></header>
+          <h2 id="zh-models-connection">选择接入方式</h2>
 <p>KJDraw 不依赖特定 AI 厂商。选择协议适配器，传入模型和宿主请求函数，就能使用同一套 CAD 工具。其他框架、本地模型或协议可实现 <code>KJAgentModel</code>，无需修改绘图引擎。</p>
 <div class="table-wrap"><table><thead><tr><th>接入方式</th><th>适配器值</th><th>宿主请求目标</th></tr></thead><tbody><tr><td>OpenAI Responses</td><td><code>responses</code></td><td>Responses REST 接口</td></tr><tr><td>Chat Completions 兼容服务</td><td><code>chat-completions</code></td><td>所选服务的兼容接口；DeepSeek 只是测试选项之一</td></tr><tr><td>Claude Messages</td><td><code>anthropic-messages</code></td><td>Messages REST 接口</td></tr><tr><td>Gemini GenerateContent</td><td><code>gemini-generate-content</code></td><td>GenerateContent REST 接口，模型名放在 URL 中</td></tr><tr><td>自有框架、网关、本地模型</td><td>自定义 <code>KJAgentModel</code></td><td>你的会话桥接实现</td></tr></tbody></table></div>
 <p>内置适配器支持上表所列协议；具体模型和厂商扩展字段的兼容性取决于对应接口的工具调用行为。纯文本模型可通过自定义桥接解析并校验结构化结果，但不能执行模型输出的 JavaScript。</p>
-<h2 id="zh-models-quickstart">配置一次模型连接<a class="heading-anchor" href="#zh-models-quickstart" aria-label="Link to 配置一次模型连接">#</a></h2>
+<h2 id="zh-models-quickstart">配置一次模型连接</h2>
 <p>安装 KJDraw 后，从公开子路径导入模型适配器和有界任务运行器：</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 import { KJAgentToolSession } from &#39;@kanjieteam/kjdraw/agent-tools&#39;
@@ -151,37 +156,35 @@ const result = await runKJAgentTask({
 })</code></pre>
 <p><code>selectedModel</code> 与 <code>hostModelGateway</code> 由应用提供。网关返回解析后的非流式模型 JSON，HTTP 失败时抛错。Gemini 适配器使用 REST 请求体，不是 Google SDK 的嵌套 <code>config</code> 参数。密钥、接口白名单和用户权限放在服务端；CAD 包不会搜索密钥、选择地址或自行联网。</p>
 <p>兼容接口的输出 token 字段并不完全相同：默认使用 <code>max_tokens</code>，需要时设置 <code>chatTokenParameter: &#39;max_completion_tokens&#39;</code>；其他适配器按各自协议映射 <code>maxOutputTokens</code>。所有工具参数仍由运行时严格校验；Responses 显式使用非 strict 生成模式，不假设各厂商的服务端 Schema 支持完全一致。</p>
-<h2 id="zh-models-task-tools">按任务选择工具<a class="heading-anchor" href="#zh-models-task-tools" aria-label="Link to 按任务选择工具">#</a></h2>
+<h2 id="zh-models-task-tools">按任务选择工具</h2>
 <p><code>toolNames</code> 是宿主为一次运行设置的可选权限范围。省略时保留全部会话工具；提供时必须是 <code>session.definitions</code> 中非空、不重复的确切名称。未知名称、重复项和空列表在打开模型会话前报错。选中定义保持原始顺序和完整参数约束，包括图档单位。运行器在调用模型前复制选择结果，之后修改传入数组不会扩大权限。</p>
 <p>所有协议适配器与自定义桥接收到同一份选中定义。模型请求被省略的工具时，整批调用在任何工具执行前被拒绝，返回 <code>failed</code> 和 <code>KJAGENT_TOOL_NOT_ALLOWED</code>。下一次运行可以重新选择。这不限制宿主直接调用会话，也不代替认证，更不允许模型批准自身提案。需要读取和分页的任务应包含对应工具。缩小 Schema 能减少 JSON 字节，但实际 Token 和任务成功率仍需模型端测量。</p>
-<h2 id="zh-models-review">处理运行结果<a class="heading-anchor" href="#zh-models-review" aria-label="Link to 处理运行结果">#</a></h2>
+<h2 id="zh-models-review">处理运行结果</h2>
 <div class="table-wrap"><table><thead><tr><th>状态</th><th>宿主应该做什么</th></tr></thead><tbody><tr><td><code>awaiting-approval</code></td><td>展示 <code>outputs</code> 中的确切修改，用 <code>proposalIds</code> 在审核界面批准或拒绝</td></tr><tr><td><code>responded</code></td><td>展示模型回答或澄清问题；这不证明绘图任务已成功</td></tr><tr><td><code>limit-reached</code></td><td>检查结果并调整任务或预算，不无限自动重试</td></tr><tr><td><code>cancelled</code></td><td>用户取消或运行超时；迟到的模型调用不会再执行</td></tr><tr><td><code>failed</code></td><td>处理结构化错误，在服务端检查私有请求日志</td></tr></tbody></table></div>
 <p>一旦得到提案，运行器就停止，不会调用 <code>approve()</code>。经过认证的用户审核后，宿主再调用 <code>session.approve(planId, user.id)</code> 或 <code>session.reject(planId, user.id)</code>，并核对结果。模型回复应当作为不可信文字展示，不能直接当作 HTML 渲染。</p>
 <p>每次运行都从图纸的当前修订版本开始。应用方案后，把后续需求作为新任务运行，让模型读取更新后的几何。对话持久化与保存策略由应用负责。CAD 工具、方案预览和几何检查见 <a href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/">Agent 工作流</a>。</p>
-<p>若要向 MCP 客户端提供同一套工具注册表，可用应用指定的路径启动包内本地 stdio host：</p>
-<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npx --package @kanjieteam/kjdraw kjdraw-mcp --workspace ./project --input drawing.kjd --proposals pending.json</code></pre>
-<p>host 读取选定的 KJD 或 DXF，并提供图纸查询与修改提案。它不会批准提案，也不会写入输入图纸；应用负责审核并执行接受的修改。待审批文件采用独占创建；文件已存在时会拒绝启动，不会覆盖原数据。</p>
-<h2 id="zh-models-usage">测量 token 与耗时<a class="heading-anchor" href="#zh-models-usage" aria-label="Link to 测量 token 与耗时">#</a></h2>
+<p>若要通过包内本地 stdio 服务向 MCP 客户端提供同一套工具注册表，请按 <a href="https://kanjieteam.github.io/kjdraw/docs/latest/mcp/">MCP 集成</a>操作。该页面给出了长期客户端配置、真实 JSON-RPC 调用，以及由宿主管理的文件和审批边界。</p>
+<h2 id="zh-models-usage">测量 token 与耗时</h2>
 <p><code>result.measurements</code> 保存每个尝试轮次的用量、归一化累计值、传输墙钟耗时和运行器总耗时。计数来自服务端响应字段；缺失或无效值保留 <code>null</code>。缓存与推理 token 按各协议的包含关系处理，避免重复相加。取消后没有收到响应的请求属于用量缺失，<code>complete</code> 仅表示已观测 token 数据完整，不代表绘图完成或完整账单。</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const { totals, transportWallMs, runWallMs, complete } = result.measurements
 // null 表示无法取得，不能在跑分中当作零。
 console.log({ totals, transportWallMs, runWallMs, complete })</code></pre>
 <p>适配器还支持 <code>onUsage: usage =&gt; hostMetrics.record(usage)</code>，用于记录已收到响应的用量，包括被拒绝或截断的回答。观察回调异常不改变绘图行为。取消后的迟到响应仍可送到宿主观察器，但不会改写运行器已返回的测量快照。自定义传输可以使用 <code>/model-usage</code> 的 <code>extractKJModelUsage</code>。这些记录不包含回答文本、密钥、推算 token 或价格。真实模型对比仍需相同任务的重复实验与明确配置的模型服务。</p>
-<h2 id="zh-models-example">运行包内示例<a class="heading-anchor" href="#zh-models-example" aria-label="Link to 运行包内示例">#</a></h2>
+<h2 id="zh-models-example">运行包内示例</h2>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/model-agent.mjs</code></pre>
 <p>默认离线运行，演示四种消息格式、宿主批准、保存后的图元与撤销，不连接模型。</p>
 <p>要连接在线模型，在可信服务端或命令行环境配置 <code>KJDRAW_MODEL_PROTOCOL</code>、<code>KJDRAW_MODEL_NAME</code>、<code>KJDRAW_MODEL_ENDPOINT</code> 与 <code>KJDRAW_MODEL_API_KEY</code>，再加 <code>--live</code>。地址填写完整的可信 REST 接口。示例拒绝重定向和 URL 凭据、限制响应大小，也不会自动应用在线提案。每次运行最多发送四次模型请求和八次工具调用；在线请求可能产生费用。</p>
-<h2 id="zh-models-extend">扩展与验证<a class="heading-anchor" href="#zh-models-extend" aria-label="Link to 扩展与验证">#</a></h2>
+<h2 id="zh-models-extend">扩展与验证</h2>
 <p>实现 <code>KJAgentModel.createConversation({ instructions, tools })</code>，返回 <code>next(input, signal)</code>。每轮返回 <code>text</code> 和 <code>calls</code>；调用包含 <code>id</code>、<code>name</code>、<code>arguments</code>。输入是初始需求或有序工具结果。厂商会话数据留在自己的会话对象中，保留调用与结果的 ID。已有 Agent 运行时也可以直接使用 <code>KJAgentToolSession</code>，自行管理执行循环。</p>
 <p>适配器保留 Responses 推理条目、Chat 推理字段、Claude 签名思考块和 Gemini 思考签名，不会将这些字段放进公开回复。截断、拦截、结构损坏或尚未支持的响应会在工具执行前停止；参数校验错误可以反馈给模型，在预算内修正。超时不能强制停止忽略取消信号的远端请求，宿主仍须限制网络资源和费用。</p>
 <p>协议资料：<a href="https://developers.openai.com/api/docs/guides/function-calling">OpenAI 工具调用</a>、<a href="https://api-docs.deepseek.com/guides/tool_calls/">DeepSeek 工具调用</a>、<a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls">Claude 工具结果</a>、<a href="https://ai.google.dev/api/generate-content">Gemini GenerateContent</a>。</p>
         </article>
-        <nav class="pager" aria-label="Adjacent documentation"><a href="../agent/"><strong class="lang-en">Agent workflows</strong><strong class="lang-zh">Agent 工作流</strong></a><a href="../plugins/"><strong class="lang-en">Plugins</strong><strong class="lang-zh">插件</strong></a></nav>
+        <nav class="pager" aria-label="Adjacent documentation"><a href="../agent/"><strong class="lang-en">Agent workflows</strong><strong class="lang-zh">Agent 工作流</strong></a><a href="../mcp/"><strong class="lang-en">MCP integration</strong><strong class="lang-zh">MCP 集成</strong></a></nav>
       </div>
       <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-models-connection">Choose a connection</a><a class="toc-level-2" href="#en-models-quickstart">Wire the model once</a><a class="toc-level-2" href="#en-models-task-tools">Choose tools for a task</a><a class="toc-level-2" href="#en-models-review">Review the result</a><a class="toc-level-2" href="#en-models-usage">Measure tokens and time</a><a class="toc-level-2" href="#en-models-example">Run the packaged example</a><a class="toc-level-2" href="#en-models-extend">Extend and validate</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-models-connection">选择接入方式</a><a class="toc-level-2" href="#zh-models-quickstart">配置一次模型连接</a><a class="toc-level-2" href="#zh-models-task-tools">按任务选择工具</a><a class="toc-level-2" href="#zh-models-review">处理运行结果</a><a class="toc-level-2" href="#zh-models-usage">测量 token 与耗时</a><a class="toc-level-2" href="#zh-models-example">运行包内示例</a><a class="toc-level-2" href="#zh-models-extend">扩展与验证</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=011588533eb087da"></script>
+  <script type="module" src="../app.js?v=cbc5bdeee724d98d"></script>
 </body>
 </html>

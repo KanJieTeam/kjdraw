@@ -151,7 +151,7 @@ function renderMarkdown(source, { locale, slug, filename }) {
       const id = `${locale}-${slug}-${heading[3]}`
       const title = plainText(heading[2])
       headings.push({ id, title, level })
-      html.push(`<h${level} id="${id}">${renderInline(heading[2])}<a class="heading-anchor" href="#${id}" aria-label="Link to ${escapeHtml(title)}">#</a></h${level}>`)
+      html.push(`<h${level} id="${id}">${renderInline(heading[2])}</h${level}>`)
       continue
     }
 
@@ -341,13 +341,13 @@ function renderPage(page, index) {
           <header class="page-hero">${atRoot ? '<div class="hero-copy">' : ''}<p class="eyebrow">KJDRAW / ${escapeHtml(page.title.en.toUpperCase())}</p>
           <h1>${escapeHtml(page.title.en)}</h1>
           <p class="lead">${escapeHtml(page.summary.en)}</p>${homeActions}${atRoot ? '</div>' : ''}${homePreview}</header>${portal('en') ? `\n          ${portal('en')}` : ''}
-          ${page.rendered.en.html}
+          ${showcasePage ? '' : page.rendered.en.html}
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-${page.slug}">
           <header class="page-hero">${atRoot ? '<div class="hero-copy">' : ''}<p class="eyebrow">KJDRAW / ${escapeHtml(page.title.zh)}</p>
           <h1>${escapeHtml(page.title.zh)}</h1>
           <p class="lead">${escapeHtml(page.summary.zh)}</p>${homeActions}${atRoot ? '</div>' : ''}${homePreview}</header>${portal('zh') ? `\n          ${portal('zh')}` : ''}
-          ${page.rendered.zh.html}
+          ${showcasePage ? '' : page.rendered.zh.html}
         </article>
         <nav class="pager" aria-label="Adjacent documentation">${pager(previous)}${pager(next)}</nav>
       </div>

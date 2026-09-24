@@ -24,6 +24,15 @@ const $ = id => document.getElementById(id)
 const INITIAL_QUERY = new URLSearchParams(location.search)
 const AI_SURFACE=INITIAL_QUERY.get('surface')==='ai'||/\/ai\/(?:index\.html)?$/u.test(location.pathname)
 const REQUESTED_SAMPLE_ID=INITIAL_QUERY.get('sample')
+const SHOWCASE_SPECIMENS=Object.freeze({
+  'specimen-editable-entities':'editable-entities',
+  'specimen-native-dimensions':'native-dimensions',
+  'specimen-bilingual-typography':'bilingual-typography',
+  'specimen-a4-print-layout':'a4-print-layout',
+  'specimen-dxf-import':'dxf-import',
+  'specimen-editing-history':'editing-history',
+  'specimen-block-references':'block-references',
+})
 const i18n = createI18n(AI_SURFACE?'zh':undefined), t = key => i18n.t(key)
 const dwgSettingsUI=createDwgSettingsUI({locale:()=>i18n.locale})
 let hotkeySettings=loadHotkeySettings()
@@ -928,7 +937,22 @@ async function runTypedCommand(){
   throw new Error(`${i18n.locale==='zh'?'未知命令。绘图和修改菜单列出可用工具；也可输入':'Unknown command. Use the Drawing / Modification menus, or type'} LINE, PLINE, CIRCLE, ARC, ELLIPSE, POLYGON, SPLINE, HATCH, DIMALIGNED, MOVE, COPY, ARRAYPOLAR, TRIM, FILLET, UNDO, FIT.`)
 }
 async function run(work){if(busy)return busyNotice();busy=true;workbench.setAttribute('aria-busy','true');try{await work();return true}catch(e){const text=e.cause?.message??e.message;message(text);$('hint').textContent=text;workbench.dataset.lastError=text;return false}finally{busy=false;workbench.setAttribute('aria-busy','false')}}
-async function freshSample(){projectFileBinding=null;setTool('select');rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成五套原创行业图纸…':'Building five original industry drawings…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const showcase=await createSample(next),industry=await createIndustrySamples(next),documents=[showcase,...industry],activeDocumentId=documents.some(drawing=>drawing.id===REQUESTED_SAMPLE_ID)?REQUESTED_SAMPLE_ID:'sample-site-plan';session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'kjdraw-industry-samples',title:'KJDraw industry sample library',documents,activeDocumentId,metadata:{synthetic:true,industries:['energy','civil','architecture','transportation','mechanical']}});replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();$('file-state').textContent=t('memory');populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`五套原创行业图纸已就绪 · 当前 ${modelEntities().length.toLocaleString()} 个可编辑对象`:`Five original industry drawings ready · ${modelEntities().length.toLocaleString()} editable objects in view`)}
+async function freshSample(){
+  const specimen=SHOWCASE_SPECIMENS[REQUESTED_SAMPLE_ID]
+  if(specimen){
+    const source=new URL(`docs/latest/showcase/assets/${specimen}.kjd`,location.href)
+    const response=await fetch(source)
+    if(!response.ok)throw new Error(`Showcase drawing unavailable: ${specimen}`)
+    const next=createKJDrawSDK({documentAuthority:authority,solidAuthority})
+    registerShowcaseCommand(next)
+    const drawing=await next.readDocument(await response.text(),{format:'KJD'})
+    const project=KJProjectSession.create({sdk:next,title:specimen,documents:[drawing],metadata:{synthetic:true,showcaseSpecimen:specimen}})
+    applyOpenedProject(project,next,`${specimen}.kjd`)
+    message(i18n.locale==='zh'?'公开案例已加载为可编辑图纸':'Public case loaded as an editable drawing')
+    return
+  }
+  projectFileBinding=null;setTool('select');rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成五套原创行业图纸…':'Building five original industry drawings…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const showcase=await createSample(next),industry=await createIndustrySamples(next),documents=[showcase,...industry],activeDocumentId=documents.some(drawing=>drawing.id===REQUESTED_SAMPLE_ID)?REQUESTED_SAMPLE_ID:'sample-site-plan';session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'kjdraw-industry-samples',title:'KJDraw industry sample library',documents,activeDocumentId,metadata:{synthetic:true,industries:['energy','civil','architecture','transportation','mechanical']}});replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();$('file-state').textContent=t('memory');populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`五套原创行业图纸已就绪 · 当前 ${modelEntities().length.toLocaleString()} 个可编辑对象`:`Five original industry drawings ready · ${modelEntities().length.toLocaleString()} editable objects in view`)
+}
 function download(content,name,type){const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 function applyOpenedProject(project,next,fileName,{converted=false}={}){
   const previous={sdk,session,projectFileBinding,selection:selectedIds(),measurement,fileState:$('file-state').textContent,demoState:workbench.dataset.demoState,topFileName:$('top-file-name').textContent,drawingTitle:$('drawing-title').textContent}

@@ -13,7 +13,7 @@ test('Showcase searches, filters and changes view using generated public sample 
   await portal.locator('.showcase-query').fill('bearing holes')
   await expect(portal.locator('.showcase-card:visible')).toHaveCount(1)
   await expect(portal.locator('.showcase-card:visible')).toHaveAttribute('data-case-id', 'mechanical-bracket')
-  await expect(portal.locator('.showcase-card:visible .showcase-actions a.primary')).toHaveAttribute('href', 'https://kanjieteam.github.io/kjdraw/?sample=sample-mechanical')
+  await expect(portal.locator('.showcase-card:visible .showcase-actions a.primary')).toHaveAttribute('href', './mechanical-bracket/')
   await expect(portal.locator('.showcase-result-head output b')).toHaveText('1')
 
   await portal.locator('.showcase-query').fill('')
@@ -31,4 +31,21 @@ test('Showcase searches, filters and changes view using generated public sample 
   await zh.locator('.showcase-tag-filter').selectOption('尺寸')
   await expect(zh.locator('.showcase-card:visible')).toHaveCount(3)
   await expect(zh.locator('.showcase-empty')).toBeHidden()
+})
+
+test('Showcase case detail opens a real editable workspace instead of a raw SVG', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'One Chromium journey covers the documentation-only interaction')
+  await page.goto('/docs/latest/showcase/mechanical-bracket/')
+  await expect(page.locator('h1 .en')).toContainText('Bearing bracket')
+  await expect(page.locator('.viewport iframe')).toHaveAttribute('src', '../../../../?sample=sample-mechanical')
+  await expect(page.locator('a[href$="mechanical-bracket.kjd"]')).toBeVisible()
+  await expect(page.locator('a[href$="mechanical-bracket.dxf"]')).toBeVisible()
+  await expect(page.locator('img[src$="mechanical-bracket.svg"]')).toHaveCount(0)
+  await expect(page.frameLocator('iframe').locator('.workbench')).toHaveAttribute('data-demo-state', 'ready', { timeout: 30000 })
+  await page.locator('#source-tab').click()
+  await expect(page.locator('#source')).toContainText('createIndustrySamples')
+
+  await page.goto('/docs/latest/showcase/editable-entities/')
+  await expect(page.locator('.viewport iframe')).toHaveAttribute('src', '../../../../?sample=specimen-editable-entities')
+  await expect(page.frameLocator('iframe').locator('.workbench')).toHaveAttribute('data-demo-state', 'ready', { timeout: 30000 })
 })

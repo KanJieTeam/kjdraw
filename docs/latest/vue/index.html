@@ -8,15 +8,16 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/vue/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
+  <link rel="stylesheet" href="../style.css?v=cbc5bdeee724d98d">
   <title>Vue integration · KJDraw Docs</title>
 </head>
 <body>
   <header class="topbar">
     <button id="menu-button" class="icon-button menu-button" type="button" aria-label="Open navigation">☰</button>
     <a class="brand" href="../"><img src="../../assets/mark.svg" alt=""><b>KJDraw</b><span>Docs</span></a>
+    <nav class="product-nav" aria-label="KJDraw products"><a href="../"><span class="lang-en">Overview</span><span class="lang-zh">概览</span></a><a href="../quickstart/" class="active"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例</span></a><a href="../api/">API</a></nav>
     <button id="search-button" class="search-button" type="button" aria-keyshortcuts="Control+K Meta+K"><span aria-hidden="true">⌕</span><span class="lang-en">Search guides and API</span><span class="lang-zh">搜索指南与 API</span><kbd>Ctrl K</kbd></button>
-    <nav class="top-links"><a href="../api/">API</a><a href="https://kanjieteam.github.io/kjdraw/"><span class="lang-en">Demo</span><span class="lang-zh">演示</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="https://kanjieteam.github.io/kjdraw/">Playground</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
@@ -24,16 +25,19 @@
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
-          <a href="../"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
+          <a href="../"><span class="lang-en">KJDraw</span><span class="lang-zh">KJDraw</span></a>
+          <a href="../showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例库</span></a>
           <a href="../quickstart/"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
+          <a href="../starters/"><span class="lang-en">Starter projects</span><span class="lang-zh">起步工程</span></a>
           <a href="../installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
-          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
-          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
-          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../concepts/"><span class="lang-en">Core concepts</span><span class="lang-zh">核心概念</span></a>
+          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
           <a href="../commands/"><span class="lang-en">Commands and transactions</span><span class="lang-zh">命令与事务</span></a>
+          <a href="../files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="../architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Frameworks</h3><h3 class="lang-zh">前端框架</h3>
@@ -44,11 +48,14 @@
           <h3 class="lang-en">Extend and deploy</h3><h3 class="lang-zh">扩展与部署</h3>
           <a href="../agent/"><span class="lang-en">Agent workflows</span><span class="lang-zh">Agent 工作流</span></a>
           <a href="../models/"><span class="lang-en">Connect your model</span><span class="lang-zh">接入你的模型</span></a>
+          <a href="../mcp/"><span class="lang-en">MCP integration</span><span class="lang-zh">MCP 集成</span></a>
+          <a href="../knowledge-packs/"><span class="lang-en">Compile knowledge packs</span><span class="lang-zh">编译知识包</span></a>
           <a href="../plugins/"><span class="lang-en">Plugins</span><span class="lang-zh">插件</span></a>
           <a href="../deployment/"><span class="lang-en">Deployment</span><span class="lang-zh">部署</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Reference</h3><h3 class="lang-zh">参考</h3>
+          <a href="../reference/"><span class="lang-en">API reference</span><span class="lang-zh">API 参考</span></a>
           <a href="../capabilities/"><span class="lang-en">Capabilities</span><span class="lang-zh">功能能力</span></a>
         </section>
         <section class="nav-group reference-group">
@@ -61,10 +68,11 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-vue">
-          <p class="eyebrow">KJDRAW / VUE INTEGRATION</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / VUE INTEGRATION</p>
           <h1>Vue integration</h1>
-          <p class="lead">Mount the complete KJDraw editor as a Vue component, control it through an exposed ref, or build a custom composable.</p>
-          <h2 id="en-vue-editor-component">Render the editor component<a class="heading-anchor" href="#en-vue-editor-component" aria-label="Link to Render the editor component">#</a></h2>
+          <p class="lead">Mount the complete KJDraw editor as a Vue component, control it through an exposed ref, or build a custom composable.</p></header>
+          <h2 id="en-vue-editor-component">Render the editor component</h2>
+<p>Start from the complete <a href="https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/vue-browser">Vue + Vite project</a> when you want package installation, mounting and production-build commands in one copyable directory.</p>
 <pre data-language="vue"><button class="copy" type="button">Copy</button><code>&lt;script setup lang=&quot;ts&quot;&gt;
 import { ref } from &#39;vue&#39;
 import { KJDraw, type KJDrawExposed, type KJWorkbenchLayout } from &#39;@kanjieteam/kjdraw/vue&#39;
@@ -93,7 +101,7 @@ async function moveSelection() {
   /&gt;
 &lt;/template&gt;</code></pre>
 <p>This is the shortest path to a functional CAD surface. The exposed ref provides <code>ready</code>, <code>open()</code>, <code>save()</code>, <code>execute()</code>, selection, view and lifecycle methods. <code>layout=&quot;classic&quot;</code> provides the full CAD ribbon and panels, <code>compact</code> shortens the ribbon, and <code>focus</code> prioritizes the canvas. Layout prop changes update the existing editor in place, preserving its drawing, selection and undo history. Vue disposes it when the component unmounts. See the <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a> for every option and method.</p>
-<h2 id="en-vue-minimal-composable">A minimal composable<a class="heading-anchor" href="#en-vue-minimal-composable" aria-label="Link to A minimal composable">#</a></h2>
+<h2 id="en-vue-minimal-composable">A minimal composable</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { onScopeDispose, ref, shallowRef } from &#39;vue&#39;
 import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 
@@ -117,22 +125,23 @@ export function useKJDraw() {
 
   return { sdk, document, revision, drawLine }
 }</code></pre>
-<h2 id="en-vue-reactivity-rules">Reactivity rules<a class="heading-anchor" href="#en-vue-reactivity-rules" aria-label="Link to Reactivity rules">#</a></h2>
+<h2 id="en-vue-reactivity-rules">Reactivity rules</h2>
 <ul>
 <li>Use <code>shallowRef</code> for a <code>KJDocument</code>; do not ask Vue to proxy its complete object graph.</li>
 <li>Mirror committed revision, selection or tool state with small refs.</li>
 <li>Register the event disposer with <code>onScopeDispose</code>.</li>
 <li>Keep mutations inside SDK commands so validation, receipts and undo remain intact.</li>
 </ul>
-<h2 id="en-vue-share-an-editor-scope">Share an editor scope<a class="heading-anchor" href="#en-vue-share-an-editor-scope" aria-label="Link to Share an editor scope">#</a></h2>
+<h2 id="en-vue-share-an-editor-scope">Share an editor scope</h2>
 <p>For one editor, create the composable once in a provider component and expose it with Vue dependency injection or your state store. Create separate SDK instances only when documents need separate command registries, plugin scopes or lifecycle boundaries.</p>
 <p>Use <code>KJDraw</code> for an immediately usable CAD surface or the composable for a product-owned interface. See the <a href="https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples">maintained examples</a> for complete applications that use the same public package exports.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-vue">
-          <p class="eyebrow">KJDRAW / Vue 集成</p>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / Vue 集成</p>
           <h1>Vue 集成</h1>
-          <p class="lead">将完整 KJDraw 编辑器作为 Vue 组件挂载，通过暴露的 ref 控制，或构建自定义 Composable。</p>
-          <h2 id="zh-vue-editor-component">渲染编辑器组件<a class="heading-anchor" href="#zh-vue-editor-component" aria-label="Link to 渲染编辑器组件">#</a></h2>
+          <p class="lead">将完整 KJDraw 编辑器作为 Vue 组件挂载，通过暴露的 ref 控制，或构建自定义 Composable。</p></header>
+          <h2 id="zh-vue-editor-component">渲染编辑器组件</h2>
+<p>需要把包安装、组件挂载和生产构建命令放在一个可复制目录中时，可直接从完整的 <a href="https://github.com/KanJieTeam/kjdraw/tree/main/examples/starters/vue-browser">Vue + Vite 起步工程</a>开始。</p>
 <pre data-language="vue"><button class="copy" type="button">Copy</button><code>&lt;script setup lang=&quot;ts&quot;&gt;
 import { ref } from &#39;vue&#39;
 import { KJDraw, type KJDrawExposed, type KJWorkbenchLayout } from &#39;@kanjieteam/kjdraw/vue&#39;
@@ -161,7 +170,7 @@ async function moveSelection() {
   /&gt;
 &lt;/template&gt;</code></pre>
 <p>这是得到可用 CAD 界面的最短路径。暴露的 ref 提供 <code>ready</code>、<code>open()</code>、<code>save()</code>、<code>execute()</code>、选择、视图与生命周期方法。<code>layout=&quot;classic&quot;</code> 提供完整 CAD Ribbon 与面板，<code>compact</code> 使用较矮的 Ribbon，<code>focus</code> 让画布优先。布局 prop 变化会原位更新同一个编辑器，图档、选择集与撤销历史都保持不变；Vue 卸载组件时会自动释放资源。全部选项与方法见 <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a>。</p>
-<h2 id="zh-vue-minimal-composable">最小 Composable<a class="heading-anchor" href="#zh-vue-minimal-composable" aria-label="Link to 最小 Composable">#</a></h2>
+<h2 id="zh-vue-minimal-composable">最小 Composable</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { onScopeDispose, ref, shallowRef } from &#39;vue&#39;
 import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 
@@ -185,14 +194,14 @@ export function useKJDraw() {
 
   return { sdk, document, revision, drawLine }
 }</code></pre>
-<h2 id="zh-vue-reactivity-rules">响应式规则<a class="heading-anchor" href="#zh-vue-reactivity-rules" aria-label="Link to 响应式规则">#</a></h2>
+<h2 id="zh-vue-reactivity-rules">响应式规则</h2>
 <ul>
 <li><code>KJDocument</code> 使用 <code>shallowRef</code>，不要让 Vue 代理完整对象图。</li>
 <li>用小型 ref 映射已提交修订号、选择集或工具状态。</li>
 <li>使用 <code>onScopeDispose</code> 注册事件释放函数。</li>
 <li>修改始终放在 SDK 命令中，保留校验、回执与撤销能力。</li>
 </ul>
-<h2 id="zh-vue-share-an-editor-scope">共享编辑器作用域<a class="heading-anchor" href="#zh-vue-share-an-editor-scope" aria-label="Link to 共享编辑器作用域">#</a></h2>
+<h2 id="zh-vue-share-an-editor-scope">共享编辑器作用域</h2>
 <p>同一个编辑器应在 Provider 组件中只创建一次 Composable，再通过 Vue 依赖注入或状态库暴露。只有当图档需要独立命令注册表、插件作用域或生命周期边界时，才创建不同 SDK 实例。</p>
 <p>需要立即可用的 CAD 界面时使用 <code>KJDraw</code>，产品自建全部界面时使用 Composable。<a href="https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples">持续维护的示例</a>提供使用相同公开包入口的完整应用。</p>
         </article>
@@ -202,6 +211,6 @@ export function useKJDraw() {
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=011588533eb087da"></script>
+  <script type="module" src="../app.js?v=cbc5bdeee724d98d"></script>
 </body>
 </html>
