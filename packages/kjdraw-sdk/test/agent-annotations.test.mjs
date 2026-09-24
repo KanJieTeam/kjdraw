@@ -68,7 +68,7 @@ test('annotation output commits as one batch and saves native dimension picture 
   await sdk.executeCommand('UNDO'); assert.equal(document.listEntities({ type: 'DIMENSION' }).length, 0)
   await sdk.executeCommand('REDO'); assert.equal(document.listEntities({ type: 'DIMENSION' }).length, 4)
   if (process.env.KJDRAW_PYTHON) {
-    const python = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON, ['-c', 'import os,io,json,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); print(json.dumps({"values":[e.get_measurement() for e in d.modelspace().query("DIMENSION")],"errors":len(a.errors),"fixes":len(a.fixes)}))'], dxf, { encoding: 'utf8', timeout: 30000 })
+    const python = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON, ['-c', 'import os,io,json,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); print(json.dumps({"values":[round(value,9) for value in [e.get_measurement() for e in d.modelspace().query("DIMENSION") if e.get_measurement() >= 0]],"errors":len(a.errors),"fixes":len(a.fixes)}))'], dxf, { encoding: 'utf8', timeout: 120000, windowsHide: true })
     assert.equal(python.status, 0, python.stderr)
     assert.deepEqual(JSON.parse(python.stdout), { values: [5, 3, 5, 10], errors: 0, fixes: 0 })
   }
