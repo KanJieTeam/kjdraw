@@ -13,6 +13,14 @@ test('default CAD text uses one cross-platform engineering font stack instead of
   assert.doesNotMatch(layoutCadMText({ position: [0, 0], text: '黄土', height: 2.5, attachmentPoint: 1 }).family, /monospace/)
 })
 
+test('ordered local font-family fallbacks remain safe and are not discarded', () => {
+  const family = textFontFamily({ fontFamily: '"Source Han Sans SC", Microsoft YaHei, Arial, sans-serif' })
+  assert.match(family, /^"Source Han Sans SC","Microsoft YaHei","Arial",sans-serif,/)
+  assert.match(family, /"Noto Sans CJK SC"/)
+  assert.equal(textFontFamily({ fontFamily: 'Arial, url(https://example.invalid/font.woff2)' }), KJDRAW_ENGINEERING_FONT_STACK)
+  assert.equal(textFontFamily({ fontFamily: Array.from({ length: 9 }, (_, index) => `F${index}`).join(',') }), KJDRAW_ENGINEERING_FONT_STACK)
+})
+
 
 test('plain MTEXT layout uses its insertion attachment, wraps bounded Unicode lines and rejects rich controls',()=>{
   const measure=value=>[...value].length*2

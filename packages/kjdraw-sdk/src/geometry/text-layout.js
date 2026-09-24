@@ -6,8 +6,32 @@ const point = (value)=>Array.isArray(value) && value.length >= 2 && value.slice(
         value[1]
     ] : null;
 export const KJDRAW_ENGINEERING_FONT_STACK = '"Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei","Microsoft YaHei UI","PingFang SC","Arial","Segoe UI","WenQuanYi Micro Hei",sans-serif';
+const LOCAL_FONT_NAME = /^[\p{L}\p{N} _-]{1,80}$/u;
+const GENERIC_FONT_FAMILIES = new Set([
+    'serif',
+    'sans-serif',
+    'monospace',
+    'cursive',
+    'fantasy',
+    'system-ui'
+]);
+function localFontFamilies(value) {
+    const source = String(value ?? '').trim();
+    if (!source || source.length > 256) return [];
+    const families = source.split(',').map((item)=>item.trim()).filter(Boolean);
+    if (!families.length || families.length > 8) return [];
+    const result = [];
+    for (const item of families){
+        const unquoted = item.length >= 2 && (item.startsWith('"') && item.endsWith('"') || item.startsWith("'") && item.endsWith("'")) ? item.slice(1, -1).trim() : item;
+        if (!LOCAL_FONT_NAME.test(unquoted)) return [];
+        const lower = unquoted.toLowerCase();
+        result.push(GENERIC_FONT_FAMILIES.has(lower) ? lower : JSON.stringify(unquoted));
+    }
+    return result;
+}
 export function textFontFamily(style = {}, fallback = KJDRAW_ENGINEERING_FONT_STACK) {
-    const file = String(style.fontFile ?? style.fontFamily ?? '').split(/[\\/]/).at(-1).replace(/\.(?:ttf|ttc|otf|shx)$/i, '');
+    const fileSource = style.fontFile == null ? '' : String(style.fontFile);
+    const file = fileSource.split(/[\\/]/).at(-1).replace(/\.(?:ttf|ttc|otf|shx)$/i, '');
     const known = {
         times: 'Times New Roman',
         arial: 'Arial',
@@ -17,8 +41,11 @@ export function textFontFamily(style = {}, fallback = KJDRAW_ENGINEERING_FONT_ST
         txt_____: 'Txt',
         italic__: 'Italic'
     };
-    const family = known[file.toLowerCase()] ?? (/^[\p{L}\p{N} _-]{1,80}$/u.test(file) ? file : '');
-    return family ? `${JSON.stringify(family)}, ${fallback}` : fallback;
+    const fileFamily = known[file.toLowerCase()] ?? (LOCAL_FONT_NAME.test(file) ? file : '');
+    const requested = fileFamily ? [
+        JSON.stringify(fileFamily)
+    ] : localFontFamilies(style.fontFamily);
+    return requested.length ? `${requested.join(',')}, ${fallback}` : fallback;
 }
 export function layoutCadText(payload, style = {}, measure) {
     const value = String(payload.text ?? payload.defaultValue ?? payload.value ?? ''), family = textFontFamily(style);

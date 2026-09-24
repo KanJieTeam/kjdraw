@@ -10,12 +10,32 @@ const point = (value: unknown): Point | null => Array.isArray(value) && value.le
 /** Browser-safe engineering preview stack: neutral Latin glyphs plus installed CJK fallbacks. */
 export const KJDRAW_ENGINEERING_FONT_STACK = '"Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei","Microsoft YaHei UI","PingFang SC","Arial","Segoe UI","WenQuanYi Micro Hei",sans-serif'
 
+const LOCAL_FONT_NAME = /^[\p{L}\p{N} _-]{1,80}$/u
+const GENERIC_FONT_FAMILIES = new Set(['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui'])
+
+function localFontFamilies(value: unknown): string[] {
+  const source = String(value ?? '').trim()
+  if (!source || source.length > 256) return []
+  const families = source.split(',').map(item => item.trim()).filter(Boolean)
+  if (!families.length || families.length > 8) return []
+  const result: string[] = []
+  for (const item of families) {
+    const unquoted = item.length >= 2 && ((item.startsWith('"') && item.endsWith('"')) || (item.startsWith("'") && item.endsWith("'"))) ? item.slice(1, -1).trim() : item
+    if (!LOCAL_FONT_NAME.test(unquoted)) return []
+    const lower = unquoted.toLowerCase()
+    result.push(GENERIC_FONT_FAMILIES.has(lower) ? lower : JSON.stringify(unquoted))
+  }
+  return result
+}
+
 /** Safe local font-family mapping; no URL/file loading or embedded font claims. */
 export function textFontFamily(style: Data = {}, fallback = KJDRAW_ENGINEERING_FONT_STACK): string {
-  const file = String(style.fontFile ?? style.fontFamily ?? '').split(/[\\/]/).at(-1)!.replace(/\.(?:ttf|ttc|otf|shx)$/i, '')
+  const fileSource = style.fontFile == null ? '' : String(style.fontFile)
+  const file = fileSource.split(/[\\/]/).at(-1)!.replace(/\.(?:ttf|ttc|otf|shx)$/i, '')
   const known: Record<string, string> = { times: 'Times New Roman', arial: 'Arial', simsun: 'SimSun', simhei: 'SimHei', simplex_: 'Simplex', txt_____: 'Txt', italic__: 'Italic' }
-  const family = known[file.toLowerCase()] ?? (/^[\p{L}\p{N} _-]{1,80}$/u.test(file) ? file : '')
-  return family ? `${JSON.stringify(family)}, ${fallback}` : fallback
+  const fileFamily = known[file.toLowerCase()] ?? (LOCAL_FONT_NAME.test(file) ? file : '')
+  const requested = fileFamily ? [JSON.stringify(fileFamily)] : localFontFamilies(style.fontFamily)
+  return requested.length ? `${requested.join(',')}, ${fallback}` : fallback
 }
 
 /** CAD cap-height coordinates. Optional metrics are supplied by the rendering host;
