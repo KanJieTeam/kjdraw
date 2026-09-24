@@ -61,8 +61,8 @@ assert 'Print at 100%' not in text
 fonts=[];images=[]
 def visit(res):
  for name,ref in res.get('/Font',{}).items():
-  f=ref.get_object();fd=f.get('/DescendantFonts',[f])[0].get_object().get('/FontDescriptor',{}).get_object()
-  fonts.append({'embedded':any(k in fd for k in ['/FontFile','/FontFile2','/FontFile3']),'unicode':'/ToUnicode' in f})
+  f=ref.get_object();fd=f.get('/DescendantFonts',[f])[0].get_object().get('/FontDescriptor',{}).get_object();subtype=str(f.get('/Subtype',''));charprocs=f.get('/CharProcs',{})
+  fonts.append({'subtype':subtype,'embedded':any(k in fd for k in ['/FontFile','/FontFile2','/FontFile3']) or (subtype=='/Type3' and len(charprocs)>0),'unicode':'/ToUnicode' in f})
  for name,ref in res.get('/XObject',{}).items():
   x=ref.get_object()
   if x.get('/Subtype')=='/Image':images.append(str(name))
