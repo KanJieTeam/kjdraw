@@ -72,13 +72,7 @@ The runner stops when it has proposals. It never calls `approve()`. After an aut
 
 Each run starts from the drawing's current revision. After applying a proposal, submit the next request as a new run so the model reads the updated geometry. Your application owns conversation persistence and save policy. See [Agent workflows](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) for CAD tools, proposal previews and geometry checks.
 
-To expose the same tool registry to an MCP client, run the packaged local stdio host with paths chosen by your application:
-
-```sh
-npx --package @kanjieteam/kjdraw kjdraw-mcp --workspace ./project --input drawing.kjd --proposals pending.json
-```
-
-The host reads the selected KJD or DXF and exposes drawing queries and proposals. It never approves a proposal or writes the input drawing; your application reviews and applies accepted work. The pending-proposal file is created exclusively, so an existing file is rejected instead of overwritten.
+To expose the same tool registry through a packaged local stdio server, follow the [MCP integration](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/) guide. It includes persistent client configuration, a real JSON-RPC call and the host-controlled file and approval boundary.
 
 ## Measure tokens and time {#usage}
 
@@ -177,13 +171,7 @@ const result = await runKJAgentTask({
 
 每次运行都从图纸的当前修订版本开始。应用方案后，把后续需求作为新任务运行，让模型读取更新后的几何。对话持久化与保存策略由应用负责。CAD 工具、方案预览和几何检查见 [Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/)。
 
-若要向 MCP 客户端提供同一套工具注册表，可用应用指定的路径启动包内本地 stdio host：
-
-```sh
-npx --package @kanjieteam/kjdraw kjdraw-mcp --workspace ./project --input drawing.kjd --proposals pending.json
-```
-
-host 读取选定的 KJD 或 DXF，并提供图纸查询与修改提案。它不会批准提案，也不会写入输入图纸；应用负责审核并执行接受的修改。待审批文件采用独占创建；文件已存在时会拒绝启动，不会覆盖原数据。
+若要通过包内本地 stdio 服务向 MCP 客户端提供同一套工具注册表，请按 [MCP 集成](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/)操作。该页面给出了长期客户端配置、真实 JSON-RPC 调用，以及由宿主管理的文件和审批边界。
 
 ## 测量 token 与耗时 {#usage}
 

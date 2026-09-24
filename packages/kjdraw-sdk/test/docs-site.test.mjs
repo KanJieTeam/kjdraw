@@ -15,8 +15,8 @@ test('generated documentation portal covers the complete bilingual learning path
   const manifest = await json('docs/latest/site-manifest.json')
   const search = await json('docs/latest/search-index.json')
   const required = [
-    'introduction', 'quickstart', 'installation', 'workbench', 'architecture', 'react', 'vue',
-    'files', 'commands', 'agent', 'models', 'plugins', 'deployment', 'capabilities',
+    'introduction', 'showcase', 'quickstart', 'installation', 'workbench', 'architecture', 'react', 'vue',
+    'files', 'commands', 'agent', 'models', 'mcp', 'knowledge-packs', 'plugins', 'deployment', 'capabilities',
   ]
 
   assert.equal(manifest.schema, 'com.kanjie.kjdraw.docs-site@1')
@@ -65,6 +65,18 @@ test('generated documentation portal covers the complete bilingual learning path
     assert.match(htmlByPage.get(entry.page), new RegExp(`id=["']${fragment}["']`))
   }
 
+  const showcase = htmlByPage.get('showcase')
+  assert.match(showcase, /sample-resilient-campus/)
+  assert.match(showcase, /sample-site-plan/)
+  assert.match(showcase, /sample-architecture/)
+  assert.match(showcase, /sample-road-profile/)
+  assert.match(showcase, /sample-mechanical/)
+  for (const locale of manifest.locales) {
+    const mechanical = search.entries.find(entry => entry.href.endsWith(`#${locale}-showcase-mechanical-manufacturing-drawing`))
+    assert.ok(mechanical, `Mechanical Showcase entry must be indexed in ${locale}`)
+    assert.match(mechanical.text, /sample-mechanical/)
+  }
+
   const app = await readFile(new URL('app.js', docsRoot), 'utf8')
   assert.match(app, /search-index\.json/)
   assert.match(app, /api\/search-index\.json/)
@@ -76,21 +88,20 @@ test('generated documentation portal covers the complete bilingual learning path
   assert.doesNotMatch(app, /Guides and 784/)
 })
 
-test('model integration source documents the packaged host-controlled MCP boundary', async () => {
-  const source = await readFile(new URL('docs/site/pages/models.md', repositoryRoot), 'utf8')
-  const command = 'npx --package @kanjieteam/kjdraw kjdraw-mcp --workspace ./project --input drawing.kjd --proposals pending.json'
-  assert.equal(source.split(command).length - 1, 2)
+test('MCP integration source documents the packaged host-controlled boundary', async () => {
+  const source = await readFile(new URL('docs/site/pages/mcp.md', repositoryRoot), 'utf8')
+  assert.equal(source.split('cad_propose_circles').length - 1, 4)
   assert.doesNotMatch(source, /built-in MCP server|内置 MCP 服务/u)
-  assert.match(source, /never approves a proposal or writes the input drawing/u)
-  assert.match(source, /existing file is rejected instead of overwritten/u)
-  assert.match(source, /不会批准提案，也不会写入输入图纸/u)
-  assert.match(source, /文件已存在时会拒绝启动，不会覆盖原数据/u)
+  assert.match(source, /does not let the model choose a path or overwrite the input/u)
+  assert.match(source, /There is no MCP approve, save, open or arbitrary-command tool/u)
+  assert.match(source, /模型不能选择路径，也不能覆盖输入图纸/u)
+  assert.match(source, /MCP 不提供批准、保存、打开图纸或任意命令执行工具/u)
 })
 
 test('public guides describe package contracts instead of repository development state', async () => {
   const pages = [
     'agent', 'architecture', 'capabilities', 'commands', 'deployment', 'files', 'installation',
-    'introduction', 'models', 'plugins', 'quickstart', 'react', 'vue', 'workbench',
+    'introduction', 'models', 'mcp', 'knowledge-packs', 'plugins', 'quickstart', 'react', 'vue', 'workbench', 'showcase',
   ]
   const forbidden = [
     /current source checkout/iu,

@@ -6,25 +6,27 @@ summary.en: Install KJDraw, mount a complete editor in minutes and open one of t
 summary.zh: 安装 KJDraw，几分钟内挂载完整编辑器，并打开一张可编辑的行业示例图纸。
 ---
 :::en
-## Install {#install}
+## Run an editor in five minutes {#install}
+
+Start with Node.js 22 or newer and a small TypeScript project:
 
 ```sh
+npm create vite@latest kjdraw-five-minute -- --template vanilla-ts
+cd kjdraw-five-minute
+npm install
 npm install @kanjieteam/kjdraw@next
 ```
 
 The `next` tag follows the release-candidate channel. Pin an exact version when you need reproducible builds.
 
-## Mount a complete editor {#mount-editor}
-
-Give the container a height, then create the editor:
-
-```html
-<div id="cad"></div>
-<style>#cad { width: 100%; height: 720px; }</style>
-```
+Replace `src/main.ts` with the complete example below. The workbench injects its own component styles; the host element only needs an explicit height.
 
 ```ts
 import { createKJDrawEditor } from '@kanjieteam/kjdraw'
+
+document.querySelector<HTMLDivElement>('#app')!.innerHTML = '<div id="cad"></div>'
+const host = document.querySelector<HTMLElement>('#cad')!
+host.style.cssText = 'width:100%;height:720px'
 
 const editor = createKJDrawEditor('#cad', {
   document: 'sample',
@@ -35,13 +37,23 @@ const editor = createKJDrawEditor('#cad', {
 
 await editor.ready
 await editor.execute('CREATE', {
-  type: 'LINE',
-  payload: { start: [0, 0, 0], end: [100, 40, 0] },
+  type: 'CIRCLE',
+  payload: { center: [20, 20, 0], radius: 5 },
 })
 editor.fit()
 ```
 
-Use `editor.open(file)` for KJD or DXF input and `editor.save()` to download the current drawing. The [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/) lists every option, method and event.
+Run `npm run dev`, open the printed local URL, and confirm that the sample drawing and the new 5 mm-radius circle are visible. Use `editor.open(file)` for KJD or DXF input and `editor.save()` to download the current drawing. This closes the first editable create–inspect–save loop without a model or API key. The [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/) lists every option, method and event.
+
+## Verify the headless SDK {#verify-sdk}
+
+The installed package also ships a deterministic Node example. It creates and moves a line, writes KJD, reopens it and prints the verified entity:
+
+```sh
+node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs
+```
+
+Use this check first when a browser integration fails: it separates SDK and package problems from bundler or layout problems.
 
 ## Open an industry sample {#industry-samples}
 
@@ -71,25 +83,27 @@ Blank and sample drawings created by an editor are released after their last edi
 Continue to **React** or **Vue** for framework components, **Files** for KJD/KJP/DXF, or **Commands** for programmatic editing.
 :::
 :::zh
-## 安装 {#install}
+## 五分钟运行一个编辑器 {#install}
+
+准备 Node.js 22 或更新版本，然后创建一个小型 TypeScript 工程：
 
 ```sh
+npm create vite@latest kjdraw-five-minute -- --template vanilla-ts
+cd kjdraw-five-minute
+npm install
 npm install @kanjieteam/kjdraw@next
 ```
 
 `next` 指向候选版渠道；需要可复现构建时请锁定确切版本。
 
-## 挂载完整编辑器 {#mount-editor}
-
-先为容器设置高度，再创建编辑器：
-
-```html
-<div id="cad"></div>
-<style>#cad { width: 100%; height: 720px; }</style>
-```
+用下面的完整示例替换 `src/main.ts`。工作台会注入自身组件样式，宿主元素只需要明确的高度。
 
 ```ts
 import { createKJDrawEditor } from '@kanjieteam/kjdraw'
+
+document.querySelector<HTMLDivElement>('#app')!.innerHTML = '<div id="cad"></div>'
+const host = document.querySelector<HTMLElement>('#cad')!
+host.style.cssText = 'width:100%;height:720px'
 
 const editor = createKJDrawEditor('#cad', {
   document: 'sample',
@@ -100,13 +114,23 @@ const editor = createKJDrawEditor('#cad', {
 
 await editor.ready
 await editor.execute('CREATE', {
-  type: 'LINE',
-  payload: { start: [0, 0, 0], end: [100, 40, 0] },
+  type: 'CIRCLE',
+  payload: { center: [20, 20, 0], radius: 5 },
 })
 editor.fit()
 ```
 
-使用 `editor.open(file)` 打开 KJD 或 DXF，使用 `editor.save()` 下载当前图档。[Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/)列出了全部选项、方法与事件。
+运行 `npm run dev`，打开命令行显示的本地地址，确认示例图和新建的半径 5 毫米圆均可见。使用 `editor.open(file)` 打开 KJD 或 DXF，使用 `editor.save()` 下载当前图档。这样无需模型或 API Key 就完成了第一个可编辑的创建—检查—保存闭环。[Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/)列出了全部选项、方法与事件。
+
+## 验证无界面 SDK {#verify-sdk}
+
+安装包还附带一个确定性的 Node 示例：创建并移动一条直线，写出 KJD，重新打开后打印已验证的图元。
+
+```sh
+node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs
+```
+
+浏览器集成失败时先运行此检查，可以把 SDK/安装包问题与构建工具或布局问题分开。
 
 ## 打开行业示例 {#industry-samples}
 
