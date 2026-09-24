@@ -9,7 +9,8 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: false
+  # A queued Pages deployment must not block the latest main documentation forever.
+  cancel-in-progress: true
 jobs:
   deploy:
     timeout-minutes: 25
