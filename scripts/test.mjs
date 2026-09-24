@@ -11,5 +11,6 @@ const tests = (await readdir(new URL(`../${dir}/`, import.meta.url))).filter(x =
 const reporters = process.env.GITHUB_ACTIONS === 'true'
   ? ['--test-reporter=spec', '--test-reporter=./scripts/github-test-reporter.mjs', '--test-reporter-destination=stdout', '--test-reporter-destination=stdout']
   : []
-const result = spawnSync(process.execPath, ['--test', ...reporters, ...tests], { cwd: root, stdio: 'inherit' })
+const concurrency = process.env.KJDRAW_TEST_CONCURRENCY ? [`--test-concurrency=${process.env.KJDRAW_TEST_CONCURRENCY}`] : []
+const result = spawnSync(process.execPath, ['--test', ...concurrency, ...reporters, ...tests], { cwd: root, stdio: 'inherit' })
 process.exit(result.status ?? 1)

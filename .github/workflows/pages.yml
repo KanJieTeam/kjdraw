@@ -45,6 +45,7 @@ jobs:
       - name: Run SDK and fixture tests
         env:
           KJDRAW_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+          KJDRAW_TEST_CONCURRENCY: '1'
         run: node scripts/test.mjs
       - run: node scripts/check.mjs
       - run: node scripts/build.mjs
