@@ -1,0 +1,172 @@
+{
+  "schema": "com.kanjie.kjdraw.showcase-catalog@1",
+  "entries": [
+    {
+      "id": "resilient-campus",
+      "kind": "sample",
+      "sampleId": "sample-resilient-campus",
+      "category": "multidisciplinary",
+      "title": { "en": "Resilient energy campus", "zh": "韧性能源园区" },
+      "drawingType": { "en": "Coordination plan", "zh": "多专业协调总图" },
+      "summary": {
+        "en": "Site, topography, access, buildings, solar arrays, energy distribution and revision-ready equipment in one editable drawing.",
+        "zh": "在一张可编辑图纸中组合场地、地形、道路、建筑、光伏阵列、能源网络与可修订设备。"
+      },
+      "tags": {
+        "en": ["site", "energy", "solar", "layers", "agent revision"],
+        "zh": ["场地", "能源", "光伏", "图层", "智能体修订"]
+      },
+      "detailAnchor": "multidisciplinary-coordination",
+      "source": "examples/sample.js"
+    },
+    {
+      "id": "site-plan",
+      "kind": "sample",
+      "sampleId": "sample-site-plan",
+      "category": "civil",
+      "title": { "en": "Riverside research park", "zh": "滨河研发园" },
+      "drawingType": { "en": "Site development plan", "zh": "场地总图" },
+      "summary": {
+        "en": "A bounded civil plan with synthetic contours, roads, buildings, utilities, planting, dimensions and title information.",
+        "zh": "包含图框、示意等高线、道路、建筑、管线、绿化、尺寸与标题信息的土木场地总图。"
+      },
+      "tags": {
+        "en": ["civil", "contours", "roads", "utilities", "dimensions"],
+        "zh": ["土木", "等高线", "道路", "管线", "尺寸"]
+      },
+      "detailAnchor": "civil-site-plan",
+      "source": "packages/kjdraw-sdk/src/samples.ts"
+    },
+    {
+      "id": "architecture-floor-plan",
+      "kind": "sample",
+      "sampleId": "sample-architecture",
+      "category": "architecture",
+      "title": { "en": "Innovation hub", "zh": "创新中心" },
+      "drawingType": { "en": "Ground-floor plan", "zh": "首层平面图" },
+      "summary": {
+        "en": "A sheeted floor plan with grids, walls, columns, doors, windows, room labels, furniture and dimensions.",
+        "zh": "带图框的首层平面图，包含轴网、墙柱、门窗、房间标注、家具与尺寸。"
+      },
+      "tags": {
+        "en": ["architecture", "floor plan", "walls", "doors", "furniture"],
+        "zh": ["建筑", "平面图", "墙体", "门窗", "家具"]
+      },
+      "detailAnchor": "architectural-floor-plan",
+      "source": "packages/kjdraw-sdk/src/samples.ts"
+    },
+    {
+      "id": "road-profile",
+      "kind": "sample",
+      "sampleId": "sample-road-profile",
+      "category": "transportation",
+      "title": { "en": "Hill route C2", "zh": "山区道路 C2" },
+      "drawingType": { "en": "Longitudinal profile", "zh": "道路纵断面" },
+      "summary": {
+        "en": "A station-based road profile with existing ground, design grade, grid, drainage, structures, labels and dimensions.",
+        "zh": "按桩号组织的道路纵断面，包含现状地面、设计坡线、网格、排水、构造物、文字与尺寸。"
+      },
+      "tags": {
+        "en": ["transportation", "profile", "grade", "drainage", "chainage"],
+        "zh": ["道路", "纵断面", "坡线", "排水", "桩号"]
+      },
+      "detailAnchor": "road-longitudinal-profile",
+      "source": "packages/kjdraw-sdk/src/samples.ts"
+    },
+    {
+      "id": "mechanical-bracket",
+      "kind": "sample",
+      "sampleId": "sample-mechanical",
+      "category": "mechanical",
+      "title": { "en": "Bearing bracket", "zh": "轴承支架" },
+      "drawingType": { "en": "Manufacturing drawing", "zh": "制造工程图" },
+      "summary": {
+        "en": "A millimetre manufacturing sheet with orthographic geometry, holes, centre lines, section hatching, dimensions and notes.",
+        "zh": "毫米制制造图，包含正投影几何、孔、中心线、剖面线、尺寸与技术说明。"
+      },
+      "tags": {
+        "en": ["mechanical", "manufacturing", "holes", "section", "dimensions"],
+        "zh": ["机械", "制造", "孔", "剖面", "尺寸"]
+      },
+      "detailAnchor": "mechanical-manufacturing-drawing",
+      "source": "packages/kjdraw-sdk/src/samples.ts"
+    },
+    {
+      "id": "editable-entities",
+      "kind": "specimen",
+      "specimenId": "geometry",
+      "category": "core-capabilities",
+      "title": { "en": "Editable 2D entities", "zh": "可编辑二维图元" },
+      "drawingType": { "en": "Geometry specimen", "zh": "几何能力试件" },
+      "summary": { "en": "Line, circle, arc, ellipse, closed polyline and bounded hatch generated as native editable CAD entities.", "zh": "以原生可编辑 CAD 图元生成直线、圆、圆弧、椭圆、闭合多段线与有界填充。" },
+      "tags": { "en": ["geometry", "entities", "hatch", "curves"], "zh": ["几何", "图元", "填充", "曲线"] },
+      "source": "examples/cad-capability-specimens.mjs"
+    },
+    {
+      "id": "native-dimensions",
+      "kind": "specimen",
+      "specimenId": "dimensions",
+      "category": "core-capabilities",
+      "title": { "en": "Native dimensions", "zh": "原生工程尺寸" },
+      "drawingType": { "en": "Annotation specimen", "zh": "标注能力试件" },
+      "summary": { "en": "Aligned, radius, diameter and three-point angular dimensions backed by a named dimension style.", "zh": "由命名尺寸样式驱动的对齐、半径、直径与三点角度尺寸。" },
+      "tags": { "en": ["dimensions", "annotations", "styles", "angular"], "zh": ["尺寸", "标注", "样式", "角度"] },
+      "source": "examples/cad-capability-specimens.mjs"
+    },
+    {
+      "id": "bilingual-typography",
+      "kind": "specimen",
+      "specimenId": "typography",
+      "category": "core-capabilities",
+      "title": { "en": "Bilingual typography", "zh": "中英文字体回退" },
+      "drawingType": { "en": "Font specimen", "zh": "字体能力试件" },
+      "summary": { "en": "Editable TEXT and MTEXT exercise a local CJK-first font fallback stack and Unicode engineering symbols.", "zh": "可编辑 TEXT 与 MTEXT 验证本地中文优先字体回退和 Unicode 工程符号。" },
+      "tags": { "en": ["fonts", "text", "mtext", "unicode"], "zh": ["字体", "文字", "多行文字", "Unicode"] },
+      "source": "examples/cad-capability-specimens.mjs"
+    },
+    {
+      "id": "a4-print-layout",
+      "kind": "specimen",
+      "specimenId": "layout-print",
+      "category": "output-interop",
+      "title": { "en": "A4 vector print layout", "zh": "A4 矢量打印布局" },
+      "drawingType": { "en": "Layout and print specimen", "zh": "布局与打印试件" },
+      "summary": { "en": "A paper-space A4 landscape sheet with explicit margins, 1:1 plot settings and vector print output.", "zh": "纸空间 A4 横向图纸，包含明确页边距、1:1 出图设置与矢量打印输出。" },
+      "tags": { "en": ["layout", "paper space", "print", "a4"], "zh": ["布局", "纸空间", "打印", "A4"] },
+      "source": "examples/cad-capability-specimens.mjs"
+    },
+    {
+      "id": "dxf-import",
+      "kind": "specimen",
+      "specimenId": "dxf-import",
+      "category": "output-interop",
+      "title": { "en": "UTF-8 DXF import", "zh": "UTF-8 DXF 导入" },
+      "drawingType": { "en": "Interoperability specimen", "zh": "交换兼容试件" },
+      "summary": { "en": "A compact DXF 2018 source is imported with original handles, editable geometry and UTF-8 engineering text.", "zh": "紧凑的 DXF 2018 源文件保留原始句柄、可编辑几何与 UTF-8 工程文字后导入。" },
+      "tags": { "en": ["dxf", "import", "utf-8", "interoperability"], "zh": ["DXF", "导入", "UTF-8", "兼容"] },
+      "source": "examples/cad-capability-specimens.mjs"
+    },
+    {
+      "id": "editing-history",
+      "kind": "specimen",
+      "specimenId": "editing-history",
+      "category": "editing",
+      "title": { "en": "Transactional editing", "zh": "事务化编辑" },
+      "drawingType": { "en": "Undo and redo specimen", "zh": "撤销重做试件" },
+      "summary": { "en": "A deterministic move demonstrates edit history, undo, redo and atomic rejection of an invalid edit.", "zh": "确定性移动用于验证编辑历史、撤销、重做以及无效编辑的原子拒绝。" },
+      "tags": { "en": ["editing", "undo", "redo", "transaction"], "zh": ["编辑", "撤销", "重做", "事务"] },
+      "source": "examples/cad-capability-specimens.mjs"
+    },
+    {
+      "id": "block-references",
+      "kind": "specimen",
+      "specimenId": "blocks-references",
+      "category": "core-capabilities",
+      "title": { "en": "Reusable block references", "zh": "可复用块引用" },
+      "drawingType": { "en": "Blocks specimen", "zh": "块能力试件" },
+      "summary": { "en": "One native block definition is inserted three times with independent position, scale and rotation.", "zh": "一个原生块定义以独立位置、比例和旋转插入三次。" },
+      "tags": { "en": ["blocks", "references", "insert", "reuse"], "zh": ["块", "引用", "插入", "复用"] },
+      "source": "examples/cad-capability-specimens.mjs"
+    }
+  ]
+}

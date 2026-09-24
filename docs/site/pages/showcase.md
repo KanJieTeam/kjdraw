@@ -8,19 +8,9 @@ summary.zh: 按专业浏览原创可编辑图纸，在 Playground 中直接体�
 :::en
 ## Find an example {#find-an-example}
 
-Every drawing below is generated from public KJDraw entities and remains selectable, editable, undoable and exportable. They are fictional engineering examples, not customer drawings or measured project data.
+Every card above is generated from a public KJDraw sample. Its thumbnail, object count, layer count and entity-type totals are rebuilt from the same editable document during the documentation build. The examples are fictional engineering drawings, not customer drawings or measured project data.
 
-Use the documentation search (`Ctrl K` or `/`) to find a discipline, drawing type, object or workflow. Search terms such as `mechanical`, `site plan`, `architecture`, `road profile`, `solar` and `dimensions` lead back to this catalog.
-
-| Discipline | Drawing | Editable objects | Start here |
-| --- | --- | ---: | --- |
-| Multidisciplinary | Resilient energy campus coordination plan | 2,294 | [Open Playground](https://kanjieteam.github.io/kjdraw/) |
-| Civil | Riverside research park site plan | 267 | [Open Playground](https://kanjieteam.github.io/kjdraw/) |
-| Architecture | Innovation hub ground-floor plan | 322 | [Open Playground](https://kanjieteam.github.io/kjdraw/) |
-| Transportation | Hill route C2 longitudinal profile | 112 | [Open Playground](https://kanjieteam.github.io/kjdraw/) |
-| Mechanical | Bearing bracket manufacturing drawing | 105 | [Open Playground](https://kanjieteam.github.io/kjdraw/) |
-
-Choose the named drawing from **Sample drawings** in the Playground. Object counts describe the generated baseline in this release; they are evidence of individually editable geometry, not an accuracy score.
+Search by title, drawing type, object or workflow; combine search with a discipline or tag filter; then switch between grid and list views. **Open Playground** activates that public sample directly; **Sample drawings** can then switch among the complete drawings. Counts describe the generated baseline, not an accuracy score.
 
 ## Multidisciplinary coordination {#multidisciplinary-coordination}
 
@@ -84,19 +74,9 @@ The sample source is the canonical definition. Showcase copy describes what is c
 :::zh
 ## 查找案例 {#find-an-example}
 
-下面每张图都由 KJDraw 的公开图元生成，并且保持可选择、可编辑、可撤销、可导出。它们是虚构的工程示例，不是客户图纸，也不是项目实测数据。
+上方每张卡片都来自 KJDraw 的公开案例。文档构建时，会从同一份可编辑图纸重新生成缩略图，并计算对象数、图层数与图元类型数量。它们是虚构的工程图纸，不是客户图纸，也不是项目实测数据。
 
-使用文档搜索（`Ctrl K` 或 `/`）可以按专业、图纸类型、对象或工作流查找案例。搜索“机械”“场地总图”“建筑”“道路纵断面”“光伏”或“尺寸标注”等词，即可返回本案例库。
-
-| 专业 | 图纸 | 可编辑对象 | 开始体验 |
-| --- | --- | ---: | --- |
-| 多专业协同 | 韧性能源园区协调总图 | 2,294 | [打开 Playground](https://kanjieteam.github.io/kjdraw/) |
-| 场地与土木 | 滨河研发园场地总图 | 267 | [打开 Playground](https://kanjieteam.github.io/kjdraw/) |
-| 建筑 | 创新中心首层平面 | 322 | [打开 Playground](https://kanjieteam.github.io/kjdraw/) |
-| 道路 | 山区道路 C2 纵断面 | 112 | [打开 Playground](https://kanjieteam.github.io/kjdraw/) |
-| 机械 | 轴承支架制造工程图 | 105 | [打开 Playground](https://kanjieteam.github.io/kjdraw/) |
-
-进入 Playground 后，在**示例图纸**中选择对应名称。本版本的对象数量用于说明基线中的图元可逐个编辑，不代表图纸准确率评分。
+可以按标题、图纸类型、对象或工作流搜索，并叠加专业与标签筛选，再切换网格或列表视图。点击**在线体验**会直接激活对应公开案例，随后可通过**示例图纸**切换其他完整图纸。数量只描述生成基线，不代表准确率评分。
 
 ## 多专业协调总图 {#multidisciplinary-coordination}
 
