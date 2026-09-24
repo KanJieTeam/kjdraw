@@ -15,6 +15,7 @@ jobs:
     timeout-minutes: 25
     env:
       PAGES_ARTIFACT_NAME: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
+      KJDRAW_PYTHON: python3
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -35,7 +36,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Install Chromium for deployed-site verification
         run: npx playwright install --with-deps chromium
-      - run: python -m pip install -r scripts/audits/requirements-dxf.txt
+      - run: python3 -m pip install -r scripts/audits/requirements-dxf.txt
       - run: npm run typecheck
       - run: node scripts/build-declarations.mjs --check
       - run: node scripts/build-docs-site.mjs
