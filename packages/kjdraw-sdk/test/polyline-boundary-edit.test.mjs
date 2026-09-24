@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 import test from 'node:test'
 import { createBoundaryEditSession, createDraftingSession, createKJDrawSDK } from '../src/index.js'
 import { projectDimension } from '../src/geometry/annotation.js'
@@ -194,8 +194,8 @@ test('independent ezdxf reads the trimmed native LWPOLYLINE geometry without aud
   const { sdk, drawing, target, cutters } = await bulgeFixture()
   await sdk.executeCommand('TRIM', { id: target.id, boundaryIds: cutters.map(value => value.id), pickPoint: [50, -50] }, { document: drawing })
   const dxf = String(await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' }))
-  const script = 'import sys,io,json,ezdxf; d=ezdxf.read(io.StringIO(sys.stdin.read())); a=d.audit(); p=list(d.modelspace().query("LWPOLYLINE")); print(json.dumps({"version":ezdxf.__version__,"count":len(p),"points":[[(x,y,b) for x,y,sw,ew,b in e.get_points("xyseb")] for e in p],"errors":len(a.errors),"fixes":len(a.fixes)}))'
-  const run = spawnSync(process.env.KJDRAW_PYTHON, ['-c', script], { input: dxf, encoding: 'utf8', timeout: 30000 })
+  const script = 'import os,io,json,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); p=list(d.modelspace().query("LWPOLYLINE")); print(json.dumps({"version":ezdxf.__version__,"count":len(p),"points":[[(x,y,b) for x,y,sw,ew,b in e.get_points("xyseb")] for e in p],"errors":len(a.errors),"fixes":len(a.fixes)}))'
+  const run = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON, ['-c', script], dxf, { encoding: 'utf8', timeout: 30000 })
   assert.equal(run.status, 0, run.stderr)
   const result = JSON.parse(run.stdout)
   assert.equal(result.version, '1.4.4'); assert.equal(result.count, 2); assert.equal(result.errors, 0); assert.equal(result.fixes, 0)

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 import test from 'node:test'
 import { KJDocument, KJValidationError, createKJDrawSDK, entityLength2 } from '../src/index.js'
 
@@ -141,8 +141,8 @@ test('independent ezdxf validates pointer-edited native polyline output without 
   await sdk.executeCommand('PEDIT', { id: path.id, operation: 'SET_BULGE', point: [7.5, 0], tolerance: 1e-8, sweepDegrees: 90 })
   await sdk.executeCommand('PEDIT', { id: path.id, operation: 'SET_WIDTH', segmentIndex: 2, startWidth: 3, endWidth: 5 })
   const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
-  const code = 'import sys,io,json,ezdxf;d=ezdxf.read(io.StringIO(sys.stdin.read()));a=d.audit();p=list(d.modelspace().query("LWPOLYLINE"));print(json.dumps({"version":ezdxf.__version__,"count":len(p),"points":[list(v) for v in p[0].get_points("xyseb")],"errors":len(a.errors),"fixes":len(a.fixes)}))'
-  const run = spawnSync(process.env.KJDRAW_PYTHON, ['-c', code], { input: dxf, encoding: 'utf8', timeout: 30000 })
+  const code = 'import os,io,json,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read()));a=d.audit();p=list(d.modelspace().query("LWPOLYLINE"));print(json.dumps({"version":ezdxf.__version__,"count":len(p),"points":[list(v) for v in p[0].get_points("xyseb")],"errors":len(a.errors),"fixes":len(a.fixes)}))'
+  const run = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON, ['-c', code], dxf, { encoding: 'utf8', timeout: 30000 })
   assert.equal(run.status, 0, run.stderr); const result = JSON.parse(run.stdout)
   assert.equal(result.version, '1.4.4'); assert.equal(result.count, 1); assert.equal(result.points.length, 4)
   close(result.points[1][4], Math.tan(Math.PI / 8), 1e-8); assert.deepEqual(result.points[2].slice(2, 4), [3, 5]); assert.equal(result.errors, 0); assert.equal(result.fixes, 0)

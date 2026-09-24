@@ -88,7 +88,7 @@ test('imported DXF text remains editable and independently readable with zero au
   const proposal=await session.call('cad_propose_text_edit',{expectedRevision:document.revision,units:'millimeter',changes})
   assert.equal(proposal.ok,true);assert.equal((await session.approve(proposal.value.planId,'interop')).ok,true)
   const dxf=await sdk.writeDocument(document,{format:'DXF'})
-  const checked=spawnSyncWithFileStdin(python,['-c',"import io,json,sys,ezdxf; d=ezdxf.read(io.StringIO(sys.stdin.read())); a=d.audit(); print(json.dumps({'errors':len(a.errors),'fixes':len(a.fixes),'texts':[e.dxf.text if e.dxftype()=='TEXT' else e.text for e in d.modelspace() if e.dxftype() in ('TEXT','MTEXT')]}))"],dxf,{encoding:'utf8',env:{...process.env,PYTHONIOENCODING:'utf-8'},timeout:30000})
+  const checked=spawnSyncWithFileStdin(python,['-c',`import os,io,json,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); print(json.dumps({'errors':len(a.errors),'fixes':len(a.fixes),'texts':[e.dxf.text if e.dxftype()=='TEXT' else e.text for e in d.modelspace() if e.dxftype() in ('TEXT','MTEXT')]}))`],dxf,{encoding:'utf8',env:{...process.env,PYTHONIOENCODING:'utf-8'},timeout:30000})
   assert.equal(checked.status,0,checked.stderr)
   const result=JSON.parse(checked.stdout)
   assert.equal(result.errors,0);assert.equal(result.fixes,0)
