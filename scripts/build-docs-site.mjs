@@ -283,6 +283,9 @@ function renderSidebar(page, rootPrefix) {
 }
 
 function renderToc(page, locale) {
+  // Showcase has its own category and search controls; it does not render the
+  // source-page headings, so a second TOC would only point at empty anchors.
+  if (page.slug === 'showcase') return ''
   const headingLinks = page.rendered[locale].headings
     .filter(heading => heading.level <= 3)
     .map(heading => `<a class="toc-level-${heading.level}" href="#${heading.id}">${escapeHtml(heading.title)}</a>`)
@@ -301,9 +304,10 @@ function renderPage(page, index) {
   const navLink = target => target.slug === 'introduction' ? rootPrefix : `${rootPrefix}${target.slug}/`
   const pager = target => target ? `<a href="${navLink(target)}">${localized(target.title.en, target.title.zh, 'strong')}</a>` : '<span></span>'
   const portal = locale => page.slug === 'showcase' ? renderShowcasePortal(showcasePortal.manifest, locale) : ''
-  const pageBody = locale => showcasePage
-    ? page.rendered[locale].headings.map(heading => `<span class=\"showcase-anchor\" id=\"${heading.id}\" aria-hidden=\"true\"></span>`).join('')
-    : page.rendered[locale].html
+  // Showcase is rendered by the dedicated portal below. Do not append the
+  // source Markdown sections after the cards: that duplicated the old
+  // catalogue copy below the interactive grid on the published site.
+  const pageBody = locale => showcasePage ? '' : page.rendered[locale].html
   const homeActions = atRoot ? `<div class="home-actions"><a class="primary" href="./quickstart/">${localized('Get started', '快速开始')}</a><a href="./showcase/">${localized('Explore examples', '浏览案例')}</a></div>` : ''
   const homePreview = atRoot ? `<div class="home-preview" aria-label="Public editable drawing examples"><a class="home-preview-main" href="./showcase/"><img src="./showcase/assets/site-plan.svg" width="720" height="420" alt="Editable site plan drawing" loading="eager"><span>${localized('Site plan · editable CAD', '场地总平 · 可编辑 CAD')}</span></a><a href="./showcase/"><img src="./showcase/assets/mechanical-bracket.svg" width="720" height="420" alt="Editable mechanical drawing" loading="eager"><span>${localized('Mechanical drawing', '机械图纸')}</span></a><a href="./showcase/"><img src="./showcase/assets/road-profile.svg" width="720" height="420" alt="Editable road profile drawing" loading="eager"><span>${localized('Road profile', '道路纵断面')}</span></a></div>` : ''
   return `<!doctype html>
