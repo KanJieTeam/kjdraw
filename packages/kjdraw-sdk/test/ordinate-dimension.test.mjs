@@ -5,6 +5,7 @@ import { createKJDrawSDK } from '../src/sdk.js'
 import { projectDimension } from '../src/geometry/annotation.js'
 
 const close = (actual, expected, tolerance = 1e-8) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`)
+const dxfDimensionRecords = source => source.split('\r\n0\r\n').filter(record => record.startsWith('DIMENSION\r\n')).map(record => record.split('\r\n').slice(0, 34))
 
 test('native ordinate dimensions derive X and Y measurements from rotated definition axes', () => {
   const angle = Math.PI / 6, localX = [Math.cos(angle), Math.sin(angle)], localY = [-Math.sin(angle), Math.cos(angle)]
@@ -31,14 +32,19 @@ test('zero ordinate is a valid native datum label through KJD, DXF and official 
   // to host scheduling or another adapter's completion.
   const kjd=await sdk.writeDocument(document,{format:'KJD'})
   const dxf=await sdk.writeDocument(document,{format:'DXF',version:'2018'})
+  const rawDimensions=dxfDimensionRecords(dxf)
+  assert.equal(rawDimensions.length,1,JSON.stringify({rawDimensions,source:document.listEntities({type:'DIMENSION'}),spaces:document.spaces}))
   for(const [format,source] of [['KJD',kjd],['DXF',dxf]]){
     const reopened=await createKJDrawSDK().readDocument(source,{format}),projection=projectDimension(reopened.listEntities({type:'DIMENSION'})[0].payload)
     assert.ok(projection);assert.equal(projection.measurement,0);assert.equal(projection.label.text,'0')
   }
   const script=String.raw`
 import io,json,sys,ezdxf
-d=ezdxf.read(io.StringIO(sys.stdin.read()));e=list(d.modelspace().query('DIMENSION'))[0];a=d.audit()
-print(json.dumps({'errors':len(a.errors),'fixes':len(a.fixes),'measurement':list(e.get_measurement()),'lines':sum(x.dxftype()=='LINE' for x in e.virtual_entities())}))
+d=ezdxf.read(io.StringIO(sys.stdin.read()));items=list(d.modelspace().query('DIMENSION'));a=d.audit()
+all_dims=[{'handle':e.dxf.handle,'owner':e.dxf.owner,'paperspace':e.dxf.get('paperspace',0)} for e in d.entitydb.values() if e.dxftype()=='DIMENSION']
+layouts={layout.name:[e.dxf.handle for e in layout.query('DIMENSION')] for layout in d.layouts}
+if not items: print(json.dumps({'errors':len(a.errors),'fixes':len(a.fixes),'all':all_dims,'layouts':layouts}));sys.exit(3)
+e=items[0];print(json.dumps({'errors':len(a.errors),'fixes':len(a.fixes),'measurement':list(e.get_measurement()),'lines':sum(x.dxftype()=='LINE' for x in e.virtual_entities()),'all':all_dims,'layouts':layouts}))
 `
   const native=spawnSync(process.env.KJDRAW_PYTHON||'python',['-c',script],{input:dxf,encoding:'utf8',timeout:30_000,env:{...process.env,PYTHONPATH:process.env.KJDRAW_EZDXF_PATH||process.env.PYTHONPATH||'',PYTHONIOENCODING:'utf-8'}})
   if(native.error?.code==='ENOENT'||/No module named ['"]ezdxf/u.test(native.stderr||'')){if(process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED==='1')assert.fail(native.stderr||native.error?.message);t.skip('official ezdxf unavailable');return}
@@ -56,13 +62,15 @@ test('ordinate dimensions survive KJD and native DXF reopen with axis bit, rotat
   const before = document.serialize()
   const kjd = await sdk.writeDocument(document, { format: 'KJD' })
   const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const rawDimensions = dxfDimensionRecords(dxf)
+  assert.equal(rawDimensions.length, 2, JSON.stringify({ rawDimensions, source: document.listEntities({ type: 'DIMENSION' }), spaces: document.spaces }))
   assert.equal(document.serialize(), before)
   const reopenedKjd = await createKJDrawSDK().readDocument(kjd, { format: 'KJD' })
   const kjdMeasurements = new Map(reopenedKjd.listEntities({ type: 'DIMENSION' }).map(entity => [(entity.payload.dxfDimensionType & 64) ? 'x' : 'y', projectDimension(entity.payload).measurement]))
   assert.deepEqual(Object.fromEntries(kjdMeasurements), { x: 20, y: 25 })
   const reopenedDxf = await createKJDrawSDK().readDocument(dxf, { format: 'DXF', version: '2018' })
   const dimensions = reopenedDxf.listEntities({ type: 'DIMENSION' })
-  assert.deepEqual(dimensions.map(entity => entity.payload.dxfDimensionType).sort((a, b) => a - b), [38, 102])
+  assert.deepEqual(dimensions.map(entity => entity.payload.dxfDimensionType).sort((a, b) => a - b), [38, 102], JSON.stringify({ rawDimensions, reopened: reopenedDxf.listEntities().map(entity => ({ type: entity.type, ownerId: entity.ownerId, payload: entity.payload })), spaces: reopenedDxf.spaces }))
   const dxfMeasurements = new Map(dimensions.map(entity => [(entity.payload.dxfDimensionType & 64) ? 'x' : 'y', projectDimension(entity.payload).measurement]))
   close(dxfMeasurements.get('x'), 20); close(dxfMeasurements.get('y'), 25)
   dimensions.forEach(entity => close(entity.payload.rotation, angle))
