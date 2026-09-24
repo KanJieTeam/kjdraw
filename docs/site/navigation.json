@@ -4,12 +4,12 @@
     {
       "id": "start",
       "title": { "en": "Get started", "zh": "开始使用" },
-      "pages": ["introduction", "showcase", "quickstart", "installation", "workbench"]
+      "pages": ["introduction", "showcase", "quickstart", "installation"]
     },
     {
       "id": "foundations",
       "title": { "en": "Foundations", "zh": "核心基础" },
-      "pages": ["architecture", "files", "commands"]
+      "pages": ["concepts", "workbench", "commands", "files", "architecture"]
     },
     {
       "id": "frameworks",
@@ -24,7 +24,7 @@
     {
       "id": "reference",
       "title": { "en": "Reference", "zh": "参考" },
-      "pages": ["capabilities"]
+      "pages": ["reference", "capabilities"]
     }
   ]
 }
