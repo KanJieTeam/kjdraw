@@ -3184,12 +3184,18 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         if (!dimension || dimension.preserveRaw) throw new KJValidationError(`DXF DIMENSION ${entity.handle} has no export geometry block`);
         const dimensionCode = nativeDimensionCode(p);
         emitSubclass(output, version, 'AcDbDimension');
+        if (VERSION_RANK[version] >= VERSION_RANK['2010']) emit(output, 280, 0);
         emit(output, 2, dimension.blockName);
         const definitionPoints = dimension.definitionPoints ?? p.definitionPoints;
         emitPoint(output, definitionPoints[0]);
         emitPoint(output, dimension.textPosition ?? p.textPosition ?? p.definitionPoints[0], 11);
         emit(output, 3, (p.styleId ? resources.dimensionStyleNames?.get(p.styleId) : undefined) ?? p.styleName ?? 'STANDARD');
         emit(output, 70, isSubclassDXF(version) ? dimensionCode | 32 : dimensionCode);
+        if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
+            const attachmentPoint = Number(p.attachmentPoint ?? 5);
+            if (!Number.isInteger(attachmentPoint) || attachmentPoint < 1 || attachmentPoint > 9) throw new KJValidationError('DXF DIMENSION attachmentPoint must be an integer from 1 to 9');
+            emit(output, 71, attachmentPoint);
+        }
         if (p.textOverride != null) emit(output, 1, p.textOverride);
         if ((dimensionCode & 7) === 6 && p.rotation) emit(output, 51, -Number(p.rotation) * 180 / Math.PI);
         if (dimension.measurement != null && ![

@@ -5,7 +5,17 @@ import { createKJDrawSDK } from '../src/sdk.js'
 import { projectDimension } from '../src/geometry/annotation.js'
 
 const close = (actual, expected, tolerance = 1e-8) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`)
-const dxfDimensionRecords = source => source.split('\r\n0\r\n').filter(record => record.startsWith('DIMENSION\r\n')).map(record => record.split('\r\n').slice(0, 34))
+const dxfDimensionRecords = source => {
+  const lines=source.split('\r\n'),records=[]
+  for(let index=0;index+1<lines.length;index+=2){
+    if(lines[index]!=='0'||lines[index+1]!=='DIMENSION')continue
+    const record=['DIMENSION']
+    for(let cursor=index+2;cursor+1<lines.length&&lines[cursor]!=='0';cursor+=2)record.push(lines[cursor],lines[cursor+1])
+    records.push(record)
+  }
+  return records
+}
+const hasDxfTag = (record, code, value) => record.some((item, index) => index > 0 && index % 2 === 1 && item === String(code) && record[index + 1] === String(value))
 
 test('native ordinate dimensions derive X and Y measurements from rotated definition axes', () => {
   const angle = Math.PI / 6, localX = [Math.cos(angle), Math.sin(angle)], localY = [-Math.sin(angle), Math.cos(angle)]
@@ -34,6 +44,7 @@ test('zero ordinate is a valid native datum label through KJD, DXF and official 
   const dxf=await sdk.writeDocument(document,{format:'DXF',version:'2018'})
   const rawDimensions=dxfDimensionRecords(dxf)
   assert.equal(rawDimensions.length,1,JSON.stringify({rawDimensions,source:document.listEntities({type:'DIMENSION'}),spaces:document.spaces}))
+  assert.ok(hasDxfTag(rawDimensions[0],280,0)&&hasDxfTag(rawDimensions[0],71,5),JSON.stringify(rawDimensions[0]))
   for(const [format,source] of [['KJD',kjd],['DXF',dxf]]){
     const reopened=await createKJDrawSDK().readDocument(source,{format}),projection=projectDimension(reopened.listEntities({type:'DIMENSION'})[0].payload)
     assert.ok(projection);assert.equal(projection.measurement,0);assert.equal(projection.label.text,'0')
@@ -64,6 +75,7 @@ test('ordinate dimensions survive KJD and native DXF reopen with axis bit, rotat
   const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   const rawDimensions = dxfDimensionRecords(dxf)
   assert.equal(rawDimensions.length, 2, JSON.stringify({ rawDimensions, source: document.listEntities({ type: 'DIMENSION' }), spaces: document.spaces }))
+  rawDimensions.forEach(record => assert.ok(hasDxfTag(record, 280, 0) && hasDxfTag(record, 71, 5), JSON.stringify(record)))
   assert.equal(document.serialize(), before)
   const reopenedKjd = await createKJDrawSDK().readDocument(kjd, { format: 'KJD' })
   const kjdMeasurements = new Map(reopenedKjd.listEntities({ type: 'DIMENSION' }).map(entity => [(entity.payload.dxfDimensionType & 64) ? 'x' : 'y', projectDimension(entity.payload).measurement]))
