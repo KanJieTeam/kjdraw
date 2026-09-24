@@ -126,6 +126,7 @@
       "links": {
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-resilient-campus",
         "detail": "./resilient-campus/",
+        "preview": "./assets/resilient-campus.svg",
         "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/sample.js"
       },
       "artifact": {
@@ -191,6 +192,7 @@
       "links": {
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-site-plan",
         "detail": "./site-plan/",
+        "preview": "./assets/site-plan.svg",
         "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
       },
       "artifact": {
@@ -257,6 +259,7 @@
       "links": {
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-architecture",
         "detail": "./architecture-floor-plan/",
+        "preview": "./assets/architecture-floor-plan.svg",
         "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
       },
       "artifact": {
@@ -322,6 +325,7 @@
       "links": {
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-road-profile",
         "detail": "./road-profile/",
+        "preview": "./assets/road-profile.svg",
         "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
       },
       "artifact": {
@@ -388,6 +392,7 @@
       "links": {
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-mechanical",
         "detail": "./mechanical-bracket/",
+        "preview": "./assets/mechanical-bracket.svg",
         "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
       },
       "artifact": {
@@ -452,6 +457,7 @@
       "links": {
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-editable-entities",
         "detail": "./editable-entities/",
+        "preview": "./assets/editable-entities.svg",
         "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
       },
       "artifact": {
@@ -517,6 +523,7 @@
       "links": {
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-native-dimensions",
         "detail": "./native-dimensions/",
+        "preview": "./assets/native-dimensions.svg",
         "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
       },
       "artifact": {
@@ -579,6 +586,7 @@
       "links": {
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-bilingual-typography",
         "detail": "./bilingual-typography/",
+        "preview": "./assets/bilingual-typography.svg",
         "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
       },
       "artifact": {
@@ -643,6 +651,7 @@
       "links": {
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-a4-print-layout",
         "detail": "./a4-print-layout/",
+        "preview": "./assets/a4-print-layout.svg",
         "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
       },
       "artifact": {
@@ -714,6 +723,7 @@
       "links": {
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-dxf-import",
         "detail": "./dxf-import/",
+        "preview": "./assets/dxf-import.svg",
         "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
       },
       "artifact": {
@@ -789,6 +799,7 @@
       "links": {
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-editing-history",
         "detail": "./editing-history/",
+        "preview": "./assets/editing-history.svg",
         "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
       },
       "artifact": {
@@ -853,6 +864,7 @@
       "links": {
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-block-references",
         "detail": "./block-references/",
+        "preview": "./assets/block-references.svg",
         "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
       },
       "artifact": {

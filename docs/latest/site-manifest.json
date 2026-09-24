@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:cbc5bdeee724d98d7f3740c07aed7e364b99dc0f4040642461c367c014c6144f",
+  "sourceDigest": "sha256:f4adb467151c4faa81a12f73b9b25181e0ee282c17d78d6d169a5c619df0983b",
   "locales": [
     "en",
     "zh"

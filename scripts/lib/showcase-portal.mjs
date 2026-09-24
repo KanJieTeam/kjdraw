@@ -133,6 +133,35 @@ function normalizeSpecimenPreview(svg) {
   return deterministic.replace(/(<svg\b[^>]*>)/, '$1<style>g[data-entity-id]{stroke-width:.8!important}text{font-weight:500}</style>')
 }
 
+function normalizeKjdArtifact(kjd) {
+  const stableIds = new Map()
+  const normalizeId = value => {
+    if (typeof value !== 'string') return value
+    return value.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, uuid => {
+      const key = uuid.toLowerCase()
+      if (!stableIds.has(key)) {
+        const sequence = String(stableIds.size + 1).padStart(12, '0')
+        stableIds.set(key, `00000000-0000-4000-8000-${sequence}`)
+      }
+      return stableIds.get(key)
+    }).replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g, '2026-01-01T00:00:00.000Z')
+  }
+  const canonicalize = (value, parentKey = '') => {
+    if (Array.isArray(value)) return value.map(item => canonicalize(item, parentKey))
+    if (value && typeof value === 'object') {
+      let entries = Object.entries(value)
+      if (parentKey === 'objects') {
+        entries = entries.sort(([, left], [, right]) => String(left?.handle ?? '').localeCompare(String(right?.handle ?? ''), undefined, { numeric: true }) || String(left?.kind ?? '').localeCompare(String(right?.kind ?? '')))
+      } else {
+        entries = entries.sort(([left], [right]) => left.localeCompare(right))
+      }
+      return Object.fromEntries(entries.map(([key, item]) => [normalizeId(key), canonicalize(item, key)]))
+    }
+    return normalizeId(value)
+  }
+  return JSON.stringify(canonicalize(JSON.parse(String(kjd)))).replace(/(\"digest\":\")([0-9a-f]+)(\")/gi, '$1000000000000000$3')
+}
+
 function validateCatalog(catalog) {
   invariant(catalog?.schema === 'com.kanjie.kjdraw.showcase-catalog@1', 'Unexpected Showcase catalog schema')
   invariant(Array.isArray(catalog.entries) && catalog.entries.length > 0, 'Showcase catalog must contain entries')
@@ -184,7 +213,7 @@ export async function buildShowcasePortal(repositoryRoot) {
     const thumbnail = rendered ? normalizeSpecimenPreview(rendered.svg) : renderThumbnail(document, entry)
     const thumbnailPath = `showcase/assets/${entry.id}.svg`
     outputs.set(thumbnailPath, thumbnail)
-    outputs.set(`showcase/assets/${entry.id}.kjd`, await (specimen?.sdk ?? sdk).writeDocument(document, { format: 'KJD', version: '1' }))
+    outputs.set(`showcase/assets/${entry.id}.kjd`, normalizeKjdArtifact(await (specimen?.sdk ?? sdk).writeDocument(document, { format: 'KJD', version: '1' })))
     outputs.set(`showcase/assets/${entry.id}.dxf`, await (specimen?.sdk ?? sdk).writeDocument(document, { format: 'DXF', version: '2018' }))
     entries.push({
       ...entry,
@@ -199,6 +228,7 @@ export async function buildShowcasePortal(repositoryRoot) {
       links: {
         playground: `https://kanjieteam.github.io/kjdraw/?sample=${encodeURIComponent(entry.sampleId ?? `specimen-${entry.id}`)}`,
         detail: `./${entry.id}/`,
+        preview: `./assets/${entry.id}.svg`,
         source: `https://github.com/KanJieTeam/kjdraw/blob/main/${entry.source}`,
       },
       artifact: {

@@ -301,6 +301,9 @@ function renderPage(page, index) {
   const navLink = target => target.slug === 'introduction' ? rootPrefix : `${rootPrefix}${target.slug}/`
   const pager = target => target ? `<a href="${navLink(target)}">${localized(target.title.en, target.title.zh, 'strong')}</a>` : '<span></span>'
   const portal = locale => page.slug === 'showcase' ? renderShowcasePortal(showcasePortal.manifest, locale) : ''
+  const pageBody = locale => showcasePage
+    ? page.rendered[locale].headings.map(heading => `<span class=\"showcase-anchor\" id=\"${heading.id}\" aria-hidden=\"true\"></span>`).join('')
+    : page.rendered[locale].html
   const homeActions = atRoot ? `<div class="home-actions"><a class="primary" href="./quickstart/">${localized('Get started', '快速开始')}</a><a href="./showcase/">${localized('Explore examples', '浏览案例')}</a></div>` : ''
   const homePreview = atRoot ? `<div class="home-preview" aria-label="Public editable drawing examples"><a class="home-preview-main" href="./showcase/"><img src="./showcase/assets/site-plan.svg" width="720" height="420" alt="Editable site plan drawing" loading="eager"><span>${localized('Site plan · editable CAD', '场地总平 · 可编辑 CAD')}</span></a><a href="./showcase/"><img src="./showcase/assets/mechanical-bracket.svg" width="720" height="420" alt="Editable mechanical drawing" loading="eager"><span>${localized('Mechanical drawing', '机械图纸')}</span></a><a href="./showcase/"><img src="./showcase/assets/road-profile.svg" width="720" height="420" alt="Editable road profile drawing" loading="eager"><span>${localized('Road profile', '道路纵断面')}</span></a></div>` : ''
   return `<!doctype html>
@@ -341,13 +344,13 @@ function renderPage(page, index) {
           <header class="page-hero">${atRoot ? '<div class="hero-copy">' : ''}<p class="eyebrow">KJDRAW / ${escapeHtml(page.title.en.toUpperCase())}</p>
           <h1>${escapeHtml(page.title.en)}</h1>
           <p class="lead">${escapeHtml(page.summary.en)}</p>${homeActions}${atRoot ? '</div>' : ''}${homePreview}</header>${portal('en') ? `\n          ${portal('en')}` : ''}
-          ${showcasePage ? '' : page.rendered.en.html}
+          ${pageBody('en')}
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-${page.slug}">
           <header class="page-hero">${atRoot ? '<div class="hero-copy">' : ''}<p class="eyebrow">KJDRAW / ${escapeHtml(page.title.zh)}</p>
           <h1>${escapeHtml(page.title.zh)}</h1>
           <p class="lead">${escapeHtml(page.summary.zh)}</p>${homeActions}${atRoot ? '</div>' : ''}${homePreview}</header>${portal('zh') ? `\n          ${portal('zh')}` : ''}
-          ${showcasePage ? '' : page.rendered.zh.html}
+          ${pageBody('zh')}
         </article>
         <nav class="pager" aria-label="Adjacent documentation">${pager(previous)}${pager(next)}</nav>
       </div>
