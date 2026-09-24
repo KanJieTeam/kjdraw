@@ -346,6 +346,12 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
         // tangent/normal frame. Resolve the definition transform once using
         // the same geometry as Canvas and DXF before placing preview rows.
         const patternLines = hatchPatternLines(p)
+        const hasReadableSpacing = patternLines.some(line => {
+          const u: [number, number] = [Math.cos(line.angle), Math.sin(line.angle)]
+          const normal: [number, number] = [-u[1], u[0]]
+          return Math.abs(line.offset[0] * normal[0] + line.offset[1] * normal[1]) >= .05
+        })
+        if (!hasReadableSpacing) fail('custom PAT family has no readable row spacing')
         const clipId = `kj-pat-clip-${++sequence}`
         definitions.push(count(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${boundary.path}" fill-rule="evenodd"/></clipPath>`))
         const corners: [number, number][] = [[minX, minY], [minX, maxY], [maxX, minY], [maxX, maxY]]
@@ -361,12 +367,13 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
           const origin: [number, number] = [base[0], base[1]]
           const step: [number, number] = [offset[0], offset[1]]
           const spacing = step[0] * normal[0] + step[1] * normal[1]
-          if (!Number.isFinite(spacing) || Math.abs(spacing) < .05 || Math.abs(spacing) > 1000) fail('custom PAT family has no readable row spacing')
+          const collinear = Math.abs(spacing) < .05
+          if (!Number.isFinite(spacing) || Math.abs(spacing) > 1000 || collinear && line.dashes.length > 0) fail('custom PAT family has no readable row spacing')
           const projections = corners.map(v => v[0] * normal[0] + v[1] * normal[1])
           const baseProjection = origin[0] * normal[0] + origin[1] * normal[1]
-          const a = (Math.min(...projections) - baseProjection) / spacing
-          const b = (Math.max(...projections) - baseProjection) / spacing
-          const first = Math.floor(Math.min(a, b)) - 1, last = Math.ceil(Math.max(a, b)) + 1
+          const a = collinear ? 0 : (Math.min(...projections) - baseProjection) / spacing
+          const b = collinear ? 0 : (Math.max(...projections) - baseProjection) / spacing
+          const first = collinear ? 0 : Math.floor(Math.min(a, b)) - 1, last = collinear ? 0 : Math.ceil(Math.max(a, b)) + 1
           if (last - first > 512) fail('custom PAT family exceeds 512 preview rows')
           let dashStyle = ''
           if (line.dashes != null) {

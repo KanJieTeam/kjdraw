@@ -344,6 +344,11 @@ function previewAgentDrawing(view){
       canvasRenderer.panBy(0,0)
       camera.x=bounds[0]+(bounds[2]-bounds[0])/2;camera.y=bounds[1]+(bounds[3]-bounds[1])/2
       camera.scale=Math.max(1e-7,Math.min(1e7,Math.max(1,width-164)/(bounds[2]-bounds[0]),Math.max(1,height-164)/(bounds[3]-bounds[1])))
+    }else if(agentChat?.preview){
+      // Generic transforms do not carry compiler evidence bounds. Refit the
+      // source and widen the review camera so a rotated/scaled proposal that
+      // moves beyond the original extent remains visibly reviewable.
+      cancelSelectionGestures();canvasRenderer.fit();canvasRenderer.zoomAt(.35,undefined,{render:false})
     }
     render()
   }))

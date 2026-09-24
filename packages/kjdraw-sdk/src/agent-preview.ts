@@ -100,7 +100,10 @@ function validateMovableAnnotation(document: KJDocument, entity: KJReadonlyObjec
   const points = entity.type === 'TEXT' || entity.type === 'TOLERANCE' ? [payload.position, ...(payload.alignmentPoint ? [payload.alignmentPoint] : [])] : [...(Array.isArray(payload.definitionPoints) ? payload.definitionPoints : []), ...(payload.textPosition ? [payload.textPosition] : [])]
   if (!points.length || points.some(point => !Array.isArray(point) || point.length !== 3 || point.some(value => typeof value !== 'number' || !Number.isFinite(value)) || point[2] !== 0)) throw new KJValidationError('Annotation move preview requires complete model XY geometry at z=0')
   if (entity.type === 'TOLERANCE' && (typeof payload.text !== 'string' || !payload.text || !Array.isArray(payload.xAxisDirection) || Math.hypot(Number(payload.xAxisDirection[0]), Number(payload.xAxisDirection[1])) <= 1e-12)) throw new KJValidationError('Annotation move preview requires a bounded native tolerance frame')
-  if (entity.type === 'DIMENSION' && !projectDimension(payload, document.getObject(String(payload.styleId ?? ''))?.payload)) throw new KJValidationError('Annotation move preview requires supported nondegenerate native dimension geometry')
+  if (entity.type === 'DIMENSION') {
+    const type = String(payload.dimensionType ?? 'ALIGNED').toUpperCase()
+    if (!['ALIGNED', 'ROTATED', 'RADIUS', 'DIAMETER', 'ANGULAR_3_POINT'].includes(type) || !projectDimension(payload, document.getObject(String(payload.styleId ?? ''))?.payload)) throw new KJValidationError('Annotation move preview requires supported nondegenerate native dimension geometry')
+  }
 }
 
 /** Rotation/scaling cannot silently drop a third dimension or unsupported width semantics. */
@@ -323,7 +326,7 @@ function validateStructuralEditPreview(document: KJDocument, args: Record<string
   return existingIds
 }
 export interface KJAgentGeometryPreviewOptions {
-  /** Trusted host creation budget; defaults to 64, hard maximum 512. Transforms remain limited to 64. */
+  /** Trusted host creation budget; defaults to 64, hard maximum 2048. Transforms remain limited to 64. */
   maxCreatedEntities?: number
   /** Trusted host new-resource budget; defaults to 32 and is always capped at 256. */
   maxCreatedResources?: number

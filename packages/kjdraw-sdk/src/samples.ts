@@ -24,6 +24,18 @@ interface SheetOptions {
   title: string; number: string; scale: string; discipline: string
 }
 
+function omitUndefined<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(item => omitUndefined(item)) as T
+  if (value !== null && typeof value === 'object') {
+    const result: Record<string, unknown> = {}
+    for (const [key, child] of Object.entries(value)) {
+      if (child !== undefined) result[key] = omitUndefined(child)
+    }
+    return result as T
+  }
+  return value
+}
+
 const sampleCatalog: SampleDefinition[] = [
   { id: 'sample-site-plan', title: 'Riverside research park / site plan', titleZh: '滨河研发园 / 场地总图', discipline: 'CIVIL', build: buildSitePlan },
   { id: 'sample-architecture', title: 'Innovation hub / ground floor', titleZh: '创新中心 / 首层平面', discipline: 'ARCHITECTURE', build: buildArchitecture },
@@ -34,7 +46,7 @@ const sampleCatalog: SampleDefinition[] = [
 export const INDUSTRY_SAMPLES: readonly KJDrawSample[] = Object.freeze(sampleCatalog.map(({ id, title, titleZh, discipline }) => Object.freeze({ id, title, titleZh, discipline })))
 
 function draftingKit(entities: KJEntityBatchSpec[]) {
-  const add = (type: string, payload: KJObjectPayload, layerName: string, options?: KJObjectSpec) => entities.push({ type, layerName, payload, ...(options ? { options } : {}) })
+  const add = (type: string, payload: KJObjectPayload, layerName: string, options?: KJObjectSpec) => entities.push({ type, layerName, payload: omitUndefined(payload), ...(options === undefined ? {} : { options: omitUndefined(options) }) })
   const line = (start: Point, end: Point, layer: string) => add('LINE', { start, end }, layer)
   const circle = (center: Point, radius: number, layer: string) => add('CIRCLE', { center, radius }, layer)
   const arc = (center: Point, radius: number, startAngle: number, endAngle: number, layer: string) => add('ARC', { center, radius, startAngle, endAngle }, layer)
@@ -89,7 +101,7 @@ async function createDrawing(sdk: KJDrawSDK, sample: SampleDefinition): Promise<
   sample.build(kit)
   if (sample.modelScale) {
     const scale = sample.modelScale
-    for (const entity of entities) entity.payload = transformEntityPayload(entity.type, entity.payload, [scale, 0, 0, scale, 0, 0])
+    for (const entity of entities) entity.payload = omitUndefined(transformEntityPayload(entity.type, entity.payload, [scale, 0, 0, scale, 0, 0]))
   }
   await sdk.executeCommand('CREATEBATCH', { entities }, { document })
   const baseline = document.toJSON()

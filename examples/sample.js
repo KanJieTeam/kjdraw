@@ -8,7 +8,11 @@ export async function createSample(sdk) {
     units: 'meter',
   })
   const entities = []
-  const add = (type, payload, layerName, options) => entities.push({ type, layerName, payload, options })
+  const add = (type, payload, layerName, options) => {
+    const entity = { type, layerName, payload }
+    if (options !== undefined) entity.options = options
+    entities.push(entity)
+  }
   const line = (start, end, layerName) => add('LINE', { start, end }, layerName)
   const circle = (center, radius, layerName) => add('CIRCLE', { center, radius }, layerName)
   const text = (position, content, height, layerName = 'Annotations', rotation = 0) => add('TEXT', { position, text: content, height, rotation }, layerName)

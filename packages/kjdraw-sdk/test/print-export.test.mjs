@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {createKJDrawSDK} from '../src/sdk.js'
 import {createDrawingPrintHtml,openDrawingPrintPreview,openDrawingPrintWindow} from '../src/print-export.js'
 import {exportDrawingSvg} from '../src/svg-export.js'
+import {KJDRAW_ENGINEERING_FONT_STACK} from '../src/geometry/text-layout.js'
 
 async function fixture(){
   const sdk=createKJDrawSDK(),document=sdk.createDocument({units:'millimeter'})
@@ -28,7 +29,7 @@ test('print HTML is immutable vector output with explicit A3 CSS, escaped title 
   assert.match(output.html,/字体/);assert.equal(output.report.status,'approximate');assert.equal(output.report.diagnostics.length,0)
   const svg=exportDrawingSvg(document,{layoutId}).svg
   const font=svg.match(/<text[^>]*font-family="([^"]+)"/)[1]
-  assert.equal(font,'Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif')
+  assert.equal(font,KJDRAW_ENGINEERING_FONT_STACK.replaceAll('"','&quot;'))
   assert.ok(output.html.includes(svg),'print must retain the exact vector text and font fallback')
   assert.doesNotMatch(output.html,/\.kj-print-sheet text\s*\{/,'print CSS must not override the SVG font fallback')
   assert.ok(Object.isFrozen(output));assert.equal(document.serialize(),source);assert.deepEqual(document.history,history)

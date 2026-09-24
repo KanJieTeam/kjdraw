@@ -1,5 +1,16 @@
 // Generated from samples.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { transformEntityPayload } from './geometry/transform.js';
+function omitUndefined(value) {
+    if (Array.isArray(value)) return value.map((item)=>omitUndefined(item));
+    if (value !== null && typeof value === 'object') {
+        const result = {};
+        for (const [key, child] of Object.entries(value)){
+            if (child !== undefined) result[key] = omitUndefined(child);
+        }
+        return result;
+    }
+    return value;
+}
 const sampleCatalog = [
     {
         id: 'sample-site-plan',
@@ -40,10 +51,10 @@ function draftingKit(entities) {
     const add = (type, payload, layerName, options)=>entities.push({
             type,
             layerName,
-            payload,
-            ...options ? {
-                options
-            } : {}
+            payload: omitUndefined(payload),
+            ...options === undefined ? {} : {
+                options: omitUndefined(options)
+            }
         });
     const line = (start, end, layer)=>add('LINE', {
             start,
@@ -297,14 +308,14 @@ async function createDrawing(sdk, sample) {
     sample.build(kit);
     if (sample.modelScale) {
         const scale = sample.modelScale;
-        for (const entity of entities)entity.payload = transformEntityPayload(entity.type, entity.payload, [
+        for (const entity of entities)entity.payload = omitUndefined(transformEntityPayload(entity.type, entity.payload, [
             scale,
             0,
             0,
             scale,
             0,
             0
-        ]);
+        ]));
     }
     await sdk.executeCommand('CREATEBATCH', {
         entities
