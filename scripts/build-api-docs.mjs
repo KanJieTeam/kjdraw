@@ -364,7 +364,7 @@ const editorHtml = `<!doctype html>
       <label class="api-search"><span aria-hidden="true">⌕</span><input id="api-search" type="search" autocomplete="off" placeholder="Search Editor API" aria-label="Search Editor API"><kbd>/</kbd></label>
       <div id="api-results" class="api-results" hidden></div>
     </div>
-    <nav class="top-links"><a href="../">${localized('Guides', '指南')}</a><a href="../../../">Demo</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="../">${localized('Guides', '指南')}</a><a href="../showcase/">${localized('Showcase', '案例')}</a><a href="../../../">Demo</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="api-shell">
     <aside class="api-sidebar">
@@ -497,7 +497,7 @@ const referenceHtml = `<!doctype html>
   <header class="topbar">
     <a class="brand" href="../"><img src="../../../assets/mark.svg" alt=""><b>KJDraw</b><span>Reference</span></a>
     <label class="api-search"><span aria-hidden="true">⌕</span><input id="api-search" type="search" autocomplete="off" placeholder="Search package exports" aria-label="Search complete API reference"><kbd>/</kbd></label>
-    <nav class="top-links"><a href="../">Editor API</a><a href="../../">${localized('Guides', '指南')}</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="../">Editor API</a><a href="../../">${localized('Guides', '指南')}</a><a href="../../showcase/">${localized('Showcase', '案例')}</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="reference-shell">
     <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v${escapeHtml(packageJson.version)}</strong></div><nav>${referenceNavigation}</nav></aside>
@@ -523,17 +523,33 @@ input.value=new URL(location.href).searchParams.get('q')??'';input.addEventListe
 
 const referenceCss = `.reference-shell{padding-top:60px}.reference-sidebar{position:fixed;top:60px;bottom:0;width:285px;padding:24px 20px;border-right:1px solid var(--line);background:#fff;overflow:auto}.reference-sidebar .version strong{display:block;font:13px Consolas,monospace;color:#26334a}.reference-sidebar nav{display:flex;flex-direction:column}.reference-sidebar nav a{padding:7px 9px;border-left:2px solid transparent;color:#526071;font-size:12px}.reference-sidebar nav a:hover{border-left-color:var(--blue);background:#f2f6ff;color:#174dbd}.reference-sidebar nav code{font-size:11px}.reference-main{display:block;max-width:1240px;margin-left:285px;padding:58px 54px 100px}.reference-main article{max-width:1060px;margin:auto}.reference-intro{padding-bottom:42px;margin-bottom:44px;border-bottom:1px solid var(--line)}.reference-intro .lead{margin-bottom:20px;padding:0;border:0}.primary-link{display:inline-flex;padding:10px 13px;border:1px solid #adc3f5;border-radius:6px;background:#f3f7ff;text-decoration:none}.api-search{width:min(500px,42vw);height:36px;display:flex;align-items:center;gap:9px;padding:0 11px;border:1px solid #d7dde7;border-radius:7px;background:var(--soft);color:#6d7787}.api-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;font-size:13px}.api-search kbd{padding:2px 6px;border:1px solid #d8dee7;border-radius:4px;background:#fff;font:10px Consolas,monospace}.api-module{scroll-margin-top:82px}.module-header,.api-symbol>header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.module-header h2{margin:0}.module-header h2 code{font-size:22px}.module-source{margin-top:7px;font-size:12px}.api-symbols{display:grid;gap:12px;margin-top:25px}.api-symbol{scroll-margin-top:82px;padding:18px 18px 12px;border:1px solid var(--line);border-radius:7px;background:#fff}.api-symbol:target{border-color:#78a0ff;box-shadow:0 0 0 3px #2863f014}.api-symbol>header>div{display:flex;align-items:center;gap:9px}.api-symbol h3{margin:0;font:600 16px Consolas,monospace;color:#1d2736}.kind{padding:3px 6px;border-radius:3px;background:#eef3ff;color:#2454b7;font:9px Consolas,monospace;text-transform:uppercase}.permalink{color:#a5acb6}.api-symbol pre{max-height:360px;margin:14px 0 8px;font-size:12px;white-space:pre-wrap}.source-path{margin:0;color:#9299a3;font:10px Consolas,monospace}#empty-state{padding:60px 20px;text-align:center}.api-symbol[hidden],.api-module[hidden]{display:none}@media(max-width:880px){.reference-sidebar{display:none}.reference-main{margin-left:0;padding:40px 20px 70px}.api-search{margin-left:auto;width:42px;justify-content:center}.api-search input,.api-search kbd{display:none}.api-search:focus-within{position:absolute;left:12px;right:12px;width:auto;background:#fff}.api-search:focus-within input,.api-search:focus-within kbd{display:block}}@media(max-width:880px){.api-search{width:min(180px,46vw)}.api-search input{display:block}.api-search kbd{display:none}}`
 
+const apiLayoutCss = `
+:root{--api-header:64px;--api-sidebar:256px;font-family:"Inter Variable",Inter,"Noto Sans SC","Microsoft YaHei UI","Segoe UI",Arial,sans-serif}
+.topbar{height:var(--api-header);padding:0 24px;background:#fffffffa}
+.brand{width:var(--api-sidebar);gap:8px}.brand img{width:25px;height:25px}.brand b{font-size:15px}.brand>span{font-size:11px}
+.api-shell,.reference-shell{max-width:1536px;margin:0 auto;padding-top:var(--api-header)}
+.api-sidebar,.reference-sidebar{top:var(--api-header);left:max(0px,calc((100vw - 1536px)/2));bottom:0;width:var(--api-sidebar);padding:24px 14px 24px 18px;background:#f8f9fb;overflow:auto}
+.api-sidebar nav a,.reference-sidebar nav a{border-left:0;border-radius:6px;font-size:12px}.api-sidebar nav a:hover,.reference-sidebar nav a:hover{border-left:0;background:#eaf0ff}
+.api-main,.reference-main{max-width:none;width:calc(100% - 304px);margin-left:304px;padding:32px 24px 96px}
+.api-main article,.reference-main article{max-width:800px;margin:0}
+.api-hero,.reference-intro{padding-bottom:26px}.api-hero h1,.reference-intro h1{font-size:32px;line-height:1.25}
+.api-hero .lead,.reference-intro .lead{font-size:15px;line-height:1.7}
+.wide-table{width:100%;max-width:none}.api-search-wrap,.api-search{width:min(430px,36vw)}
+@media(max-width:1023px){.api-sidebar,.reference-sidebar{display:none}.api-main,.reference-main{width:auto;margin-left:0;padding:32px 24px 80px}.api-main article,.reference-main article{max-width:800px;margin:0 auto}}
+@media(max-width:767px){.topbar{height:64px;padding:0 16px}.brand{width:auto}.top-links{margin-left:auto;gap:10px}.top-links>a{display:none}.api-search-wrap,.api-search{width:min(170px,42vw)}.api-main,.reference-main{padding:26px 16px 72px}.framework-grid,.advanced-grid{grid-template-columns:1fr}.wide-table{width:100%}}
+`
+
 const outputs = new Map([
   ['api-reference.json', `${JSON.stringify(api, null, 2)}\n`],
   ['editor-api.json', `${JSON.stringify(editorApi, null, 2)}\n`],
   ['search-index.json', `${JSON.stringify(searchIndex, null, 2)}\n`],
   ['index.html', editorHtml],
   ['app.js', editorAppJs],
-  ['style.css', editorCss],
+  ['style.css', `${editorCss}\n${apiLayoutCss}`],
   ['reference/api-reference.json', `${JSON.stringify(api, null, 2)}\n`],
   ['reference/index.html', referenceHtml],
   ['reference/app.js', referenceAppJs],
-  ['reference/style.css', referenceCss],
+  ['reference/style.css', `${referenceCss}\n${apiLayoutCss}`],
 ])
 
 async function listRelativeFiles(root, current = root) {
