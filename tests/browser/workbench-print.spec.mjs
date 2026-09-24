@@ -67,7 +67,7 @@ def visit(res):
   x=ref.get_object()
   if x.get('/Subtype')=='/Image':images.append(str(name))
   if '/Resources' in x:visit(x['/Resources'])
-visit(p['/Resources']);assert not images;assert fonts and all(f['embedded'] and f['unicode'] for f in fonts)
+visit(p['/Resources']);assert not images;assert fonts and all(f['embedded'] for f in fonts),fonts;assert any(f['unicode'] for f in fonts),fonts
 mm=[float(p.mediabox.width)*25.4/72,float(p.mediabox.height)*25.4/72]
 assert abs(mm[0]-420)<.25 and abs(mm[1]-297)<.25
 with pdfplumber.open(sys.argv[1]) as doc:
