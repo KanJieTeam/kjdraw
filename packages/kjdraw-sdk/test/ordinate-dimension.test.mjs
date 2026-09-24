@@ -27,7 +27,10 @@ test('native ordinate dimensions derive X and Y measurements from rotated defini
 test('zero ordinate is a valid native datum label through KJD, DXF and official audit',async t=>{
   const payload={dimensionType:'ORDINATE',dxfDimensionType:70,definitionPoints:[[0,0,0],[0,0,0],[0,15,0]],textHeight:2.5,precision:2}
   const sdk=createKJDrawSDK(),document=sdk.createDocument({units:'millimeter'});await sdk.executeCommand('CREATE',{type:'DIMENSION',payload})
-  const [kjd,dxf]=await Promise.all([sdk.writeDocument(document,{format:'KJD'}),sdk.writeDocument(document,{format:'DXF',version:'2018'})])
+  // Validate each independent format artifact without coupling format evidence
+  // to host scheduling or another adapter's completion.
+  const kjd=await sdk.writeDocument(document,{format:'KJD'})
+  const dxf=await sdk.writeDocument(document,{format:'DXF',version:'2018'})
   for(const [format,source] of [['KJD',kjd],['DXF',dxf]]){
     const reopened=await createKJDrawSDK().readDocument(source,{format}),projection=projectDimension(reopened.listEntities({type:'DIMENSION'})[0].payload)
     assert.ok(projection);assert.equal(projection.measurement,0);assert.equal(projection.label.text,'0')
@@ -50,9 +53,9 @@ test('ordinate dimensions survive KJD and native DXF reopen with axis bit, rotat
     { dimensionType: 'ORDINATE', dxfDimensionType: 6, definitionPoints: [origin, [10 + localY[0] * 25, 20 + localY[1] * 25, 0], [10 + localY[0] * 25 + localX[0] * 18, 20 + localY[1] * 25 + localX[1] * 18, 0]], rotation: angle, textHeight: 2.5, precision: 3 },
   ]
   for (const payload of payloads) await sdk.executeCommand('CREATE', { type: 'DIMENSION', payload })
-  const before = document.serialize(), [kjd, dxf] = await Promise.all([
-    sdk.writeDocument(document, { format: 'KJD' }), sdk.writeDocument(document, { format: 'DXF', version: '2018' }),
-  ])
+  const before = document.serialize()
+  const kjd = await sdk.writeDocument(document, { format: 'KJD' })
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   assert.equal(document.serialize(), before)
   const reopenedKjd = await createKJDrawSDK().readDocument(kjd, { format: 'KJD' })
   const kjdMeasurements = new Map(reopenedKjd.listEntities({ type: 'DIMENSION' }).map(entity => [(entity.payload.dxfDimensionType & 64) ? 'x' : 'y', projectDimension(entity.payload).measurement]))

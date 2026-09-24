@@ -52,11 +52,11 @@ test('workbench Print opens a real vector A3 PDF with extractable Chinese and ex
   const pdf=await popup.pdf({path:'.cache/print-export/workbench-a3.pdf',preferCSSPageSize:true,printBackground:true,displayHeaderFooter:false,scale:1})
   await testInfo.attach('actual-workbench-vector-pdf',{body:pdf,contentType:'application/pdf'})
   const script=String.raw`
-import json,math,sys
+import json,math,sys,unicodedata
 from pypdf import PdfReader
 import pdfplumber
 r=PdfReader(sys.argv[1]);assert len(r.pages)==1
-p=r.pages[0];text=p.extract_text();assert '道路工程图：平面、纵断面、横断面' in text, repr(text);assert 'KJDraw - Vector engineering drawing' in text, repr(text)
+p=r.pages[0];raw_text=p.extract_text();text=unicodedata.normalize('NFKC',raw_text);expected=unicodedata.normalize('NFKC','道路工程图：平面、纵断面、横断面');assert expected in text, repr(raw_text);assert 'KJDraw - Vector engineering drawing' in text, repr(raw_text)
 assert 'Print at 100%' not in text
 fonts=[];images=[]
 def visit(res):

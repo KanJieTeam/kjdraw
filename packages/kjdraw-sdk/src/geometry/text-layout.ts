@@ -8,7 +8,7 @@ const number = (value: unknown, fallback = 0): number => value == null ? fallbac
 const point = (value: unknown): Point | null => Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every(v => typeof v === 'number' && Number.isFinite(v)) ? [value[0], value[1]] : null
 
 /** Browser-safe engineering preview stack: neutral Latin glyphs plus installed CJK fallbacks. */
-export const KJDRAW_ENGINEERING_FONT_STACK = '"Arial","Segoe UI","Microsoft YaHei","Microsoft YaHei UI","PingFang SC","Noto Sans CJK SC","Source Han Sans SC","WenQuanYi Micro Hei",sans-serif'
+export const KJDRAW_ENGINEERING_FONT_STACK = '"Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei","Microsoft YaHei UI","PingFang SC","Arial","Segoe UI","WenQuanYi Micro Hei",sans-serif'
 
 /** Safe local font-family mapping; no URL/file loading or embedded font claims. */
 export function textFontFamily(style: Data = {}, fallback = KJDRAW_ENGINEERING_FONT_STACK): string {

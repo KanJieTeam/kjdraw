@@ -8,7 +8,7 @@ import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 const textPayload = (text, y = 0) => ({ position: [0, y, 0], text, height: 2.5, rotation: Math.PI / 12 })
 test('default CAD text uses one cross-platform engineering font stack instead of monospace preview', () => {
   assert.equal(textFontFamily(), KJDRAW_ENGINEERING_FONT_STACK)
-  assert.match(KJDRAW_ENGINEERING_FONT_STACK, /^"Arial","Segoe UI","Microsoft YaHei"/)
+  assert.match(KJDRAW_ENGINEERING_FONT_STACK, /^"Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei"/)
   assert.match(layoutCadMText({ position: [0, 0], text: '黄土 Borehole ZK01', height: 2.5, attachmentPoint: 1 }).family, /Microsoft YaHei/)
   assert.doesNotMatch(layoutCadMText({ position: [0, 0], text: '黄土', height: 2.5, attachmentPoint: 1 }).family, /monospace/)
 })

@@ -5,7 +5,7 @@ const point = (value)=>Array.isArray(value) && value.length >= 2 && value.slice(
         value[0],
         value[1]
     ] : null;
-export const KJDRAW_ENGINEERING_FONT_STACK = '"Arial","Segoe UI","Microsoft YaHei","Microsoft YaHei UI","PingFang SC","Noto Sans CJK SC","Source Han Sans SC","WenQuanYi Micro Hei",sans-serif';
+export const KJDRAW_ENGINEERING_FONT_STACK = '"Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei","Microsoft YaHei UI","PingFang SC","Arial","Segoe UI","WenQuanYi Micro Hei",sans-serif';
 export function textFontFamily(style = {}, fallback = KJDRAW_ENGINEERING_FONT_STACK) {
     const file = String(style.fontFile ?? style.fontFamily ?? '').split(/[\\/]/).at(-1).replace(/\.(?:ttf|ttc|otf|shx)$/i, '');
     const known = {
