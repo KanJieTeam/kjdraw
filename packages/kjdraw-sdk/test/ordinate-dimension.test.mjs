@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { projectDimension } from '../src/geometry/annotation.js'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 const close = (actual, expected, tolerance = 1e-8) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`)
 const dxfDimensionRecords = source => {
@@ -50,8 +50,8 @@ test('zero ordinate is a valid native datum label through KJD, DXF and official 
     assert.ok(projection);assert.equal(projection.measurement,0);assert.equal(projection.label.text,'0')
   }
   const script=String.raw`
-import io,json,sys,ezdxf
-d=ezdxf.read(io.StringIO(sys.stdin.read()));items=list(d.modelspace().query('DIMENSION'))
+import io,json,os,sys,ezdxf
+path=os.environ.get('KJDRAW_FILE_STDIN_PATH');source=open(path,encoding='utf-8').read() if path else sys.stdin.read();d=ezdxf.read(io.StringIO(source));items=list(d.modelspace().query('DIMENSION'))
 before_all=[{'handle':e.dxf.handle,'owner':e.dxf.owner,'paperspace':e.dxf.get('paperspace',0),'block':e.dxf.get('geometry','')} for e in d.entitydb.values() if e.dxftype()=='DIMENSION']
 before_layouts={layout.name:[e.dxf.handle for e in layout.query('DIMENSION')] for layout in d.layouts};a=d.audit()
 all_dims=[{'handle':e.dxf.handle,'owner':e.dxf.owner,'paperspace':e.dxf.get('paperspace',0),'block':e.dxf.get('geometry','')} for e in d.entitydb.values() if e.dxftype()=='DIMENSION']
@@ -59,7 +59,7 @@ layouts={layout.name:[e.dxf.handle for e in layout.query('DIMENSION')] for layou
 if not items: print(json.dumps({'errors':len(a.errors),'fixes':len(a.fixes),'beforeAll':before_all,'beforeLayouts':before_layouts,'all':all_dims,'layouts':layouts}));sys.exit(3)
 e=items[0];print(json.dumps({'errors':len(a.errors),'fixes':len(a.fixes),'measurement':list(e.get_measurement()),'lines':sum(x.dxftype()=='LINE' for x in e.virtual_entities()),'all':all_dims,'layouts':layouts}))
 `
-  const native=spawnSync(process.env.KJDRAW_PYTHON||'python',['-c',script],{input:dxf,encoding:'utf8',timeout:30_000,env:{...process.env,PYTHONPATH:process.env.KJDRAW_EZDXF_PATH||process.env.PYTHONPATH||'',PYTHONIOENCODING:'utf-8'}})
+  const native=spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON||'python',['-c',script],dxf,{encoding:'utf8',timeout:30_000,env:{...process.env,PYTHONPATH:process.env.KJDRAW_EZDXF_PATH||process.env.PYTHONPATH||'',PYTHONIOENCODING:'utf-8'}})
   if(native.error?.code==='ENOENT'||/No module named ['"]ezdxf/u.test(native.stderr||'')){if(process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED==='1')assert.fail(native.stderr||native.error?.message);t.skip('official ezdxf unavailable');return}
   assert.equal(native.status,0,[native.stderr,native.stdout].filter(Boolean).join('\n'));const report=JSON.parse(native.stdout);assert.deepEqual([report.errors,report.fixes],[0,0]);assert.equal(Math.hypot(...report.measurement),0);assert.equal(report.lines,3)
 })
@@ -90,15 +90,15 @@ test('ordinate dimensions survive KJD and native DXF reopen with axis bit, rotat
   dimensions.forEach(entity => close(entity.payload.rotation, angle))
 
   const script = String.raw`
-import io,json,sys,ezdxf
-d=ezdxf.read(io.StringIO(sys.stdin.read())); dims=[]
+import io,json,os,sys,ezdxf
+path=os.environ.get('KJDRAW_FILE_STDIN_PATH');source=open(path,encoding='utf-8').read() if path else sys.stdin.read();d=ezdxf.read(io.StringIO(source)); dims=[]
 for e in d.modelspace().query('DIMENSION'):
     picture=list(e.virtual_entities())
     measurement=e.get_measurement()
     dims.append({'type':e.dxf.dimtype,'measurement':list(measurement),'horizontal':e.dxf.get('horizontal_direction',0),'lines':sum(x.dxftype()=='LINE' for x in picture),'texts':sum(x.dxftype() in ('TEXT','MTEXT') for x in picture)})
 a=d.audit(); print(json.dumps({'dims':dims,'errors':len(a.errors),'fixes':len(a.fixes)}))
 `
-  const native = spawnSync(process.env.KJDRAW_PYTHON || 'python', ['-c', script], { input: dxf, encoding: 'utf8', timeout: 30_000, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  const native = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c', script], dxf, { encoding: 'utf8', timeout: 30_000, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
   if (native.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(native.stderr || '')) {
     if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(native.stderr || native.error?.message)
     t.skip('official ezdxf unavailable')
