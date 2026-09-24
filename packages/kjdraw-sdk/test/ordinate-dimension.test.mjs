@@ -51,15 +51,17 @@ test('zero ordinate is a valid native datum label through KJD, DXF and official 
   }
   const script=String.raw`
 import io,json,sys,ezdxf
-d=ezdxf.read(io.StringIO(sys.stdin.read()));items=list(d.modelspace().query('DIMENSION'));a=d.audit()
-all_dims=[{'handle':e.dxf.handle,'owner':e.dxf.owner,'paperspace':e.dxf.get('paperspace',0)} for e in d.entitydb.values() if e.dxftype()=='DIMENSION']
+d=ezdxf.read(io.StringIO(sys.stdin.read()));items=list(d.modelspace().query('DIMENSION'))
+before_all=[{'handle':e.dxf.handle,'owner':e.dxf.owner,'paperspace':e.dxf.get('paperspace',0),'block':e.dxf.get('geometry','')} for e in d.entitydb.values() if e.dxftype()=='DIMENSION']
+before_layouts={layout.name:[e.dxf.handle for e in layout.query('DIMENSION')] for layout in d.layouts};a=d.audit()
+all_dims=[{'handle':e.dxf.handle,'owner':e.dxf.owner,'paperspace':e.dxf.get('paperspace',0),'block':e.dxf.get('geometry','')} for e in d.entitydb.values() if e.dxftype()=='DIMENSION']
 layouts={layout.name:[e.dxf.handle for e in layout.query('DIMENSION')] for layout in d.layouts}
-if not items: print(json.dumps({'errors':len(a.errors),'fixes':len(a.fixes),'all':all_dims,'layouts':layouts}));sys.exit(3)
+if not items: print(json.dumps({'errors':len(a.errors),'fixes':len(a.fixes),'beforeAll':before_all,'beforeLayouts':before_layouts,'all':all_dims,'layouts':layouts}));sys.exit(3)
 e=items[0];print(json.dumps({'errors':len(a.errors),'fixes':len(a.fixes),'measurement':list(e.get_measurement()),'lines':sum(x.dxftype()=='LINE' for x in e.virtual_entities()),'all':all_dims,'layouts':layouts}))
 `
   const native=spawnSync(process.env.KJDRAW_PYTHON||'python',['-c',script],{input:dxf,encoding:'utf8',timeout:30_000,env:{...process.env,PYTHONPATH:process.env.KJDRAW_EZDXF_PATH||process.env.PYTHONPATH||'',PYTHONIOENCODING:'utf-8'}})
   if(native.error?.code==='ENOENT'||/No module named ['"]ezdxf/u.test(native.stderr||'')){if(process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED==='1')assert.fail(native.stderr||native.error?.message);t.skip('official ezdxf unavailable');return}
-  assert.equal(native.status,0,native.stderr);const report=JSON.parse(native.stdout);assert.deepEqual([report.errors,report.fixes],[0,0]);assert.equal(Math.hypot(...report.measurement),0);assert.equal(report.lines,3)
+  assert.equal(native.status,0,[native.stderr,native.stdout].filter(Boolean).join('\n'));const report=JSON.parse(native.stdout);assert.deepEqual([report.errors,report.fixes],[0,0]);assert.equal(Math.hypot(...report.measurement),0);assert.equal(report.lines,3)
 })
 
 test('ordinate dimensions survive KJD and native DXF reopen with axis bit, rotation, picture block and measurement', async t => {
