@@ -21,7 +21,9 @@ import { createPlaygroundDwgProvider } from './dwg-conversion.js'
 import { createDwgSettingsUI } from './dwg-settings-ui.js'
 
 const $ = id => document.getElementById(id)
-const AI_SURFACE=new URLSearchParams(location.search).get('surface')==='ai'||/\/ai\/(?:index\.html)?$/u.test(location.pathname)
+const INITIAL_QUERY = new URLSearchParams(location.search)
+const AI_SURFACE=INITIAL_QUERY.get('surface')==='ai'||/\/ai\/(?:index\.html)?$/u.test(location.pathname)
+const REQUESTED_SAMPLE_ID=INITIAL_QUERY.get('sample')
 const i18n = createI18n(AI_SURFACE?'zh':undefined), t = key => i18n.t(key)
 const dwgSettingsUI=createDwgSettingsUI({locale:()=>i18n.locale})
 let hotkeySettings=loadHotkeySettings()
@@ -397,6 +399,11 @@ function activateDrawing(id,{announce=true,allowBusy=false}={}) {
   if(busy&&!allowBusy){if(session.activeDocumentId)$('sample-select').value=session.activeDocumentId;return busyNotice()}
   setTool('select')
   session.setActiveDocument(id);replaceSelection();measurement=null;invalidatePlan()
+  if(SAMPLE_DESCRIPTORS.some(sample=>sample.id===id)){
+    const url=new URL(location.href)
+    url.searchParams.set('sample',id)
+    history.replaceState(null,'',url)
+  }
   const title=documentTitle(doc()),discipline=documentDiscipline(doc())
   $('drawing-title').textContent=title;$('top-file-name').textContent=title;$('drawing-discipline').textContent=`${discipline} · 2D`;$('sample-discipline').textContent=discipline
   populateSampleSelector();refresh();fit()
@@ -921,7 +928,7 @@ async function runTypedCommand(){
   throw new Error(`${i18n.locale==='zh'?'未知命令。绘图和修改菜单列出可用工具；也可输入':'Unknown command. Use the Drawing / Modification menus, or type'} LINE, PLINE, CIRCLE, ARC, ELLIPSE, POLYGON, SPLINE, HATCH, DIMALIGNED, MOVE, COPY, ARRAYPOLAR, TRIM, FILLET, UNDO, FIT.`)
 }
 async function run(work){if(busy)return busyNotice();busy=true;workbench.setAttribute('aria-busy','true');try{await work();return true}catch(e){const text=e.cause?.message??e.message;message(text);$('hint').textContent=text;workbench.dataset.lastError=text;return false}finally{busy=false;workbench.setAttribute('aria-busy','false')}}
-async function freshSample(){projectFileBinding=null;setTool('select');rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成五套原创行业图纸…':'Building five original industry drawings…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const showcase=await createSample(next),industry=await createIndustrySamples(next);session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'kjdraw-industry-samples',title:'KJDraw industry sample library',documents:[showcase,...industry],activeDocumentId:'sample-site-plan',metadata:{synthetic:true,industries:['energy','civil','architecture','transportation','mechanical']}});replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();$('file-state').textContent=t('memory');populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`五套原创行业图纸已就绪 · 当前 ${modelEntities().length.toLocaleString()} 个可编辑对象`:`Five original industry drawings ready · ${modelEntities().length.toLocaleString()} editable objects in view`)}
+async function freshSample(){projectFileBinding=null;setTool('select');rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成五套原创行业图纸…':'Building five original industry drawings…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const showcase=await createSample(next),industry=await createIndustrySamples(next),documents=[showcase,...industry],activeDocumentId=documents.some(drawing=>drawing.id===REQUESTED_SAMPLE_ID)?REQUESTED_SAMPLE_ID:'sample-site-plan';session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'kjdraw-industry-samples',title:'KJDraw industry sample library',documents,activeDocumentId,metadata:{synthetic:true,industries:['energy','civil','architecture','transportation','mechanical']}});replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();$('file-state').textContent=t('memory');populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`五套原创行业图纸已就绪 · 当前 ${modelEntities().length.toLocaleString()} 个可编辑对象`:`Five original industry drawings ready · ${modelEntities().length.toLocaleString()} editable objects in view`)}
 function download(content,name,type){const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 function applyOpenedProject(project,next,fileName,{converted=false}={}){
   const previous={sdk,session,projectFileBinding,selection:selectedIds(),measurement,fileState:$('file-state').textContent,demoState:workbench.dataset.demoState,topFileName:$('top-file-name').textContent,drawingTitle:$('drawing-title').textContent}
