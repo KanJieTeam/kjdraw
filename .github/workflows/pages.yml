@@ -15,7 +15,6 @@ jobs:
     timeout-minutes: 25
     env:
       PAGES_ARTIFACT_NAME: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
-      KJDRAW_PYTHON: python
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -28,7 +27,8 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - id: setup-python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
           cache: pip
@@ -36,13 +36,16 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Install Chromium for deployed-site verification
         run: npx playwright install --with-deps chromium
-      - run: python -m pip install -r scripts/audits/requirements-dxf.txt
+      - run: ${{ steps.setup-python.outputs.python-path }} -m pip install -r scripts/audits/requirements-dxf.txt
       - run: npm run typecheck
       - run: node scripts/build-declarations.mjs --check
       - run: node scripts/build-docs-site.mjs
       - name: Generate current API docs for deployment
         run: node scripts/build-api-docs.mjs
-      - run: node scripts/test.mjs
+      - name: Run SDK and fixture tests
+        env:
+          KJDRAW_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: node scripts/test.mjs
       - run: node scripts/check.mjs
       - run: node scripts/build.mjs
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
