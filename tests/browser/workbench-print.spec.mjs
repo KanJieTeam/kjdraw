@@ -56,7 +56,7 @@ import json,math,sys,unicodedata
 from pypdf import PdfReader
 import pdfplumber
 r=PdfReader(sys.argv[1]);assert len(r.pages)==1
-p=r.pages[0];raw_text=p.extract_text();text=unicodedata.normalize('NFKC',raw_text);expected=unicodedata.normalize('NFKC','道路工程图：平面、纵断面、横断面');assert expected in text, repr(raw_text);assert 'KJDraw - Vector engineering drawing' in text, repr(raw_text)
+p=r.pages[0];raw_text=p.extract_text();text=unicodedata.normalize('NFKC',raw_text);compact=''.join(text.split());expected=''.join(unicodedata.normalize('NFKC','道路工程图：平面、纵断面、横断面').split());assert expected in compact, repr(raw_text);assert 'KJDraw-Vectorengineeringdrawing' in compact, repr(raw_text);assert '1000mmat1:100=10mmonpaper' in compact, repr(raw_text)
 assert 'Print at 100%' not in text
 fonts=[];images=[]
 def visit(res):
