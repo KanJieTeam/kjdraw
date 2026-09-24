@@ -316,7 +316,10 @@ function mechanicalFlangeIntent(args: Record<string, unknown>): KJAgentMechanica
       { kind: 'diameter', definitionPoints: [[center[0] - boltCircleDiameter / 2, center[1]], [center[0] + boltCircleDiameter / 2, center[1]]], textPosition: [center[0] + boltCircleDiameter / 2 + 18, center[1]], textOverride: 'PCD <>', textHeight: dimensionHeight },
       { kind: 'rotated', definitionPoints: [[(sideStart + sideEnd) / 2, center[1] - outerRadius - 18], [sideStart, center[1] - outerRadius - 8], [sideEnd, center[1] - outerRadius - 8]], textPosition: [(sideStart + sideEnd) / 2, center[1] - outerRadius - 18], rotation: 0, textHeight: dimensionHeight },
     ],
-    styleProfile: { custom: [{ key: 'pitch-circle', layerName: 'FLANGE_PITCH', color: 7, lineweight: 18, linetypeName: 'CENTER', linetypePattern: [8, -1, 1, -1] }] },
+    styleProfile: {
+      dimensions: { color: 7 },
+      custom: [{ key: 'pitch-circle', layerName: 'FLANGE_PITCH', color: 7, lineweight: 18, linetypeName: 'CENTER', linetypePattern: [8, -1, 1, -1] }],
+    },
     sheet: {
       origin: [0, 0], size: [420, 297], inset: 10,
       titleGrid: { origin: [260, 10], size: [150, 36], columns: [0, 22, 72, 112], rows: [{ offset: 12 }, { offset: 24 }] },

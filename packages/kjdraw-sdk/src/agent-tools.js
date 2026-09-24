@@ -1183,6 +1183,9 @@ function mechanicalFlangeIntent(args) {
             }
         ],
         styleProfile: {
+            dimensions: {
+                color: 7
+            },
             custom: [
                 {
                     key: 'pitch-circle',
