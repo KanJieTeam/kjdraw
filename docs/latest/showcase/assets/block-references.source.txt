@@ -1,4 +1,4 @@
-// examples/cad-capability-specimens.mjs#L99-L108
+// examples/cad-capability-specimens.mjs#L126-L135
 // Case builder excerpt. Shared helpers and imports: use the repository source link.
 
 async function blocksSpecimen() {

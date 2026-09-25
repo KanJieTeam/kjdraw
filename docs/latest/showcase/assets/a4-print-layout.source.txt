@@ -1,4 +1,4 @@
-// examples/cad-capability-specimens.mjs#L59-L71
+// examples/cad-capability-specimens.mjs#L86-L98
 // Case builder excerpt. Shared helpers and imports: use the repository source link.
 
 async function printSpecimen() {

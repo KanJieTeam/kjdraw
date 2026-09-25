@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:bd2f35241b0d789d86be6dbd80f928e116ff170f424094bd5256141a2d5e0e13",
+  "sourceDigest": "sha256:6fc30c2c5e03dc60c03560f85d3edd9497bd53ef40ceb865de47ae750994d91e",
   "locales": [
     "en",
     "zh"
@@ -618,6 +618,10 @@
     "showcase/assets/geology-section.kjd",
     "showcase/assets/geology-section.source.txt",
     "showcase/assets/geology-section.svg",
+    "showcase/assets/hatch-patterns.dxf",
+    "showcase/assets/hatch-patterns.kjd",
+    "showcase/assets/hatch-patterns.source.txt",
+    "showcase/assets/hatch-patterns.svg",
     "showcase/assets/mechanical-bracket.dxf",
     "showcase/assets/mechanical-bracket.kjd",
     "showcase/assets/mechanical-bracket.source.txt",
@@ -653,6 +657,7 @@
     "showcase/editing-history/index.html",
     "showcase/geology-plan/index.html",
     "showcase/geology-section/index.html",
+    "showcase/hatch-patterns/index.html",
     "showcase/index.html",
     "showcase/mechanical-bracket/index.html",
     "showcase/mechanical-flange/index.html",

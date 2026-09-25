@@ -5,8 +5,8 @@ test('Showcase searches, filters and changes view using generated public sample 
   await page.goto('/docs/latest/showcase/')
   const portal = page.locator('.showcase-portal[data-locale="en"]')
   await expect(portal).toBeVisible()
-  await expect(portal.locator('.showcase-card:visible')).toHaveCount(16)
-  await expect(portal.locator('.showcase-thumb img')).toHaveCount(16)
+  await expect(portal.locator('.showcase-card:visible')).toHaveCount(17)
+  await expect(portal.locator('.showcase-thumb img')).toHaveCount(17)
   const previewStyle = await portal.locator('.showcase-thumb').first().evaluate(element => ({
     background: getComputedStyle(element).backgroundColor,
     filter: getComputedStyle(element.querySelector('img')).filter,
@@ -28,8 +28,8 @@ test('Showcase searches, filters and changes view using generated public sample 
     expect(pixel[3], src).toBe(255)
     expect(pixel.slice(0, 3).every(channel => channel < 55), src).toBe(true)
   }
-  await expect(portal.locator('.showcase-category[data-category="all"] b')).toHaveText('16')
-  await expect(portal.locator('.showcase-category[data-category="core-capabilities"] b')).toHaveText('4')
+  await expect(portal.locator('.showcase-category[data-category="all"] b')).toHaveText('17')
+  await expect(portal.locator('.showcase-category[data-category="core-capabilities"] b')).toHaveText('5')
 
   await portal.locator('.showcase-query').fill('bearing holes')
   await expect(portal.locator('.showcase-card:visible')).toHaveCount(1)

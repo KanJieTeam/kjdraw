@@ -61,7 +61,7 @@
         "en": "Core capabilities",
         "zh": "核心能力"
       },
-      "count": 4
+      "count": 5
     },
     {
       "id": "output-interop",
@@ -797,6 +797,81 @@
       "thumbnailSha256": "7fb7fef41392cb867507b58d1acf2a86912cce7ac6f0f76d5c3ef457dc25283e"
     },
     {
+      "id": "hatch-patterns",
+      "kind": "specimen",
+      "specimenId": "hatch-patterns",
+      "category": "core-capabilities",
+      "title": {
+        "en": "Hatch patterns and islands",
+        "zh": "填充图案与岛洞"
+      },
+      "drawingType": {
+        "en": "Hatch specimen",
+        "zh": "填充能力试件"
+      },
+      "summary": {
+        "en": "Three native hatch patterns and an unfilled island, with editable boundary polylines and DXF output.",
+        "zh": "三种原生填充图案与一个留白岛洞，边界多段线可编辑，并可导出 DXF。"
+      },
+      "tags": {
+        "en": [
+          "hatch",
+          "pattern",
+          "island",
+          "boundary"
+        ],
+        "zh": [
+          "填充",
+          "图案",
+          "岛洞",
+          "边界"
+        ]
+      },
+      "source": "examples/cad-capability-specimens.mjs",
+      "categoryTitle": {
+        "en": "Core capabilities",
+        "zh": "核心能力"
+      },
+      "facts": {
+        "hatchCount": 4,
+        "patterns": [
+          "ANSI31",
+          "ANSI37",
+          "CROSS"
+        ],
+        "islandLoopCount": 2,
+        "editableObjects": 13,
+        "layers": 1,
+        "units": "millimeter",
+        "entityTypes": {
+          "HATCH": 4,
+          "LWPOLYLINE": 5,
+          "TEXT": 4
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-hatch-patterns",
+        "detail": "./hatch-patterns/",
+        "preview": "./assets/hatch-patterns.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L37-L63",
+        "sourceSnippet": "./assets/hatch-patterns.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/hatch-patterns.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 13,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "hatchPatternsSpecimen",
+        "startLine": 37,
+        "endLine": 63
+      },
+      "thumbnail": "./assets/hatch-patterns.svg",
+      "thumbnailSha256": "ffdb7fd4b94ccb66192b04973223a16fa3b157e7b49a4f07c0a0385b6c47eda8"
+    },
+    {
       "id": "native-dimensions",
       "kind": "specimen",
       "specimenId": "dimensions",
@@ -850,7 +925,7 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-native-dimensions",
         "detail": "./native-dimensions/",
         "preview": "./assets/native-dimensions.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L37-L47",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L64-L74",
         "sourceSnippet": "./assets/native-dimensions.source.txt"
       },
       "artifact": {
@@ -862,8 +937,8 @@
       },
       "sourceRange": {
         "symbol": "dimensionsSpecimen",
-        "startLine": 37,
-        "endLine": 47
+        "startLine": 64,
+        "endLine": 74
       },
       "thumbnail": "./assets/native-dimensions.svg",
       "thumbnailSha256": "01ee1b899565b27aa06468f952d3a9d83d000e2c1e7c68938c823b10616f26f7"
@@ -919,7 +994,7 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-bilingual-typography",
         "detail": "./bilingual-typography/",
         "preview": "./assets/bilingual-typography.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L49-L57",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L76-L84",
         "sourceSnippet": "./assets/bilingual-typography.source.txt"
       },
       "artifact": {
@@ -931,8 +1006,8 @@
       },
       "sourceRange": {
         "symbol": "typographySpecimen",
-        "startLine": 49,
-        "endLine": 57
+        "startLine": 76,
+        "endLine": 84
       },
       "thumbnail": "./assets/bilingual-typography.svg",
       "thumbnailSha256": "2e372f418097089f415d9d8970bee07ed0565da6bab55d7b12a1973d8b45b574"
@@ -990,7 +1065,7 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-a4-print-layout",
         "detail": "./a4-print-layout/",
         "preview": "./assets/a4-print-layout.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L59-L71",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L86-L98",
         "sourceSnippet": "./assets/a4-print-layout.source.txt"
       },
       "artifact": {
@@ -1002,8 +1077,8 @@
       },
       "sourceRange": {
         "symbol": "printSpecimen",
-        "startLine": 59,
-        "endLine": 71
+        "startLine": 86,
+        "endLine": 98
       },
       "thumbnail": "./assets/a4-print-layout.svg",
       "thumbnailSha256": "0a092139bed00a4236c0a45be48686b1f58d44850c77ffaa1ce56a03b681bc86"
@@ -1068,7 +1143,7 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-dxf-import",
         "detail": "./dxf-import/",
         "preview": "./assets/dxf-import.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L73-L82",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L100-L109",
         "sourceSnippet": "./assets/dxf-import.source.txt"
       },
       "artifact": {
@@ -1080,8 +1155,8 @@
       },
       "sourceRange": {
         "symbol": "importSpecimen",
-        "startLine": 73,
-        "endLine": 82
+        "startLine": 100,
+        "endLine": 109
       },
       "thumbnail": "./assets/dxf-import.svg",
       "thumbnailSha256": "027e895d0efb4d872bdd25e4a1f06ccf351bbaa90cefb20b11743ca34a9a3b11"
@@ -1150,7 +1225,7 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-editing-history",
         "detail": "./editing-history/",
         "preview": "./assets/editing-history.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L84-L97",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L111-L124",
         "sourceSnippet": "./assets/editing-history.source.txt"
       },
       "artifact": {
@@ -1162,8 +1237,8 @@
       },
       "sourceRange": {
         "symbol": "editingSpecimen",
-        "startLine": 84,
-        "endLine": 97
+        "startLine": 111,
+        "endLine": 124
       },
       "thumbnail": "./assets/editing-history.svg",
       "thumbnailSha256": "b1a40962c277dec4e57f139db7f5d62bd1185ae625900cda67f7194a71654059"
@@ -1219,7 +1294,7 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-block-references",
         "detail": "./block-references/",
         "preview": "./assets/block-references.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L99-L108",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L126-L135",
         "sourceSnippet": "./assets/block-references.source.txt"
       },
       "artifact": {
@@ -1231,8 +1306,8 @@
       },
       "sourceRange": {
         "symbol": "blocksSpecimen",
-        "startLine": 99,
-        "endLine": 108
+        "startLine": 126,
+        "endLine": 135
       },
       "thumbnail": "./assets/block-references.svg",
       "thumbnailSha256": "4f92bce9193b9753a149fde48fe569edd661559712ba8d2b9e1846ecf3464382"

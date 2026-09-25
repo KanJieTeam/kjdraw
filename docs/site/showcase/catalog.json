@@ -141,7 +141,8 @@
       "tags": { "en": ["geology", "investigation", "boreholes", "plan"], "zh": ["勘察", "勘探点", "钻孔", "平面图"] },
       "detailAnchor": "geology-plan",
       "source": "packages/kjdraw-sdk/src/samples.ts"
-    },    {
+    },
+    {
       "id": "editable-entities",
       "kind": "specimen",
       "specimenId": "geometry",
@@ -150,6 +151,17 @@
       "drawingType": { "en": "Geometry specimen", "zh": "几何能力试件" },
       "summary": { "en": "Line, circle, arc, ellipse, closed polyline and bounded hatch generated as native editable CAD entities.", "zh": "以原生可编辑 CAD 图元生成直线、圆、圆弧、椭圆、闭合多段线与有界填充。" },
       "tags": { "en": ["geometry", "entities", "hatch", "curves"], "zh": ["几何", "图元", "填充", "曲线"] },
+      "source": "examples/cad-capability-specimens.mjs"
+    },
+    {
+      "id": "hatch-patterns",
+      "kind": "specimen",
+      "specimenId": "hatch-patterns",
+      "category": "core-capabilities",
+      "title": { "en": "Hatch patterns and islands", "zh": "填充图案与岛洞" },
+      "drawingType": { "en": "Hatch specimen", "zh": "填充能力试件" },
+      "summary": { "en": "Three native hatch patterns and an unfilled island, with editable boundary polylines and DXF output.", "zh": "三种原生填充图案与一个留白岛洞，边界多段线可编辑，并可导出 DXF。" },
+      "tags": { "en": ["hatch", "pattern", "island", "boundary"], "zh": ["填充", "图案", "岛洞", "边界"] },
       "source": "examples/cad-capability-specimens.mjs"
     },
     {

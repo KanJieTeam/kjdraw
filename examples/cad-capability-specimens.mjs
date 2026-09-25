@@ -34,6 +34,33 @@ async function geometrySpecimen() {
   return { id: 'geometry', title: 'Editable 2D entities', category: 'entities', sdk, document, layoutId: await modelSheet(sdk, document), facts: { entityTypes: ['LINE', 'CIRCLE', 'ARC', 'ELLIPSE', 'LWPOLYLINE', 'HATCH'] } }
 }
 
+async function hatchPatternsSpecimen() {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'public-hatch-patterns-specimen', units: 'millimeter' })
+  const swatches = [
+    { id: 'ansi31', name: 'ANSI31', x: 0, y: 70, scale: 2 },
+    { id: 'ansi37', name: 'ANSI37', x: 90, y: 70, scale: 2 },
+    { id: 'cross', name: 'CROSS', x: 0, y: 0, scale: 2 },
+    { id: 'island', name: 'ANSI31 + ISLAND', x: 90, y: 0, scale: 2, island: true },
+  ]
+  await document.transact('Create editable hatch swatches and an open island', transaction => {
+    for (const swatch of swatches) {
+      const { x, y } = swatch
+      const outer = [point(x + 4, y + 7), point(x + 76, y + 7), point(x + 76, y + 52), point(x + 4, y + 52)]
+      const boundaryLoops = [{ external: true, vertices: outer }]
+      transaction.createEntity('LWPOLYLINE', { vertices: outer, closed: true }, { id: `${swatch.id}-boundary` })
+      if (swatch.island) {
+        const inner = [point(x + 29, y + 19), point(x + 51, y + 19), point(x + 51, y + 40), point(x + 29, y + 40)]
+        boundaryLoops.push({ external: false, vertices: inner })
+        transaction.createEntity('LWPOLYLINE', { vertices: inner, closed: true }, { id: 'island-inner-boundary' })
+      }
+      transaction.createEntity('HATCH', { boundaryLoops, patternName: swatch.island ? 'ANSI31' : swatch.name, patternScale: swatch.scale }, { id: `${swatch.id}-hatch` })
+      transaction.createEntity('TEXT', { position: point(x + 4, y + 57), text: swatch.name, height: 4 }, { id: `${swatch.id}-label` })
+    }
+  })
+  return { id: 'hatch-patterns', title: 'Hatch patterns and island boundaries', category: 'hatch', sdk, document,
+    layoutId: await modelSheet(sdk, document, [-8, -5, 178, 136]),
+    facts: { hatchCount: 4, patterns: ['ANSI31', 'ANSI37', 'CROSS'], islandLoopCount: 2 } }
+}
 async function dimensionsSpecimen() {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'public-dimension-specimen', units: 'millimeter' })
   await document.transact('Create native dimensions', transaction => {
@@ -107,7 +134,7 @@ async function blocksSpecimen() {
   return { id: 'blocks-references', title: 'Reusable block references', category: 'blocks', sdk, document, layoutId: await modelSheet(sdk, document, [0, 0, 115, 45]), facts: { definitionName: definition.block.name, definitionEntityCount: 2, insertCount: 3 } }
 }
 
-const builders = [geometrySpecimen, dimensionsSpecimen, typographySpecimen, printSpecimen, importSpecimen, editingSpecimen, blocksSpecimen]
+const builders = [geometrySpecimen, hatchPatternsSpecimen, dimensionsSpecimen, typographySpecimen, printSpecimen, importSpecimen, editingSpecimen, blocksSpecimen]
 
 /** In-memory specimen documents for docs/showcase builders; no files are written. */
 export async function buildCadCapabilitySpecimenDocuments() {

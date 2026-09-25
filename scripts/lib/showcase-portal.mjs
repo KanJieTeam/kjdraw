@@ -27,6 +27,7 @@ const sourceBuilderByCase = Object.freeze({
   'geology-section': 'buildGeologySectionCompiled',
   'geology-plan': 'buildGeologyPlanCompiled',
   'editable-entities': 'geometrySpecimen',
+  'hatch-patterns': 'hatchPatternsSpecimen',
   'native-dimensions': 'dimensionsSpecimen',
   'bilingual-typography': 'typographySpecimen',
   'a4-print-layout': 'printSpecimen',

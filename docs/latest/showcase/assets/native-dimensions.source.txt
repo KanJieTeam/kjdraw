@@ -1,4 +1,4 @@
-// examples/cad-capability-specimens.mjs#L37-L47
+// examples/cad-capability-specimens.mjs#L64-L74
 // Case builder excerpt. Shared helpers and imports: use the repository source link.
 
 async function dimensionsSpecimen() {

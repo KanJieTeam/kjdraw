@@ -1,4 +1,4 @@
-// examples/cad-capability-specimens.mjs#L49-L57
+// examples/cad-capability-specimens.mjs#L76-L84
 // Case builder excerpt. Shared helpers and imports: use the repository source link.
 
 async function typographySpecimen() {
