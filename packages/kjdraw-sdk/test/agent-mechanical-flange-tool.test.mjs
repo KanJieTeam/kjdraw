@@ -72,3 +72,54 @@ test('simple flange tool rejects impossible dimensions and nonblank drawings', a
   assert.equal(occupied.ok, false)
   assert.equal(document.listEntities().length, 1)
 })
+
+test('caller-declared mechanical sheet facts preserve paper size, margins and viewport scale without source-certification claims', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const session = new KJAgentToolSession(sdk, document)
+  const declaredSheetFacts = {
+    layoutName: 'Reviewed A4 sheet',
+    paperWidth: 297, paperHeight: 210,
+    marginLeft: 5, marginRight: 5, marginTop: 5, marginBottom: 5,
+    viewportScaleDenominator: 2,
+  }
+  const proposal = accepted(await session.call('cad_propose_mechanical_flange', { ...input(0), declaredSheetFacts }))
+  assert.equal(proposal.engineeringEvidence.declaredSheetFacts.verifiedAgainstSource, false)
+  accepted(await session.approve(proposal.planId, 'sheet-reviewer'))
+  const inspect = drawing => {
+    const layout = drawing.listObjects({ kind: 'layout' }).find(item => item.name === declaredSheetFacts.layoutName)
+    assert.ok(layout)
+    const plot = layout.payload.dxfPlotSettings
+    assert.deepEqual([plot.paperWidth, plot.paperHeight, plot.marginLeft, plot.marginRight, plot.marginTop, plot.marginBottom], [297, 210, 5, 5, 5, 5])
+    const viewports = drawing.listEntities({ ownerId: layout.payload.blockRecordId, type: 'VIEWPORT' })
+    assert.equal(viewports.length, 1)
+    assert.deepEqual(viewports[0].payload.center, [148.5, 105, 0])
+    assert.equal(viewports[0].payload.viewHeight, 400)
+  }
+  inspect(document)
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, format === 'DXF' ? { format, version: '2018' } : { format })
+    inspect(await sdk.readDocument(bytes, { format }))
+  }
+})
+
+test('declared mechanical sheet facts reject clipping, collisions and unexpected fields before mutation', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const session = new KJAgentToolSession(sdk, document)
+  const declaredSheetFacts = {
+    layoutName: 'Reviewed A4 sheet',
+    paperWidth: 297, paperHeight: 210,
+    marginLeft: 5, marginRight: 5, marginTop: 5, marginBottom: 5,
+    viewportScaleDenominator: 2,
+  }
+  for (const facts of [
+    { ...declaredSheetFacts, viewportScaleDenominator: 1 },
+    { ...declaredSheetFacts, marginLeft: 160, marginRight: 160 },
+    { ...declaredSheetFacts, layoutName: 'Layout1' },
+    { ...declaredSheetFacts, unreviewedDevice: 'never trust' },
+  ]) {
+    const result = await session.call('cad_propose_mechanical_flange', { ...input(0), declaredSheetFacts: facts })
+    assert.equal(result.ok, false)
+    assert.equal(document.revision, 0)
+    assert.equal(document.listEntities().length, 0)
+  }
+})

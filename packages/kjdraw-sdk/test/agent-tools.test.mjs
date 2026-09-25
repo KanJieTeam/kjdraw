@@ -39,7 +39,7 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
         : tool.name === 'cad_propose_manufacturing_sheet'
           ? ['locale', 'holePatterns', 'boltCirclePatterns', 'slots']
         : tool.name === 'cad_propose_mechanical_flange'
-          ? ['locale']
+          ? ['locale', 'declaredSheetFacts']
         : tool.name === 'cad_propose_architecture_plan'
           ? ['locale', 'exteriorOpenings', 'partitions', 'textHeight']
         : tool.name === 'cad_propose_site_plan'

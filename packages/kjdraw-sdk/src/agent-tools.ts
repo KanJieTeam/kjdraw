@@ -274,6 +274,16 @@ const manufacturingSheetSchema = objectWithOptional({
   sheet: objectWithOptional({ origin: numericTuple(2), size: numericTuple(2) }, ['origin']), textHeight: radius,
 }, ['locale', 'holePatterns', 'boltCirclePatterns', 'slots'])
 const mechanicalFlangeLength: KJAgentToolSchema = { type: 'number', exclusiveMinimum: 0, maximum: 160 }
+const mechanicalSheetFactsSchema = object({
+  layoutName: { ...text, minLength: 1, maxLength: 128 },
+  paperWidth: { type: 'number', exclusiveMinimum: 0, maximum: 2000 },
+  paperHeight: { type: 'number', exclusiveMinimum: 0, maximum: 2000 },
+  marginLeft: { type: 'number', minimum: 0, maximum: 1000 },
+  marginRight: { type: 'number', minimum: 0, maximum: 1000 },
+  marginTop: { type: 'number', minimum: 0, maximum: 1000 },
+  marginBottom: { type: 'number', minimum: 0, maximum: 1000 },
+  viewportScaleDenominator: { type: 'number', exclusiveMinimum: 0, maximum: 1000 },
+})
 const mechanicalFlangeSchema = objectWithOptional({
   version: { type: 'string', enum: ['1.0.0'] }, expectedRevision: revision, units: { type: 'string', enum: ['millimeter'] },
   locale: { type: 'string', enum: ['zh-CN', 'en'] },
@@ -281,7 +291,8 @@ const mechanicalFlangeSchema = objectWithOptional({
   outerDiameter: mechanicalFlangeLength, boreDiameter: mechanicalFlangeLength, thickness: { ...mechanicalFlangeLength, maximum: 120 },
   boltCount: { type: 'integer', minimum: 2, maximum: 64 },
   boltCircleDiameter: mechanicalFlangeLength, boltHoleDiameter: mechanicalFlangeLength,
-}, ['locale'])
+  declaredSheetFacts: mechanicalSheetFactsSchema,
+}, ['locale', 'declaredSheetFacts'])
 
 function mechanicalFlangeIntent(args: Record<string, unknown>): KJAgentMechanicalFlangeCoreInput {
   const outerDiameter = Number(args.outerDiameter), boreDiameter = Number(args.boreDiameter), thickness = Number(args.thickness)
@@ -671,7 +682,7 @@ const geologyPlanSchema = objectWithOptional({
 }, ['locale', 'title', 'revision', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'baseMapStyles', 'baseMapTextStyles', 'baseMapLinework', 'baseMapBlocks', 'baseMapInserts', 'northAngleDegrees'])
 
 export const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[] = deepFreeze([
-  { name: 'cad_propose_mechanical_flange', effect: 'propose', description: 'Compile one complete editable A3 millimeter drawing of a simple circular flange from exact engineering dimensions. Supply outerDiameter, boreDiameter, thickness, boltCount, boltCircleDiameter and boltHoleDiameter; KJDraw validates edge clearances and generates the end view, aligned side view, pitch circle, equally spaced native holes, hidden bore lines, centerlines, native measured dimensions, title grid, notes and named engineering layers locally. Set locale=zh-CN for Chinese generated notes. Geometry is native 1:1 and intentionally limited to outer diameters up to 160 mm and thickness up to 120 mm so the complete part fits the fixed sheet without hidden rescaling. Requires a blank millimeter drawing. Returns a full preview and engineering evidence; only host approval commits one undoable CREATEBATCH transaction.', inputSchema: mechanicalFlangeSchema },
+  { name: 'cad_propose_mechanical_flange', effect: 'propose', description: 'Compile one complete editable default-A3 millimeter drawing of a simple circular flange from exact engineering dimensions. Supply outerDiameter, boreDiameter, thickness, boltCount, boltCircleDiameter and boltHoleDiameter; KJDraw validates edge clearances and generates the end view, aligned side view, pitch circle, equally spaced native holes, hidden bore lines, centerlines, native measured dimensions, title grid, notes and named engineering layers locally. Set locale=zh-CN for Chinese generated notes. Model geometry is native 1:1 and intentionally limited to outer diameters up to 160 mm and thickness up to 120 mm so the complete part fits the fixed sheet without hidden rescaling. Requires a blank millimeter drawing. Optional declaredSheetFacts sets a caller-declared layout name, paper size, margins and physical viewport scale; these facts are not independently verified against a source drawing and do not reproduce other paper layouts, layer catalogs or device plot settings. The complete model frame must fit. Returns a full preview and engineering evidence; only host approval commits one undoable CREATEBATCH transaction.', inputSchema: mechanicalFlangeSchema },
   { name: 'cad_propose_text_edit', effect: 'propose', description: 'Propose one atomic batch of 1–64 exact native TEXT/MTEXT content replacements. Query existing object IDs and complete text first. Each change supplies id, expectedText and text; every expectedText must match exactly at expectedRevision. Preserves IDs, handles, positions, layers, styles, ownership and references. Raw MTEXT formatting is part of the text; preserve it unless explicitly asked to change it. No regex, inferred targets, blank replacement, dynamic field expressions, dimension text overrides, block attributes or paper/block-space editing. Hidden, frozen, locked or stale objects reject the whole batch. Review the complete before/after text before host approval; approval is one undoable TEXTEDIT transaction.', inputSchema: object({ expectedRevision: revision, units: text, changes: collection(object({ id: text, expectedText: { type: 'string', maxLength: 16384 }, text: { type: 'string', minLength: 1, maxLength: 16384 } })) }) },
   { name: 'cad_read_components', effect: 'read', description: 'Search the bounded versioned KJDraw component catalog. Returns exact IDs, versions, parameters and SPDX license metadata. Use the returned version with cad_propose_component_insert. This reads catalog data and does not modify the drawing.', inputSchema: componentSearchSchema },
   { name: 'cad_propose_component_insert', effect: 'propose', description: 'Propose one licensed native component as an editable INSERT with a reusable BLOCK_RECORD. Supply the exact catalog ID/version, every changed parameter as {name,value}, model-space position, positive uniform scale and rotation in degrees. The current or supplied editable layer is used. Returns the complete definition and instance preview; a trusted host must approve before one undoable commit.', inputSchema: componentInsertSchema },
@@ -1124,24 +1135,39 @@ export class KJAgentToolSession {
               if (document.listEntities().length !== 0) throw new KJValidationError('Mechanical flange requires a blank drawing; existing geometry is not replaced')
               const compiled = buildAgentMechanicalFlangeCore(document, mechanicalFlangeIntent(args))
               const layoutToken = stableHash({ drawingId: args.drawingId, kind: 'mechanical-flange-a3' }).slice(0, 12)
+              const declared = args.declaredSheetFacts as {
+                layoutName: string; paperWidth: number; paperHeight: number
+                marginLeft: number; marginRight: number; marginTop: number; marginBottom: number
+                viewportScaleDenominator: number
+              } | undefined
+              const paperWidth = declared?.paperWidth ?? 420, paperHeight = declared?.paperHeight ?? 297
+              const marginLeft = declared?.marginLeft ?? 0, marginRight = declared?.marginRight ?? 0
+              const marginTop = declared?.marginTop ?? 0, marginBottom = declared?.marginBottom ?? 0
+              const scaleDenominator = declared?.viewportScaleDenominator ?? 1
+              const viewportWidth = paperWidth - marginLeft - marginRight
+              const viewportHeight = paperHeight - marginTop - marginBottom
+              if (viewportWidth <= 0 || viewportHeight <= 0 || viewportWidth * scaleDenominator < 420 || viewportHeight * scaleDenominator < 297) {
+                throw new KJValidationError('Mechanical flange declared sheet must fit the complete 420 × 297 mm model frame at its declared viewport scale')
+              }
               commandArgs = { ...structuredClone(compiled.commandArgs), layout: {
                 id: 'mechanical-flange-' + layoutToken + '-layout',
                 blockRecordId: 'mechanical-flange-' + layoutToken + '-paper-space',
-                name: 'KJ_MECH_' + layoutToken.toUpperCase() + '_A3',
+                name: declared?.layoutName ?? 'KJ_MECH_' + layoutToken.toUpperCase() + '_A3',
                 dxfPlotSettings: {
-                  paperWidth: 420, paperHeight: 297,
-                  marginLeft: 0, marginBottom: 0, marginRight: 0, marginTop: 0,
+                  paperWidth, paperHeight,
+                  marginLeft, marginBottom, marginRight, marginTop,
                   originX: 0, originY: 0, scaleNumerator: 1, scaleDenominator: 1,
                   flags: 0, paperUnits: 1, rotation: 0, plotType: 5,
                 },
                 viewport: {
                   id: 'mechanical-flange-' + layoutToken + '-viewport',
-                  center: [210, 148.5, 0], width: 420, height: 297,
-                  viewCenter: [210, 148.5, 0], viewHeight: 297,
-                  twistAngle: 0, modelUnits: 'millimeter', scaleDenominator: 1,
+                  center: [marginLeft + viewportWidth / 2, marginBottom + viewportHeight / 2, 0],
+                  width: viewportWidth, height: viewportHeight,
+                  viewCenter: [210, 148.5, 0], viewHeight: viewportHeight * scaleDenominator,
+                  twistAngle: 0, modelUnits: 'millimeter', scaleDenominator,
                 },
               } }
-              engineeringEvidence = compiled.evidence
+              engineeringEvidence = { ...compiled.evidence, ...(declared ? { declaredSheetFacts: { ...declared, verifiedAgainstSource: false } } : {}) }
             } else if (name === 'cad_propose_architecture_plan') {
               const compiled = buildAgentArchitecturePlan(document, args as unknown as KJAgentArchitecturePlanInput)
               commandArgs = structuredClone(compiled.commandArgs)
