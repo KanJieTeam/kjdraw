@@ -1,5 +1,5 @@
 import type { KJDocument } from './document.js';
-/** Count-only, source-neutral structure comparison for regenerated mechanical sheets.
+/** Source-neutral structure and paper-entity comparison for regenerated mechanical sheets.
  * Model entities, geometry and pixels must be audited separately. */
 export declare function auditMechanicalSheetStructure(source: KJDocument, candidate: KJDocument): {
     passed: boolean;
@@ -10,6 +10,7 @@ export declare function auditMechanicalSheetStructure(source: KJDocument, candid
         extra: number;
         plotFields: number;
         paperEntityTypes: number;
+        paperEntitySemantics: number;
         viewportFields: number;
     };
     layers: {

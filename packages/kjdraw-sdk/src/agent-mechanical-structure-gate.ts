@@ -1,6 +1,6 @@
 import type { KJDocument } from './document.js'
 
-/** Count-only, source-neutral structure comparison for regenerated mechanical sheets.
+/** Source-neutral structure and paper-entity comparison for regenerated mechanical sheets.
  * Model entities, geometry and pixels must be audited separately. */
 export function auditMechanicalSheetStructure(source: KJDocument, candidate: KJDocument) {
   const named = (document: KJDocument, ids: readonly string[]) => new Map(ids.map(id => document.getObject(id)).filter(record => record && !record.erased).map(record => [String(record!.name), record!] as const))
@@ -13,23 +13,37 @@ export function auditMechanicalSheetStructure(source: KJDocument, candidate: KJD
     if (typeof owner === 'string') for (const entity of document.listEntities({ ownerId: owner })) counts[entity.type] = (counts[entity.type] ?? 0) + 1
     return Object.entries(counts).sort(([a], [b]) => a.localeCompare(b))
   }
-  const layouts = { source: sourceLayouts.size, candidate: candidateLayouts.size, missing: 0, extra: 0, plotFields: 0, paperEntityTypes: 0, viewportFields: 0 }
+  const normalizeReferences = (document: KJDocument, value: unknown, key = ''): unknown => {
+    if (Array.isArray(value)) return value.map(item => normalizeReferences(document, item, key))
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([name, item]) => [name, normalizeReferences(document, item, name)]))
+    if (typeof value === 'string' && (key === 'layerId' || key === 'linetypeId' || key === 'styleId' || key === 'frozenLayerIds')) {
+      const record = document.getObject(value)
+      return record?.name == null ? value : `${record.kind}:${record.name}`
+    }
+    return value
+  }
+  const paperEntities = (document: KJDocument, owner: unknown) =>
+    typeof owner === 'string'
+      ? document.listEntities({ ownerId: owner }).map(entity => JSON.stringify({ type: entity.type, payload: normalizeReferences(document, entity.payload) })).sort()
+      : []
+  const layouts = { source: sourceLayouts.size, candidate: candidateLayouts.size, missing: 0, extra: 0, plotFields: 0, paperEntityTypes: 0, paperEntitySemantics: 0, viewportFields: 0 }
   const layers = { source: sourceLayers.size, candidate: candidateLayers.size, missing: 0, extra: 0, fields: 0 }
   for (const [name, original] of sourceLayouts) {
     const generated = candidateLayouts.get(name)
     if (!generated) { layouts.missing++; continue }
     layouts.plotFields += fields(original.payload.dxfPlotSettings as Record<string, unknown> ?? {}, generated.payload.dxfPlotSettings as Record<string, unknown> ?? {})
     if (JSON.stringify(entityTypes(source, original.payload.blockRecordId)) !== JSON.stringify(entityTypes(candidate, generated.payload.blockRecordId))) layouts.paperEntityTypes++
+    if (JSON.stringify(paperEntities(source, original.payload.blockRecordId)) !== JSON.stringify(paperEntities(candidate, generated.payload.blockRecordId))) layouts.paperEntitySemantics++
     const before = Array.isArray(original.payload.viewportIds) ? original.payload.viewportIds : [], after = Array.isArray(generated.payload.viewportIds) ? generated.payload.viewportIds : []
     layouts.viewportFields += Math.abs(before.length - after.length)
-    for (let index = 0; index < Math.min(before.length, after.length); index++) layouts.viewportFields += fields(source.getObject(String(before[index]))?.payload as Record<string, unknown> ?? {}, candidate.getObject(String(after[index]))?.payload as Record<string, unknown> ?? {})
+    for (let index = 0; index < Math.min(before.length, after.length); index++) layouts.viewportFields += fields(normalizeReferences(source, source.getObject(String(before[index]))?.payload ?? {}) as Record<string, unknown>, normalizeReferences(candidate, candidate.getObject(String(after[index]))?.payload ?? {}) as Record<string, unknown>)
   }
   for (const name of candidateLayouts.keys()) if (!sourceLayouts.has(name)) layouts.extra++
   for (const [name, original] of sourceLayers) {
     const generated = candidateLayers.get(name)
     if (!generated) { layers.missing++; continue }
-    layers.fields += fields(original.payload as Record<string, unknown>, generated.payload as Record<string, unknown>)
+    layers.fields += fields(normalizeReferences(source, original.payload) as Record<string, unknown>, normalizeReferences(candidate, generated.payload) as Record<string, unknown>)
   }
   for (const name of candidateLayers.keys()) if (!sourceLayers.has(name)) layers.extra++
-  return { passed: layouts.missing + layouts.extra + layouts.plotFields + layouts.paperEntityTypes + layouts.viewportFields + layers.missing + layers.extra + layers.fields === 0, layouts, layers }
+  return { passed: layouts.missing + layouts.extra + layouts.plotFields + layouts.paperEntityTypes + layouts.paperEntitySemantics + layouts.viewportFields + layers.missing + layers.extra + layers.fields === 0, layouts, layers }
 }
