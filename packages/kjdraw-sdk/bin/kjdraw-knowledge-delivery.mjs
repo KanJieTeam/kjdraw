@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { lstat, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { validateKnowledgePack } from '../src/knowledge-pack.js'
@@ -76,7 +76,13 @@ async function assertSafeCachePath(path) {
   while (true) {
     try {
       const entry = await lstat(current)
-      if (!entry.isDirectory() || entry.isSymbolicLink()) throw new Error('Knowledge cache path is unsafe')
+      // macOS exposes /var and /tmp through fixed, system-owned links to /private.
+      // Other links (including user-controlled parents and the cache root) are unsafe.
+      const macSystemLink = process.platform === 'darwin' && current !== resolve(path) &&
+        ((current === '/var' && await realpath(current) === '/private/var') ||
+         (current === '/tmp' && await realpath(current) === '/private/tmp'))
+      if ((!entry.isDirectory() && !macSystemLink) || (entry.isSymbolicLink() && !macSystemLink))
+        throw new Error('Knowledge cache path is unsafe')
     } catch (error) { if (error?.code !== 'ENOENT') throw error }
     const parent = dirname(current)
     if (parent === current) break
