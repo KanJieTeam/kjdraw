@@ -31,17 +31,25 @@ test('documentation home keeps a focused product entry and stable global control
   await expect(page.locator('article.lang-en .home-actions a.primary')).toBeVisible()
   await expect(page.locator('article.lang-en .home-entry-section a')).toHaveCount(3)
   await expect(page.locator('article.lang-en .home-model-canvas')).toHaveCount(0)
+  await expect(page.locator('article.lang-en .home-live-frame iframe')).toHaveAttribute('src', /specimen-editable-entities/)
+  await expect(page.locator('article.lang-en > h2')).toHaveCount(0)
+  const sectionOrder = await page.evaluate(() => {
+    const demo = document.querySelector('article.lang-en .home-live-demo')
+    const entries = document.querySelector('article.lang-en .home-entry-section')
+    return demo.compareDocumentPosition(entries) & Node.DOCUMENT_POSITION_FOLLOWING
+  })
+  expect(sectionOrder).toBeTruthy()
   for (const route of ['quickstart/', 'api/', 'mcp/']) await expect(page.locator('article.lang-en .home-entry-section a[href="./' + route + '"]')).toBeVisible()
   const landing = await page.evaluate(() => {
     const main = document.querySelector('main').getBoundingClientRect()
     const hero = document.querySelector('article.lang-en .home-hero').getBoundingClientRect()
-    const section = document.querySelector('article.lang-en > h2').getBoundingClientRect()
+    const section = document.querySelector('article.lang-en .home-entry-section').getBoundingClientRect()
     return { mainWidth: main.width, heroWidth: hero.width, sectionWidth: section.width, viewport: innerWidth }
   })
   expect(landing.mainWidth / landing.viewport).toBeGreaterThanOrEqual(0.95)
   expect(landing.heroWidth / landing.viewport).toBeGreaterThanOrEqual(0.95)
-  expect(landing.sectionWidth).toBeGreaterThanOrEqual(800)
-  expect(landing.sectionWidth).toBeLessThanOrEqual(900)
+  expect(landing.sectionWidth).toBeGreaterThanOrEqual(1000)
+  expect(landing.sectionWidth).toBeLessThanOrEqual(1150)
 
   await page.locator('#language').click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
