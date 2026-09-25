@@ -109,6 +109,28 @@ test('canonical feature summaries are stable and the strict comparator catches k
   }
 })
 
+test('strict whole-sheet comparison binds each label to its geometry and style', async () => {
+  const make = async labels => {
+    const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+    await document.transact('Label association fixture', tx => {
+      for (const [index, label] of labels.entries()) tx.createEntity('TEXT', {
+        position: [label.x, 0, 0], text: label.text, height: 2, color: label.color,
+      }, { id: `label-${index}` })
+    })
+    return createCanonicalFeatureSummary(document, { salt })
+  }
+  const original = [{ x: 0, text: 'A', color: 1 }, { x: 100, text: 'B', color: 2 }]
+  const expected = await make(original)
+  for (const [name, changed] of [
+    ['text', [{ ...original[0], text: 'B' }, { ...original[1], text: 'A' }]],
+    ['geometry', [{ ...original[0], x: 100 }, { ...original[1], x: 0 }]],
+    ['style', [{ ...original[0], color: 2 }, { ...original[1], color: 1 }]],
+  ]) {
+    const comparison = compareCanonicalFeatureSummaries(expected, await make(changed))
+    assert.equal(comparison.passed, false, `${name} association was lost`)
+    assert.ok(comparison.categoryCounts.association > 0, `${name}: ${JSON.stringify(comparison)}`)
+  }
+})
 test('strict geology regression fingerprints native spline shape rather than treating every curve as unsupported', async () => {
   const make = async patch => {
     const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })

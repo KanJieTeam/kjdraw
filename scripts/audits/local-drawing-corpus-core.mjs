@@ -3,7 +3,7 @@ import { createHash, createHmac } from 'node:crypto'
 import { displayedEntityBounds } from '../../packages/kjdraw-sdk/src/selection-geometry.js'
 
 export const KJDRAW_LOCAL_CORPUS_SCHEMA = 'com.kanjie.kjdraw.local-drawing-corpus-manifest@3'
-export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@7'
+export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@8'
 export const KJDRAW_FEATURE_COMPARISON_SCHEMA = 'com.kanjie.kjdraw.feature-comparison@2'
 
 const textTypes = new Set(['TEXT', 'MTEXT', 'ATTRIB', 'ATTDEF'])
@@ -347,6 +347,10 @@ export function createCanonicalFeatureSummary(document, { salt, geometryToleranc
       style: count(nodes.map(node => `${node.type}:${node.styleDigest}`)),
       text: count(nodes.filter(node => node.textDigest).map(node => `${node.type}:${node.textDigest}`)),
       bounds: count(nodes.map(node => `${node.type}:${privateDigest(node.boundsSize, salt, 'kjdraw-corpus-bounds')}`)),
+      association: count(nodes.map(node => privateDigest({
+        type: node.type, owner: node.owner, geometryDigest: node.geometryDigest,
+        styleDigest: node.styleDigest, textDigest: node.textDigest, boundsSize: node.boundsSize,
+      }, salt, 'kjdraw-corpus-entity-association'))),
     },
     relations,
     dependencies: {
@@ -380,6 +384,7 @@ export function compareCanonicalFeatureSummaries(expected, actual, { boundsToler
   compareMap(expected.fingerprints.style, actual.fingerprints.style, 'style', differences)
   compareMap(expected.fingerprints.text, actual.fingerprints.text, 'text', differences)
   compareMap(expected.fingerprints.bounds, actual.fingerprints.bounds, 'geometry', differences)
+  compareMap(expected.fingerprints.association, actual.fingerprints.association, 'association', differences)
   compareMap(expected.relations.counts, actual.relations.counts, 'topology', differences)
   if (expected.bounds === null || actual.bounds === null) exact('geometry', 'bounds', expected.bounds, actual.bounds)
   else for (const key of ['width', 'height']) if (Math.abs(expected.bounds[key] - actual.bounds[key]) > boundsTolerance) differences.push({ category: 'geometry', key: `bounds.${key}`, expected: expected.bounds[key], actual: actual.bounds[key], tolerance: boundsTolerance })
