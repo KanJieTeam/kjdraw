@@ -12,7 +12,22 @@ test('Showcase searches, filters and changes view using generated public sample 
     filter: getComputedStyle(element.querySelector('img')).filter,
   }))
   expect(previewStyle.background).toBe('rgb(16, 24, 32)')
-  expect(previewStyle.filter).toContain('invert(1)')
+  expect(previewStyle.filter).toBe('none')
+  const cornerPixels = await portal.locator('.showcase-thumb img').evaluateAll(async images => Promise.all(images.map(async image => {
+    const preview = new Image()
+    preview.src = image.src
+    await preview.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = preview.naturalWidth
+    canvas.height = preview.naturalHeight
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    context.drawImage(preview, 0, 0)
+    return { src: image.currentSrc, pixel: [...context.getImageData(4, 4, 1, 1).data] }
+  })))
+  for (const { src, pixel } of cornerPixels) {
+    expect(pixel[3], src).toBe(255)
+    expect(pixel.slice(0, 3).every(channel => channel < 55), src).toBe(true)
+  }
   await expect(portal.locator('.showcase-category[data-category="all"] b')).toHaveText('16')
   await expect(portal.locator('.showcase-category[data-category="core-capabilities"] b')).toHaveText('4')
 

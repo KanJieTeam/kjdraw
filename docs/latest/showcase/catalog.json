@@ -145,7 +145,7 @@
         "revision": 13
       },
       "thumbnail": "./assets/resilient-campus.svg",
-      "thumbnailSha256": "8ab8f278939b2eeb7cdf7109111b2ad05a138ef625a9c3a0c095f85f23c97c63"
+      "thumbnailSha256": "c9d1f6dfd70a901822778b92a38f53bfe8067f08a441926fe6455a0a02936196"
     },
     {
       "id": "site-plan",
@@ -211,7 +211,7 @@
         "revision": 11
       },
       "thumbnail": "./assets/site-plan.svg",
-      "thumbnailSha256": "3e29f765cdd742d1e330115805ff8ac61e1515ea7ff0f117a28c98bc98911b42"
+      "thumbnailSha256": "6db299d851e7d41814f5ce0d7b4a57eaf94368a5809eadfe003ca9b43cc74cba"
     },
     {
       "id": "architecture-floor-plan",
@@ -278,7 +278,7 @@
         "revision": 11
       },
       "thumbnail": "./assets/architecture-floor-plan.svg",
-      "thumbnailSha256": "6e6df834ecf27f86a01e1a747073249043aaf823967a137aeca7530c19d82580"
+      "thumbnailSha256": "052b41167a43e0d4e6f2c496cb4db53edf470ca7fc8c55d4f3ffd8a3c5879721"
     },
     {
       "id": "road-profile",
@@ -344,7 +344,7 @@
         "revision": 10
       },
       "thumbnail": "./assets/road-profile.svg",
-      "thumbnailSha256": "7a49aa52b61d2342ba18922a986095379d0599224791ff71967245cb6112bbd4"
+      "thumbnailSha256": "d387121ebbfe44cab90eda248d2430284e40f130bcd593936905ef8403f49a87"
     },
     {
       "id": "mechanical-bracket",
@@ -411,7 +411,7 @@
         "revision": 9
       },
       "thumbnail": "./assets/mechanical-bracket.svg",
-      "thumbnailSha256": "e2f80a3a9b80dba87f83ba9969e398ed48012794b99b0f7d083086e470f873c3"
+      "thumbnailSha256": "d1d891b7a24924c7296b075bf4871477aeeda78ea80944ee1e3ecaf4450183ea"
     },
     {
       "id": "mechanical-flange",
@@ -475,7 +475,7 @@
         "revision": 8
       },
       "thumbnail": "./assets/mechanical-flange.svg",
-      "thumbnailSha256": "09511185d073472169f60ff957e759358f8a9cbf914e35f34e98c4208b1c2a6f"
+      "thumbnailSha256": "c164e12afd16ce9a8dfa05d95d8d11a9509cc4fa736d06ef50cffc29e9905069"
     },
     {
       "id": "borehole-log",
@@ -538,7 +538,7 @@
         "revision": 1
       },
       "thumbnail": "./assets/borehole-log.svg",
-      "thumbnailSha256": "fd1932f2ea3bd0642ea10849353f0041fdf830a4d3dee4e007b2c932f6f119b4"
+      "thumbnailSha256": "30cd03be3e1e666d066ba87eb62dc79e7c2b33fd3b7f1891383775189eb6e8da"
     },
     {
       "id": "geology-section",
@@ -602,7 +602,7 @@
         "revision": 9
       },
       "thumbnail": "./assets/geology-section.svg",
-      "thumbnailSha256": "ea82000a2c5e89f69d6ae585d542ae49b7b26f4f4d715143414f53ec5fac175d"
+      "thumbnailSha256": "835ad572a735451c96c41e517bd9dca1a6880f40295c21b5a0b8387dd3a3b1a2"
     },
     {
       "id": "geology-plan",
@@ -666,7 +666,7 @@
         "revision": 1
       },
       "thumbnail": "./assets/geology-plan.svg",
-      "thumbnailSha256": "feffd47ad75eeac52570670dd556a94425edc26dd7185d314a830b17f179104d"
+      "thumbnailSha256": "2ea1fb44f45045fba5519c28bc375c2ba3225d3eb917b55b1bbf24d66913c9f5"
     },
     {
       "id": "editable-entities",
@@ -731,7 +731,7 @@
         "revision": 2
       },
       "thumbnail": "./assets/editable-entities.svg",
-      "thumbnailSha256": "c514da167a944c8f2a06fe9d87fb1522a43718f5063a1396bca3b995a9caafc0"
+      "thumbnailSha256": "7fb7fef41392cb867507b58d1acf2a86912cce7ac6f0f76d5c3ef457dc25283e"
     },
     {
       "id": "native-dimensions",
@@ -797,7 +797,7 @@
         "revision": 2
       },
       "thumbnail": "./assets/native-dimensions.svg",
-      "thumbnailSha256": "6882ffb78a8abb095160280c5220147797c656978ec29197d117cd43b159bf92"
+      "thumbnailSha256": "01ee1b899565b27aa06468f952d3a9d83d000e2c1e7c68938c823b10616f26f7"
     },
     {
       "id": "bilingual-typography",
@@ -860,7 +860,7 @@
         "revision": 3
       },
       "thumbnail": "./assets/bilingual-typography.svg",
-      "thumbnailSha256": "a0c5568b33e4c86dd36788375abb56d7a1d291e5dbaa662f7a23056ca029f74f"
+      "thumbnailSha256": "2e372f418097089f415d9d8970bee07ed0565da6bab55d7b12a1973d8b45b574"
     },
     {
       "id": "a4-print-layout",
@@ -925,7 +925,7 @@
         "revision": 2
       },
       "thumbnail": "./assets/a4-print-layout.svg",
-      "thumbnailSha256": "0773836b945239bdbb35fa557da04f1a91e711103a1d9cef364cef06e27c2fc5"
+      "thumbnailSha256": "0a092139bed00a4236c0a45be48686b1f58d44850c77ffaa1ce56a03b681bc86"
     },
     {
       "id": "dxf-import",
@@ -997,7 +997,7 @@
         "revision": 2
       },
       "thumbnail": "./assets/dxf-import.svg",
-      "thumbnailSha256": "ab1319bb55f5f1fda84805097481c610b5fbbf4e7823afa07bf621e0650e5eea"
+      "thumbnailSha256": "027e895d0efb4d872bdd25e4a1f06ccf351bbaa90cefb20b11743ca34a9a3b11"
     },
     {
       "id": "editing-history",
@@ -1073,7 +1073,7 @@
         "revision": 5
       },
       "thumbnail": "./assets/editing-history.svg",
-      "thumbnailSha256": "b0708cbfbce9e2d791503be50312aae73e4ffdaacb2754cade4365cebe75d34d"
+      "thumbnailSha256": "b1a40962c277dec4e57f139db7f5d62bd1185ae625900cda67f7194a71654059"
     },
     {
       "id": "block-references",
@@ -1136,7 +1136,7 @@
         "revision": 7
       },
       "thumbnail": "./assets/block-references.svg",
-      "thumbnailSha256": "a8369258cda0cf6cccf24fff9c6a7c31bf79f81986fd80ad5ce9b8e82c12191e"
+      "thumbnailSha256": "4f92bce9193b9753a149fde48fe569edd661559712ba8d2b9e1846ecf3464382"
     }
   ]
 }

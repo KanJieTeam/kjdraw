@@ -1,5 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 
 import { buildProvenanceCandidateEvidence, isProvenanceCandidateEvidence, PROVENANCE_CANDIDATE_SCHEMA, PROVENANCE_STEPS } from '../../../scripts/audits/provenance-candidate-evidence.mjs'
 
@@ -28,4 +32,23 @@ test('provenance evidence rejects another commit, non-push runs, skipped attesta
   const evidence = buildProvenanceCandidateEvidence(fixture(), options)
   evidence.job.steps.pop()
   assert.equal(isProvenanceCandidateEvidence(evidence, options), false)
+})
+
+test('provenance collector records only a successful exact-main fixture', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), 'kjdraw-provenance-test-'))
+  try {
+    const fixturePath = join(scratch, 'github.json')
+    const outputPath = join(scratch, 'evidence.json')
+    await writeFile(fixturePath, JSON.stringify(fixture()))
+    const script = resolve('scripts/audits/verify-provenance-candidate.mjs')
+    execFileSync(process.execPath, [script, '--fixture', fixturePath, '--commit', commit, '--output', outputPath], { encoding: 'utf8', windowsHide: true })
+    const evidence = JSON.parse(await readFile(outputPath, 'utf8'))
+    assert.equal(isProvenanceCandidateEvidence(evidence, options), true)
+    const invalid = fixture()
+    invalid.jobs[0].steps[2].conclusion = 'skipped'
+    await writeFile(fixturePath, JSON.stringify(invalid))
+    assert.throws(() => execFileSync(process.execPath, [script, '--fixture', fixturePath, '--commit', commit, '--output', outputPath], { encoding: 'utf8', windowsHide: true, stdio: 'pipe' }))
+  } finally {
+    await rm(scratch, { recursive: true, force: true })
+  }
 })

@@ -136,9 +136,9 @@ function renderThumbnail(document, entry) {
     'silty-clay': '<path d="M0 5h5m7 0h4M5 12h6"/>',
     generic: '<path d="M0 0L12 12"/>',
   }
-  const defs = [...hatchPatterns].map(id => '<pattern id="hatch-' + id + '" patternUnits="userSpaceOnUse" width="16" height="16"><rect width="16" height="16" fill="#f4f7f5"/><g fill="none" stroke="#91a99e" stroke-width=".8">' + patterns[id] + '</g></pattern>').join('')
+  const defs = [...hatchPatterns].map(id => '<pattern id="hatch-' + id + '" patternUnits="userSpaceOnUse" width="16" height="16"><rect width="16" height="16" fill="#1c2c32"/><g fill="none" stroke="#91a99e" stroke-width=".8">' + patterns[id] + '</g></pattern>').join('')
   const title = `${entry.title.en} · ${entry.drawingType.en}`
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-labelledby="title desc"><title id="title">${escapeHtml(title)}</title><desc id="desc">Generated from ${entities.length} editable entities in ${escapeHtml(entry.sampleId)}.</desc><defs>${defs}</defs><rect width="720" height="420" rx="12" fill="#f8fafc"/><g fill="none" stroke="#21324b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">${path.join('')}</g><rect x=".5" y=".5" width="719" height="419" rx="11.5" fill="none" stroke="#d9e1ec"/></svg>\n`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-labelledby="title desc" data-preview-theme="cad-dark"><title id="title">${escapeHtml(title)}</title><desc id="desc">Generated from ${entities.length} editable entities in ${escapeHtml(entry.sampleId)}.</desc><defs>${defs}</defs><rect width="720" height="420" fill="#101820"/><g fill="none" stroke="#c7d5d9" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">${path.join('')}</g><rect x=".5" y=".5" width="719" height="419" rx="11.5" fill="none" stroke="#31414c"/></svg>\n`
 }
 
 function normalizeSpecimenPreview(svg) {
@@ -148,7 +148,7 @@ function normalizeSpecimenPreview(svg) {
     if (!stableIds.has(key)) stableIds.set(key, `generated-${stableIds.size + 1}`)
     return stableIds.get(key)
   })
-  return deterministic.replace(/(<svg\b[^>]*>)/, '$1<style>g[data-entity-id]{stroke-width:.8!important}text{font-weight:500}</style>')
+  return deterministic.replace(/(<svg\b[^>]*>)/, '$1<style>svg{background:#101820;color:#c7d5d9}g[data-entity-id]{color:#c7d5d9!important;stroke-width:.8!important}text{font-weight:500}</style>')
 }
 
 function normalizeKjdArtifact(kjd) {

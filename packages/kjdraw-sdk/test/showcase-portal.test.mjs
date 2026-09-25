@@ -37,6 +37,9 @@ test('Showcase manifest is generated from every public sample and its facts rema
     const thumbnail = await readFile(new URL(`docs/latest/showcase/assets/${entry.id}.svg`, repositoryRoot), 'utf8')
     assert.match(thumbnail, /^<svg[^>]+role="img"/)
     assert.match(thumbnail, new RegExp(`Generated from ${entities.length} editable entities`))
+    assert.match(thumbnail, /data-preview-theme="cad-dark"/)
+    assert.match(thumbnail, /<rect width="720" height="420" fill="#101820"\/>/)
+    assert.doesNotMatch(thumbnail, /#f8fafc|#f4f7f5/i)
     assert.equal(createHash('sha256').update(thumbnail).digest('hex'), entry.thumbnailSha256)
     assert.ok((thumbnail.match(/<(?:path|circle|text)\b/g) ?? []).length > 5, `${entry.id} thumbnail must contain real generated geometry`)
   }
@@ -50,6 +53,8 @@ test('Showcase manifest is generated from every public sample and its facts rema
     assert.equal(Object.values(entry.facts.entityTypes).reduce((sum, count) => sum + count, 0), entry.facts.editableObjects)
     const thumbnail = await readFile(new URL(`docs/latest/showcase/assets/${entry.id}.svg`, repositoryRoot), 'utf8')
     assert.match(thumbnail, /<svg\b/)
+    assert.match(thumbnail, /svg\{background:#101820;color:#c7d5d9\}/)
+    assert.match(thumbnail, /g\[data-entity-id\]\{color:#c7d5d9!important/)
     assert.equal(createHash('sha256').update(thumbnail).digest('hex'), entry.thumbnailSha256)
   }
 })
