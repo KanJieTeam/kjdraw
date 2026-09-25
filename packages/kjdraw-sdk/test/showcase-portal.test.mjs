@@ -43,6 +43,16 @@ test('Showcase manifest is generated from every public sample and its facts rema
     assert.equal(createHash('sha256').update(thumbnail).digest('hex'), entry.thumbnailSha256)
     assert.ok((thumbnail.match(/<(?:path|circle|text)\b/g) ?? []).length > 5, `${entry.id} thumbnail must contain real generated geometry`)
   }
+  for (const entry of manifest.entries) {
+    const { symbol, startLine, endLine } = entry.sourceRange
+    assert.ok(Number.isInteger(startLine) && endLine > startLine, `${entry.id} must link to an exact public builder range`)
+    assert.equal(entry.links.sourceSnippet, `./assets/${entry.id}.source.txt`)
+    assert.ok(entry.links.source.endsWith(`${entry.source}#L${startLine}-L${endLine}`))
+    const snippet = await readFile(new URL(`docs/latest/showcase/assets/${entry.id}.source.txt`, repositoryRoot), 'utf8')
+    const original = (await readFile(new URL(entry.source, repositoryRoot), 'utf8')).split(/\r?\n/)
+    assert.equal(snippet.split('\n').slice(3).join('\n'), original.slice(startLine - 1, endLine).join('\n') + '\n')
+    assert.match(snippet, new RegExp(`function ${symbol}\\(`))
+  }
   const sectionThumbnail = await readFile(new URL('docs/latest/showcase/assets/geology-section.svg', repositoryRoot), 'utf8')
   assert.match(sectionThumbnail, /hatch-loess/)
   for (const entry of manifest.entries.filter(row => row.kind === 'specimen')) {

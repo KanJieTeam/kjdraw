@@ -1,0 +1,12 @@
+// examples/cad-capability-specimens.mjs#L49-L57
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+async function typographySpecimen() {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'public-typography-specimen', units: 'millimeter' })
+  const style = await sdk.executeCommand('TEXTSTYLE', { operation: 'create', name: 'LOCAL-FALLBACK', current: true, properties: { fontFamily: '"Source Han Sans SC", Microsoft YaHei, Arial, sans-serif', widthFactor: 1 } }, { document })
+  await document.transact('Create bilingual editable text', transaction => {
+    transaction.createEntity('TEXT', { position: point(0, 30), text: '工程图纸 KJDraw 123', height: 8, styleId: style.id }, { id: 'typography-text' })
+    transaction.createEntity('MTEXT', { position: point(0, 15), text: 'Local glyph fallback\\PEditable Unicode: Δ ⌀ ±', height: 5, width: 120, attachmentPoint: 1, styleId: style.id }, { id: 'typography-mtext' })
+  })
+  return { id: 'typography', title: 'Bilingual local font fallback', category: 'fonts', sdk, document, layoutId: await modelSheet(sdk, document, [-10, 0, 135, 50]), facts: { textStyle: style.name, textCount: 2 } }
+}

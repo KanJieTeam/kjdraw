@@ -1,0 +1,17 @@
+// packages/kjdraw-sdk/src/samples.ts#L311-L324
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+async function buildGeologyPlanCompiled(sdk: KJDrawSDK, document: KJDocument): Promise<void> {
+  const ids = Array.from({ length: 5 }, (_, index) => `ZK${String(index + 1).padStart(2, '0')}`)
+  const input: KJAgentGeologyPlanInput = {
+    version: '1.0.0', expectedRevision: document.revision, units: 'meter', locale: 'en',
+    drawingId: 'SYNTHETIC-INVESTIGATION-PLAN', title: 'INVESTIGATION POINT PLAN · ILLUSTRATIVE, NOT MEASURED',
+    scale: 500, boundary: [[980, 980], [1120, 980], [1120, 1020], [980, 1020]],
+    boreholes: ids.map((id, index) => ({ id, position: [1000 + index * 25, 1000],
+      collarElevation: 300 + [0, 0.35, -0.15, 0.25, -0.3][index]!, depth: 30, kind: 'borehole' })),
+    sectionLines: [{ id: 'SECTION-A', holeIds: ids, label: 'A—A′', endpointLabels: ['A', 'A′'] }],
+    coordinateGrid: { origin: [980, 980], spacing: 20 }, northAngleDegrees: 0,
+  }
+  const compiled = buildAgentGeologyPlan(document, input)
+  await sdk.executeCommand('CREATEBATCH', structuredClone(compiled.commandArgs) as KJCommandArguments, { document })
+}

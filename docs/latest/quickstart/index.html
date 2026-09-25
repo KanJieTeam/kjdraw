@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=5e5c50c6166a804b">
+  <link rel="stylesheet" href="../style.css?v=f26318507e5063fa">
   <title>Quickstart · KJDraw Docs</title>
 </head>
 <body>
@@ -74,8 +74,9 @@
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm create vite@latest kjdraw-five-minute -- --template vanilla-ts
 cd kjdraw-five-minute
 npm install
+npm view @kanjieteam/kjdraw@next version
 npm install @kanjieteam/kjdraw@next</code></pre>
-<p>The <code>next</code> tag follows the release-candidate channel. Pin an exact version when you need reproducible builds.</p>
+<p>These instructions use the published <code>next</code> candidate. This page also describes the 1.0.0-rc.3 source candidate. If the version printed above is older than rc.3, use the <a href="https://kanjieteam.github.io/kjdraw/docs/latest/installation/#en-installation-release-channels">source checkout steps</a> before trying rc.3 features. Pin an exact published version for reproducible builds.</p>
 <p>Replace <code>src/main.ts</code> with the complete example below. The workbench injects its own component styles; the host element only needs an explicit height.</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawEditor } from &#39;@kanjieteam/kjdraw&#39;
 
@@ -128,8 +129,9 @@ await editor.ready</code></pre>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm create vite@latest kjdraw-five-minute -- --template vanilla-ts
 cd kjdraw-five-minute
 npm install
+npm view @kanjieteam/kjdraw@next version
 npm install @kanjieteam/kjdraw@next</code></pre>
-<p><code>next</code> 指向候选版渠道；需要可复现构建时请锁定确切版本。</p>
+<p>以上命令安装已发布的 <code>next</code> 候选版。本页还描述 1.0.0-rc.3 源码候选版；如果上一步显示的版本早于 rc.3，使用 rc.3 功能前请按<a href="https://kanjieteam.github.io/kjdraw/docs/latest/installation/#zh-installation-release-channels">源码构建步骤</a>安装。需要可复现构建时请锁定已发布的确切版本。</p>
 <p>用下面的完整示例替换 <code>src/main.ts</code>。工作台会注入自身组件样式，宿主元素只需要明确的高度。</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawEditor } from &#39;@kanjieteam/kjdraw&#39;
 
@@ -181,6 +183,6 @@ await editor.ready</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=5e5c50c6166a804b"></script>
+  <script type="module" src="../app.js?v=f26318507e5063fa"></script>
 </body>
 </html>

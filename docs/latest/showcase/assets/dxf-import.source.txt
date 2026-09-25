@@ -1,0 +1,13 @@
+// examples/cad-capability-specimens.mjs#L73-L82
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+async function importSpecimen() {
+  const source = ['0','SECTION','2','HEADER','9','$ACADVER','1','AC1032','9','$DWGCODEPAGE','3','UTF-8','0','ENDSEC','0','SECTION','2','ENTITIES',
+    '0','LINE','5','A1','8','0','10','0','20','0','30','0','11','80','21','0','31','0',
+    '0','CIRCLE','5','A2','8','0','10','40','20','25','30','0','40','15',
+    '0','TEXT','5','A3','8','0','10','0','20','55','30','0','40','6','1','UTF-8 工程导入',
+    '0','ENDSEC','0','EOF',''].join('\r\n')
+  const sdk = createKJDrawSDK(), document = await sdk.readDocument(new TextEncoder().encode(source), { format: 'DXF' })
+  sdk.attachDocument(document)
+  return { id: 'dxf-import', title: 'UTF-8 DXF import compatibility', category: 'import', sdk, document, layoutId: await modelSheet(sdk, document, [-10, -10, 100, 70]), facts: { sourceHandles: ['A1', 'A2', 'A3'], importedTypes: ['LINE', 'CIRCLE', 'TEXT'] } }
+}

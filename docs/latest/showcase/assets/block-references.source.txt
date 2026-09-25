@@ -1,0 +1,13 @@
+// examples/cad-capability-specimens.mjs#L99-L108
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+async function blocksSpecimen() {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'public-blocks-specimen', units: 'millimeter' })
+  const stem = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: point(0, -8), end: point(0, 8) }, options: { id: 'symbol-stem' } }, { document })
+  const ring = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: point(0, 0), radius: 5 }, options: { id: 'symbol-ring' } }, { document })
+  const definition = await sdk.executeCommand('BLOCKCREATE', { name: 'PUBLIC-REFERENCE-MARK', ids: [stem.id, ring.id], basePoint: [0, 0], description: 'Synthetic reusable reference mark' }, { document })
+  await sdk.executeCommand('MOVE', { id: definition.insert.id, dx: 20, dy: 20 }, { document })
+  await sdk.executeCommand('BLOCKINSERT', { blockRecordId: definition.block.id, position: [55, 20], scale: [1.5, 1.5, 1], rotation: Math.PI / 6 }, { document })
+  await sdk.executeCommand('BLOCKINSERT', { blockRecordId: definition.block.id, position: [90, 20], scale: [.75, .75, 1], rotation: -Math.PI / 4 }, { document })
+  return { id: 'blocks-references', title: 'Reusable block references', category: 'blocks', sdk, document, layoutId: await modelSheet(sdk, document, [0, 0, 115, 45]), facts: { definitionName: definition.block.name, definitionEntityCount: 2, insertCount: 3 } }
+}

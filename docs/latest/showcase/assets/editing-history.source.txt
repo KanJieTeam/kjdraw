@@ -1,0 +1,17 @@
+// examples/cad-capability-specimens.mjs#L84-L97
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+async function editingSpecimen() {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'public-editing-specimen', units: 'millimeter' })
+  const source = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: point(20, 20), radius: 10 }, options: { id: 'editing-source' } }, { document })
+  await sdk.executeCommand('MOVE', { id: source.id, dx: 30, dy: 15 }, { document })
+  const moved = [...document.getObject(source.id).payload.center]
+  await sdk.executeCommand('UNDO', {}, { document })
+  const undone = [...document.getObject(source.id).payload.center]
+  await sdk.executeCommand('REDO', {}, { document })
+  const redone = [...document.getObject(source.id).payload.center]
+  const beforeFailure = document.serialize(), revisionBeforeFailure = document.revision
+  try { await document.transact('Reject invalid owner atomically', transaction => transaction.createEntity('LINE', { start: point(0, 0), end: point(1, 1) }, { ownerId: 'missing-owner' })) } catch {}
+  if (document.serialize() !== beforeFailure || document.revision !== revisionBeforeFailure) throw new Error('Failed edit mutated the document')
+  return { id: 'editing-history', title: 'Edit, undo, redo and atomic rejection', category: 'editing', sdk, document, layoutId: await modelSheet(sdk, document, [0, 0, 80, 60]), facts: { moved, undone, redone, failedEditAtomic: true } }
+}

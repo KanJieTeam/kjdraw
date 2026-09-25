@@ -1,0 +1,16 @@
+// examples/cad-capability-specimens.mjs#L59-L71
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+async function printSpecimen() {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'public-print-specimen', units: 'millimeter' })
+  const layout = document.listObjects({ kind: 'layout' }).find(item => item.name !== 'Model')
+  if (!layout) throw new Error('Paper-space layout unavailable')
+  const ownerId = layout.payload.blockRecordId
+  await sdk.executeCommand('PAGESETUP', { layoutId: layout.id, dxf: { paperWidth: 297, paperHeight: 210, paperUnits: 1, plotType: 5, flags: 0, scaleNumerator: 1, scaleDenominator: 1, marginLeft: 10, marginRight: 10, marginTop: 10, marginBottom: 10 } }, { document })
+  await document.transact('Create A4 paper-space sheet', transaction => {
+    transaction.createEntity('LWPOLYLINE', { vertices: [point(10, 10), point(287, 10), point(287, 200), point(10, 200)], closed: true }, { id: 'print-frame', ownerId })
+    transaction.createEntity('TEXT', { position: point(20, 185), text: 'A4 LANDSCAPE · PAPER SPACE 1:1', height: 6 }, { id: 'print-title', ownerId })
+    transaction.createEntity('LINE', { start: point(20, 170), end: point(277, 170) }, { id: 'print-rule', ownerId })
+  })
+  return { id: 'layout-print', title: 'A4 vector print layout', category: 'layout-print', sdk, document, layoutId: layout.id, facts: { paper: 'A4 landscape', paperWidthMm: 297, paperHeightMm: 210 } }
+}

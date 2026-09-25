@@ -48,7 +48,7 @@
           <p class="lead"><span class="lang-en">Mount a complete CAD editor with one function, then control drawings, files, commands and selection through a small typed API.</span><span class="lang-zh">一个函数挂载完整 CAD 编辑器，再通过小而清晰的类型化 API 控制图档、文件、命令与选择。</span></p>
           <div class="install"><code>npm install @kanjieteam/kjdraw@next</code><button type="button" data-copy-value="npm install @kanjieteam/kjdraw@next">Copy</button></div>
 
-          <p class="api-distribution-note"><span class="lang-en">These docs describe the 1.0.0-rc.3 source candidate. The npm next tag can be older; check the installed version before using APIs marked since 1.0.0-rc.3.</span><span class="lang-zh">本文档描述 1.0.0-rc.3 源码候选版。npm next 标签可能仍指向旧版；使用标注自 1.0.0-rc.3 起提供的 API 前，请先核对实际安装版本。</span></p>
+          <p class="api-distribution-note"><span class="lang-en">These docs describe the 1.0.0-rc.3 source candidate. Run npm view @kanjieteam/kjdraw@next version before installing. If next is older than 1.0.0-rc.3, use the source checkout for version-marked APIs.</span><span class="lang-zh">本文档描述 1.0.0-rc.3 源码候选版。安装前运行 npm view @kanjieteam/kjdraw@next version；如果 next 早于 1.0.0-rc.3，请使用源码构建版调用对应 API。</span></p>
         </section>
 
         <section id="quickstart">
@@ -64,7 +64,6 @@ const editor = createKJDrawEditor(&#39;#cad&#39;, {
   document: &#39;sample&#39;,
   locale: &#39;en&#39;,
   theme: &#39;dark&#39;,
-  layout: &#39;classic&#39;,
   onChange: ({ revision, entityCount }) =&gt; {
     console.log({ revision, entityCount })
   },
@@ -75,7 +74,7 @@ await editor.execute(&#39;CREATE&#39;, {
   type: &#39;CIRCLE&#39;,
   payload: { center: [40, 30, 0], radius: 12 },
 })
-editor.setLayout(&#39;compact&#39;).fit()
+editor.fit()
 
 const kjd = await editor.save({ format: &#39;KJD&#39;, download: false })
 // Call editor.dispose() when the owning screen unmounts.</code></pre>
@@ -158,12 +157,11 @@ off()</code></pre>
         <section id="frameworks">
           <h2>React / Vue<a class="permalink" href="#frameworks" aria-label="Link to React and Vue"></a></h2>
           <div class="framework-grid">
-            <div><h3>React</h3><pre data-language="tsx"><button class="copy" type="button" data-copy-code>Copy</button><code>import { useRef, useState } from &#39;react&#39;
-import { KJDraw, type KJDrawEditor, type KJWorkbenchLayout } from &#39;@kanjieteam/kjdraw/react&#39;
+            <div><h3>React</h3><pre data-language="tsx"><button class="copy" type="button" data-copy-code>Copy</button><code>import { useRef } from &#39;react&#39;
+import { KJDraw, type KJDrawEditor } from &#39;@kanjieteam/kjdraw/react&#39;
 
 export function DrawingEditor() {
   const editor = useRef&lt;KJDrawEditor | null&gt;(null)
-  const [layout, setLayout] = useState&lt;KJWorkbenchLayout&gt;(&#39;classic&#39;)
 
   async function moveSelection() {
     const instance = editor.current
@@ -174,18 +172,16 @@ export function DrawingEditor() {
 
   return (
     &lt;&gt;
-      &lt;button onClick={() =&gt; setLayout(&#39;focus&#39;)}&gt;Focus drawing&lt;/button&gt;
       &lt;button onClick={() =&gt; void moveSelection()}&gt;Move selected&lt;/button&gt;
-      &lt;KJDraw ref={editor} document=&quot;sample&quot; layout={layout} style={{ height: 720 }} /&gt;
+      &lt;KJDraw ref={editor} document=&quot;sample&quot; style={{ height: 720 }} /&gt;
     &lt;/&gt;
   )
 }</code></pre><p><a href="../react/"><span class="lang-en">React guide</span><span class="lang-zh">React 指南</span> →</a></p></div>
             <div><h3>Vue</h3><pre data-language="vue"><button class="copy" type="button" data-copy-code>Copy</button><code>&lt;script setup lang=&quot;ts&quot;&gt;
 import { ref } from &#39;vue&#39;
-import { KJDraw, type KJDrawExposed, type KJWorkbenchLayout } from &#39;@kanjieteam/kjdraw/vue&#39;
+import { KJDraw, type KJDrawExposed } from &#39;@kanjieteam/kjdraw/vue&#39;
 
 const editor = ref&lt;KJDrawExposed | null&gt;(null)
-const layout = ref&lt;KJWorkbenchLayout&gt;(&#39;classic&#39;)
 
 async function moveSelection() {
   const instance = editor.value
@@ -196,9 +192,8 @@ async function moveSelection() {
 &lt;/script&gt;
 
 &lt;template&gt;
-  &lt;button @click=&quot;layout = &#39;focus&#39;&quot;&gt;Focus drawing&lt;/button&gt;
   &lt;button @click=&quot;moveSelection&quot;&gt;Move selected&lt;/button&gt;
-  &lt;KJDraw ref=&quot;editor&quot; document=&quot;sample&quot; :layout=&quot;layout&quot; style=&quot;height: 720px&quot; /&gt;
+  &lt;KJDraw ref=&quot;editor&quot; document=&quot;sample&quot; style=&quot;height: 720px&quot; /&gt;
 &lt;/template&gt;</code></pre><p><a href="../vue/"><span class="lang-en">Vue guide</span><span class="lang-zh">Vue 指南</span> →</a></p></div>
           </div>
         </section>

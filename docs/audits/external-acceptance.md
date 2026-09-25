@@ -1,5 +1,7 @@
 # Independent 1.0 candidate acceptance
 
+For a shareable Chinese tester handout, see [独立试用清单](independent-tester-checklist.zh-CN.md).
+
 This is a release gate, not a maintainer smoke test. A tester who did not contribute to the candidate uses a clean project, the candidate package artifact, and only the published instructions. The maintainer must not guide the tester during the run. A source checkout, a preview image, or a saved file without an edit/reopen cycle does not pass.
 
 The tester should start with a blank drawing, create and modify editable geometry, exercise undo/redo, save and reopen KJD, export DXF, and check at least one named geometric fact independently. Record the package tarball, KJD and DXF SHA-256 values, environment, task ID, and explicit pass/fail attestations in a JSON report matching `scripts/audits/external-acceptance-evidence.mjs`. Keep source drawings and personal details outside the repository; use an opaque tester ID.

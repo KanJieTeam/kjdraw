@@ -1,0 +1,14 @@
+// examples/cad-capability-specimens.mjs#L37-L47
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+async function dimensionsSpecimen() {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'public-dimension-specimen', units: 'millimeter' })
+  await document.transact('Create native dimensions', transaction => {
+    const style = transaction.upsertTableRecord('dimensionStyles', { id: 'public-dimension-style', name: 'PUBLIC-DIM', payload: { textHeight: 3, arrowSize: 2.5, extensionOffset: .7, extensionBeyond: 1.2, decimalPlaces: 2 } })
+    transaction.createEntity('DIMENSION', { dimensionType: 'ALIGNED', definitionPoints: [point(20, 15), point(0, 0), point(40, 0)], styleId: style.id, color: 7 }, { id: 'dimension-aligned' })
+    transaction.createEntity('DIMENSION', { dimensionType: 'RADIUS', definitionPoints: [point(65, 20), point(80, 20)], styleId: style.id, color: 7 }, { id: 'dimension-radius' })
+    transaction.createEntity('DIMENSION', { dimensionType: 'DIAMETER', definitionPoints: [point(45, 55), point(75, 55)], styleId: style.id, color: 7 }, { id: 'dimension-diameter' })
+    transaction.createEntity('DIMENSION', { dimensionType: 'ANGULAR_3_POINT', definitionPoints: [point(110, 65), point(115, 45), point(125, 55), point(105, 45)], styleId: style.id, color: 7 }, { id: 'dimension-angular' })
+  })
+  return { id: 'dimensions', title: 'Native engineering dimensions', category: 'annotations', sdk, document, layoutId: await modelSheet(sdk, document, [-10, -10, 135, 80]), facts: { dimensionTypes: ['ALIGNED', 'RADIUS', 'DIAMETER', 'ANGULAR_3_POINT'] } }
+}

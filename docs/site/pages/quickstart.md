@@ -14,10 +14,11 @@ Start with Node.js 22 or newer and a small TypeScript project:
 npm create vite@latest kjdraw-five-minute -- --template vanilla-ts
 cd kjdraw-five-minute
 npm install
+npm view @kanjieteam/kjdraw@next version
 npm install @kanjieteam/kjdraw@next
 ```
 
-The `next` tag follows the release-candidate channel. Pin an exact version when you need reproducible builds.
+These instructions use the published `next` candidate. This page also describes the 1.0.0-rc.3 source candidate. If the version printed above is older than rc.3, use the [source checkout steps](https://kanjieteam.github.io/kjdraw/docs/latest/installation/#en-installation-release-channels) before trying rc.3 features. Pin an exact published version for reproducible builds.
 
 Replace `src/main.ts` with the complete example below. The workbench injects its own component styles; the host element only needs an explicit height.
 
@@ -93,10 +94,11 @@ Continue to **React** or **Vue** for framework components, **Files** for KJD/KJP
 npm create vite@latest kjdraw-five-minute -- --template vanilla-ts
 cd kjdraw-five-minute
 npm install
+npm view @kanjieteam/kjdraw@next version
 npm install @kanjieteam/kjdraw@next
 ```
 
-`next` 指向候选版渠道；需要可复现构建时请锁定确切版本。
+以上命令安装已发布的 `next` 候选版。本页还描述 1.0.0-rc.3 源码候选版；如果上一步显示的版本早于 rc.3，使用 rc.3 功能前请按[源码构建步骤](https://kanjieteam.github.io/kjdraw/docs/latest/installation/#zh-installation-release-channels)安装。需要可复现构建时请锁定已发布的确切版本。
 
 用下面的完整示例替换 `src/main.ts`。工作台会注入自身组件样式，宿主元素只需要明确的高度。
 

@@ -16,6 +16,36 @@ export const SHOWCASE_GENERATION_SOURCES = Object.freeze([
   'scripts/lib/showcase-portal.mjs',
 ])
 
+const sourceBuilderByCase = Object.freeze({
+  'resilient-campus': 'createSample',
+  'site-plan': 'buildSitePlan',
+  'architecture-floor-plan': 'buildArchitecture',
+  'road-profile': 'buildRoadProfile',
+  'mechanical-bracket': 'buildMechanical',
+  'mechanical-flange': 'buildMechanicalFlange',
+  'borehole-log': 'buildBoreholeLog',
+  'geology-section': 'buildGeologySectionCompiled',
+  'geology-plan': 'buildGeologyPlanCompiled',
+  'editable-entities': 'geometrySpecimen',
+  'native-dimensions': 'dimensionsSpecimen',
+  'bilingual-typography': 'typographySpecimen',
+  'a4-print-layout': 'printSpecimen',
+  'dxf-import': 'importSpecimen',
+  'editing-history': 'editingSpecimen',
+  'block-references': 'blocksSpecimen',
+})
+
+function caseSourceExcerpt(source, entry) {
+  const symbol = sourceBuilderByCase[entry.id]
+  invariant(symbol, `Showcase source builder missing for ${entry.id}`)
+  const lines = source.split(/\r?\n/)
+  const declaration = new RegExp('^(?:export\\s+)?(?:async\\s+)?function\\s+' + symbol + '\\s*\\(')
+  const start = lines.findIndex(line => declaration.test(line))
+  invariant(start >= 0, `Showcase source builder ${symbol} is missing in ${entry.source}`)
+  const end = lines.findIndex((line, index) => index > start && line === '}')
+  invariant(end > start, `Showcase source builder ${symbol} has no top-level closing brace`)
+  return { symbol, startLine: start + 1, endLine: end + 1, code: lines.slice(start, end + 1).join('\n') + '\n' }
+}
 const categories = Object.freeze({
   multidisciplinary: { en: 'Multidisciplinary', zh: '多专业' },
   civil: { en: 'Civil & site', zh: '场地与土木' },
@@ -230,6 +260,9 @@ export async function buildShowcasePortal(repositoryRoot) {
     const rendered = specimen ? exportDrawingSvg(document, { layoutId: specimen.layoutId }) : null
     if (rendered) invariant(rendered.report.diagnostics.length === 0, `${entry.specimenId} SVG preview has diagnostics`)
     const thumbnail = rendered ? normalizeSpecimenPreview(rendered.svg) : renderThumbnail(document, entry)
+    const sourceExcerpt = caseSourceExcerpt(await readFile(resolve(repositoryRoot, entry.source), 'utf8'), entry)
+    const sourceSnippetPath = `showcase/assets/${entry.id}.source.txt`
+    outputs.set(sourceSnippetPath, `// ${entry.source}#L${sourceExcerpt.startLine}-L${sourceExcerpt.endLine}\n// Case builder excerpt. Shared helpers and imports: use the repository source link.\n\n${sourceExcerpt.code}`)
     const thumbnailPath = `showcase/assets/${entry.id}.svg`
     outputs.set(thumbnailPath, thumbnail)
     outputs.set(`showcase/assets/${entry.id}.kjd`, normalizeKjdArtifact(await (specimen?.sdk ?? sdk).writeDocument(document, { format: 'KJD', version: '1' })))
@@ -248,7 +281,7 @@ export async function buildShowcasePortal(repositoryRoot) {
         playground: `https://kanjieteam.github.io/kjdraw/?sample=${encodeURIComponent(entry.sampleId ?? `specimen-${entry.id}`)}`,
         detail: `./${entry.id}/`,
         preview: `./assets/${entry.id}.svg`,
-        source: `https://github.com/KanJieTeam/kjdraw/blob/main/${entry.source}`,
+        source: `https://github.com/KanJieTeam/kjdraw/blob/main/${entry.source}#L${sourceExcerpt.startLine}-L${sourceExcerpt.endLine}`, sourceSnippet: `./assets/${entry.id}.source.txt`,
       },
       artifact: {
         path: thumbnailPath,
@@ -257,6 +290,7 @@ export async function buildShowcasePortal(repositoryRoot) {
         diagnostics: rendered?.report.diagnostics.length ?? 0,
         revision: document.revision,
       },
+      sourceRange: { symbol: sourceExcerpt.symbol, startLine: sourceExcerpt.startLine, endLine: sourceExcerpt.endLine },
       thumbnail: `./assets/${entry.id}.svg`,
       thumbnailSha256: createHash('sha256').update(thumbnail).digest('hex'),
     })
@@ -285,7 +319,7 @@ function language(){html.dataset.locale=locale;html.lang=locale==='zh'?'zh-CN':'
 document.getElementById('language').onclick=()=>{locale=locale==='zh'?'en':'zh';localStorage.setItem('kjdraw.docs.language',locale);language()};language()
 function tab(showSource){source.hidden=!showSource;viewport.hidden=showSource;sourceTab.classList.toggle('active',showSource);preview.classList.toggle('active',!showSource);sourceTab.setAttribute('aria-selected',String(showSource));preview.setAttribute('aria-selected',String(!showSource))}
 preview.onclick=()=>tab(false)
-sourceTab.onclick=async()=>{tab(true);if(source.dataset.loaded)return;try{const sourcePath=document.querySelector('main.wrap').dataset.source;const response=await fetch(new URL('../../../../'+sourcePath,location.href));if(!response.ok)throw Error('Source unavailable');source.textContent=await response.text();source.dataset.loaded='true'}catch{source.textContent=locale==='zh'?'此处无法读取源码，请打开仓库源码链接。':'Source unavailable here. Open the repository source link.'}}
+sourceTab.onclick=async()=>{tab(true);if(source.dataset.loaded)return;try{const sourcePath=document.querySelector('main.wrap').dataset.sourceSnippet;const response=await fetch(new URL(sourcePath,location.href));if(!response.ok)throw Error('Source unavailable');source.textContent=await response.text();source.dataset.loaded='true'}catch{source.textContent=locale==='zh'?'此处无法读取源码，请打开仓库源码链接。':'Source unavailable here. Open the repository source link.'}}
 const frame=viewport.querySelector('iframe'),previewStatus=document.getElementById('preview-status'),previewLoading=previewStatus.querySelector('.preview-loading'),previewFailed=previewStatus.querySelector('.preview-failed')
 let pollTimer,deadlineTimer,emptyFrameTimer
 function clearPreviewTimers(){clearInterval(pollTimer);clearTimeout(deadlineTimer);clearTimeout(emptyFrameTimer)}
@@ -337,7 +371,7 @@ function renderShowcaseDetail(entry) {
 </head>
 <body>
   <header class="site"><a class="brand" href="${root}"><i>K</i>KJDraw</a><nav><a href="../">Showcase</a><a href="../../quickstart/">Docs</a><a href="../../api/">API</a></nav><div class="right"><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></div></header>
-  <main class="wrap" data-source="${escapeHtml(entry.source)}">
+  <main class="wrap" data-source-snippet="../assets/${escapeHtml(entry.id)}.source.txt">
     <div class="crumb"><a href="../">Showcase</a><span>›</span><span class="en">${escapeHtml(entry.categoryTitle.en)}</span><span class="zh">${escapeHtml(entry.categoryTitle.zh)}</span><span>›</span><span class="en">${escapeHtml(entry.title.en)}</span><span class="zh">${escapeHtml(entry.title.zh)}</span></div>
     <div class="heading"><div><p class="eyebrow"><span class="en">${escapeHtml(entry.drawingType.en)}</span><span class="zh">${escapeHtml(entry.drawingType.zh)}</span></p><h1><span class="en">${escapeHtml(entry.title.en)}</span><span class="zh">${escapeHtml(entry.title.zh)}</span></h1><p class="summary"><span class="en">${escapeHtml(entry.summary.en)}</span><span class="zh">${escapeHtml(entry.summary.zh)}</span></p><div class="meta"><span>${entry.facts.editableObjects.toLocaleString()} <span class="en">editable objects</span><span class="zh">可编辑对象</span></span><span>${entry.facts.layers} <span class="en">layers</span><span class="zh">图层</span></span><span>${escapeHtml(entry.facts.units)}</span></div></div><a href="../"><span class="en">Browse examples</span><span class="zh">浏览案例</span> →</a></div>
     <section class="workspace" aria-label="Interactive KJDraw workspace"><div class="workspace-bar"><b class="live"><span class="en">Live workspace</span><span class="zh">实时工作区</span></b><div class="links"><a href="${root}${escapeHtml(workspaceQuery)}" target="_blank" rel="noopener"><span class="en">Open Playground</span><span class="zh">打开工作台</span> ↗</a><a href="../assets/${escapeHtml(entry.id)}.kjd" download>KJD ↓</a><a href="../assets/${escapeHtml(entry.id)}.dxf" download>DXF ↓</a><button id="fullscreen" type="button"><span class="en">Fullscreen</span><span class="zh">全屏</span></button></div></div><div class="tabs" role="tablist"><button id="preview-tab" class="active" type="button" role="tab" aria-selected="true"><span class="en">Interactive drawing</span><span class="zh">交互图纸</span></button><button id="source-tab" type="button" role="tab" aria-selected="false"><span class="en">Source code</span><span class="zh">源码</span></button></div><div class="viewport" id="viewport"><div class="preview-status" id="preview-status" data-state="loading" role="status" aria-live="polite"><div class="preview-status-content"><span class="preview-status-dot" aria-hidden="true"></span><p class="preview-loading"><span class="en">Loading editable workspace…</span><span class="zh">正在载入可编辑工作区…</span></p><div class="preview-failed" hidden><p><span class="en">The workspace did not open.</span><span class="zh">工作区未能打开。</span></p><div><button id="preview-retry" type="button"><span class="en">Retry</span><span class="zh">重试</span></button><a href="${root}${escapeHtml(workspaceQuery)}" target="_blank" rel="noopener"><span class="en">Open full workspace</span><span class="zh">打开完整工作区</span> ↗</a></div></div></div></div><iframe src="${root}${escapeHtml(workspaceQuery)}" title="${escapeHtml(entry.title.en)} editable CAD workspace" loading="eager"></iframe></div><pre class="source" id="source" hidden>Loading source…</pre></section>

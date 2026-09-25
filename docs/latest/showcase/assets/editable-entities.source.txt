@@ -1,0 +1,15 @@
+// examples/cad-capability-specimens.mjs#L24-L35
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+async function geometrySpecimen() {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'public-geometry-specimen', units: 'millimeter' })
+  await document.transact('Create editable curve specimen', transaction => {
+    transaction.createEntity('LINE', { start: point(0, 0), end: point(30, 0) }, { id: 'geometry-line' })
+    transaction.createEntity('CIRCLE', { center: point(15, 20), radius: 10 }, { id: 'geometry-circle' })
+    transaction.createEntity('ARC', { center: point(45, 20), radius: 10, startAngle: 0, endAngle: Math.PI * 1.5 }, { id: 'geometry-arc' })
+    transaction.createEntity('ELLIPSE', { center: point(75, 20), majorAxis: point(14, 0), ratio: .5, startParameter: 0, endParameter: Math.PI * 2 }, { id: 'geometry-ellipse' })
+    transaction.createEntity('LWPOLYLINE', { vertices: [point(0, 45), point(25, 45), point(30, 60), point(5, 65)], closed: true }, { id: 'geometry-polyline' })
+    transaction.createEntity('HATCH', { boundaryLoops: [{ vertices: [point(45, 45), point(80, 45), point(80, 65), point(45, 65)] }], patternName: 'ANSI31', patternScale: 2 }, { id: 'geometry-hatch' })
+  })
+  return { id: 'geometry', title: 'Editable 2D entities', category: 'entities', sdk, document, layoutId: await modelSheet(sdk, document), facts: { entityTypes: ['LINE', 'CIRCLE', 'ARC', 'ELLIPSE', 'LWPOLYLINE', 'HATCH'] } }
+}

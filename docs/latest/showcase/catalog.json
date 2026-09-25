@@ -135,7 +135,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-resilient-campus",
         "detail": "./resilient-campus/",
         "preview": "./assets/resilient-campus.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/sample.js"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/sample.js#L4-L159",
+        "sourceSnippet": "./assets/resilient-campus.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/resilient-campus.svg",
@@ -143,6 +144,11 @@
         "renderedEntities": 2294,
         "diagnostics": 0,
         "revision": 13
+      },
+      "sourceRange": {
+        "symbol": "createSample",
+        "startLine": 4,
+        "endLine": 159
       },
       "thumbnail": "./assets/resilient-campus.svg",
       "thumbnailSha256": "c9d1f6dfd70a901822778b92a38f53bfe8067f08a441926fe6455a0a02936196"
@@ -201,7 +207,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-site-plan",
         "detail": "./site-plan/",
         "preview": "./assets/site-plan.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts#L140-L163",
+        "sourceSnippet": "./assets/site-plan.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/site-plan.svg",
@@ -209,6 +216,11 @@
         "renderedEntities": 267,
         "diagnostics": 0,
         "revision": 11
+      },
+      "sourceRange": {
+        "symbol": "buildSitePlan",
+        "startLine": 140,
+        "endLine": 163
       },
       "thumbnail": "./assets/site-plan.svg",
       "thumbnailSha256": "6db299d851e7d41814f5ce0d7b4a57eaf94368a5809eadfe003ca9b43cc74cba"
@@ -268,7 +280,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-architecture",
         "detail": "./architecture-floor-plan/",
         "preview": "./assets/architecture-floor-plan.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts#L169-L213",
+        "sourceSnippet": "./assets/architecture-floor-plan.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/architecture-floor-plan.svg",
@@ -276,6 +289,11 @@
         "renderedEntities": 322,
         "diagnostics": 0,
         "revision": 11
+      },
+      "sourceRange": {
+        "symbol": "buildArchitecture",
+        "startLine": 169,
+        "endLine": 213
       },
       "thumbnail": "./assets/architecture-floor-plan.svg",
       "thumbnailSha256": "052b41167a43e0d4e6f2c496cb4db53edf470ca7fc8c55d4f3ffd8a3c5879721"
@@ -334,7 +352,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-road-profile",
         "detail": "./road-profile/",
         "preview": "./assets/road-profile.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts#L219-L235",
+        "sourceSnippet": "./assets/road-profile.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/road-profile.svg",
@@ -342,6 +361,11 @@
         "renderedEntities": 112,
         "diagnostics": 0,
         "revision": 10
+      },
+      "sourceRange": {
+        "symbol": "buildRoadProfile",
+        "startLine": 219,
+        "endLine": 235
       },
       "thumbnail": "./assets/road-profile.svg",
       "thumbnailSha256": "d387121ebbfe44cab90eda248d2430284e40f130bcd593936905ef8403f49a87"
@@ -401,7 +425,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-mechanical",
         "detail": "./mechanical-bracket/",
         "preview": "./assets/mechanical-bracket.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts#L240-L258",
+        "sourceSnippet": "./assets/mechanical-bracket.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/mechanical-bracket.svg",
@@ -409,6 +434,11 @@
         "renderedEntities": 105,
         "diagnostics": 0,
         "revision": 9
+      },
+      "sourceRange": {
+        "symbol": "buildMechanical",
+        "startLine": 240,
+        "endLine": 258
       },
       "thumbnail": "./assets/mechanical-bracket.svg",
       "thumbnailSha256": "d1d891b7a24924c7296b075bf4871477aeeda78ea80944ee1e3ecaf4450183ea"
@@ -465,7 +495,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-mechanical-flange",
         "detail": "./mechanical-flange/",
         "preview": "./assets/mechanical-flange.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts#L328-L362",
+        "sourceSnippet": "./assets/mechanical-flange.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/mechanical-flange.svg",
@@ -473,6 +504,11 @@
         "renderedEntities": 85,
         "diagnostics": 0,
         "revision": 8
+      },
+      "sourceRange": {
+        "symbol": "buildMechanicalFlange",
+        "startLine": 328,
+        "endLine": 362
       },
       "thumbnail": "./assets/mechanical-flange.svg",
       "thumbnailSha256": "c164e12afd16ce9a8dfa05d95d8d11a9509cc4fa736d06ef50cffc29e9905069"
@@ -528,7 +564,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-borehole-log",
         "detail": "./borehole-log/",
         "preview": "./assets/borehole-log.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts#L264-L278",
+        "sourceSnippet": "./assets/borehole-log.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/borehole-log.svg",
@@ -536,6 +573,11 @@
         "renderedEntities": 149,
         "diagnostics": 0,
         "revision": 1
+      },
+      "sourceRange": {
+        "symbol": "buildBoreholeLog",
+        "startLine": 264,
+        "endLine": 278
       },
       "thumbnail": "./assets/borehole-log.svg",
       "thumbnailSha256": "30cd03be3e1e666d066ba87eb62dc79e7c2b33fd3b7f1891383775189eb6e8da"
@@ -592,7 +634,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-geology-section",
         "detail": "./geology-section/",
         "preview": "./assets/geology-section.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts#L284-L309",
+        "sourceSnippet": "./assets/geology-section.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/geology-section.svg",
@@ -600,6 +643,11 @@
         "renderedEntities": 252,
         "diagnostics": 0,
         "revision": 9
+      },
+      "sourceRange": {
+        "symbol": "buildGeologySectionCompiled",
+        "startLine": 284,
+        "endLine": 309
       },
       "thumbnail": "./assets/geology-section.svg",
       "thumbnailSha256": "835ad572a735451c96c41e517bd9dca1a6880f40295c21b5a0b8387dd3a3b1a2"
@@ -656,7 +704,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-geology-plan",
         "detail": "./geology-plan/",
         "preview": "./assets/geology-plan.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts#L311-L324",
+        "sourceSnippet": "./assets/geology-plan.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/geology-plan.svg",
@@ -664,6 +713,11 @@
         "renderedEntities": 56,
         "diagnostics": 0,
         "revision": 1
+      },
+      "sourceRange": {
+        "symbol": "buildGeologyPlanCompiled",
+        "startLine": 311,
+        "endLine": 324
       },
       "thumbnail": "./assets/geology-plan.svg",
       "thumbnailSha256": "2ea1fb44f45045fba5519c28bc375c2ba3225d3eb917b55b1bbf24d66913c9f5"
@@ -721,7 +775,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-editable-entities",
         "detail": "./editable-entities/",
         "preview": "./assets/editable-entities.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L24-L35",
+        "sourceSnippet": "./assets/editable-entities.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/editable-entities.svg",
@@ -729,6 +784,11 @@
         "renderedEntities": 6,
         "diagnostics": 0,
         "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "geometrySpecimen",
+        "startLine": 24,
+        "endLine": 35
       },
       "thumbnail": "./assets/editable-entities.svg",
       "thumbnailSha256": "7fb7fef41392cb867507b58d1acf2a86912cce7ac6f0f76d5c3ef457dc25283e"
@@ -787,7 +847,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-native-dimensions",
         "detail": "./native-dimensions/",
         "preview": "./assets/native-dimensions.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L37-L47",
+        "sourceSnippet": "./assets/native-dimensions.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/native-dimensions.svg",
@@ -795,6 +856,11 @@
         "renderedEntities": 4,
         "diagnostics": 0,
         "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "dimensionsSpecimen",
+        "startLine": 37,
+        "endLine": 47
       },
       "thumbnail": "./assets/native-dimensions.svg",
       "thumbnailSha256": "01ee1b899565b27aa06468f952d3a9d83d000e2c1e7c68938c823b10616f26f7"
@@ -850,7 +916,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-bilingual-typography",
         "detail": "./bilingual-typography/",
         "preview": "./assets/bilingual-typography.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L49-L57",
+        "sourceSnippet": "./assets/bilingual-typography.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/bilingual-typography.svg",
@@ -858,6 +925,11 @@
         "renderedEntities": 2,
         "diagnostics": 0,
         "revision": 3
+      },
+      "sourceRange": {
+        "symbol": "typographySpecimen",
+        "startLine": 49,
+        "endLine": 57
       },
       "thumbnail": "./assets/bilingual-typography.svg",
       "thumbnailSha256": "2e372f418097089f415d9d8970bee07ed0565da6bab55d7b12a1973d8b45b574"
@@ -915,7 +987,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-a4-print-layout",
         "detail": "./a4-print-layout/",
         "preview": "./assets/a4-print-layout.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L59-L71",
+        "sourceSnippet": "./assets/a4-print-layout.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/a4-print-layout.svg",
@@ -923,6 +996,11 @@
         "renderedEntities": 3,
         "diagnostics": 0,
         "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "printSpecimen",
+        "startLine": 59,
+        "endLine": 71
       },
       "thumbnail": "./assets/a4-print-layout.svg",
       "thumbnailSha256": "0a092139bed00a4236c0a45be48686b1f58d44850c77ffaa1ce56a03b681bc86"
@@ -987,7 +1065,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-dxf-import",
         "detail": "./dxf-import/",
         "preview": "./assets/dxf-import.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L73-L82",
+        "sourceSnippet": "./assets/dxf-import.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/dxf-import.svg",
@@ -995,6 +1074,11 @@
         "renderedEntities": 3,
         "diagnostics": 0,
         "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "importSpecimen",
+        "startLine": 73,
+        "endLine": 82
       },
       "thumbnail": "./assets/dxf-import.svg",
       "thumbnailSha256": "027e895d0efb4d872bdd25e4a1f06ccf351bbaa90cefb20b11743ca34a9a3b11"
@@ -1063,7 +1147,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-editing-history",
         "detail": "./editing-history/",
         "preview": "./assets/editing-history.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L84-L97",
+        "sourceSnippet": "./assets/editing-history.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/editing-history.svg",
@@ -1071,6 +1156,11 @@
         "renderedEntities": 1,
         "diagnostics": 0,
         "revision": 5
+      },
+      "sourceRange": {
+        "symbol": "editingSpecimen",
+        "startLine": 84,
+        "endLine": 97
       },
       "thumbnail": "./assets/editing-history.svg",
       "thumbnailSha256": "b1a40962c277dec4e57f139db7f5d62bd1185ae625900cda67f7194a71654059"
@@ -1126,7 +1216,8 @@
         "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-block-references",
         "detail": "./block-references/",
         "preview": "./assets/block-references.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs"
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/cad-capability-specimens.mjs#L99-L108",
+        "sourceSnippet": "./assets/block-references.source.txt"
       },
       "artifact": {
         "path": "showcase/assets/block-references.svg",
@@ -1134,6 +1225,11 @@
         "renderedEntities": 6,
         "diagnostics": 0,
         "revision": 7
+      },
+      "sourceRange": {
+        "symbol": "blocksSpecimen",
+        "startLine": 99,
+        "endLine": 108
       },
       "thumbnail": "./assets/block-references.svg",
       "thumbnailSha256": "4f92bce9193b9753a149fde48fe569edd661559712ba8d2b9e1846ecf3464382"
