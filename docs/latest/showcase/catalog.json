@@ -14,6 +14,7 @@
     "examples/curated-civil-sheets.mjs",
     "examples/curated-machine-components.mjs",
     "examples/curated-infrastructure-sheets.mjs",
+    "examples/curated-geology-sheets.mjs",
     "docs/site/showcase/curated.json"
   ],
   "categories": [
@@ -64,6 +65,14 @@
         "zh": "机械"
       },
       "count": 10
+    },
+    {
+      "id": "geology",
+      "title": {
+        "en": "Geology & surveying",
+        "zh": "地质与勘察"
+      },
+      "count": 3
     },
     {
       "id": "core-capabilities",
@@ -1885,6 +1894,255 @@
       },
       "thumbnail": "./assets/bridge-pier.svg",
       "thumbnailSha256": "c708e640233366d426ae1923bb4012cb0e3d0e78e57012dd9e22f8ca0b92d2dd"
+    },
+    {
+      "id": "borehole-log-sheet",
+      "kind": "specimen",
+      "specimenId": "borehole-log-sheet",
+      "category": "geology",
+      "title": {
+        "en": "Borehole log",
+        "zh": "钻孔柱状图"
+      },
+      "drawingType": {
+        "en": "Borehole log",
+        "zh": "钻孔柱状图"
+      },
+      "summary": {
+        "en": "A 30 m synthetic log with six strata, native lithology hatches and a correctly positioned 18.4 m groundwater mark.",
+        "zh": "30 米虚构钻孔，含六层地层、原生岩性填充及按 18.4 米深度准确定位的地下水位。"
+      },
+      "tags": {
+        "en": [
+          "borehole",
+          "lithology",
+          "groundwater",
+          "hatch"
+        ],
+        "zh": [
+          "钻孔",
+          "岩性",
+          "地下水",
+          "填充"
+        ]
+      },
+      "source": "examples/curated-geology-sheets.mjs",
+      "categoryTitle": {
+        "en": "Geology & surveying",
+        "zh": "地质与勘察"
+      },
+      "facts": {
+        "boreholeIds": [
+          "ZK03"
+        ],
+        "depthMeters": 30,
+        "stableWaterDepth": 18.4,
+        "collarElevation": 299.85,
+        "stratumCount": 6,
+        "hatchCount": 12,
+        "waterY": 139,
+        "topY": 231,
+        "bottomY": 81,
+        "millimetresPerMetre": 5,
+        "illustrative": true,
+        "measuredData": false,
+        "editableObjects": 77,
+        "layers": 7,
+        "units": "millimeter",
+        "entityTypes": {
+          "HATCH": 12,
+          "LINE": 15,
+          "LWPOLYLINE": 8,
+          "TEXT": 42
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-borehole-log-sheet",
+        "detail": "./borehole-log-sheet/",
+        "preview": "./assets/borehole-log-sheet.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-geology-sheets.mjs#L122-L140",
+        "sourceSnippet": "./assets/borehole-log-sheet.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/borehole-log-sheet.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 77,
+        "diagnostics": 0,
+        "revision": 3
+      },
+      "sourceRange": {
+        "symbol": "boreholeLogSheet",
+        "startLine": 122,
+        "endLine": 140
+      },
+      "thumbnail": "./assets/borehole-log-sheet.svg",
+      "thumbnailSha256": "392ce7d0c7910336cb34b64286730f6dc18995866e57b1ae27684744cfc00888"
+    },
+    {
+      "id": "geological-section-sheet",
+      "kind": "specimen",
+      "specimenId": "geological-section-sheet",
+      "category": "geology",
+      "title": {
+        "en": "Geological section",
+        "zh": "工程地质剖面图"
+      },
+      "drawingType": {
+        "en": "Geological section",
+        "zh": "地质剖面图"
+      },
+      "summary": {
+        "en": "A synthetic five-borehole section with varying layer boundaries, correlated strata and native hatches.",
+        "zh": "五孔虚构工程地质剖面，展示变化的层界、地层对比与原生花纹填充。"
+      },
+      "tags": {
+        "en": [
+          "section",
+          "boreholes",
+          "strata",
+          "hatch"
+        ],
+        "zh": [
+          "剖面",
+          "钻孔",
+          "地层",
+          "花纹"
+        ]
+      },
+      "source": "examples/curated-geology-sheets.mjs",
+      "categoryTitle": {
+        "en": "Geology & surveying",
+        "zh": "地质与勘察"
+      },
+      "facts": {
+        "boreholeIds": [
+          "ZK01",
+          "ZK02",
+          "ZK03",
+          "ZK04",
+          "ZK05"
+        ],
+        "depthMeters": 30,
+        "horizontalScaleDenominator": 500,
+        "verticalScaleDenominator": 200,
+        "hatchCount": 54,
+        "correlationCount": 24,
+        "illustrative": true,
+        "measuredData": false,
+        "editableObjects": 286,
+        "layers": 6,
+        "units": "millimeter",
+        "entityTypes": {
+          "HATCH": 54,
+          "LINE": 120,
+          "LWPOLYLINE": 10,
+          "TEXT": 102
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-geological-section-sheet",
+        "detail": "./geological-section-sheet/",
+        "preview": "./assets/geological-section-sheet.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-geology-sheets.mjs#L142-L169",
+        "sourceSnippet": "./assets/geological-section-sheet.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/geological-section-sheet.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 286,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "geologicalSectionSheet",
+        "startLine": 142,
+        "endLine": 169
+      },
+      "thumbnail": "./assets/geological-section-sheet.svg",
+      "thumbnailSha256": "e8453b2cc876afbfd0b4669645a3532843ba0c287564286bf3f0697d6835bd37"
+    },
+    {
+      "id": "investigation-point-plan",
+      "kind": "specimen",
+      "specimenId": "investigation-point-plan",
+      "category": "geology",
+      "title": {
+        "en": "Investigation-point plan",
+        "zh": "勘探点平面图"
+      },
+      "drawingType": {
+        "en": "Site investigation plan",
+        "zh": "勘探点平面图"
+      },
+      "summary": {
+        "en": "A synthetic five-point layout with site boundary, buildings, access road, coordinate grid and A–A′ section line.",
+        "zh": "五孔虚构场地平面图，包含场地边界、建筑、道路、坐标网及 A—A′ 剖面线。"
+      },
+      "tags": {
+        "en": [
+          "investigation",
+          "boreholes",
+          "site",
+          "plan"
+        ],
+        "zh": [
+          "勘探",
+          "钻孔",
+          "场地",
+          "平面"
+        ]
+      },
+      "source": "examples/curated-geology-sheets.mjs",
+      "categoryTitle": {
+        "en": "Geology & surveying",
+        "zh": "地质与勘察"
+      },
+      "facts": {
+        "boreholeIds": [
+          "ZK01",
+          "ZK02",
+          "ZK03",
+          "ZK04",
+          "ZK05"
+        ],
+        "depthMeters": 30,
+        "scaleDenominator": 500,
+        "buildingFootprintCount": 2,
+        "roadPathCount": 2,
+        "coordinateGridSpacingMeters": 20,
+        "illustrative": true,
+        "measuredData": false,
+        "editableObjects": 66,
+        "layers": 11,
+        "units": "meter",
+        "entityTypes": {
+          "CIRCLE": 5,
+          "LINE": 29,
+          "LWPOLYLINE": 5,
+          "TEXT": 27
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-investigation-point-plan",
+        "detail": "./investigation-point-plan/",
+        "preview": "./assets/investigation-point-plan.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-geology-sheets.mjs#L171-L224",
+        "sourceSnippet": "./assets/investigation-point-plan.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/investigation-point-plan.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 67,
+        "diagnostics": 0,
+        "revision": 3
+      },
+      "sourceRange": {
+        "symbol": "investigationPointPlanSheet",
+        "startLine": 171,
+        "endLine": 224
+      },
+      "thumbnail": "./assets/investigation-point-plan.svg",
+      "thumbnailSha256": "4ec4fdf040fcc56e511a718adc4c6d0522740194f68e7a750f81f7a6355d29f2"
     },
     {
       "id": "editable-entities",

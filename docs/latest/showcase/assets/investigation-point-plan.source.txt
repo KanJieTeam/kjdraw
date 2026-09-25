@@ -1,0 +1,57 @@
+// examples/curated-geology-sheets.mjs#L171-L224
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+export async function investigationPointPlanSheet() {
+  const id = 'investigation-point-plan', title = 'Investigation-point plan'
+  const { sdk, document } = await createDocument(id, title, 'meter')
+  const input = {
+    version: '1.0.0', expectedRevision: document.revision, units: 'meter', locale: 'en',
+    drawingId: 'GEO-PLAN-01',
+    title: 'INVESTIGATION-POINT PLAN / SYNTHETIC, NOT MEASURED',
+    scale: 500,
+    boundary: [[970, 972], [1116, 970], [1130, 1005], [1114, 1047], [977, 1048], [962, 1012]],
+    boreholes: HOLE_IDS.map((holeId, i) => ({
+      id: holeId, position: [1000 + i * 25, 1000], collarElevation: COLLARS[i], depth: 30, kind: 'borehole',
+    })),
+    sectionLines: [{ id: 'SECTION-A', holeIds: [...HOLE_IDS], label: 'A-A\u2032', endpointLabels: ['A', 'A\u2032'] }],
+    coordinateGrid: { origin: [960, 960], spacing: 20 }, northAngleDegrees: 0,
+    buildingFootprints: [
+      { id: 'NORTH-BLOCK-1', outline: [[990, 1020], [1030, 1020], [1030, 1039], [990, 1039]] },
+      { id: 'NORTH-BLOCK-2', outline: [[1052, 1020], [1097, 1020], [1097, 1038], [1052, 1038]] },
+    ],
+    roadPaths: [
+      { id: 'SOUTH-ACCESS-EDGE', start: [981, 985], segments: [
+        { kind: 'line', end: [1030, 985] },
+        { kind: 'line', end: [1080, 984] },
+        { kind: 'line', end: [1110, 986] },
+      ] },
+      { id: 'NORTH-ACCESS-EDGE', start: [981, 991], segments: [
+        { kind: 'line', end: [1030, 991] },
+        { kind: 'line', end: [1080, 990] },
+        { kind: 'line', end: [1110, 992] },
+      ] },
+    ],
+  }
+  const compiled = buildAgentGeologyPlan(document, input)
+  await sdk.executeCommand('CREATEBATCH', structuredClone(compiled.commandArgs), { document })
+  const paperSpaceId = compiled.commandArgs.layout.blockRecordId
+  await document.transact('Complete the editable A3 paper frame', tx => {
+    const linetypeId = tx.upsertTableRecord('linetypes', {
+      name: 'GEO_FRAME_CONTINUOUS', type: 'LINETYPE', payload: { patternSegments: [] },
+    }).id
+    const layerId = tx.upsertTableRecord('layers', {
+      name: 'GEO_SHEET_FRAME', type: 'LAYER',
+      payload: { color: 7, trueColor: 0xc7d5d9, linetypeId, visible: true, plottable: true },
+    }).id
+    tx.createEntity('LWPOLYLINE', {
+      vertices: [[15, 30, 0], [390, 30, 0], [390, 260, 0], [15, 260, 0]],
+      closed: true, layerId,
+    }, { id: 'geology-plan-paper-frame', ownerId: paperSpaceId })
+  })
+  await setPaper(sdk, document, 420, 297)
+  return finish(id, title, sdk, document, {
+    boreholeIds: [...HOLE_IDS], depthMeters: 30, scaleDenominator: 500,
+    buildingFootprintCount: input.buildingFootprints.length,
+    roadPathCount: input.roadPaths.length, coordinateGridSpacingMeters: 20,
+  }, compiled.commandArgs.layout.name)
+}
