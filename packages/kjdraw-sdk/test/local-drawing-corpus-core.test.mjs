@@ -186,6 +186,38 @@ test('strict polyline regression retains non-closure DXF flags through reopen', 
     assert.equal(comparison.categoryCounts.geometry ?? 0, 0, `${format}: ${JSON.stringify(comparison.differences)}`)
   }
 })
+test('strict geology regression detects hatch island mode and gradient differences without exposing their values', async () => {
+  const make = async tags => {
+    const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+    await document.transact('Synthetic lithology hatch', tx => tx.createEntity('HATCH', {
+      solid: true, patternName: 'SOLID', boundaryLoops: [{ external: true, vertices: [[0, 0], [10, 0], [10, 10], [0, 10]] }],
+      ...(tags ? { rawTags: tags } : {}),
+    }, { id: 'lithology-hatch' }))
+    return document
+  }
+  const gradient = color => [
+    { code: 75, value: '1' }, { code: 76, value: '1' },
+    { code: 450, value: '1' }, { code: 451, value: '0' }, { code: 460, value: '0' },
+    { code: 461, value: '0' }, { code: 452, value: '0' }, { code: 462, value: '0' },
+    { code: 453, value: '1' }, { code: 463, value: '0' }, { code: 421, value: String(color) },
+    { code: 470, value: 'LINEAR' },
+  ]
+  const source = await make(gradient(255)), reference = createCanonicalFeatureSummary(source, { salt })
+  const same = createCanonicalFeatureSummary(await make(gradient(255)), { salt })
+  assert.equal(compareCanonicalFeatureSummaries(reference, same).passed, true)
+  for (const tags of [gradient(65280), gradient(255).map(tag => tag.code === 75 ? { ...tag, value: '0' } : tag), null]) {
+    const comparison = compareCanonicalFeatureSummaries(reference, createCanonicalFeatureSummary(await make(tags), { salt }))
+    assert.equal(comparison.passed, false)
+    assert.ok(comparison.categoryCounts.geometry > 0)
+    assert.equal(JSON.stringify(comparison).includes('LINEAR'), false, 'gradient source text must stay private')
+  }
+  const sdk = createKJDrawSDK()
+  const kjd = await sdk.readDocument(await sdk.writeDocument(source, { format: 'KJD' }), { format: 'KJD' })
+  assert.equal(compareCanonicalFeatureSummaries(reference, createCanonicalFeatureSummary(kjd, { salt })).categoryCounts.geometry ?? 0, 0)
+  const plain = await make(null), plainSummary = createCanonicalFeatureSummary(plain, { salt })
+  const dxf = await sdk.readDocument(await sdk.writeDocument(plain, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  assert.equal(compareCanonicalFeatureSummaries(plainSummary, createCanonicalFeatureSummary(dxf, { salt })).categoryCounts.geometry ?? 0, 0)
+})
 test('DXF imports of identical bytes ignore transient resource IDs but retain block and layer differences', async () => {
   const sdk = createKJDrawSDK()
   const encoded = async (blockName, color) => {

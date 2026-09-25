@@ -3,7 +3,7 @@ import { createHash, createHmac } from 'node:crypto'
 import { displayedEntityBounds } from '../../packages/kjdraw-sdk/src/selection-geometry.js'
 
 export const KJDRAW_LOCAL_CORPUS_SCHEMA = 'com.kanjie.kjdraw.local-drawing-corpus-manifest@3'
-export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@6'
+export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@7'
 export const KJDRAW_FEATURE_COMPARISON_SCHEMA = 'com.kanjie.kjdraw.feature-comparison@2'
 
 const textTypes = new Set(['TEXT', 'MTEXT', 'ATTRIB', 'ATTDEF'])
@@ -74,6 +74,27 @@ function hatchValue(value, tolerance) {
   return String(value)
 }
 
+function hatchDxfPresentation(source, tolerance) {
+  const tags = Array.isArray(source.rawTags) ? source.rawTags : []
+  const lastNumber = (code, fallback) => {
+    const tag = tags.findLast(item => item?.code === code)
+    if (!tag) return fallback
+    const value = Number(tag.value)
+    return finite(value) ? rounded(value, tolerance) : 'invalid'
+  }
+  const gradientStart = tags.findIndex(tag => tag?.code === 450)
+  const gradientCodes = new Set([450, 451, 452, 453, 460, 461, 462, 463, 63, 421, 470])
+  const gradientNumber = tag => {
+    const value = Number(tag.value)
+    return finite(value) ? rounded(value, tolerance) : 'invalid'
+  }
+  const gradient = gradientStart < 0 ? null : tags.slice(gradientStart)
+    .filter(tag => gradientCodes.has(tag?.code))
+    .map(tag => ({ code: tag.code, value: tag.code === 470 ? String(tag.value) : gradientNumber(tag) }))
+  return {
+    hatchStyle: lastNumber(75, 0), patternType: lastNumber(76, 1), patternDouble: lastNumber(77, 0), gradient,
+  }
+}
 function hatchLoopValue(loop, tolerance) {
   const value = hatchValue(loop, tolerance)
   if (value && typeof value === 'object' && !Array.isArray(value) && Number.isSafeInteger(value.flags)) {
@@ -140,6 +161,7 @@ function geometryOf(document, entity, tolerance) {
     patternAngle: finite(source.patternAngle) ? rounded(source.patternAngle, tolerance) : null,
     patternLines: Array.isArray(source.patternLines) ? hatchValue(source.patternLines, tolerance) : null,
     boundaryLoops: Array.isArray(source.boundaryLoops) ? source.boundaryLoops.map(loop => hatchLoopValue(loop, tolerance)) : null,
+    dxfPresentation: hatchDxfPresentation(source, tolerance),
   }
   if (entity.type === 'DIMENSION') return pick('dimensionType', 'definitionPoints', 'measurement', 'textOverride')
   return null
