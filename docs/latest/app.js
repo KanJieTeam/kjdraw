@@ -1,7 +1,7 @@
 const html=document.documentElement
 const docsRoot=html.dataset.docsRoot||'./'
 const docsBase=new URL(docsRoot,location.href)
-const searchRevision="2237133473eb3c19"
+const searchRevision="e86bcedb8b6d96ab"
 const languageButton=document.getElementById('language')
 const searchButton=document.getElementById('search-button')
 const dialog=document.getElementById('search-dialog')

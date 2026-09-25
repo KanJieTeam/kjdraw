@@ -50,12 +50,14 @@ test('Showcase case detail opens a real editable workspace instead of a raw SVG'
   await expect(page.locator('.provenance a')).toHaveAttribute('href', /github.com\/KanJieTeam\/kjdraw\/blob\/main\//)
   await expect(page.locator('.facts span').first()).toBeVisible()
   await expect(page.frameLocator('iframe').locator('.workbench')).toHaveAttribute('data-demo-state', 'ready', { timeout: 30000 })
+  await expect(page.locator('#preview-status')).toBeHidden()
   await page.locator('#source-tab').click()
   await expect(page.locator('#source')).toContainText('createIndustrySamples')
 
   await page.goto('/docs/latest/showcase/editable-entities/')
   await expect(page.locator('.viewport iframe')).toHaveAttribute('src', '../../../../?sample=specimen-editable-entities&layout=focus')
   await expect(page.frameLocator('iframe').locator('.workbench')).toHaveAttribute('data-demo-state', 'ready', { timeout: 30000 })
+  await expect(page.locator('#preview-status')).toBeHidden()
   await expect(page.frameLocator('iframe').locator('#layout-select')).toHaveValue('focus')
 
   await page.goto('/docs/latest/showcase/a4-print-layout/')
@@ -85,6 +87,23 @@ test('Showcase case detail opens a real editable workspace instead of a raw SVG'
   await expect(paper.locator('#status')).toContainText('MOVE committed')
 })
 
+test('Showcase detail reports a failed workspace and recovers on retry', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'One Chromium journey covers the detail loading state')
+  let failFirstLoad = true
+  await page.route(/\/\?sample=sample-mechanical&layout=focus$/, route => failFirstLoad
+    ? route.fulfill({ status: 503, contentType: 'text/plain', body: 'Temporarily unavailable' })
+    : route.continue())
+  await page.goto('/docs/latest/showcase/mechanical-bracket/')
+  const status = page.locator('#preview-status')
+  await expect(status).toBeVisible()
+  await expect(status).toHaveAttribute('data-state', 'error', { timeout: 10000 })
+  await expect(status.locator('.preview-failed')).toBeVisible()
+  await expect(status.locator('a')).toHaveAttribute('href', '../../../../?sample=sample-mechanical&layout=focus')
+  failFirstLoad = false
+  await page.locator('#preview-retry').click()
+  await expect(page.frameLocator('iframe').locator('.workbench')).toHaveAttribute('data-demo-state', 'ready', { timeout: 30000 })
+  await expect(status).toBeHidden()
+})
 test('390px Showcase keeps category navigation compact and opens a case detail', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'One Chromium journey covers mobile Showcase navigation')
   await page.setViewportSize({ width: 390, height: 900 })
