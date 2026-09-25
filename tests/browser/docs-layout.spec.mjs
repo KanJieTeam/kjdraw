@@ -27,7 +27,8 @@ test('documentation home follows the model-led product story without embedding t
   await expect(page.locator('.top-links a[href*="github.com/KanJieTeam/kjdraw"]')).toBeVisible()
   await expect(page.locator('#sidebar')).toBeHidden()
   await expect(page.locator('.toc')).toBeHidden()
-  await expect(page.locator('article.lang-en .home-hero h1')).toContainText('One editable model')
+  await expect(page.locator('article.lang-en .home-hero h1 > .lang-en')).toHaveText('Open-source engineering CAD')
+  await expect(page.locator('article.lang-en .home-promise > .lang-en')).toContainText('One editable model')
   await expect(page.locator('article.lang-en .home-actions a.primary').first()).toBeVisible()
   await expect(page.locator('article.lang-en .home-visual img')).toBeVisible()
   await expect(page.locator('article.lang-en .home-live-frame iframe')).toHaveCount(0)
@@ -50,7 +51,8 @@ test('documentation home follows the model-led product story without embedding t
 
   await page.locator('#language').click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
-  await expect(page.locator('article.lang-zh .home-hero h1')).toContainText('一份可编辑图档')
+  await expect(page.locator('article.lang-zh .home-hero h1 > .lang-zh')).toHaveText('开源工程 CAD')
+  await expect(page.locator('article.lang-zh .home-promise > .lang-zh')).toContainText('一份可编辑图档')
   await expectNoHorizontalOverflow(page)
 
   await page.setViewportSize({ width: 390, height: 844 })
