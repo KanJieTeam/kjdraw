@@ -45,6 +45,56 @@ test('engineering column expands stratigraphy into physical A4 frame, elevations
   assert.match(svg.svg, /LITHOLOGY LEGEND/)
 })
 
+test('column style drawing origin translates geometry without changing facts, layers or layouts', async () => {
+  const pack = validateKnowledgePack({ schema: 'kjdraw.knowledge-pack.v1', id: 'geo-origin-test', version: '1.0.0',
+    title: 'Synthetic origin fixture', domain: 'geology',
+    license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'layout', title: 'Synthetic origin fixture', license: 'MIT', contentHash: 'a'.repeat(64) }],
+    ontology: { objectKinds: ['borehole-log'], relationKinds: [] },
+    rules: { 'geology-column-layout': { paperWidth: 210, paperHeight: 297, left: 15, right: 195,
+      columns: [32, 51, 67, 92, 147] } } })
+  const source = { hole: hole('SYNTHETIC-ORIGIN', 0, 105.25), expectedRevision: 0 }
+  const baseline = compileGeologyColumn({ ...source, columnStylePack: pack })
+  const offset = [240, -85]
+  const shiftedPack = structuredClone(pack)
+  shiftedPack.rules['geology-column-layout'].drawingOrigin = offset
+  const shifted = compileGeologyColumn({ ...source, columnStylePack: shiftedPack })
+  assert.equal(shifted.evidence.entityCount, baseline.evidence.entityCount)
+  assert.equal(shifted.evidence.parameters.stratumCount, baseline.evidence.parameters.stratumCount)
+  assert.equal(shifted.evidence.parameters.lithologyCount, baseline.evidence.parameters.lithologyCount)
+  const pointPairs = (a, b) => {
+    if (a.type === 'LINE') return [[a.payload.start, b.payload.start], [a.payload.end, b.payload.end]]
+    if (a.type === 'TEXT' || a.type === 'MTEXT') return [[a.payload.position, b.payload.position]]
+    if (a.type === 'CIRCLE') return [[a.payload.center, b.payload.center]]
+    if (a.type === 'LWPOLYLINE') return a.payload.vertices.map((point, index) => [point, b.payload.vertices[index]])
+    if (a.type === 'HATCH') return a.payload.boundaryLoops.flatMap((loop, index) =>
+      loop.vertices.map((point, vertexIndex) => [point, b.payload.boundaryLoops[index].vertices[vertexIndex]]))
+    throw new Error(`Unverified translated entity type: ${a.type}`)
+  }
+  for (const [index, before] of baseline.commandArgs.entities.entries()) {
+    const after = shifted.commandArgs.entities[index]
+    assert.equal(after.type, before.type)
+    for (const [a, b] of pointPairs(before, after)) {
+      assert.ok(Math.abs(b[0] - a[0] - offset[0]) < 1e-8)
+      assert.ok(Math.abs(b[1] - a[1] - offset[1]) < 1e-8)
+    }
+  }
+  const sdk = createKJDrawSDK()
+  for (const format of ['KJD', 'DXF']) {
+    const drawing = sdk.createDocument({ units: 'millimeter' })
+    await sdk.executeCommand('CREATEBATCH', shifted.commandArgs, { document: drawing })
+    const reopened = await sdk.readDocument(await sdk.writeDocument(drawing, { format, ...(format === 'DXF' ? { version: '2018' } : {}) }), { format })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities().length, shifted.evidence.entityCount)
+    assert.equal(reopened.getTable('layers').records.filter(layer => layer.name.startsWith('GEO_')).length, 5)
+    assert.equal(reopened.snapshot().spaces.layoutIds.length, drawing.snapshot().spaces.layoutIds.length)
+  }
+  for (const bad of [[1], [0, 0, 0], [Infinity, 0], [1e10, 0]]) {
+    const invalid = structuredClone(shiftedPack)
+    invalid.rules['geology-column-layout'].drawingOrigin = bad
+    assert.throws(() => compileGeologyColumn({ ...source, columnStylePack: invalid }), /column drawing origin/)
+  }
+})
 test('legacy footer legend lays out seven distinct lithologies without merging source strata', () => {
   const kinds = ['fill', 'clay', 'silt', 'sand', 'gravel', 'rock', 'weathered-rock']
   const input = { hole: { id: 'LEGEND-7', collarElevation: 120, depth: 14,

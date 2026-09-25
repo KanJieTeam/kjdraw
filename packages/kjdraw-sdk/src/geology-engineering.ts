@@ -500,6 +500,7 @@ const metres = (value: number): string => value.toFixed(2)
 const scaleDenominator = (value: number): string => Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/u, '').replace(/\.$/u, '')
 
 interface ColumnLayout {
+  drawingOrigin?: [number, number]
   paperWidth: number
   paperHeight: number
   left: number
@@ -640,8 +641,15 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'titleTextStyle', 'textFlow', 'textHeights', 'intervalDepthTextStyle', 'majorGroupValueStyle', 'defaultTextStyle', 'roleTextStyles', 'stratigraphicNotationStyle', 'descriptionTextStyle', 'sampleMarkerStyle', 'sampleAnnotationStyle', 'sampleRangeBaselineStyle', 'sampleRangeTextFormat', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'descriptionPlacements', 'hatchLayerStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate', 'pageHeightOptions'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'titleTextStyle', 'textFlow', 'textHeights', 'intervalDepthTextStyle', 'majorGroupValueStyle', 'defaultTextStyle', 'roleTextStyles', 'stratigraphicNotationStyle', 'descriptionTextStyle', 'sampleMarkerStyle', 'sampleAnnotationStyle', 'sampleRangeBaselineStyle', 'sampleRangeTextFormat', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'drawingOrigin', 'descriptionBoundaryStyle', 'descriptionPlacements', 'hatchLayerStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate', 'pageHeightOptions'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), declaredPaperHeight = numeric(value.paperHeight, 'style paper height')
+  let drawingOrigin: [number, number] | undefined
+  if (value.drawingOrigin != null) {
+    if (!Array.isArray(value.drawingOrigin) || value.drawingOrigin.length !== 2)
+      throw new KJValidationError('Geology: column drawing origin needs two coordinates')
+    drawingOrigin = [projectCoordinate(value.drawingOrigin[0], 'column drawing origin X'),
+      projectCoordinate(value.drawingOrigin[1], 'column drawing origin Y')]
+  }
   let pageHeightOption: { pageHeightMillimeters: 297 | 841; fieldTextWidthFactors?: Partial<Record<Exclude<FieldRole, 'measurement'>, number>> } | undefined
   if (value.pageHeightOptions != null) {
     if (!Array.isArray(value.pageHeightOptions) || value.pageHeightOptions.length < 1 || value.pageHeightOptions.length > 2)
@@ -1466,7 +1474,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       innerGridWidthMillimeters: sourceWidth, fieldRoles: actualRoles, footerLabels: actualFooterLabels,
       gridLineHandles: evidence.gridLineHandles as string[] }
   }
-  return { paperWidth, paperHeight, left, right, columns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, legendMode, layerNumberStyle, titleHeight, verticalScaleDenominators, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
+  return { paperWidth, paperHeight, ...(drawingOrigin ? { drawingOrigin } : {}), left, right, columns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, legendMode, layerNumberStyle, titleHeight, verticalScaleDenominators, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
     ...(observationColumns ? { observationColumns } : {}), labels,
     ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}), ...(intervalDepthTextStyle ? { intervalDepthTextStyle } : {}), ...(majorGroupValueStyle ? { majorGroupValueStyle } : {}), ...(titleTextStyle ? { titleTextStyle } : {}), ...(defaultTextStyle ? { defaultTextStyle } : {}), ...(roleTextStyles ? { roleTextStyles } : {}),
     ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sampleMarkerStyle ? { sampleMarkerStyle } : {}),
@@ -2323,7 +2331,7 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
 export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<KJKnowledgeCompileResult> {
   const { hole } = input, strata = checkHole(hole)
   const layout = columnLayout(input)
-  const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
+  const { paperHeight: pageHeight, paperWidth: pageWidth, drawingOrigin, left, right, columns, observationColumns,
     headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, titleTextStyle, textFlow, textHeights, intervalDepthTextStyle, majorGroupValueStyle,
     defaultTextStyle, roleTextStyles, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, sampleRangeTextFormat, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, descriptionPlacements, hatchLayerStyle, formTopology,
     layerNumberStyle, sourceTemplate } = layout
@@ -2359,7 +2367,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const bottom = top - hole.depth * scale
   if (scale < 0.1 || scale > 100 || bottom < footerReserve) throw new KJValidationError('Geology: column does not fit the declared physical sheet at this vertical scale')
   const g = drawingBuilder(input, 'borehole-column-engineering', input.expectedRevision,
-    patternDefinitions(input.hatchPack, strata), defaultTextStyle, roleTextStyles, [0, 0], hatchLayerStyle)
+    patternDefinitions(input.hatchPack, strata), defaultTextStyle, roleTextStyles, drawingOrigin ?? [0, 0], hatchLayerStyle)
   const finishColumn = (): ReadonlyDeep<KJKnowledgeCompileResult> => g.finish({
     verticalScaleDenominator,
     verticalScaleSource: input.verticalScaleDenominator == null ? 'style-standard' : 'explicit',
