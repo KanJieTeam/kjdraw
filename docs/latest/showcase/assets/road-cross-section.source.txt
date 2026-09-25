@@ -1,0 +1,46 @@
+// examples/curated-infrastructure-sheets.mjs#L93-L135
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+export async function roadCrossSection() {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'curated-road-cross-section', title: 'Road cross-section', units: 'millimeter' })
+  await document.transact('Draw road cross-section and pavement build-up', tx => {
+    const d = drawing(tx, 'ROADSEC', 'ROAD CROSS-SECTION', 'Carriageway / verge / pavement layers')
+    d.text(18, 170, 'TYPICAL SECTION  /  DIAGRAMMATIC', 4, 'view-heading')
+    d.poly([[24,122],[45,122],[62,116],[138,113],[213,116],[232,122],[253,122],[253,117],[232,117],[213,111],[138,108],[62,111],[45,117],[24,117]], 'surface-band')
+    d.poly([[45,117],[62,111],[138,108],[213,111],[232,117],[232,107],[213,101],[138,98],[62,101],[45,107]], 'wearing-layer')
+    d.poly([[45,107],[62,101],[138,98],[213,101],[232,107],[232,94],[213,88],[138,85],[62,88],[45,94]], 'base-layer')
+    d.poly([[45,94],[62,88],[138,85],[213,88],[232,94],[232,80],[213,74],[138,71],[62,74],[45,80]], 'subbase')
+    d.hatch([[46,95],[62,89],[138,86],[213,89],[231,95],[231,105],[213,100],[138,97],[62,100],[46,105]], 'base-hatch', 'ANSI31', 4)
+    d.hatch([[46,81],[62,75],[138,72],[213,75],[231,81],[231,92],[213,87],[138,84],[62,87],[46,92]], 'subbase-hatch', 'CROSS', 4)
+    d.line(24, 80, 45, 80, 'left-ground', 'CONTEXT')
+    d.line(232, 80, 253, 80, 'right-ground', 'CONTEXT')
+    d.rect(38, 112, 44, 119, 'edge-drain-left', 'CONTEXT')
+    d.rect(233, 112, 239, 119, 'edge-drain-right', 'CONTEXT')
+    d.line(24, 117, 24, 125, 'verge-limit-left', 'CONTEXT')
+    d.line(253, 117, 253, 125, 'verge-limit-right', 'CONTEXT')
+    d.line(63, 113, 80, 113, 'edge-line-left', 'CONTEXT')
+    d.line(196, 113, 212, 113, 'edge-line-right', 'CONTEXT')
+    d.line(100, 111, 109, 111, 'lane-mark-a', 'CONTEXT')
+    d.line(168, 111, 177, 111, 'lane-mark-b', 'CONTEXT')
+    d.line(34, 124, 34, 132, 'verge-dim-left', 'ANNO')
+    d.line(243, 124, 243, 132, 'verge-dim-right', 'ANNO')
+    d.line(138, 65, 138, 151, 'road-centerline', 'CONTEXT')
+    for (const [x, id] of [[62, 'edge-left'], [213, 'edge-right']]) {
+      d.line(x, 121, x, 131, id, 'ANNO')
+      d.line(x - 2, 124, x + 2, 124, `${id}-tick`, 'ANNO')
+    }
+    d.line(62, 135, 213, 135, 'carriage-width', 'ANNO')
+    d.text(114, 138, 'CARRIAGEWAY', 3, 'carriageway-label')
+    d.line(138, 108, 151, 116, 'fall-a', 'ANNO')
+    d.line(138, 108, 125, 116, 'fall-b', 'ANNO')
+    d.text(128, 120, 'CROWN', 2.6, 'crown-label')
+    d.line(67, 102, 36, 58, 'wear-leader', 'ANNO')
+    d.text(18, 53, 'SURFACE COURSE', 2.7, 'wear-label')
+    d.line(185, 94, 211, 56, 'base-leader', 'ANNO')
+    d.text(211, 51, 'BASE + SUBBASE', 2.7, 'base-label')
+    d.rect(18, 35, 255, 45, 'note-box', 'FRAME')
+    d.text(23, 38, 'Layer geometry is illustrative; no design thickness or crossfall implied.', 2.6, 'qualification')
+  })
+  return complete(sdk, document, 'road-cross-section', 'Road cross-section', { pavementLayers: 3, crown: true })
+}

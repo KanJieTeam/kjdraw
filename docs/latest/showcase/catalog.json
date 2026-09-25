@@ -12,6 +12,8 @@
     "examples/curated-mechanical-sheets.mjs",
     "examples/curated-building-sheets.mjs",
     "examples/curated-civil-sheets.mjs",
+    "examples/curated-machine-components.mjs",
+    "examples/curated-infrastructure-sheets.mjs",
     "docs/site/showcase/curated.json"
   ],
   "categories": [
@@ -29,7 +31,7 @@
         "en": "Civil & site",
         "zh": "场地与土木"
       },
-      "count": 5
+      "count": 9
     },
     {
       "id": "architecture",
@@ -61,7 +63,7 @@
         "en": "Mechanical",
         "zh": "机械"
       },
-      "count": 6
+      "count": 10
     },
     {
       "id": "core-capabilities",
@@ -1312,6 +1314,577 @@
       },
       "thumbnail": "./assets/utility-trench.svg",
       "thumbnailSha256": "0eed39d1ebfbfffe975b1e41d8c356cb74babf2712fc25a025b723c9a229bb6d"
+    },
+    {
+      "id": "stepped-drive-shaft",
+      "kind": "specimen",
+      "specimenId": "stepped-drive-shaft",
+      "category": "mechanical",
+      "title": {
+        "en": "Stepped drive shaft",
+        "zh": "阶梯传动轴"
+      },
+      "drawingType": {
+        "en": "Manufacturing drawing",
+        "zh": "机械制造图"
+      },
+      "summary": {
+        "en": "A turned shaft with stepped diameters, keyed section, orthographic views and native dimensions.",
+        "zh": "带阶梯轴径、键槽段、正投影视图与原生尺寸的可编辑传动轴图。"
+      },
+      "tags": {
+        "en": [
+          "shaft",
+          "turning",
+          "keyway",
+          "dimensions"
+        ],
+        "zh": [
+          "传动轴",
+          "车削",
+          "键槽",
+          "尺寸"
+        ]
+      },
+      "source": "examples/curated-machine-components.mjs",
+      "categoryTitle": {
+        "en": "Mechanical",
+        "zh": "机械"
+      },
+      "facts": {
+        "editableObjects": 36,
+        "layers": 7,
+        "units": "millimeter",
+        "entityTypes": {
+          "CIRCLE": 2,
+          "DIMENSION": 5,
+          "LINE": 10,
+          "LWPOLYLINE": 3,
+          "TEXT": 16
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-stepped-drive-shaft",
+        "detail": "./stepped-drive-shaft/",
+        "preview": "./assets/stepped-drive-shaft.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-machine-components.mjs#L70-L91",
+        "sourceSnippet": "./assets/stepped-drive-shaft.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/stepped-drive-shaft.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 36,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "drawShaft",
+        "startLine": 70,
+        "endLine": 91
+      },
+      "thumbnail": "./assets/stepped-drive-shaft.svg",
+      "thumbnailSha256": "37da46edf18eadb943b88fe6c0d13e0bca0ae1ad2d68acc74e5d250b652eb9d8"
+    },
+    {
+      "id": "keyed-hub",
+      "kind": "specimen",
+      "specimenId": "keyed-hub",
+      "category": "mechanical",
+      "title": {
+        "en": "Keyed transmission hub",
+        "zh": "键连接轮毂"
+      },
+      "drawingType": {
+        "en": "Manufacturing drawing",
+        "zh": "机械制造图"
+      },
+      "summary": {
+        "en": "A keyed hub detail with coordinated front and section views, bore and hub dimensions.",
+        "zh": "带正视与剖视、轴孔和轮毂尺寸的键连接零件详图。"
+      },
+      "tags": {
+        "en": [
+          "hub",
+          "keyway",
+          "section",
+          "dimensions"
+        ],
+        "zh": [
+          "轮毂",
+          "键槽",
+          "剖视",
+          "尺寸"
+        ]
+      },
+      "source": "examples/curated-machine-components.mjs",
+      "categoryTitle": {
+        "en": "Mechanical",
+        "zh": "机械"
+      },
+      "facts": {
+        "editableObjects": 38,
+        "layers": 7,
+        "units": "millimeter",
+        "entityTypes": {
+          "CIRCLE": 2,
+          "DIMENSION": 2,
+          "HATCH": 2,
+          "LINE": 10,
+          "LWPOLYLINE": 4,
+          "TEXT": 18
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-keyed-hub",
+        "detail": "./keyed-hub/",
+        "preview": "./assets/keyed-hub.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-machine-components.mjs#L93-L114",
+        "sourceSnippet": "./assets/keyed-hub.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/keyed-hub.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 38,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "drawHub",
+        "startLine": 93,
+        "endLine": 114
+      },
+      "thumbnail": "./assets/keyed-hub.svg",
+      "thumbnailSha256": "92f9ffc849e5ddc6dfccbb3445fbfd12ba04d987b1c84b292cfb904398a66d8e"
+    },
+    {
+      "id": "slotted-linkage",
+      "kind": "specimen",
+      "specimenId": "slotted-linkage",
+      "category": "mechanical",
+      "title": {
+        "en": "Slotted linkage plate",
+        "zh": "长圆孔连杆板"
+      },
+      "drawingType": {
+        "en": "Manufacturing drawing",
+        "zh": "机械制造图"
+      },
+      "summary": {
+        "en": "An editable linkage plate with slot, end holes, centre lines and dimensioned views.",
+        "zh": "带长圆孔、端孔、中心线与尺寸视图的可编辑连杆板。"
+      },
+      "tags": {
+        "en": [
+          "linkage",
+          "slot",
+          "holes",
+          "dimensions"
+        ],
+        "zh": [
+          "连杆",
+          "长圆孔",
+          "孔位",
+          "尺寸"
+        ]
+      },
+      "source": "examples/curated-machine-components.mjs",
+      "categoryTitle": {
+        "en": "Mechanical",
+        "zh": "机械"
+      },
+      "facts": {
+        "editableObjects": 41,
+        "layers": 7,
+        "units": "millimeter",
+        "entityTypes": {
+          "ARC": 2,
+          "CIRCLE": 2,
+          "DIMENSION": 4,
+          "LINE": 12,
+          "LWPOLYLINE": 4,
+          "TEXT": 17
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-slotted-linkage",
+        "detail": "./slotted-linkage/",
+        "preview": "./assets/slotted-linkage.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-machine-components.mjs#L116-L139",
+        "sourceSnippet": "./assets/slotted-linkage.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/slotted-linkage.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 41,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "drawLinkage",
+        "startLine": 116,
+        "endLine": 139
+      },
+      "thumbnail": "./assets/slotted-linkage.svg",
+      "thumbnailSha256": "bad6fadaf82d9fd0be87b4490207e147b29c4969ae6781b6e02e4b5a55f9c2ad"
+    },
+    {
+      "id": "pillow-block-housing",
+      "kind": "specimen",
+      "specimenId": "pillow-block-housing",
+      "category": "mechanical",
+      "title": {
+        "en": "Pillow-block housing",
+        "zh": "轴承座壳体"
+      },
+      "drawingType": {
+        "en": "Manufacturing drawing",
+        "zh": "机械制造图"
+      },
+      "summary": {
+        "en": "A bearing support housing sheet with bore, mounting holes, section and native dimensions.",
+        "zh": "包含轴承孔、安装孔、剖视和原生尺寸的轴承座壳体图。"
+      },
+      "tags": {
+        "en": [
+          "bearing",
+          "housing",
+          "section",
+          "mounting"
+        ],
+        "zh": [
+          "轴承",
+          "壳体",
+          "剖视",
+          "安装"
+        ]
+      },
+      "source": "examples/curated-machine-components.mjs",
+      "categoryTitle": {
+        "en": "Mechanical",
+        "zh": "机械"
+      },
+      "facts": {
+        "editableObjects": 43,
+        "layers": 7,
+        "units": "millimeter",
+        "entityTypes": {
+          "CIRCLE": 4,
+          "DIMENSION": 2,
+          "LINE": 14,
+          "LWPOLYLINE": 5,
+          "TEXT": 18
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-pillow-block-housing",
+        "detail": "./pillow-block-housing/",
+        "preview": "./assets/pillow-block-housing.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-machine-components.mjs#L141-L165",
+        "sourceSnippet": "./assets/pillow-block-housing.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/pillow-block-housing.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 43,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "drawHousing",
+        "startLine": 141,
+        "endLine": 165
+      },
+      "thumbnail": "./assets/pillow-block-housing.svg",
+      "thumbnailSha256": "4b3af8ffe1596317a4bc905d701e464f8dad33590fe840417d70988284274319"
+    },
+    {
+      "id": "inspection-chamber",
+      "kind": "specimen",
+      "specimenId": "inspection-chamber",
+      "category": "civil",
+      "title": {
+        "en": "Inspection chamber detail",
+        "zh": "检查井平面与剖面"
+      },
+      "drawingType": {
+        "en": "Infrastructure detail",
+        "zh": "市政构造详图"
+      },
+      "summary": {
+        "en": "An editable concept detail pairing chamber plan and section, pipe penetrations and cover.",
+        "zh": "将井室平面与剖面、管道穿墙和井盖组合呈现的可编辑概念详图。"
+      },
+      "tags": {
+        "en": [
+          "chamber",
+          "plan",
+          "section",
+          "pipes"
+        ],
+        "zh": [
+          "检查井",
+          "平面",
+          "剖面",
+          "管道"
+        ]
+      },
+      "source": "examples/curated-infrastructure-sheets.mjs",
+      "categoryTitle": {
+        "en": "Civil & site",
+        "zh": "场地与土木"
+      },
+      "facts": {
+        "views": 2,
+        "pipeConnections": 2,
+        "illustrative": true,
+        "editableObjects": 49,
+        "layers": 6,
+        "units": "millimeter",
+        "entityTypes": {
+          "CIRCLE": 3,
+          "HATCH": 3,
+          "LINE": 22,
+          "LWPOLYLINE": 7,
+          "TEXT": 14
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-inspection-chamber",
+        "detail": "./inspection-chamber/",
+        "preview": "./assets/inspection-chamber.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-infrastructure-sheets.mjs#L51-L91",
+        "sourceSnippet": "./assets/inspection-chamber.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/inspection-chamber.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 49,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "inspectionChamberDetail",
+        "startLine": 51,
+        "endLine": 91
+      },
+      "thumbnail": "./assets/inspection-chamber.svg",
+      "thumbnailSha256": "b88e932f9eaf8fd0a2a1ff1bd23fc803f3dd60d98ea8efe227723520a8774f98"
+    },
+    {
+      "id": "road-cross-section",
+      "kind": "specimen",
+      "specimenId": "road-cross-section",
+      "category": "civil",
+      "title": {
+        "en": "Road cross-section",
+        "zh": "道路横断面"
+      },
+      "drawingType": {
+        "en": "Road section",
+        "zh": "道路断面图"
+      },
+      "summary": {
+        "en": "An editable concept road section showing carriageway, shoulders and pavement layers.",
+        "zh": "展示车行道、路肩与路面结构层的可编辑道路概念断面。"
+      },
+      "tags": {
+        "en": [
+          "road",
+          "cross section",
+          "pavement",
+          "layers"
+        ],
+        "zh": [
+          "道路",
+          "横断面",
+          "路面",
+          "结构层"
+        ]
+      },
+      "source": "examples/curated-infrastructure-sheets.mjs",
+      "categoryTitle": {
+        "en": "Civil & site",
+        "zh": "场地与土木"
+      },
+      "facts": {
+        "pavementLayers": 3,
+        "crown": true,
+        "illustrative": true,
+        "editableObjects": 46,
+        "layers": 6,
+        "units": "millimeter",
+        "entityTypes": {
+          "HATCH": 2,
+          "LINE": 23,
+          "LWPOLYLINE": 9,
+          "TEXT": 12
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-road-cross-section",
+        "detail": "./road-cross-section/",
+        "preview": "./assets/road-cross-section.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-infrastructure-sheets.mjs#L93-L135",
+        "sourceSnippet": "./assets/road-cross-section.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/road-cross-section.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 46,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "roadCrossSection",
+        "startLine": 93,
+        "endLine": 135
+      },
+      "thumbnail": "./assets/road-cross-section.svg",
+      "thumbnailSha256": "a42df895cfd7147015067ed31f8ef57e9e2f15b408eff97b44b6aa011ecba9f2"
+    },
+    {
+      "id": "box-culvert",
+      "kind": "specimen",
+      "specimenId": "box-culvert",
+      "category": "civil",
+      "title": {
+        "en": "Twin-cell box culvert",
+        "zh": "双孔箱涵剖面"
+      },
+      "drawingType": {
+        "en": "Infrastructure section",
+        "zh": "市政结构剖面"
+      },
+      "summary": {
+        "en": "A twin-cell culvert concept section with wall and slab geometry, openings and labels.",
+        "zh": "带墙板轮廓、双孔洞口与标注的可编辑箱涵概念剖面。"
+      },
+      "tags": {
+        "en": [
+          "culvert",
+          "twin cell",
+          "section",
+          "structure"
+        ],
+        "zh": [
+          "箱涵",
+          "双孔",
+          "剖面",
+          "结构"
+        ]
+      },
+      "source": "examples/curated-infrastructure-sheets.mjs",
+      "categoryTitle": {
+        "en": "Civil & site",
+        "zh": "场地与土木"
+      },
+      "facts": {
+        "openings": 2,
+        "wingWalls": 2,
+        "illustrative": true,
+        "editableObjects": 49,
+        "layers": 6,
+        "units": "millimeter",
+        "entityTypes": {
+          "HATCH": 3,
+          "LINE": 28,
+          "LWPOLYLINE": 9,
+          "TEXT": 9
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-box-culvert",
+        "detail": "./box-culvert/",
+        "preview": "./assets/box-culvert.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-infrastructure-sheets.mjs#L137-L174",
+        "sourceSnippet": "./assets/box-culvert.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/box-culvert.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 49,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "boxCulvertSection",
+        "startLine": 137,
+        "endLine": 174
+      },
+      "thumbnail": "./assets/box-culvert.svg",
+      "thumbnailSha256": "a318716f8c6ee87739b920b63f37559a3297fec8c6aeb13fe3f362ee80f14ac5"
+    },
+    {
+      "id": "bridge-pier",
+      "kind": "specimen",
+      "specimenId": "bridge-pier",
+      "category": "civil",
+      "title": {
+        "en": "Bridge pier elevation",
+        "zh": "桥墩立面"
+      },
+      "drawingType": {
+        "en": "Infrastructure elevation",
+        "zh": "桥梁构造立面"
+      },
+      "summary": {
+        "en": "An editable bridge pier concept elevation showing cap, column, foundation and piles.",
+        "zh": "展示盖梁、墩柱、基础与桩基的可编辑桥墩概念立面。"
+      },
+      "tags": {
+        "en": [
+          "bridge",
+          "pier",
+          "elevation",
+          "foundation"
+        ],
+        "zh": [
+          "桥梁",
+          "桥墩",
+          "立面",
+          "基础"
+        ]
+      },
+      "source": "examples/curated-infrastructure-sheets.mjs",
+      "categoryTitle": {
+        "en": "Civil & site",
+        "zh": "场地与土木"
+      },
+      "facts": {
+        "columns": 2,
+        "piles": 4,
+        "illustrative": true,
+        "editableObjects": 46,
+        "layers": 6,
+        "units": "millimeter",
+        "entityTypes": {
+          "HATCH": 1,
+          "LINE": 20,
+          "LWPOLYLINE": 13,
+          "TEXT": 12
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-bridge-pier",
+        "detail": "./bridge-pier/",
+        "preview": "./assets/bridge-pier.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-infrastructure-sheets.mjs#L176-L211",
+        "sourceSnippet": "./assets/bridge-pier.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/bridge-pier.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 46,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "bridgePierElevation",
+        "startLine": 176,
+        "endLine": 211
+      },
+      "thumbnail": "./assets/bridge-pier.svg",
+      "thumbnailSha256": "c708e640233366d426ae1923bb4012cb0e3d0e78e57012dd9e22f8ca0b92d2dd"
     },
     {
       "id": "editable-entities",

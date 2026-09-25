@@ -5,6 +5,8 @@ import { buildCadCapabilitySpecimenDocuments } from '../../examples/cad-capabili
 import { buildCuratedMechanicalSheetDocuments } from '../../examples/curated-mechanical-sheets.mjs'
 import { buildCuratedBuildingSheetDocuments } from '../../examples/curated-building-sheets.mjs'
 import { buildCuratedCivilSheetDocuments } from '../../examples/curated-civil-sheets.mjs'
+import { buildCuratedMachineComponentDocuments } from '../../examples/curated-machine-components.mjs'
+import { buildCuratedInfrastructureSheetDocuments } from '../../examples/curated-infrastructure-sheets.mjs'
 import { createSample } from '../../examples/sample.js'
 import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/sdk.js'
 import { createIndustrySamples, INDUSTRY_SAMPLES } from '../../packages/kjdraw-sdk/src/samples.js'
@@ -18,6 +20,8 @@ export const SHOWCASE_GENERATION_SOURCES = Object.freeze([
   'examples/curated-mechanical-sheets.mjs',
   'examples/curated-building-sheets.mjs',
   'examples/curated-civil-sheets.mjs',
+  'examples/curated-machine-components.mjs',
+  'examples/curated-infrastructure-sheets.mjs',
   'examples/cad-capability-specimens.mjs',
   'examples/sample.js',
   'packages/kjdraw-sdk/src/samples.ts',
@@ -50,6 +54,14 @@ const sourceBuilderByCase = Object.freeze({
   'drainage-network': 'drainageNetworkSheet',
   'retaining-wall': 'retainingWallSheet',
   'utility-trench': 'utilityTrenchSheet',
+  'stepped-drive-shaft': 'drawShaft',
+  'keyed-hub': 'drawHub',
+  'slotted-linkage': 'drawLinkage',
+  'pillow-block-housing': 'drawHousing',
+  'inspection-chamber': 'inspectionChamberDetail',
+  'road-cross-section': 'roadCrossSection',
+  'box-culvert': 'boxCulvertSection',
+  'bridge-pier': 'bridgePierElevation',
 })
 
 function caseSourceExcerpt(source, entry) {
@@ -266,7 +278,7 @@ export async function buildShowcasePortal(repositoryRoot) {
   const sdk = createKJDrawSDK()
   const documents = [await createSample(sdk), ...await createIndustrySamples(sdk)]
   const documentById = new Map(documents.map(document => [document.id, document]))
-  const specimens = [...await buildCadCapabilitySpecimenDocuments(), ...await buildCuratedMechanicalSheetDocuments(), ...await buildCuratedBuildingSheetDocuments(), ...await buildCuratedCivilSheetDocuments()]
+  const specimens = [...await buildCadCapabilitySpecimenDocuments(), ...await buildCuratedMechanicalSheetDocuments(), ...await buildCuratedBuildingSheetDocuments(), ...await buildCuratedCivilSheetDocuments(), ...await buildCuratedMachineComponentDocuments(), ...await buildCuratedInfrastructureSheetDocuments()]
   const specimenById = new Map(specimens.map(specimen => [specimen.id, specimen]))
   const availableSampleIds = new Set(['sample-resilient-campus', ...INDUSTRY_SAMPLES.map(sample => sample.id)])
   const withheldSampleIds = new Set(['sample-borehole-log', 'sample-geology-section', 'sample-geology-plan'])
@@ -328,7 +340,7 @@ export async function buildShowcasePortal(repositoryRoot) {
     schema: 'com.kanjie.kjdraw.showcase@1',
     source: SHOWCASE_CATALOG_SOURCE,
     sources: [SHOWCASE_CATALOG_SOURCE, SHOWCASE_CURATED_CATALOG_SOURCE],
-    generatedFrom: ['examples/sample.js', 'packages/kjdraw-sdk/src/samples.ts', 'examples/cad-capability-specimens.mjs', 'examples/curated-mechanical-sheets.mjs', 'examples/curated-building-sheets.mjs', 'examples/curated-civil-sheets.mjs', SHOWCASE_CURATED_CATALOG_SOURCE],
+    generatedFrom: ['examples/sample.js', 'packages/kjdraw-sdk/src/samples.ts', 'examples/cad-capability-specimens.mjs', 'examples/curated-mechanical-sheets.mjs', 'examples/curated-building-sheets.mjs', 'examples/curated-civil-sheets.mjs', 'examples/curated-machine-components.mjs', 'examples/curated-infrastructure-sheets.mjs', SHOWCASE_CURATED_CATALOG_SOURCE],
     categories: Object.entries(categories).map(([id, title]) => ({ id, title, count: entries.filter(entry => entry.category === id).length })).filter(category => category.count > 0),
     entries,
   }

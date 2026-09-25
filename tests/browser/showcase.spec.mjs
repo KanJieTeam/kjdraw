@@ -32,7 +32,7 @@ test('Showcase searches, filters and changes view using generated public sample 
   await expect(portal.locator('.showcase-category[data-category="all"] b')).toHaveText(String(manifest.entries.length))
   await expect(portal.locator('.showcase-category[data-category="core-capabilities"] b')).toHaveText('5')
 
-  await portal.locator('.showcase-query').fill('bearing holes')
+  await portal.locator('.showcase-query').fill('Bearing bracket')
   await expect(portal.locator('.showcase-card:visible')).toHaveCount(1)
   await expect(portal.locator('.showcase-card:visible')).toHaveAttribute('data-case-id', 'mechanical-bracket')
   await expect(portal.locator('.showcase-card:visible .showcase-actions a.primary')).toHaveAttribute('href', './mechanical-bracket/')

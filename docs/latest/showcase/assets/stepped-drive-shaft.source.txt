@@ -1,0 +1,25 @@
+// examples/curated-machine-components.mjs#L70-L91
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+function drawShaft(d) {
+  // Axial orthographic profile: 35 + 50 + 30 = 115, diameters 24/36/20.
+  const x0 = 52, x1 = 87, x2 = 137, x3 = 167, cy = 111
+  d.poly([[x0, 99], [x1, 99], [x1, 93], [x2, 93], [x2, 101], [x3, 101],
+    [x3, 121], [x2, 121], [x2, 129], [x1, 129], [x1, 123], [x0, 123]], true)
+  d.line(45, cy, 174, cy, 'center')
+  d.line(x1, 87, x1, 135, 'center')
+  d.line(x2, 87, x2, 135, 'center')
+  d.circle(222, 111, 18)
+  d.circle(222, 111, 12)
+  d.center(222, 111, 24)
+  d.dim(x0, 129, x3, 129, 109.5, 161)
+  d.dim(x0, 99, x1, 99, 69.5, 80)
+  d.dim(x1, 93, x2, 93, 112, 75)
+  d.dim(x2, 101, x3, 101, 152, 81)
+  d.dim(x1, 93, x1, 129, 34, 111)
+  d.text(58, 145, 'AXIAL VIEW', 3.2)
+  d.text(200, 145, 'END VIEW', 3.2)
+  d.text(193, 68, 'MAIN DIA 36', 3)
+  d.text(193, 59, 'END DIA 24 / 20', 3)
+  d.text(51, 54, 'CHAMFERS AND FITS ARE NOT SPECIFIED', 2.9)
+}

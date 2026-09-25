@@ -129,7 +129,7 @@ test('Showcase uses the desktop canvas, supports four-column browsing and preser
   expect(desktop.contentWidth / desktop.availableWidth).toBeGreaterThanOrEqual(0.8)
   expect(desktop.columns).toBe(4)
 
-  await portal.locator('.showcase-query').fill('bearing holes')
+  await portal.locator('.showcase-query').fill('Bearing bracket')
   await expect(portal.locator('.showcase-card:visible')).toHaveCount(1)
   await portal.locator('.showcase-query').fill('')
 

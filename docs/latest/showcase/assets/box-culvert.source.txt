@@ -1,0 +1,41 @@
+// examples/curated-infrastructure-sheets.mjs#L137-L174
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+export async function boxCulvertSection() {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'curated-box-culvert', title: 'Twin-cell box culvert', units: 'millimeter' })
+  await document.transact('Draw twin-cell culvert section', tx => {
+    const d = drawing(tx, 'CULVERT', 'TWIN-CELL BOX CULVERT', 'Waterway openings / wing walls / base slab')
+    d.text(18, 169, 'FRONT ELEVATION  /  NTS', 4, 'view-heading')
+    d.line(17, 150, 260, 150, 'ground', 'CONTEXT')
+    d.rect(47, 66, 230, 128, 'outer-shell')
+    d.rect(55, 73, 133, 120, 'opening-left')
+    d.rect(144, 73, 222, 120, 'opening-right')
+    d.rect(40, 61, 237, 68, 'base-slab')
+    d.rect(41, 128, 236, 134, 'top-slab')
+    d.hatch([[48,121],[54,121],[54,127],[48,127]], 'haunch-lu')
+    d.hatch([[134,121],[143,121],[143,127],[134,127]], 'haunch-center')
+    d.hatch([[223,121],[229,121],[229,127],[223,127]], 'haunch-ru')
+    for (let x = 55; x < 221; x += 21) d.line(x, 62, x + 4, 67, `slab-tick-${x}`, 'MATERIAL')
+    d.poly([[47,66],[21,73],[21,95],[47,82]], 'wing-left')
+    d.poly([[230,66],[256,73],[256,95],[230,82]], 'wing-right')
+    d.line(17, 75, 55, 75, 'water-left', 'CONTEXT')
+    d.line(55, 75, 133, 75, 'water-cell-1', 'CONTEXT')
+    d.line(144, 75, 222, 75, 'water-cell-2', 'CONTEXT')
+    d.line(222, 75, 260, 75, 'water-right', 'CONTEXT')
+    for (const [x, id] of [[91, 'cell-a'], [182, 'cell-b']]) {
+      d.line(x - 5, 91, x + 5, 91, `${id}-flow`, 'CONTEXT')
+      d.line(x + 5, 91, x + 1, 94, `${id}-arrow-a`, 'CONTEXT')
+      d.line(x + 5, 91, x + 1, 88, `${id}-arrow-b`, 'CONTEXT')
+    }
+    d.line(47, 48, 230, 48, 'overall-dim', 'ANNO')
+    d.line(47, 44, 47, 53, 'overall-dim-l', 'ANNO')
+    d.line(230, 44, 230, 53, 'overall-dim-r', 'ANNO')
+    d.text(105, 41, 'OVERALL WIDTH / PROJECT DESIGN', 2.6, 'overall-note')
+    d.line(243, 66, 243, 134, 'height-dim', 'ANNO')
+    d.line(239, 66, 248, 66, 'height-foot', 'ANNO')
+    d.line(239, 134, 248, 134, 'height-top', 'ANNO')
+    d.text(18, 33, 'Concept only. Hydraulic, structural and foundation design required.', 2.6, 'qualification')
+  })
+  return complete(sdk, document, 'box-culvert', 'Twin-cell box culvert', { openings: 2, wingWalls: 2 })
+}
