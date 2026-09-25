@@ -49,6 +49,33 @@ test('Editor API switches languages, searches the complete reference and preserv
   await expect(page.locator('#editor-class-kjdraweditor')).toBeVisible()
 })
 
+test('complete API reference provides verifiable imports and on-demand declarations', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async value => { window.__copiedImport = value } },
+    })
+  })
+  await page.goto('/docs/latest/api/reference/#editor-interface-kjdraweditoroptions')
+
+  const type = page.locator('#editor-interface-kjdraweditoroptions')
+  const importText = "import type { KJDrawEditorOptions } from '@kanjieteam/kjdraw/editor'"
+  await expect(type.locator('.symbol-import code')).toHaveText(importText)
+  await expect(type.locator('.symbol-declaration')).not.toHaveAttribute('open')
+  await type.locator('.symbol-declaration summary').click()
+  await expect(type.locator('.symbol-declaration')).toHaveAttribute('open', '')
+  await expect(type.locator('.symbol-declaration code').first()).toContainText('export interface KJDrawEditorOptions')
+  await type.locator('[data-copy-import]').click()
+  await expect.poll(() => page.evaluate(() => window.__copiedImport)).toBe(importText)
+
+  const groupedReexport = page.locator('#editor-type-default')
+  await expect(groupedReexport.locator('[data-copy-import]')).toHaveCount(0)
+  await expect(groupedReexport.locator('.symbol-declaration')).toBeVisible()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+})
+
 test('390px guides keep search and React-to-Vue navigation inside the viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   let releaseApiIndex

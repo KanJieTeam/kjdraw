@@ -1,7 +1,7 @@
 import { deepFreeze } from './utils.js'
 import { createKJModelAdapter, KJModelError, type KJAgentModel, type KJChatRequestExtensions, type KJModelAdapterOptions } from './model-adapters.js'
 
-export type KJDomesticModelProvider = 'deepseek' | 'kimi' | 'qwen'
+export type KJDomesticModelProvider = 'deepseek' | 'kimi' | 'qwen' | 'doubao'
 export type KJDomesticReasoningMode = 'provider-default' | 'enabled' | 'disabled'
 export type KJDomesticReasoningEffort = 'low' | 'high' | 'max'
 
@@ -50,6 +50,12 @@ const profiles: Record<KJDomesticModelProvider, KJDomesticModelProfile> = {
     defaultBaseURL: 'https://api.moonshot.ai/v1', chatCompletionsPath: '/chat/completions',
     credentialEnvironmentVariable: 'MOONSHOT_API_KEY', chatTokenParameter: 'max_completion_tokens',
     supports: { toolCalls: true, reasoningHistory: true, thinkingToggle: true, reasoningEffort: true, preservedThinkingSwitch: true },
+  },
+  doubao: {
+    provider: 'doubao', profileVersion: '1.0.0', protocol: 'chat-completions',
+    defaultBaseURL: 'https://ark.cn-beijing.volces.com/api/v3', chatCompletionsPath: '/chat/completions',
+    credentialEnvironmentVariable: 'ARK_API_KEY', chatTokenParameter: 'max_tokens',
+    supports: { toolCalls: true, reasoningHistory: true, thinkingToggle: true, reasoningEffort: true, preservedThinkingSwitch: false },
   },
   qwen: {
     provider: 'qwen', profileVersion: '1.0.0', protocol: 'chat-completions',

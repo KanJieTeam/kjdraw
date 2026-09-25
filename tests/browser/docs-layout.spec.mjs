@@ -14,7 +14,7 @@ async function expectNoHorizontalOverflow(page) {
   expect(widths.document).toBeLessThanOrEqual(widths.viewport)
 }
 
-test('documentation home uses an independent product landing canvas with stable global controls', async ({ page }, testInfo) => {
+test('documentation home keeps a focused product entry and stable global controls', async ({ page }, testInfo) => {
   chromiumOnly(testInfo)
   await page.setViewportSize({ width: 1600, height: 1000 })
   await page.goto('/docs/latest/')
@@ -29,6 +29,9 @@ test('documentation home uses an independent product landing canvas with stable 
   await expect(page.locator('#sidebar')).toBeHidden()
   await expect(page.locator('.toc')).toBeHidden()
   await expect(page.locator('article.lang-en .home-actions a.primary')).toBeVisible()
+  await expect(page.locator('article.lang-en .home-entry-section a')).toHaveCount(3)
+  await expect(page.locator('article.lang-en .home-model-canvas')).toHaveCount(0)
+  for (const route of ['quickstart/', 'api/', 'mcp/']) await expect(page.locator('article.lang-en .home-entry-section a[href="./' + route + '"]')).toBeVisible()
   const landing = await page.evaluate(() => {
     const main = document.querySelector('main').getBoundingClientRect()
     const hero = document.querySelector('article.lang-en .home-hero').getBoundingClientRect()

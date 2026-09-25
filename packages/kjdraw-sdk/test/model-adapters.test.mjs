@@ -554,10 +554,11 @@ test('streaming Chat assembles fragmented OpenAI-compatible tool calls, visible 
       assert.equal(body.max_tokens, 4096)
       if (requestNumber++ === 0) return streamed([
         streamChoice({ role: 'assistant', reasoning_content: 'private-', tool_calls: [{ index: 0, id: 'read', type: 'function', function: { name: 'cad_read_', arguments: '{' } }] }),
-        streamChoice({ role: null, content: null, reasoning_content: 'reasoning', tool_calls: [{ index: 0, id: null, type: null, function: { name: 'drawing', arguments: '}' } }] }),
+        streamChoice({ role: null, content: null, reasoning_content: 'reasoning', encrypted_content: 'opaque-complete-block', tool_calls: [{ index: 0, id: null, type: null, function: { name: 'drawing', arguments: '}' } }] }),
         { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 90, completion_tokens: 10, total_tokens: 100, prompt_cache_hit_tokens: 60, prompt_cache_miss_tokens: 30 } },
       ])
       assert.equal(body.messages.at(-2).reasoning_content, 'private-reasoning')
+      assert.equal(body.messages.at(-2).encrypted_content, 'opaque-complete-block')
       assert.equal(body.messages.at(-2).tool_calls[0].function.name, 'cad_read_drawing')
       assert.equal(body.messages.at(-1).tool_call_id, 'read')
       return streamed([
@@ -619,6 +620,8 @@ test('streaming Chat accepts a complete-JSON fallback and rejects truncated or a
     ['truncated', async () => streamed([streamChoice({ tool_calls: [{ index: 0, id: 'read', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' } }] })])],
     ['index gap', async () => streamed([streamChoice({ tool_calls: [{ index: 1, id: 'read', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' } }] }), streamChoice({}, 'tool_calls')])],
     ['changed id', async () => streamed([streamChoice({ tool_calls: [{ index: 0, id: 'read-a', function: { name: 'cad_read_drawing', arguments: '{}' } }] }), streamChoice({ tool_calls: [{ index: 0, id: 'read-b' }] }), streamChoice({}, 'tool_calls')])],
+    ['duplicate encrypted block', async () => streamed([streamChoice({ encrypted_content: 'block-a' }), streamChoice({ encrypted_content: 'block-b' }), streamChoice({}, 'stop')])],
+    ['empty encrypted block', async () => streamed([streamChoice({ encrypted_content: '' }), streamChoice({}, 'stop')])],
     ['delta after finish', async () => streamed([streamChoice({}, 'stop'), streamChoice({ content: 'late' })])],
     ['empty final usage', async () => streamed([streamChoice({ content: 'ok' }), streamChoice({}, 'stop'), { choices: [], usage: null }])],
   ]

@@ -54,6 +54,11 @@ test('complete API reference covers every package export with stable deep links'
     }
   }
   assert.equal(new Set(anchors).size, anchors.length, 'API deep-link anchors must be globally unique')
+  assert.match(html, /data-copy-import="import type \{ KJDrawEditorOptions \} from &#39;@kanjieteam\/kjdraw\/editor&#39;"/)
+  assert.match(html, /<details class="symbol-declaration"><summary>/)
+  const groupedTypeExports = html.match(/<article class="api-symbol" id="editor-type-default"[\s\S]*?<\/article>/)?.[0]
+  assert.ok(groupedTypeExports, 'grouped type exports must remain visible in their source declaration')
+  assert.doesNotMatch(groupedTypeExports, /data-copy-import/, 'grouped type exports must not advertise a fictitious default import')
 
   assert.equal(search.schema, 'com.kanjie.kjdraw.api-search-index@1')
   assert.equal(search.sourceDigest, reference.sourceDigest)

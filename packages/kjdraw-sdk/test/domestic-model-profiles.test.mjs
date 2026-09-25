@@ -13,7 +13,7 @@ async function capture(provider, reasoning = undefined, extra = {}) {
     request: async ({ protocol, body }) => {
       assert.equal(protocol, 'chat-completions')
       bodies.push(body)
-      if (bodies.length === 1) return { choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: null, reasoning_content: `${provider}-opaque-reasoning`, tool_calls: [{ id: 'read-1', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' } }] } }] }
+      if (bodies.length === 1) return { choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: null, reasoning_content: `${provider}-opaque-reasoning`, ...(provider === 'doubao' ? { encrypted_content: 'opaque-provider-block' } : {}), tool_calls: [{ id: 'read-1', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' } }] } }] }
       return { choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'done', reasoning_content: `${provider}-final-reasoning`, tool_calls: [] } }] }
     },
   })
@@ -27,10 +27,12 @@ async function capture(provider, reasoning = undefined, extra = {}) {
 }
 
 test('profiles are immutable connection metadata and contain no credentials', () => {
-  assert.deepEqual(Object.keys(KJDRAW_DOMESTIC_MODEL_PROFILES), ['deepseek', 'kimi', 'qwen'])
+  assert.deepEqual(Object.keys(KJDRAW_DOMESTIC_MODEL_PROFILES), ['deepseek', 'kimi', 'doubao', 'qwen'])
   assert.equal(getKJDomesticModelProfile('deepseek').defaultBaseURL, 'https://api.deepseek.com')
   assert.equal(getKJDomesticModelProfile('kimi').chatTokenParameter, 'max_completion_tokens')
   assert.equal(getKJDomesticModelProfile('qwen').credentialEnvironmentVariable, 'DASHSCOPE_API_KEY')
+  assert.equal(getKJDomesticModelProfile('doubao').defaultBaseURL, 'https://ark.cn-beijing.volces.com/api/v3')
+  assert.equal(getKJDomesticModelProfile('doubao').credentialEnvironmentVariable, 'ARK_API_KEY')
   assert.ok(Object.isFrozen(KJDRAW_DOMESTIC_MODEL_PROFILES.qwen.supports))
   assert.ok(!JSON.stringify(KJDRAW_DOMESTIC_MODEL_PROFILES).includes('sk-'))
 })
@@ -53,6 +55,14 @@ test('Kimi profile uses current token field and explicit preserved thinking', as
   assert.equal(bodies[0].safety_identifier, 'sha256-user')
   assert.equal(bodies[0].max_completion_tokens, 1234)
   assert.equal(bodies[0].max_tokens, undefined)
+})
+
+test('Doubao profile uses Ark Chat fields and returns encrypted reasoning unchanged after a tool call', async () => {
+  const bodies = await capture('doubao', { mode: 'enabled', effort: 'low' }, { toolChoice: 'auto' })
+  assert.deepEqual(bodies[0].thinking, { type: 'enabled' })
+  assert.equal(bodies[0].reasoning_effort, 'low')
+  assert.equal(bodies[0].max_tokens, 1234)
+  assert.equal(bodies[1].messages.at(-2).encrypted_content, 'opaque-provider-block')
 })
 
 test('Qwen profile maps its non-standard thinking toggle without leaking it into another protocol', async () => {

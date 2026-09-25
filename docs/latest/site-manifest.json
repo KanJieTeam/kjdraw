@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:dfe8bea0a724890282aa3307051f181b1c85088a199378eb739e4f95ca1fbc1f",
+  "sourceDigest": "sha256:b5d7d2cd29f10fc154c37ef040182975a5c5d47061cba0e6c54b258b02c26dac",
   "locales": [
     "en",
     "zh"
@@ -395,6 +395,7 @@
           "en-models-connection",
           "en-models-agent-client-matrix",
           "en-models-quickstart",
+          "en-models-doubao-ark",
           "en-models-task-tools",
           "en-models-review",
           "en-models-usage",
@@ -406,6 +407,7 @@
           "zh-models-connection",
           "zh-models-agent-client-matrix-zh",
           "zh-models-quickstart",
+          "zh-models-doubao-ark-zh",
           "zh-models-task-tools",
           "zh-models-review",
           "zh-models-usage",

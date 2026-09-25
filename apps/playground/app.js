@@ -76,7 +76,11 @@ function replaceSelection(ids = []) { selection = new Set(ids.filter(id => doc()
 const message = text => { $('status').textContent = text }
 const point = p => canvasRenderer.worldToScreen(p)
 const world = p => canvasRenderer.screenToWorld(p)
-const modelEntities = () => doc().listEntities({ ownerId: doc().snapshot().spaces.modelSpaceId })
+function activeSpaceId() {
+  const spaces = doc().snapshot().spaces
+  return REQUESTED_SPACE === 'paper' ? spaces.paperSpaceIds[0] ?? spaces.modelSpaceId : spaces.modelSpaceId
+}
+const visibleEntities = () => doc().listEntities({ ownerId: activeSpaceId() })
 const currentIntent = preset => getShowcaseIntent(i18n.locale,preset)
 const knownIntent = value => isShowcaseIntent(value)
 function setCanonicalIntent({ preserveCustom = false } = {}) {
@@ -235,7 +239,7 @@ async function commitTranslation(value,target){
   setTool('select');refresh()
 }
 function isVisible(entity) { if (!entity || entity.payload?.visible === false) return false; const p = doc().getObject(entity.payload?.layerId)?.payload; return p?.visible !== false && p?.frozen !== true }
-function isEditable(entity){return Boolean(entity&&entity.ownerId===doc().snapshot().spaces.modelSpaceId&&isVisible(entity)&&doc().getObject(entity.payload?.layerId)?.payload.locked!==true)}
+function isEditable(entity){return Boolean(entity&&entity.ownerId===activeSpaceId()&&isVisible(entity)&&entity.payload?.locked!==true&&entity.payload?.frozen!==true&&doc().getObject(entity.payload?.layerId)?.payload.locked!==true)}
 function pointerView(){const rect=canvas.getBoundingClientRect();return [camera.x,camera.y,camera.scale,rect.left,rect.top,rect.width,rect.height]}
 function pointerBinding(){return {document:doc(),documentId:doc().id,revision:doc().revision,view:pointerView()}}
 function pointerBindingValid(binding){const view=pointerView();return Boolean(binding&&doc()===binding.document&&doc().revision===binding.revision&&binding.view.every((value,index)=>Math.abs(value-view[index])<1e-7))}
@@ -266,7 +270,7 @@ function render() {
   if(boundaryEdit&&boundaryEdit.session.state.phase!=='applying'&&!boundaryEdit.session.isCurrent())cancelBoundaryEdit({announce:true})
   let rendered=false
   if(canvasRenderer.document!==doc()){
-    disposeInteractionDocument?.();cancelSelectionGestures();canvasRenderer.setDocument(doc());canvasRenderer.setSpace(REQUESTED_SPACE==='paper'?doc().snapshot().spaces.paperSpaceIds[0]??null:null);rendererSelectionKey='';rendered=true
+    disposeInteractionDocument?.();cancelSelectionGestures();canvasRenderer.setDocument(doc());canvasRenderer.setSpace(activeSpaceId()===doc().snapshot().spaces.modelSpaceId?null:activeSpaceId());rendererSelectionKey='';rendered=true
     const drawing=doc();disposeInteractionDocument=drawing.on('document:change',()=>{
       if(doc()!==drawing)return
       if(boundaryEdit&&boundaryEdit.session.state.phase!=='applying'&&!boundaryEdit.session.isCurrent())cancelBoundaryEdit({announce:true})
@@ -285,7 +289,7 @@ function render() {
   const denseHatches=canvasRenderer.report.hatchDiagnostics?.filter(item=>item.reason==='budget').length??0
   hatchWarning.hidden=!denseHatches
   if(denseHatches)hatchWarning.textContent=i18n.locale==='zh'?`${denseHatches} 个填充仅部分显示，请放大查看。`:`${denseHatches} hatches partially displayed; zoom in to inspect.`
-  const entities=modelEntities()
+  const entities=visibleEntities()
   if(pendingPlan){
     const args=pendingPlan.envelope.arguments,deleted=new Set(args.deleteIds),moved=new Set(args.moveIds)
     for(const entity of entities)if(deleted.has(entity.id))drawOverlayEntity(entity,'#ff7077')
@@ -508,6 +512,8 @@ function refresh() {
   syncDimensionStyleControl()
   syncTextStyleControls()
   const snapshot=doc().snapshot(),variables=snapshot.header.systemVariables
+  const spaceLabel=document.querySelector('.stage-label [data-i18n="modelSpace"]')
+  if(spaceLabel)spaceLabel.textContent=activeSpaceId()===snapshot.spaces.modelSpaceId?t('modelSpace'):(i18n.locale==='zh'?'图纸空间':'PAPER SPACE')
   orthoEnabled=Number(variables.ORTHOMODE??0)!==0;polarEnabled=Number(variables.POLARMODE??0)!==0
   const configuredAngle=Number(variables.POLARANG??45);polarAngle=configuredAngle>0&&configuredAngle<=180&&Number.isFinite(configuredAngle)?configuredAngle:45;syncTrackingButtons()
   const allEntities=doc().listEntities(),modelSpaceId=snapshot.spaces.modelSpaceId,currentModel=allEntities.filter(entity=>entity.ownerId===modelSpaceId),layerEntityCounts=new Map()
@@ -952,7 +958,7 @@ async function freshSample(){
     message(i18n.locale==='zh'?'公开案例已加载为可编辑图纸':'Public case loaded as an editable drawing')
     return
   }
-  projectFileBinding=null;setTool('select');rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成公开行业样例…':'Building public industry samples…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const showcase=await createSample(next),industry=await createIndustrySamples(next),documents=[showcase,...industry],activeDocumentId=documents.some(drawing=>drawing.id===REQUESTED_SAMPLE_ID)?REQUESTED_SAMPLE_ID:'sample-site-plan';session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'kjdraw-industry-samples',title:'KJDraw industry sample library',documents,activeDocumentId,metadata:{synthetic:true,industries:['energy','civil','architecture','transportation','mechanical']}});replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();$('file-state').textContent=t('memory');populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`公开行业样例已就绪 · 当前 ${modelEntities().length.toLocaleString()} 个可编辑对象`:`Public industry samples ready · ${modelEntities().length.toLocaleString()} editable objects in view`)
+  projectFileBinding=null;setTool('select');rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成公开行业样例…':'Building public industry samples…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const showcase=await createSample(next),industry=await createIndustrySamples(next),documents=[showcase,...industry],activeDocumentId=documents.some(drawing=>drawing.id===REQUESTED_SAMPLE_ID)?REQUESTED_SAMPLE_ID:'sample-site-plan';session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'kjdraw-industry-samples',title:'KJDraw industry sample library',documents,activeDocumentId,metadata:{synthetic:true,industries:['energy','civil','architecture','transportation','mechanical']}});replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();$('file-state').textContent=t('memory');populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`公开行业样例已就绪 · 当前 ${visibleEntities().length.toLocaleString()} 个可编辑对象`:`Public industry samples ready · ${visibleEntities().length.toLocaleString()} editable objects in view`)
 }
 function download(content,name,type){const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 function applyOpenedProject(project,next,fileName,{converted=false}={}){
@@ -1224,10 +1230,10 @@ function snap(p,excludeIds=[],referencePoint=null){
   let settings
   try{settings=getDocumentSnapSettings(doc())}catch{return p}
   if(!settings.modes.length)return p
-  const options={radius:settings.aperture/camera.scale,modes:settings.modes,spaceId:doc().snapshot().spaces.modelSpaceId,...(referencePoint?{referencePoint}:{})}
-  // The core already filters model-space and hidden/frozen entities. Avoid
+  const options={radius:settings.aperture/camera.scale,modes:settings.modes,spaceId:activeSpaceId(),...(referencePoint?{referencePoint}:{})}
+  // The core filters the active drawing space and hidden/frozen entities. Avoid
   // materializing every visible id on the common pointer-move path.
-  if(excludeIds.length)options.entityIds=modelEntities().filter(entity=>isVisible(entity)&&!excludeIds.includes(entity.id)).map(entity=>entity.id)
+  if(excludeIds.length)options.entityIds=visibleEntities().filter(entity=>isVisible(entity)&&!excludeIds.includes(entity.id)).map(entity=>entity.id)
   const hit=sdk.snap(p,options)[0]
   if(hit){snapHit=hit;workbench.dataset.snapMode=hit.mode}
   return hit?.point??p

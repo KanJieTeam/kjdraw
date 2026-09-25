@@ -78,6 +78,20 @@ const result = await runKJAgentTask({
 
 Chat-compatible endpoints differ in output token fields: the default is `max_tokens`; set `chatTokenParameter: 'max_completion_tokens'` when required. The other adapters map `maxOutputTokens` to their protocol. Full runtime argument validation remains enabled; Responses explicitly uses non-strict tool generation rather than promising identical provider-side schema support.
 
+## Doubao through Volcengine Ark {#doubao-ark}
+
+The source-tree adapter accepts provider doubao on Ark's Chat Completions protocol. Your trusted host supplies the model ID, HTTPS transport and ARK_API_KEY; KJDraw never reads that key. Ark's documented base URL is https://ark.cn-beijing.volces.com/api/v3 and the request path is /chat/completions. Enable tool calling on a model that supports it. The adapter preserves an assistant's encrypted reasoning block across tool-result turns, including a complete block delivered in a streaming response.
+
+    import { createKJDomesticModelAdapter } from '@kanjieteam/kjdraw/domestic-model-profiles'
+
+    const model = createKJDomesticModelAdapter({
+      provider: 'doubao',
+      model: selectedArkModelId,
+      reasoning: { mode: 'enabled' },
+      request: ({ body, signal }) => callTrustedArkGateway(body, signal),
+    })
+
+The model ID and gateway function above are provided by your host. The [Ark Chat API](https://docs.volcengine.com/docs/ark/chat-api?lang=zh) and [thinking/tool-call guide](https://docs.volcengine.com/docs/ark/deep-thinking?lang=zh) define the wire fields. Local protocol fixtures pass, but no live Ark account or specific model has been certified by those tests.
 ## Choose tools for a task {#task-tools}
 
 `toolNames` is an optional host policy for one run. Omit it to retain all session tools. Supply a nonempty list of unique exact names from `session.definitions`; unknown names, duplicates and empty lists fail before opening a model conversation. Definitions retain their canonical order and complete schemas, including drawing units. The runner snapshots the selection before invoking the model, so later array changes cannot widen access.
@@ -203,6 +217,20 @@ const result = await runKJAgentTask({
 
 兼容接口的输出 token 字段并不完全相同：默认使用 `max_tokens`，需要时设置 `chatTokenParameter: 'max_completion_tokens'`；其他适配器按各自协议映射 `maxOutputTokens`。所有工具参数仍由运行时严格校验；Responses 显式使用非 strict 生成模式，不假设各厂商的服务端 Schema 支持完全一致。
 
+## 通过火山方舟接入豆包 {#doubao-ark-zh}
+
+源码中的适配器支持豆包所用的方舟 Chat Completions 协议。模型 ID、HTTPS 请求函数和 ARK_API_KEY 均由可信宿主提供，KJDraw 不读取密钥。官方文档中的基础地址为 https://ark.cn-beijing.volces.com/api/v3，请求路径为 /chat/completions；应选择支持工具调用的模型。适配器在工具结果的下一轮原样保留加密思考块，流式响应中的完整加密块也会保留。
+
+    import { createKJDomesticModelAdapter } from '@kanjieteam/kjdraw/domestic-model-profiles'
+
+    const model = createKJDomesticModelAdapter({
+      provider: 'doubao',
+      model: selectedArkModelId,
+      reasoning: { mode: 'enabled' },
+      request: ({ body, signal }) => callTrustedArkGateway(body, signal),
+    })
+
+上面的模型 ID 和网关函数由你的宿主实现。字段依据[方舟 Chat API](https://docs.volcengine.com/docs/ark/chat-api?lang=zh)及[深度思考与工具调用说明](https://docs.volcengine.com/docs/ark/deep-thinking?lang=zh)。本地协议测试已通过，但这些测试不能替代真实方舟账号及具体模型的在线联调。
 ## 按任务选择工具 {#task-tools}
 
 `toolNames` 是宿主为一次运行设置的可选权限范围。省略时保留全部会话工具；提供时必须是 `session.definitions` 中非空、不重复的确切名称。未知名称、重复项和空列表在打开模型会话前报错。选中定义保持原始顺序和完整参数约束，包括图档单位。运行器在调用模型前复制选择结果，之后修改传入数组不会扩大权限。

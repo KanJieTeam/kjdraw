@@ -347,7 +347,7 @@ async function assembleChatStream(source: unknown, maximumBytes: number, maximum
   if (!isAsyncIterable(source)) invalid('Streaming Chat transport must return an async iterable of parsed JSON chunks')
   const tools = new Map<number, { id?: string; type?: string; name: string; arguments: string }>()
   const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEvents }
-  let text = '', reasoning = '', finishReason: unknown = null, usage: unknown
+  let text = '', reasoning = '', encryptedContent: string | undefined, finishReason: unknown = null, usage: unknown
   for await (const rawChunk of streamValues(source, signal)) {
     signal.throwIfAborted()
     const chunk = streamRecord(rawChunk, 'Chat chunk', budget)
@@ -378,6 +378,10 @@ async function assembleChatStream(source: unknown, maximumBytes: number, maximum
     if (delta.reasoning_content !== undefined && delta.reasoning_content !== null) {
       if (typeof delta.reasoning_content !== 'string') invalid('Invalid streaming reasoning content')
       reasoning += delta.reasoning_content
+    }
+    if (delta.encrypted_content !== undefined && delta.encrypted_content !== null) {
+      if (typeof delta.encrypted_content !== 'string' || !delta.encrypted_content || encryptedContent !== undefined) invalid('Invalid or repeated streaming encrypted reasoning content')
+      encryptedContent = delta.encrypted_content
     }
     if (delta.tool_calls !== undefined && delta.tool_calls !== null) {
       for (const rawTool of array(delta.tool_calls)) {
@@ -422,6 +426,7 @@ async function assembleChatStream(source: unknown, maximumBytes: number, maximum
   if (finishReason === 'tool_calls' && !toolCalls.length) invalid('Chat finish reason requires tool calls')
   const message: Record<string, unknown> = { role: 'assistant', content: text || null, tool_calls: toolCalls }
   if (reasoning) message.reasoning_content = reasoning
+  if (encryptedContent !== undefined) message.encrypted_content = encryptedContent
   return { choices: [{ index: 0, finish_reason: finishReason, message }], ...(usage === undefined ? {} : { usage }) }
 }
 

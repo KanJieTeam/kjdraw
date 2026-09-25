@@ -34,6 +34,22 @@ const profiles = {
             preservedThinkingSwitch: true
         }
     },
+    doubao: {
+        provider: 'doubao',
+        profileVersion: '1.0.0',
+        protocol: 'chat-completions',
+        defaultBaseURL: 'https://ark.cn-beijing.volces.com/api/v3',
+        chatCompletionsPath: '/chat/completions',
+        credentialEnvironmentVariable: 'ARK_API_KEY',
+        chatTokenParameter: 'max_tokens',
+        supports: {
+            toolCalls: true,
+            reasoningHistory: true,
+            thinkingToggle: true,
+            reasoningEffort: true,
+            preservedThinkingSwitch: false
+        }
+    },
     qwen: {
         provider: 'qwen',
         profileVersion: '1.0.0',

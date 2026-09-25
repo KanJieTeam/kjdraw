@@ -456,7 +456,7 @@ async function assembleChatStream(source, maximumBytes, maximumEvents, signal, o
         maximumBytes,
         maximumEvents
     };
-    let text = '', reasoning = '', finishReason = null, usage;
+    let text = '', reasoning = '', encryptedContent, finishReason = null, usage;
     for await (const rawChunk of streamValues(source, signal)){
         signal.throwIfAborted();
         const chunk = streamRecord(rawChunk, 'Chat chunk', budget);
@@ -487,6 +487,10 @@ async function assembleChatStream(source, maximumBytes, maximumEvents, signal, o
         if (delta.reasoning_content !== undefined && delta.reasoning_content !== null) {
             if (typeof delta.reasoning_content !== 'string') invalid('Invalid streaming reasoning content');
             reasoning += delta.reasoning_content;
+        }
+        if (delta.encrypted_content !== undefined && delta.encrypted_content !== null) {
+            if (typeof delta.encrypted_content !== 'string' || !delta.encrypted_content || encryptedContent !== undefined) invalid('Invalid or repeated streaming encrypted reasoning content');
+            encryptedContent = delta.encrypted_content;
         }
         if (delta.tool_calls !== undefined && delta.tool_calls !== null) {
             for (const rawTool of array(delta.tool_calls)){
@@ -547,6 +551,7 @@ async function assembleChatStream(source, maximumBytes, maximumEvents, signal, o
         tool_calls: toolCalls
     };
     if (reasoning) message.reasoning_content = reasoning;
+    if (encryptedContent !== undefined) message.encrypted_content = encryptedContent;
     return {
         choices: [
             {

@@ -3,6 +3,7 @@ let locale=localStorage.getItem('kjdraw.docs.language')||(navigator.language.toL
 function applyLanguage(){html.dataset.locale=locale;html.lang=locale==='zh'?'zh-CN':'en';document.getElementById('language').textContent=locale==='zh'?'EN':'中文';input.placeholder=locale==='zh'?'搜索全部包导出':'Search package exports'}
 document.getElementById('language').onclick=()=>{locale=locale==='zh'?'en':'zh';localStorage.setItem('kjdraw.docs.language',locale);applyLanguage()}
 for(const button of document.querySelectorAll('[data-copy-code]'))button.onclick=async()=>{await navigator.clipboard.writeText(button.nextElementSibling.textContent);const old=button.textContent;button.textContent=locale==='zh'?'已复制':'Copied';setTimeout(()=>button.textContent=old,1200)}
+for(const button of document.querySelectorAll('[data-copy-import]'))button.onclick=async()=>{await navigator.clipboard.writeText(button.dataset.copyImport);const old=button.innerHTML;button.textContent=locale==='zh'?'已复制':'Copied';setTimeout(()=>button.innerHTML=old,1200)}
 const toc=document.querySelector('.reference-toc'),tocTitle=document.getElementById('reference-toc-title'),tocLinks=document.getElementById('reference-toc-links')
 function updateReferenceToc(){
   const visible=modules.filter(module=>!module.hidden)

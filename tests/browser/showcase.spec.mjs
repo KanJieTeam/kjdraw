@@ -66,4 +66,13 @@ test('Showcase case detail opens a real editable workspace instead of a raw SVG'
     return colors.size
   })
   expect(colorCount).toBeGreaterThan(2)
+  await expect(paper.locator('.stage-label [data-i18n="modelSpace"]')).toHaveText('PAPER SPACE')
+  await paper.locator('#canvas').focus()
+  await paper.locator('#canvas').press('ControlOrMeta+a')
+  await expect(paper.locator('#selection-count')).toContainText('3 selected')
+  const beforeRevision = await paper.locator('#revision').textContent()
+  await paper.locator('#command-input').fill('MOVE 1 0')
+  await paper.locator('#command-input').press('Enter')
+  await expect(paper.locator('#revision')).not.toHaveText(beforeRevision)
+  await expect(paper.locator('#status')).toContainText('MOVE committed')
 })

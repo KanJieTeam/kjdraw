@@ -38,6 +38,7 @@ test('generated documentation portal covers the complete bilingual learning path
     assert.match(html, /class="lang-en"/)
     assert.match(html, /class="lang-zh"/)
     assert.match(html, /api\//)
+    assert.doesNotMatch(html, /\u0000/, "Generated HTML must resolve nested inline tokens")
     assert.match(html, new RegExp(`style\\.css\\?v=${assetRevision}`))
     assert.match(html, new RegExp(`app\\.js\\?v=${assetRevision}`))
     for (const locale of manifest.locales) {

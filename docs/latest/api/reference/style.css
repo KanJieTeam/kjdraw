@@ -28,3 +28,11 @@
 
 
 .reference-toc{gap:7px}.reference-toc>span{font:11px/1.45 Consolas,monospace;color:#8a95a2;overflow-wrap:anywhere}.reference-toc nav{display:flex;flex-direction:column;gap:2px;margin-top:6px}.reference-toc nav a{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 3px;color:#667486;text-decoration:none;font:11px/1.4 Consolas,monospace}.reference-toc nav a:hover{color:#1d56bc;background:#f3f7ff}
+.symbol-import{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;margin-top:15px;padding:10px 12px;border:1px solid #e0e6ed;border-radius:6px;background:#f8fafc}
+.symbol-import code{font:12px/1.5 Consolas,monospace;overflow-wrap:anywhere}
+.symbol-import button{flex:none;padding:5px 8px;border:1px solid #d7e1ed;border-radius:5px;background:#fff;color:#2454b7;font-family:inherit;font-size:11px;line-height:1.4;cursor:pointer}
+.symbol-import button:hover,.symbol-import button:focus-visible{border-color:#89aaf0;background:#eef4ff}
+.symbol-declaration{margin-top:10px}.symbol-declaration summary{width:max-content;cursor:pointer;color:#516275;font-size:12px}.symbol-declaration summary:hover{color:#1d56bc}
+.symbol-declaration pre{max-width:100%;max-height:none;overflow:auto}.symbol-declaration pre code{overflow-wrap:anywhere}
+.api-symbols{grid-template-columns:minmax(0,1fr)}.api-symbol,.api-module{min-width:0}.module-header h2,.module-source{overflow-wrap:anywhere}
+.symbol-import code{min-width:0}.api-symbol>header>div{min-width:0;flex-wrap:wrap}.api-symbol h3,.source-path{overflow-wrap:anywhere}.source-path{margin-top:10px}

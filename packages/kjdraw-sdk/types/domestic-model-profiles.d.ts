@@ -1,5 +1,5 @@
 import { type KJAgentModel, type KJModelAdapterOptions } from './model-adapters.js';
-export type KJDomesticModelProvider = 'deepseek' | 'kimi' | 'qwen';
+export type KJDomesticModelProvider = 'deepseek' | 'kimi' | 'qwen' | 'doubao';
 export type KJDomesticReasoningMode = 'provider-default' | 'enabled' | 'disabled';
 export type KJDomesticReasoningEffort = 'low' | 'high' | 'max';
 export interface KJDomesticModelProfile {

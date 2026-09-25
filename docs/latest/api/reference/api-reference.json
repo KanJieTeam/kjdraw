@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:e1548faa47a603f5ae679545637369610aa68de2623b0923981674f21618eeb4",
+  "sourceDigest": "sha256:b4a4d14818213ffae288aa14ac40dcdbdcc5a59d05c3cb4b9e4d7783d473f1d9",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -560,7 +560,7 @@
         {
           "name": "KJDomesticModelProvider",
           "kind": "type",
-          "declaration": "export type KJDomesticModelProvider = 'deepseek' | 'kimi' | 'qwen';",
+          "declaration": "export type KJDomesticModelProvider = 'deepseek' | 'kimi' | 'qwen' | 'doubao';",
           "source": "domestic-model-profiles.d.ts",
           "anchor": "domestic-model-profiles-type-kjdomesticmodelprovider"
         },
@@ -8818,7 +8818,7 @@
         {
           "name": "KJDomesticModelProvider",
           "kind": "type",
-          "declaration": "export type KJDomesticModelProvider = 'deepseek' | 'kimi' | 'qwen';",
+          "declaration": "export type KJDomesticModelProvider = 'deepseek' | 'kimi' | 'qwen' | 'doubao';",
           "source": "domestic-model-profiles.d.ts",
           "anchor": "root-type-kjdomesticmodelprovider"
         },
