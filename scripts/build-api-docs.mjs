@@ -618,7 +618,7 @@ const outputs = new Map([
   ['search-index.json', `${JSON.stringify(searchIndex, null, 2)}\n`],
   ['index.html', editorHtml],
   ['app.js', editorAppJs],
-  ['style.css', `${editorCss}\n${apiLayoutCss}`],
+  ['style.css', `${editorCss}\n${apiLayoutCss}\n${apiDocsPolish}`],
   ['reference/api-reference.json', `${JSON.stringify(api, null, 2)}\n`],
   ['reference/index.html', referenceHtml.replace(/^[ \t]+$/gm, '')],
   ['reference/app.js', referenceAppJs],

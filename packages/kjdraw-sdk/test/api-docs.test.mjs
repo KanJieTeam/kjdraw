@@ -116,6 +116,12 @@ test('Editor API is task-oriented, bilingual and deep-linkable', async () => {
   assert.match(app, /href\.replace/)
 })
 
+test('Editor API publishes its active navigation and table-of-contents styling', async () => {
+  const css = await generated('style.css')
+  assert.match(css, /\.api-sidebar nav a\.active\{background:/)
+  assert.match(css, /\.api-toc a\.active\{color:/)
+  assert.match(css, /\.api-page-action:hover\{border-color:/)
+})
 test('guide search loads the generated reference index and exposes Editor API', async () => {
   const home = await readFile(new URL('docs/latest/index.html', repositoryRoot), 'utf8')
   const app = await readFile(new URL('docs/latest/app.js', repositoryRoot), 'utf8')
