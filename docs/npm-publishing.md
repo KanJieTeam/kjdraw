@@ -41,6 +41,13 @@ The npm package, GitHub Release tarball and checkout package provide the editor 
 import { createKJDrawEditor } from '@kanjieteam/kjdraw/editor'
 ```
 
+## Source-based AI install channel
+
+The Windows and macOS/Linux one-line AI installers read [`scripts/install-ai-channel.json`](../scripts/install-ai-channel.json), validate its 40-character commit SHA, and download that exact public source commit. The channel is separate from npm `next` and does not move automatically with `main`. Source-based desktop users can rerun the same command for an in-place update; this is an explicit user action, not a background code update.
+
+To promote a candidate, first push its source commit, verify the exact-SHA CI, Pages and provenance runs, and run a fresh-user install/MCP smoke test. Only then change the single `sourceSha` field in the channel manifest, test both installer scripts, and merge the channel change. The manifest must name the **already published, verified source commit**, not the manifest-changing commit itself; self-reference is impossible. Do not promote an unverified moving branch, npm tag, or arbitrary URL. A later source change stays out of the desktop channel until a subsequent explicit promotion.
+
+Knowledge packs are currently compiled into the installed runtime. Updating repository knowledge alone cannot change an already installed or running client; rerunning the installer and restarting the client is still necessary. Automatic versioned knowledge delivery requires its own compatibility, integrity and rollback design and is not part of this channel.
 ## Recommended authentication: npm trusted publishing
 
 KJDraw's release workflows are prepared for [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) with GitHub Actions OIDC. This is the preferred route: it creates short-lived credentials for one verified workflow run and publishes with npm provenance, without storing a long-lived npm token in the repository.

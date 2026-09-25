@@ -5,12 +5,16 @@ import test from 'node:test'
 
 const root = new URL('../../../', import.meta.url)
 const read = path => readFile(new URL(path, root), 'utf8')
-const pinned = '9ae198838e04eb627b64f003cdca9b7cf5f742bf'
+const channel = JSON.parse(await read('scripts/install-ai-channel.json'))
 
 test('one-line AI bootstraps pin one public candidate and connect all clients without npx or force', async () => {
   const [powerShell, shell] = await Promise.all([read('scripts/install-ai.ps1'), read('scripts/install-ai.sh')])
+  assert.equal(channel.schema, 'com.kanjie.kjdraw.install-channel@1')
+  assert.match(channel.sourceSha, /^[0-9a-f]{40}$/u)
   for (const source of [powerShell, shell]) {
-    assert.match(source, new RegExp(pinned))
+    assert.match(source, /install-ai-channel\.json/)
+    assert.match(source, /com\.kanjie\.kjdraw\.install-channel@1/)
+    assert.match(source, /\^\[0-9a-f\]\{40\}\$/)
     assert.match(source, /source-9ae1988/)
     assert.match(source, /kjdraw-connect\.mjs/)
     assert.match(source, /kjdraw-mcp\.mjs/)
@@ -33,6 +37,9 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
     assert.doesNotMatch(source, /KJDRAW_PROJECT|Get-Location|\$PWD/)
     assert.doesNotMatch(source, /\bnpx\b|git clone|push|--force|reset --hard/)
   }
+  assert.match(powerShell, /KJDrawSourceSha\.Substring\(0, 7\)/)
+  assert.match(shell, /KJDRAW_SOURCE_SHORT/)
+  assert.match(shell, /KJDRAW_PREVIOUS_9AE/)
   assert.match(powerShell, /IsPathRooted/)
   assert.doesNotMatch(powerShell, /IsPathFullyQualified/)
   assert.match(powerShell, /\$KJDrawArgs \+= @\('--mcp-script', \$KJDrawStableMcp\)/)

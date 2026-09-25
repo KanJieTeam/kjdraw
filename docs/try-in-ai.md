@@ -19,7 +19,7 @@ macOS / Linux:
 curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
 ```
 
-Requirements: Node.js 22 or newer; macOS/Linux also need `curl` and `tar`. The bootstrap downloads a pinned public source archive into a persistent user-data directory, then safely merges user-level configuration for Kimi Code, WorkBuddy, and ZCode. TraeCode uses its official `trae-cn://` import confirmation. It does not need Git credentials. If an existing KJDraw entry or Skill has different content, installation stops instead of overwriting it.
+Requirements: Node.js 22 or newer; macOS/Linux also need `curl` and `tar`. The bootstrap reads the repository-controlled [install channel](../scripts/install-ai-channel.json), validates its exact public commit SHA, and downloads that pinned source archive into a persistent user-data directory. TraeCode uses its official `trae-cn://` import confirmation. Git credentials are not required. The official installer explicitly replaces only the named `kjdraw` MCP entry and KJDraw Skill during an upgrade; unrelated MCP servers and configuration fields are preserved. Other configuration conflicts still stop installation.
 
 ## What changes in your user account
 
@@ -31,6 +31,12 @@ Requirements: Node.js 22 or newer; macOS/Linux also need `curl` and `tar`. The b
 | TraeCode | Official import link saved at `~/.kjdraw/trae-install-url.txt` | `~/.trae/skills/kjdraw-cad/` |
 
 The connector preserves unrelated JSON fields and MCP servers. It creates `~/.kjdraw/host.kjd` only when the user has no existing host drawing. The installed host policy materializes exact create proposals as new, independently reopened KJD/DXF files plus an SVG preview under `~/.kjdraw/results/`; it never overwrites the source. In-place and destructive operations still require host review. TraeCode still asks for one confirmation because its official install protocol deliberately keeps that security boundary in the client.
+
+## Updating after installation
+
+Run the same one-line command again to move to the currently promoted source commit. This is an in-place update; uninstalling or reconfiguring each project is unnecessary. Restart the AI client and start a new task so its MCP process loads the new runtime. The install channel is promoted only by an explicit maintainer change after candidate verification; it is not the moving tip of `main`, and the installer never silently downloads new executable code while an agent task is running.
+
+Today, engineering knowledge packs are compiled into the local runtime. A repository knowledge update does **not** automatically appear in an already running or installed client. The in-place update above is required until versioned remote knowledge delivery, compatibility checks, integrity verification, and safe cache fallback are implemented and independently accepted. Installing a Skill alone does not update the CAD engine.
 
 ## Verify the connection
 

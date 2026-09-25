@@ -1,19 +1,24 @@
 #!/bin/sh
 set -eu
 
-KJDRAW_SOURCE_SHA='9ae198838e04eb627b64f003cdca9b7cf5f742bf'
+
 command -v node >/dev/null 2>&1 || { echo 'KJDraw requires Node.js 22 or newer.' >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo 'KJDraw requires curl.' >&2; exit 1; }
 command -v tar >/dev/null 2>&1 || { echo 'KJDraw requires tar.' >&2; exit 1; }
 node -e 'if (+process.versions.node.split(".")[0] < 22) process.exit(1)'
+KJDRAW_SOURCE_SHA=$(curl -fsSL 'https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai-channel.json' | node -e 'const fs=require("node:fs");let x;try{x=JSON.parse(fs.readFileSync(0,"utf8"))}catch{process.exit(1)}if(x===null||Array.isArray(x)||typeof x!=="object"||x.schema!=="com.kanjie.kjdraw.install-channel@1"||typeof x.sourceSha!=="string"||!/^[0-9a-f]{40}$/.test(x.sourceSha))process.exit(1);process.stdout.write(x.sourceSha)') || {
+  echo 'The KJDraw install channel is invalid; no client configuration was changed.' >&2; exit 1;
+}
+KJDRAW_SOURCE_SHORT=$(printf '%s' "$KJDRAW_SOURCE_SHA" | cut -c1-7)
 KJDRAW_USER_HOME="${KJDRAW_USER_HOME:-$(node -p 'require("node:os").homedir()')}"
 KJDRAW_DATA_ROOT="${XDG_DATA_HOME:-$KJDRAW_USER_HOME/.local/share}"
 KJDRAW_ROOT="$KJDRAW_DATA_ROOT/kjdraw"
-KJDRAW_INSTALL="$KJDRAW_ROOT/source-9ae1988"
+KJDRAW_INSTALL="$KJDRAW_ROOT/source-$KJDRAW_SOURCE_SHORT"
 KJDRAW_STABLE_BIN="$KJDRAW_ROOT/bin"
 KJDRAW_STABLE_MCP="$KJDRAW_STABLE_BIN/kjdraw-mcp.mjs"
 KJDRAW_CURRENT="$KJDRAW_ROOT/current.json"
 KJDRAW_PREVIOUS_000D="$KJDRAW_ROOT/source-000d7f7/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
+KJDRAW_PREVIOUS_9AE="$KJDRAW_ROOT/source-9ae1988/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_DDB0="$KJDRAW_ROOT/source-ddb0b53/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_BB17="$KJDRAW_ROOT/source-bb17394/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_734="$KJDRAW_ROOT/source-734a7f4/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
@@ -121,6 +126,7 @@ fi
 # other files still fail atomically inside kjdraw-connect.
 set -- "$@" --mcp-script "$KJDRAW_STABLE_MCP" --replace-existing --replace-existing-skill
 if [ -f "$KJDRAW_PREVIOUS_000D" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_000D"; fi
+if [ -f "$KJDRAW_PREVIOUS_9AE" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_9AE"; fi
 if [ -f "$KJDRAW_PREVIOUS_DDB0" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_DDB0"; fi
 if [ -f "$KJDRAW_PREVIOUS_BB17" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_BB17"; fi
 if [ -f "$KJDRAW_PREVIOUS_734" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_734"; fi

@@ -1,9 +1,13 @@
 $ErrorActionPreference = 'Stop'
 
-$KJDrawSourceSha = '9ae198838e04eb627b64f003cdca9b7cf5f742bf'
+$KJDrawChannel = Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai-channel.json'
+if ($KJDrawChannel -isnot [pscustomobject] -or $KJDrawChannel.schema -ne 'com.kanjie.kjdraw.install-channel@1' -or [string]$KJDrawChannel.sourceSha -cnotmatch '^[0-9a-f]{40}$') {
+  throw 'The KJDraw install channel is invalid; no client configuration was changed.'
+}
+$KJDrawSourceSha = [string]$KJDrawChannel.sourceSha
 $KJDrawUserHome = if ($env:KJDRAW_USER_HOME) { $env:KJDRAW_USER_HOME } else { $env:USERPROFILE }
 $KJDrawDataRoot = Join-Path $env:LOCALAPPDATA 'KJDraw'
-$KJDrawInstall = Join-Path $KJDrawDataRoot 'source-9ae1988'
+$KJDrawInstall = Join-Path $KJDrawDataRoot ('source-' + $KJDrawSourceSha.Substring(0, 7))
 $KJDrawStableBin = Join-Path $KJDrawDataRoot 'bin'
 $KJDrawStableMcp = Join-Path $KJDrawStableBin 'kjdraw-mcp.mjs'
 $KJDrawCurrent = Join-Path $KJDrawDataRoot 'current.json'
@@ -12,6 +16,7 @@ $KJDrawDesktopUser = $null
 try { $KJDrawDesktopUser = (Get-CimInstance Win32_ComputerSystem -ErrorAction Stop).UserName } catch {}
 $KJDrawDifferentDesktopUser = $KJDrawDesktopUser -and -not [string]::Equals($KJDrawProcessUser, $KJDrawDesktopUser, [StringComparison]::OrdinalIgnoreCase)
 $KJDrawPreviousMcpCandidates = @(
+  (Join-Path $env:LOCALAPPDATA 'KJDraw\source-9ae1988\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-000d7f7\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-ddb0b53\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-bb17394\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
