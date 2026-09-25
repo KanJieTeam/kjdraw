@@ -1,0 +1,53 @@
+name: Independent 1.0 candidate test
+description: Share reproducible feedback from a clean install; this is not automatic release certification
+title: "[Independent test]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing KJDraw. Follow the independent tester checklist ([English](https://github.com/KanJieTeam/kjdraw/blob/main/docs/audits/independent-tester-checklist.md) · [简体中文](https://github.com/KanJieTeam/kjdraw/blob/main/docs/audits/independent-tester-checklist.zh-CN.md)) without maintainer guidance. Do not attach private drawings, reports, coordinates, personal information, or API keys. A public issue helps reproduce defects but does not by itself pass the formal stable-1.0 acceptance gate.
+  - type: input
+    id: candidate
+    attributes:
+      label: Exact candidate
+      description: Full Git commit SHA, installed package version, and install source (npm version or tarball).
+      placeholder: "commit SHA · @kanjieteam/kjdraw version · source"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system/version, Node.js version, browser or agent client, and model/vendor if used. Never include credentials.
+    validations:
+      required: true
+  - type: checkboxes
+    id: independence
+    attributes:
+      label: Independence
+      options:
+        - label: I did not contribute to the candidate and completed these steps without maintainer guidance.
+          required: true
+        - label: I used a clean project and only the public installation and test instructions.
+          required: true
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tasks and results
+      description: For each task, include the original prompt, pass/fail, elapsed time, and the exact step that failed. Include a named measured dimension or geological depth, not just a visual impression.
+      placeholder: "Task 1 — mechanical part: ...\nTask 2 — geology drawing: ...\nTask 3 — edit, undo, redo: ...\nTask 4 — KJD/DXF reopen and measured fact: ...\nTask 5 — interactive preview, fonts and timing: ..."
+    validations:
+      required: true
+  - type: textarea
+    id: artifact_hashes
+    attributes:
+      label: Artifact SHA-256 hashes
+      description: Supply package/tarball, KJD and DXF hashes when available; hashes identify files without publishing their contents.
+      placeholder: "Package: ...\nKJD: ...\nDXF: ..."
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction or evidence
+      description: Add safe screenshots or a synthetic/redistributable fixture only. State its provenance if attached.
+    validations:
+      required: true

@@ -208,6 +208,8 @@ KJDraw 支持原生 KJD 图纸、KJP 工程，以及有明确[兼容范围的 DX
 
 带来一张能复现问题的图纸、接入你正在开发的应用，或者一起改进引擎。几何与文件兼容、编辑工具、Agent 示例、无障碍、性能和文档，都是直接帮助用户的贡献方向。
 
+试用 1.0 候选版时，请按[独立试用清单](docs/audits/independent-tester-checklist.zh-CN.md)检查，并[提交可复现的反馈](https://github.com/KanJieTeam/kjdraw/issues/new/choose)。不要公开上传私有图纸或密钥。
+
 从[贡献指南](CONTRIBUTING.md)了解开发流程，从[治理规则](GOVERNANCE.md)了解决策和维护方式。较大改动请先通过 [Issue](https://github.com/KanJieTeam/kjdraw/issues) 讨论设计。
 
 ```sh

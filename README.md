@@ -218,6 +218,8 @@ Read, edit and save drawings from code or the CLI without an AI model — see th
 
 Bring a drawing that exposes a bug, build an integration, or help improve the engine. Work that directly helps users includes geometry and file compatibility, editing tools, Agent examples, accessibility, performance and documentation.
 
+Testing the 1.0 candidate? Use the [independent tester checklist](docs/audits/independent-tester-checklist.md) and [report reproducible feedback](https://github.com/KanJieTeam/kjdraw/issues/new/choose). Do not post private drawings or credentials.
+
 Read [Contributing](CONTRIBUTING.md) for the development workflow and [Governance](GOVERNANCE.md) for how decisions and maintenance work. For substantial changes, open an [issue](https://github.com/KanJieTeam/kjdraw/issues) to discuss the design first.
 
 ```sh
