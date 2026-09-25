@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -54,6 +54,64 @@ test('installed-client knowledge updater verifies official manifest, exact pack 
   assert.equal(offline.source, 'cache')
   assert.equal(offline.packs.column.sha256, row.sha256)
   assert.match(offline.notice, /verified cache/u)
+})
+
+test('new stable knowledge version replaces cache and remains available offline', async t => {
+  const cacheRoot = await mkdtemp(join(tmpdir(), 'kjdraw-knowledge-upgrade-'))
+  t.after(() => rm(cacheRoot, { recursive: true, force: true }))
+  await loadGeologyKnowledge({ cacheRoot, enabled: true, fetcher: served().fetcher })
+  const upgradedBytes = Buffer.from(JSON.stringify({ ...KJDRAW_GEOLOGY_KNOWLEDGE_PACK, version: '1.0.1' }))
+  const upgradedRow = { ...row, version: '1.0.1', sha256: hash(upgradedBytes) }
+  const upgradedManifest = Buffer.from(JSON.stringify({ schema: 'kjdraw.knowledge-delivery.v1',
+    packs: { column: upgradedRow, section: upgradedRow } }))
+  const updated = await loadGeologyKnowledge({ cacheRoot, enabled: true,
+    fetcher: served({ manifestBytes: upgradedManifest, knowledgeBytes: upgradedBytes }).fetcher })
+  assert.equal(updated.source, 'remote')
+  assert.equal(updated.packs.column.pack.version, '1.0.1')
+  assert.equal(updated.packs.section.pack.version, '1.0.1')
+  const offline = await loadGeologyKnowledge({ cacheRoot, enabled: true, fetcher: async () => { throw new Error('offline') } })
+  assert.equal(offline.source, 'cache')
+  assert.equal(offline.packs.column.pack.version, '1.0.1')
+  assert.equal(offline.packs.section.pack.version, '1.0.1')
+  const rollback = await loadGeologyKnowledge({ cacheRoot, enabled: true, fetcher: served().fetcher })
+  assert.equal(rollback.source, 'cache')
+  assert.equal(rollback.packs.column.pack.version, '1.0.1')
+  assert.deepEqual(await readFile(join(cacheRoot, 'manifest.json')), upgradedManifest)
+})
+
+test('incomplete offline cache falls back together instead of mixing geology versions', async t => {
+  const cacheRoot = await mkdtemp(join(tmpdir(), 'kjdraw-knowledge-incomplete-'))
+  t.after(() => rm(cacheRoot, { recursive: true, force: true }))
+  await loadGeologyKnowledge({ cacheRoot, enabled: true, fetcher: served().fetcher })
+  await unlink(join(cacheRoot, `section-${row.sha256}.json`))
+  const offline = await loadGeologyKnowledge({ cacheRoot, enabled: true, fetcher: async () => { throw new Error('offline') } })
+  assert.equal(offline.source, 'bundled')
+  assert.deepEqual(offline.packs, {})
+  const olderBytes = Buffer.from(JSON.stringify({ ...KJDRAW_GEOLOGY_KNOWLEDGE_PACK, version: '0.9.0' }))
+  const olderRow = { ...row, version: '0.9.0', sha256: hash(olderBytes) }
+  const olderManifest = Buffer.from(JSON.stringify({ schema: 'kjdraw.knowledge-delivery.v1',
+    packs: { column: olderRow, section: olderRow } }))
+  const network = served({ manifestBytes: olderManifest, knowledgeBytes: olderBytes })
+  const outdated = await loadGeologyKnowledge({ cacheRoot, enabled: true, fetcher: network.fetcher })
+  assert.equal(outdated.source, 'bundled')
+  assert.deepEqual(outdated.packs, {})
+  assert.deepEqual(network.calls.map(call => call.url), [GEOLOGY_MANIFEST_URL])
+  assert.deepEqual(await readFile(join(cacheRoot, 'manifest.json')), manifest)
+})
+
+test('prerelease knowledge descriptors cannot bypass stable version rollback checks', async t => {
+  const cacheRoot = await mkdtemp(join(tmpdir(), 'kjdraw-knowledge-prerelease-'))
+  t.after(() => rm(cacheRoot, { recursive: true, force: true }))
+  await loadGeologyKnowledge({ cacheRoot, enabled: true, fetcher: served().fetcher })
+  const prereleaseBytes = Buffer.from(JSON.stringify({ ...KJDRAW_GEOLOGY_KNOWLEDGE_PACK, version: '1.0.0-rc.1' }))
+  const prereleaseRow = { ...row, version: '1.0.0-rc.1', sha256: hash(prereleaseBytes) }
+  const prereleaseManifest = Buffer.from(JSON.stringify({ schema: 'kjdraw.knowledge-delivery.v1',
+    packs: { column: prereleaseRow, section: prereleaseRow } }))
+  const rejected = await loadGeologyKnowledge({ cacheRoot, enabled: true,
+    fetcher: served({ manifestBytes: prereleaseManifest, knowledgeBytes: prereleaseBytes }).fetcher })
+  assert.equal(rejected.source, 'cache')
+  assert.equal(rejected.packs.column.pack.version, '1.0.0')
+  assert.deepEqual(await readFile(join(cacheRoot, 'manifest.json')), manifest)
 })
 
 test('tampered, oversized, redirected and non-official knowledge never replaces verified cache', async t => {

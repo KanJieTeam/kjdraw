@@ -3,6 +3,7 @@ import { lstat, mkdir, readFile, realpath, rename, writeFile } from 'node:fs/pro
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { validateKnowledgePack } from '../src/knowledge-pack.js'
+import { KJDRAW_GEOLOGY_KNOWLEDGE_PACK } from '../src/knowledge-packs/geology-core.js'
 
 export const GEOLOGY_MANIFEST_URL = 'https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/knowledge/geology/manifest.json'
 const ORIGIN = 'https://raw.githubusercontent.com'
@@ -11,6 +12,7 @@ const MAX_MANIFEST = 16 * 1024
 const MAX_PACK = 1024 * 1024
 const TIMEOUT_MS = 2500
 const HEX = /^[a-f0-9]{64}$/u
+const STABLE_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u
 const ROLES = { column: 'geology-column-layout', section: 'geology-section-layout' }
 
 function officialUrl(raw) {
@@ -27,7 +29,8 @@ function parseManifest(bytes, manifestUrl) {
       Object.keys(manifest.packs).length !== 2 || Object.keys(manifest.packs).some(key => !Object.hasOwn(ROLES, key))) throw new Error('Invalid knowledge manifest')
   const packs = {}
   for (const [role, row] of Object.entries(manifest.packs)) {
-    if (typeof row?.id !== 'string' || typeof row?.version !== 'string' || !HEX.test(row?.sha256 ?? '')) throw new Error('Invalid knowledge pack descriptor')
+    if (typeof row?.id !== 'string' || !STABLE_VERSION.test(row?.version ?? '') || !HEX.test(row?.sha256 ?? '')) throw new Error('Invalid knowledge pack descriptor')
+    if (compareVersion(row.version, KJDRAW_GEOLOGY_KNOWLEDGE_PACK.version) < 0) throw new Error('Knowledge manifest is older than bundled geology knowledge')
     const url = officialUrl(row.url)
     if (new URL(url).origin !== new URL(manifestUrl).origin) throw new Error('Knowledge pack origin differs from manifest')
     packs[role] = { id: row.id, version: row.version, sha256: row.sha256, url }
@@ -56,10 +59,10 @@ async function boundedFetch(url, limit, fetcher) {
 }
 
 function compareVersion(left, right) {
-  const a = left.split(/[.+-]/u).slice(0, 3).map(Number)
-  const b = right.split(/[.+-]/u).slice(0, 3).map(Number)
-  if (a.some(value => !Number.isInteger(value)) || b.some(value => !Number.isInteger(value))) throw new Error('Knowledge version is invalid')
-  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return Math.sign(a[i] - b[i])
+  if (!STABLE_VERSION.test(left) || !STABLE_VERSION.test(right)) throw new Error('Knowledge version is invalid')
+  const a = left.split('.').map(BigInt)
+  const b = right.split('.').map(BigInt)
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i] ? 1 : -1
   return 0
 }
 
@@ -122,6 +125,7 @@ export async function loadGeologyKnowledge({ cacheRoot, fetcher = fetch, manifes
         const bytes = await safeCacheFile(join(cacheRoot, `${role}-${descriptor.sha256}.json`), MAX_PACK)
         if (bytes) cached[role] = decodePack(bytes, descriptor, role)
       }
+      if (Object.keys(cached).length !== Object.keys(ROLES).length) cached = {}
     }
   } catch { cached = {} }
   try {
