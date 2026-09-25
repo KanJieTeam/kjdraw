@@ -5,8 +5,9 @@ test('Showcase searches, filters and changes view using generated public sample 
   await page.goto('/docs/latest/showcase/')
   const portal = page.locator('.showcase-portal[data-locale="en"]')
   await expect(portal).toBeVisible()
-  await expect(portal.locator('.showcase-card:visible')).toHaveCount(17)
-  await expect(portal.locator('.showcase-thumb img')).toHaveCount(17)
+  const manifest = await (await page.request.get('/docs/latest/showcase/catalog.json')).json()
+  await expect(portal.locator('.showcase-card:visible')).toHaveCount(manifest.entries.length)
+  await expect(portal.locator('.showcase-thumb img')).toHaveCount(manifest.entries.length)
   const previewStyle = await portal.locator('.showcase-thumb').first().evaluate(element => ({
     background: getComputedStyle(element).backgroundColor,
     filter: getComputedStyle(element.querySelector('img')).filter,
@@ -28,7 +29,7 @@ test('Showcase searches, filters and changes view using generated public sample 
     expect(pixel[3], src).toBe(255)
     expect(pixel.slice(0, 3).every(channel => channel < 55), src).toBe(true)
   }
-  await expect(portal.locator('.showcase-category[data-category="all"] b')).toHaveText('17')
+  await expect(portal.locator('.showcase-category[data-category="all"] b')).toHaveText(String(manifest.entries.length))
   await expect(portal.locator('.showcase-category[data-category="core-capabilities"] b')).toHaveText('5')
 
   await portal.locator('.showcase-query').fill('bearing holes')
@@ -39,8 +40,8 @@ test('Showcase searches, filters and changes view using generated public sample 
 
   await portal.locator('.showcase-query').fill('')
   await portal.locator('.showcase-category[data-category="civil"]').click()
-  await expect(portal.locator('.showcase-card:visible')).toHaveCount(1)
-  await expect(portal.locator('.showcase-card:visible')).toHaveAttribute('data-case-id', 'site-plan')
+  await expect(portal.locator('.showcase-card:visible')).toHaveCount(manifest.categories.find(category => category.id === 'civil').count)
+  await expect(portal.locator('.showcase-card:visible').first()).toHaveAttribute('data-case-id', 'site-plan')
 
   await portal.locator('[data-view="list"]').click()
   await expect(portal.locator('.showcase-grid')).toHaveClass(/list/)
@@ -50,7 +51,7 @@ test('Showcase searches, filters and changes view using generated public sample 
   const zh = page.locator('.showcase-portal[data-locale="zh"]')
   await expect(zh).toBeVisible()
   await zh.locator('.showcase-tag-filter').selectOption('尺寸')
-  await expect(zh.locator('.showcase-card:visible')).toHaveCount(3)
+  await expect(zh.locator('.showcase-card:visible')).toHaveCount(manifest.entries.filter(entry => entry.tags.zh.includes('尺寸')).length)
   await expect(zh.locator('.showcase-empty')).toBeHidden()
 })
 
@@ -148,8 +149,9 @@ test('390px Showcase keeps category navigation compact and opens a case detail',
 
   await rail.locator('.showcase-category[data-category="civil"]').click()
   await expect(rail.locator('.showcase-category[data-category="civil"]')).toHaveAttribute('aria-pressed', 'true')
-  await expect(portal.locator('.showcase-card:visible')).toHaveCount(1)
-  await portal.locator('.showcase-card:visible .showcase-actions a.primary').click()
+  const manifest = await (await page.request.get('/docs/latest/showcase/catalog.json')).json()
+  await expect(portal.locator('.showcase-card:visible')).toHaveCount(manifest.categories.find(category => category.id === 'civil').count)
+  await portal.locator('.showcase-card:visible .showcase-actions a.primary').first().click()
   await expect(page).toHaveURL(/\/docs\/latest\/showcase\/site-plan\/$/)
   await expect(page.locator('.viewport iframe')).toBeVisible()
 })

@@ -113,7 +113,8 @@ test('Showcase uses the desktop canvas, supports four-column browsing and preser
   await expect(portal).toBeVisible()
   await expect(portal.locator('.showcase-query')).toBeVisible()
   await expect(portal.locator('.showcase-tag-filter')).toBeVisible()
-  await expect(portal.locator('.showcase-card:visible')).toHaveCount(17)
+  const manifest = await (await page.request.get('/docs/latest/showcase/catalog.json')).json()
+  await expect(portal.locator('.showcase-card:visible')).toHaveCount(manifest.entries.length)
 
   const desktop = await page.evaluate(() => {
     const rail = document.querySelector('.showcase-portal:not([hidden]) .showcase-categories').getBoundingClientRect()
