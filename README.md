@@ -56,14 +56,14 @@ KJDraw exposes CAD tools through standard **stdio MCP**. Any MCP-compatible clie
 | **Custom agents / harnesses / enterprise hosts** | Register the same stdio MCP server, or call `agent-tools` and `model-adapters` from your host | Private deployments, custom UI and approval systems | [Model adapters](https://kanjieteam.github.io/kjdraw/docs/latest/models/) |
 | **No model required** | Use the TypeScript SDK, CLI or browser editor | Regression tests, batch jobs and human editing | [File workflow](https://kanjieteam.github.io/kjdraw/docs/latest/files/) |
 
-The portable MCP configuration is:
+For a locally built 1.0.0-rc.3 checkout, install the package in a Node.js 22+ host project, create `proposals` and `results`, and replace both `/absolute/project` placeholders below with that project path. Check that `bin/kjdraw-mcp.mjs` exists before connecting; the npm `next` tag may still point to an older candidate. The portable server entry is:
 
 ```jsonc
 {
   "mcpServers": {
     "kjdraw": {
-      "command": "npx",
-      "args": ["-y", "@kanjieteam/kjdraw", "mcp"]
+      "command": "node",
+      "args": ["/absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs", "--workspace", "/absolute/project", "--blank", "drawing.kjd", "--units", "millimeter", "--proposal-dir", "proposals", "--candidate-dir", "results"]
     }
   }
 }
@@ -79,18 +79,18 @@ tools. The installer configures KJDraw once at the user level for Kimi Code, Wor
 and ZCode; TraeCode opens its official one-time import confirmation.
 
 ```jsonc
-// .mcp.json, or your client's MCP configuration
+// .mcp.json, or your client's MCP configuration; requires a package containing kjdraw-mcp.mjs
 {
   "mcpServers": {
     "kjdraw": {
-      "command": "npx",
-      "args": ["-y", "@kanjieteam/kjdraw", "mcp"]
+      "command": "node",
+      "args": ["/absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs", "--workspace", "/absolute/project", "--blank", "drawing.kjd", "--units", "millimeter", "--proposal-dir", "proposals", "--candidate-dir", "results"]
     }
   }
 }
 ```
 
-Or install the user-level connector once:
+For supported desktop clients, the source-based user-level connector is the simpler path:
 
 ```bash
 # macOS / Linux
@@ -122,7 +122,7 @@ export default function DrawingPage() {
 ```
 
 Also available as a framework-free editor (`@kanjieteam/kjdraw/editor`), a Vue 3
-component, and a CLI. These examples require **1.0.0-rc.3 or newer**; use `next`.
+component, and a CLI. These examples require **1.0.0-rc.3 or newer**. Check `npm view @kanjieteam/kjdraw dist-tags` before using `next`; if the registry still serves an older candidate, build the current source checkout instead.
 
 ### With no install at all
 
@@ -142,9 +142,11 @@ resolves the objects, applies one transaction, and returns evidence the host can
 {
   "tool": "cad_propose_move",
   "args": {
-    "objectIds": ["<stable-object-id>"],
-    "delta": { "dx": 1200, "dy": 0 },
-    "units": "mm"
+    "expectedRevision": 0,
+    "units": "millimeter",
+    "ids": ["<stable-object-id>"],
+    "dx": 1200,
+    "dy": 0
   }
 }
 ```

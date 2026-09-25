@@ -68,14 +68,14 @@ KJDraw 通过标准 **stdio MCP** 提供 CAD 工具。只要客户端支持 MCP�
 | **自建 Agent / Harness / 企业平台** | 注册同一个 stdio MCP server，或调用 `agent-tools` / `model-adapters` | 私有部署、自定义 UI 和审批系统 | [模型接入](https://kanjieteam.github.io/kjdraw/docs/latest/models/) |
 | **不接模型** | 使用 TypeScript SDK、CLI 或在线编辑器 | 回归测试、批处理和人工编辑 | [文件工作流](https://kanjieteam.github.io/kjdraw/docs/latest/files/) |
 
-标准 MCP 配置如下，客户端只需把 JSON 放进自己的 MCP 配置位置：
+以下配置要求本地已构建包含 `kjdraw-mcp.mjs` 的 1.0.0-rc.3 源码包、Node.js 22+，并在宿主工程中建好 `proposals`、`results` 目录；先将两个 `/absolute/project` 替换为真实绝对路径。npm `next` 可能仍指向旧候选版，不能只凭文档中的源码版本推断已发布。客户端再按自身格式保存 MCP server 配置：
 
 ```jsonc
 {
   "mcpServers": {
     "kjdraw": {
-      "command": "npx",
-      "args": ["-y", "@kanjieteam/kjdraw", "mcp"]
+      "command": "node",
+      "args": ["/absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs", "--workspace", "/absolute/project", "--blank", "drawing.kjd", "--units", "millimeter", "--proposal-dir", "proposals", "--candidate-dir", "results"]
     }
   }
 }
@@ -114,7 +114,7 @@ curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/inst
 npm install @kanjieteam/kjdraw@next
 ```
 
-以下示例需要 **1.0.0-rc.3 或更新版本**。请使用 `next` 渠道，`latest` 可能较旧。已发布版本及尚未发布到 npm 的源码更新，详见[版本状态](docs/status.md)。
+以下示例需要 **1.0.0-rc.3 或更新版本**。使用 `next` 前先运行 `npm view @kanjieteam/kjdraw dist-tags` 确认实际安装版本；若尚未发布 rc.3，请从当前源码构建。已发布版本及尚未发布到 npm 的源码更新，详见[版本状态](docs/status.md)。
 
 ### JavaScript / TypeScript
 

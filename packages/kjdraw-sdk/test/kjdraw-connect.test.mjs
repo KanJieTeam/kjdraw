@@ -63,7 +63,7 @@ test('KJDraw connect builds deterministic, branded, zero-write plans for three o
   assert.equal(first.proposalLedger.exists, false)
   assert.equal(first.proposalLedger.startupStatus, 'first-start-only-static-ledger')
   assert.deepEqual(first.adapters.map(row => row.adapter), ['kimi-code', 'zcode', 'traecode', 'workbuddy'])
-  assert.deepEqual(first.adapters.map(row => row.status), ['add', 'add', 'add', 'manual-verification-required'])
+  assert.deepEqual(first.adapters.map(row => row.status), ['add', 'add', process.execPath.includes(' ') ? 'unsupported-command-path' : 'add', 'manual-verification-required'])
   assert.deepEqual(first.adapters.slice(0, 3).map(row => row.configFile), ['.kimi-code/mcp.json', '.zcode/config.json', '.trae/mcp.json'])
   for (const adapter of first.adapters.slice(0, 3)) {
     assert.match(adapter.desiredEntryHash, /^[0-9a-f]{64}$/u)
@@ -93,7 +93,7 @@ test('existing unrelated MCP settings are planned without printing or changing p
   assert.equal(child.stdout.includes('TEST_SECRET_NEVER_PRINT'), false)
   assert.equal(child.stdout.includes('"TOKEN"'), false)
   assert.equal(child.stdout.includes('"other"'), false)
-  assert.deepEqual(receipt.adapters.slice(0, 3).map(row => row.status), ['add', 'add', 'add'])
+  assert.deepEqual(receipt.adapters.slice(0, 3).map(row => row.status), ['add', 'add', process.execPath.includes(' ') ? 'unsupported-command-path' : 'add'])
   for (const [file, bytes] of originals) assert.deepEqual(await readFile(file), bytes)
 })
 

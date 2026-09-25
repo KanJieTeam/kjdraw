@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 import { openKjpPackage } from '../../packages/kjdraw-sdk/src/index.js'
+import { INDUSTRY_SAMPLES } from '../../packages/kjdraw-sdk/src/samples.js'
 
 function observe(page) {
   const problems = { page: [], console: [], dialogs: [], external: [] }
@@ -75,7 +76,7 @@ test('industry sample library switches complete drawings and keeps CAD panels se
   await page.goto('/')
   if ((await page.locator('html').getAttribute('lang'))?.startsWith('zh')) await page.locator('#language').click()
 
-  await expect(page.locator('#sample-select option')).toHaveCount(5)
+  await expect(page.locator('#sample-select option')).toHaveCount(INDUSTRY_SAMPLES.length + 1)
   await expect(page.locator('#sample-select')).toHaveValue('sample-site-plan')
   await expect(page.locator('#drawing-discipline')).toContainText('CIVIL')
   await expect(page.locator('#layers .layer')).toHaveCount(11)

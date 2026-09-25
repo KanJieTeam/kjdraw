@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:5f16b7c730c702a55351fbf9cbdd63bfa304243f5e5db5e2462d659646730e1d",
+  "sourceDigest": "sha256:dfe8bea0a724890282aa3307051f181b1c85088a199378eb739e4f95ca1fbc1f",
   "locales": [
     "en",
     "zh"
@@ -616,6 +616,9 @@
     "showcase/assets/mechanical-bracket.dxf",
     "showcase/assets/mechanical-bracket.kjd",
     "showcase/assets/mechanical-bracket.svg",
+    "showcase/assets/mechanical-flange.dxf",
+    "showcase/assets/mechanical-flange.kjd",
+    "showcase/assets/mechanical-flange.svg",
     "showcase/assets/native-dimensions.dxf",
     "showcase/assets/native-dimensions.kjd",
     "showcase/assets/native-dimensions.svg",
@@ -640,6 +643,7 @@
     "showcase/geology-section/index.html",
     "showcase/index.html",
     "showcase/mechanical-bracket/index.html",
+    "showcase/mechanical-flange/index.html",
     "showcase/native-dimensions/index.html",
     "showcase/resilient-campus/index.html",
     "showcase/road-profile/index.html",

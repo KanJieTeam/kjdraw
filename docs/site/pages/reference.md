@@ -25,7 +25,7 @@ Both references are generated during the documentation build. CI rejects stale E
 | Execute, undo or redo an edit | `KJDrawEditor.execute()`, `undo()`, `redo()` |
 | Control selection and view | `getSelection()`, `setSelection()`, `fit()`, `setTool()` |
 | Build without the ready editor | `KJDrawSDK`, `KJDocument`, commands and transactions in the complete reference |
-| Read or propose agent changes | Agent session and tool types in `@kanjieteam/kjdraw/agent` |
+| Read or propose agent changes | `KJAgentToolSession` in `@kanjieteam/kjdraw/agent-tools` and `runKJAgentTask` in `/agent-runner` |
 | Import or export formats | File-adapter exports and the **Files and projects** guide |
 | Compile domain knowledge | Knowledge-pack and compiler types plus the **Knowledge packs** guide |
 
@@ -36,7 +36,7 @@ Use the root package for the ready editor and common SDK surface. Import narrowe
 ```ts
 import { createKJDrawEditor } from '@kanjieteam/kjdraw'
 import { KJDraw } from '@kanjieteam/kjdraw/react'
-import { createAgentSession } from '@kanjieteam/kjdraw/agent'
+import { KJAgentToolSession } from '@kanjieteam/kjdraw/agent-tools'
 import { createDXFFileAdapter } from '@kanjieteam/kjdraw/file/dxf'
 ```
 
@@ -62,7 +62,7 @@ KJDraw 发布两层参考：
 | 执行、撤销或重做修改 | `KJDrawEditor.execute()`、`undo()`、`redo()` |
 | 控制选择与视图 | `getSelection()`、`setSelection()`、`fit()`、`setTool()` |
 | 不使用完整编辑器进行构建 | 完整参考中的 `KJDrawSDK`、`KJDocument`、命令与事务 |
-| 读取或提出 Agent 修改 | `@kanjieteam/kjdraw/agent` 的 Agent 会话与工具类型 |
+| 读取或提出 Agent 修改 | `@kanjieteam/kjdraw/agent-tools` 的 `KJAgentToolSession`；模型循环见 `/agent-runner` 的 `runKJAgentTask` |
 | 导入或导出格式 | 文件适配器导出与**文件和工程**指南 |
 | 编译领域知识 | 知识包/编译器类型与**知识包**指南 |
 
@@ -73,7 +73,7 @@ KJDraw 发布两层参考：
 ```ts
 import { createKJDrawEditor } from '@kanjieteam/kjdraw'
 import { KJDraw } from '@kanjieteam/kjdraw/react'
-import { createAgentSession } from '@kanjieteam/kjdraw/agent'
+import { KJAgentToolSession } from '@kanjieteam/kjdraw/agent-tools'
 import { createDXFFileAdapter } from '@kanjieteam/kjdraw/file/dxf'
 ```
 

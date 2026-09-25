@@ -31,7 +31,7 @@ test('documentation home uses an independent product landing canvas with stable 
   await expect(page.locator('article.lang-en .home-actions a.primary')).toBeVisible()
   const landing = await page.evaluate(() => {
     const main = document.querySelector('main').getBoundingClientRect()
-    const hero = document.querySelector('article.lang-en .page-hero').getBoundingClientRect()
+    const hero = document.querySelector('article.lang-en .home-hero').getBoundingClientRect()
     const section = document.querySelector('article.lang-en > h2').getBoundingClientRect()
     return { mainWidth: main.width, heroWidth: hero.width, sectionWidth: section.width, viewport: innerWidth }
   })
@@ -99,7 +99,7 @@ test('Showcase uses the desktop canvas, supports four-column browsing and preser
   await expect(portal).toBeVisible()
   await expect(portal.locator('.showcase-query')).toBeVisible()
   await expect(portal.locator('.showcase-tag-filter')).toBeVisible()
-  await expect(portal.locator('.showcase-card:visible')).toHaveCount(12)
+  await expect(portal.locator('.showcase-card:visible')).toHaveCount(15)
 
   const desktop = await page.evaluate(() => {
     const rail = document.querySelector('.showcase-portal:not([hidden]) .showcase-categories').getBoundingClientRect()
@@ -112,7 +112,7 @@ test('Showcase uses the desktop canvas, supports four-column browsing and preser
     }
   })
   expect(desktop.contentWidth / desktop.availableWidth).toBeGreaterThanOrEqual(0.8)
-  expect(desktop.columns).toBeGreaterThanOrEqual(4)
+  expect(desktop.columns).toBe(4)
 
   await portal.locator('.showcase-query').fill('bearing holes')
   await expect(portal.locator('.showcase-card:visible')).toHaveCount(1)

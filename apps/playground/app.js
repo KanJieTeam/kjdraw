@@ -24,6 +24,7 @@ const $ = id => document.getElementById(id)
 const INITIAL_QUERY = new URLSearchParams(location.search)
 const AI_SURFACE=INITIAL_QUERY.get('surface')==='ai'||/\/ai\/(?:index\.html)?$/u.test(location.pathname)
 const REQUESTED_SAMPLE_ID=INITIAL_QUERY.get('sample')
+const REQUESTED_SPACE=INITIAL_QUERY.get('space')
 const SHOWCASE_SPECIMENS=Object.freeze({
   'specimen-editable-entities':'editable-entities',
   'specimen-native-dimensions':'native-dimensions',
@@ -265,7 +266,7 @@ function render() {
   if(boundaryEdit&&boundaryEdit.session.state.phase!=='applying'&&!boundaryEdit.session.isCurrent())cancelBoundaryEdit({announce:true})
   let rendered=false
   if(canvasRenderer.document!==doc()){
-    disposeInteractionDocument?.();cancelSelectionGestures();canvasRenderer.setDocument(doc());rendererSelectionKey='';rendered=true
+    disposeInteractionDocument?.();cancelSelectionGestures();canvasRenderer.setDocument(doc());canvasRenderer.setSpace(REQUESTED_SPACE==='paper'?doc().snapshot().spaces.paperSpaceIds[0]??null:null);rendererSelectionKey='';rendered=true
     const drawing=doc();disposeInteractionDocument=drawing.on('document:change',()=>{
       if(doc()!==drawing)return
       if(boundaryEdit&&boundaryEdit.session.state.phase!=='applying'&&!boundaryEdit.session.isCurrent())cancelBoundaryEdit({announce:true})
@@ -951,7 +952,7 @@ async function freshSample(){
     message(i18n.locale==='zh'?'公开案例已加载为可编辑图纸':'Public case loaded as an editable drawing')
     return
   }
-  projectFileBinding=null;setTool('select');rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成五套原创行业图纸…':'Building five original industry drawings…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const showcase=await createSample(next),industry=await createIndustrySamples(next),documents=[showcase,...industry],activeDocumentId=documents.some(drawing=>drawing.id===REQUESTED_SAMPLE_ID)?REQUESTED_SAMPLE_ID:'sample-site-plan';session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'kjdraw-industry-samples',title:'KJDraw industry sample library',documents,activeDocumentId,metadata:{synthetic:true,industries:['energy','civil','architecture','transportation','mechanical']}});replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();$('file-state').textContent=t('memory');populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`五套原创行业图纸已就绪 · 当前 ${modelEntities().length.toLocaleString()} 个可编辑对象`:`Five original industry drawings ready · ${modelEntities().length.toLocaleString()} editable objects in view`)
+  projectFileBinding=null;setTool('select');rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成公开行业样例…':'Building public industry samples…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const showcase=await createSample(next),industry=await createIndustrySamples(next),documents=[showcase,...industry],activeDocumentId=documents.some(drawing=>drawing.id===REQUESTED_SAMPLE_ID)?REQUESTED_SAMPLE_ID:'sample-site-plan';session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'kjdraw-industry-samples',title:'KJDraw industry sample library',documents,activeDocumentId,metadata:{synthetic:true,industries:['energy','civil','architecture','transportation','mechanical']}});replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();$('file-state').textContent=t('memory');populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`公开行业样例已就绪 · 当前 ${modelEntities().length.toLocaleString()} 个可编辑对象`:`Public industry samples ready · ${modelEntities().length.toLocaleString()} editable objects in view`)
 }
 function download(content,name,type){const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 function applyOpenedProject(project,next,fileName,{converted=false}={}){
@@ -1401,7 +1402,7 @@ function initializeWorkbenchChrome(){
   document.querySelector('.site-header').insertBefore(sample,document.querySelector('.top-document'))
   const layoutSelect=document.createElement('select');layoutSelect.id='layout-select';layoutSelect.dataset.i18nLabel='layout';layoutSelect.setAttribute('aria-label',t('layout'))
   for(const layout of KJDRAW_LAYOUTS){const option=document.createElement('option');option.value=layout;option.dataset.i18n=`layout_${layout}`;option.textContent=t(option.dataset.i18n);layoutSelect.append(option)}
-  let savedLayout='classic';try{savedLayout=normalizeWorkbenchLayout(localStorage.getItem('kjdraw.layout'))}catch{}
+  let savedLayout='classic';try{savedLayout=normalizeWorkbenchLayout(localStorage.getItem('kjdraw.layout'))}catch{};if(INITIAL_QUERY.get('layout')==='focus')savedLayout='focus'
   layoutSelect.value=savedLayout;workbench.dataset.layout=savedLayout
   layoutSelect.onchange=()=>{if(boundaryEdit)setTool('select');const layout=normalizeWorkbenchLayout(layoutSelect.value);workbench.dataset.layout=layout;try{localStorage.setItem('kjdraw.layout',layout)}catch{}requestAnimationFrame(()=>{resize();canvas.focus()})}
   document.querySelector('.site-header').insertBefore(layoutSelect,document.querySelector('.top-document'))

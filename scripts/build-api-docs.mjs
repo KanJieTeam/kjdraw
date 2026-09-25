@@ -519,6 +519,7 @@ const referenceHtml = `<!doctype html>
       <div id="empty-state" hidden><h2>${localized('No matching API', '未找到匹配 API')}</h2></div>
       ${referenceSections}
     </article></main>
+    <aside class="api-toc reference-toc" aria-label="Current module symbols"><b>${localized('In this module', '当前模块')}</b><span id="reference-toc-title"></span><nav id="reference-toc-links"></nav></aside>
   </div>
   <script type="module" src="./app.js"></script>
 </body>
@@ -530,7 +531,28 @@ let locale=localStorage.getItem('kjdraw.docs.language')||(navigator.language.toL
 function applyLanguage(){html.dataset.locale=locale;html.lang=locale==='zh'?'zh-CN':'en';document.getElementById('language').textContent=locale==='zh'?'EN':'中文';input.placeholder=locale==='zh'?'搜索全部包导出':'Search package exports'}
 document.getElementById('language').onclick=()=>{locale=locale==='zh'?'en':'zh';localStorage.setItem('kjdraw.docs.language',locale);applyLanguage()}
 for(const button of document.querySelectorAll('[data-copy-code]'))button.onclick=async()=>{await navigator.clipboard.writeText(button.nextElementSibling.textContent);const old=button.textContent;button.textContent=locale==='zh'?'已复制':'Copied';setTimeout(()=>button.textContent=old,1200)}
-function search(){const terms=input.value.trim().toLowerCase().split(/\\s+/).filter(Boolean);let visible=0;for(const module of modules){let moduleVisible=0;for(const symbol of module.querySelectorAll('.api-symbol')){const show=terms.every(term=>symbol.dataset.search.includes(term));symbol.hidden=!show;if(show)moduleVisible+=1}module.hidden=moduleVisible===0;visible+=moduleVisible}empty.hidden=visible!==0;const url=new URL(location.href);if(input.value)url.searchParams.set('q',input.value);else url.searchParams.delete('q');history.replaceState(null,'',url)}
+const toc=document.querySelector('.reference-toc'),tocTitle=document.getElementById('reference-toc-title'),tocLinks=document.getElementById('reference-toc-links')
+function updateReferenceToc(){
+  const visible=modules.filter(module=>!module.hidden)
+  const current=visible.filter(module=>module.getBoundingClientRect().top<150).at(-1)??visible[0]
+  if(!current){toc.hidden=true;return}
+  toc.hidden=false
+  const symbols=[...current.querySelectorAll('.api-symbol:not([hidden])')]
+  const key=current.id+':'+symbols.map(symbol=>symbol.id).join(',')
+  if(toc.dataset.key===key)return
+  toc.dataset.key=key
+  tocTitle.textContent=current.querySelector('.module-header h2')?.textContent??''
+  tocLinks.replaceChildren()
+  for(const symbol of symbols){
+    const link=document.createElement('a')
+    link.href='#'+symbol.id
+    link.textContent=symbol.querySelector('h3')?.textContent??symbol.id
+    tocLinks.append(link)
+  }
+}
+let tocFrame=0
+addEventListener('scroll',()=>{if(tocFrame)return;tocFrame=requestAnimationFrame(()=>{tocFrame=0;updateReferenceToc()})},{passive:true})
+function search(){const terms=input.value.trim().toLowerCase().split(/\\s+/).filter(Boolean);let visible=0;for(const module of modules){let moduleVisible=0;for(const symbol of module.querySelectorAll('.api-symbol')){const show=terms.every(term=>symbol.dataset.search.includes(term));symbol.hidden=!show;if(show)moduleVisible+=1}module.hidden=moduleVisible===0;visible+=moduleVisible}empty.hidden=visible!==0;const url=new URL(location.href);if(input.value)url.searchParams.set('q',input.value);else url.searchParams.delete('q');history.replaceState(null,'',url);updateReferenceToc()}
 input.value=new URL(location.href).searchParams.get('q')??'';input.addEventListener('input',search);search();window.addEventListener('keydown',event=>{if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName)){event.preventDefault();input.focus()}});applyLanguage()
 `
 
@@ -564,6 +586,9 @@ const apiLayoutCss = `
 @media(max-width:767px){.topbar{height:64px;padding:0 16px}.brand{width:auto}.top-links{margin-left:auto;gap:10px}.top-links>a{display:none}.api-search-wrap,.api-search{width:min(170px,42vw)}.api-main,.reference-main{padding:26px 16px 72px}.framework-grid,.advanced-grid,.api-method dl{grid-template-columns:1fr}.wide-table{width:100%}}
 `
 
+const referenceTocCss = `
+.reference-toc{gap:7px}.reference-toc>span{font:11px/1.45 Consolas,monospace;color:#8a95a2;overflow-wrap:anywhere}.reference-toc nav{display:flex;flex-direction:column;gap:2px;margin-top:6px}.reference-toc nav a{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 3px;color:#667486;text-decoration:none;font:11px/1.4 Consolas,monospace}.reference-toc nav a:hover{color:#1d56bc;background:#f3f7ff}
+`
 const apiDocsPolish = `
 .api-tree-label{margin:22px 8px 8px;color:#9099a7;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}.api-sidebar nav a.active{background:#eaf0ff;color:#1d56bc;font-weight:600}.api-sidebar .reference-link{display:flex;justify-content:space-between;margin-top:4px;padding-top:9px;border-top:0;color:#526071}.api-breadcrumb{display:flex;align-items:center;gap:8px;margin-bottom:22px;color:#8793a1;font-size:12px}.api-breadcrumb a{color:#657386;text-decoration:none}.api-breadcrumb a:hover{color:#1d56bc}.api-breadcrumb strong{color:#25344b;font-weight:600}.api-hero-row{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}.api-page-action{flex:none;border:1px solid #d7dee8;border-radius:7px;background:#fff;color:#596779;padding:7px 10px;font-size:12px;cursor:pointer}.api-page-action:hover{border-color:#9bb7f0;color:#1d56bc;background:#f7faff}.api-main section{padding-top:35px}.api-main section:first-of-type{padding-top:0}.api-main section>h2{margin-top:0;padding-top:0}.api-main section>h2::after{content:'';display:inline-block;width:26px;height:1px;margin:5px 0 0 9px;background:#9bb8f5}.api-toc-caption{margin:-2px 0 3px;color:#9aa5b2;font-size:11px}.api-toc a{padding:2px 0;color:#657182;text-decoration:none}.api-toc a.active{color:#1d56bc;font-weight:600}.api-toc a.active::before{content:'';display:inline-block;width:2px;height:13px;margin-right:7px;vertical-align:-2px;border-radius:2px;background:#2863f0}.api-toc-methods a{font-size:11px}
 `
@@ -577,7 +602,7 @@ const outputs = new Map([
   ['reference/api-reference.json', `${JSON.stringify(api, null, 2)}\n`],
   ['reference/index.html', referenceHtml],
   ['reference/app.js', referenceAppJs],
-  ['reference/style.css', `${referenceCss}\n${apiLayoutCss}`],
+  ['reference/style.css', `${referenceCss}\n${apiLayoutCss}\n${referenceTocCss}`],
 ])
 
 async function listRelativeFiles(root, current = root) {

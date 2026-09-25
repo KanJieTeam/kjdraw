@@ -41,6 +41,7 @@ const sampleCatalog: SampleDefinition[] = [
   { id: 'sample-architecture', title: 'Innovation hub / ground floor', titleZh: '创新中心 / 首层平面', discipline: 'ARCHITECTURE', build: buildArchitecture },
   { id: 'sample-road-profile', title: 'Hill route C2 / longitudinal profile', titleZh: '山区道路 C2 / 纵断面', discipline: 'TRANSPORTATION', build: buildRoadProfile },
   { id: 'sample-mechanical', title: 'Bearing bracket / manufacturing drawing', titleZh: '轴承支架 / 制造工程图', discipline: 'MECHANICAL', build: buildMechanical },
+  { id: 'sample-mechanical-flange', title: 'Six-hole mounting flange / manufacturing drawing', titleZh: '六孔安装法兰 / 制造工程图', discipline: 'MECHANICAL', build: buildMechanicalFlange },
   { id: 'sample-borehole-log', title: 'Loess borehole / engineering log', titleZh: '黄土钻孔 / 工程柱状图', discipline: 'GEOLOGY', build: buildBoreholeLog },
   { id: 'sample-geology-section', title: 'Loess site / geological section', titleZh: '黄土场地 / 工程地质剖面', discipline: 'GEOLOGY', build: buildGeologySection },
 ]
@@ -286,4 +287,42 @@ function buildGeologySection({ line, text, poly, rect, circle, cross, dimH, dimV
   for (let layer = 0; layer < 6; layer++) { const points: Point[] = []; for (let i = 0; i <= 40; i++) { const x = left + i * (right - left) / 40; const y = 108 - layer * 11 + Math.sin(i * .35 + layer) * (1.5 + layer * .15); points.push([x, y]) } strata.push(points); poly(points, 'GEO-STRATA', false) }
   for (let layer = 0; layer < 5; layer++) { const y = 104 - layer * 11; text([right - 53, y], ['MALAN LOESS', 'PALEOSOL', 'LISHI LOESS', 'PALEOSOL', 'SILTY CLAY'][layer]!, 1.25, 'ANNO') }
   poly([[left, 101], [right, 104]], 'GEO-WATER', false); text([right - 37, 98], 'GROUNDWATER', 1.2, 'GEO-WATER'); dimH(left, right, base, -10, 'SECTION LENGTH 100 m'); dimV(left, base, top, -8, 'ELEVATION'); text([20, 21], 'A—A′  ·  FIVE BOREHOLES  ·  INTERPRETED STRATA  ·  SYNTHETIC SAMPLE', 1.15, 'TITLE')
+}
+sampleCatalog[4]!.layers = [
+  ['FRAME', 7], ['M-OBJECT', 7], ['M-CENTER', 3], ['M-HIDDEN', 8], ['DIMS', 2], ['ANNO', 7], ['TITLE', 7],
+]
+function buildMechanicalFlange({ line, circle, text, rect, cross, dimH, dimV, sheet }: ReturnType<typeof draftingKit>) {
+  sheet({ width: 350, height: 230, title: 'SIX-HOLE MOUNTING FLANGE', number: 'M-2050', scale: '1:1', discipline: 'MECHANICAL DETAIL' })
+  const cx = 92, cy = 109, outerRadius = 60, boreRadius = 20, pitchRadius = 45, holeRadius = 5
+  circle([cx, cy], outerRadius, 'M-OBJECT')
+  circle([cx, cy], boreRadius, 'M-OBJECT')
+  circle([cx, cy], pitchRadius, 'M-CENTER')
+  cross(cx, cy, outerRadius + 3, 'M-CENTER')
+  for (let index = 0; index < 6; index++) {
+    const angle = index * Math.PI / 3
+    const x = cx + Math.cos(angle) * pitchRadius, y = cy + Math.sin(angle) * pitchRadius
+    circle([x, y], holeRadius, 'M-OBJECT')
+    cross(x, y, holeRadius + 2, 'M-CENTER')
+  }
+  text([cx - 22, 40], 'FRONT / FACE VIEW', 1.6, 'ANNO')
+  dimH(cx - outerRadius, cx + outerRadius, cy, -78, 'Ø120')
+  text([cx - 20, cy + 70], '6 × Ø10 THRU  ·  PCD Ø90', 1.55, 'DIMS')
+  line([cx + boreRadius * .7, cy + boreRadius * .7], [cx + 31, cy + 32], 'DIMS')
+  text([cx + 32, cy + 32], 'Ø40 BORE', 1.4, 'DIMS')
+
+  // True 1:1 longitudinal section: 120 mm outside, 40 mm through bore and 20 mm axial thickness.
+  const sectionLeft = 222, sectionRight = 242, bottom = cy - outerRadius, top = cy + outerRadius
+  rect(sectionLeft, bottom, sectionRight - sectionLeft, top - bottom, 'M-OBJECT')
+  line([sectionLeft, cy - boreRadius], [sectionRight, cy - boreRadius], 'M-OBJECT')
+  line([sectionLeft, cy + boreRadius], [sectionRight, cy + boreRadius], 'M-OBJECT')
+  line([sectionLeft - 10, cy], [sectionRight + 10, cy], 'M-CENTER')
+  for (let index = 0; index < 8; index++) {
+    const offset = index * 4
+    line([sectionLeft + 2, bottom + 3 + offset], [sectionLeft + 7, bottom + 8 + offset], 'M-HIDDEN')
+    line([sectionLeft + 2, cy + boreRadius + 3 + offset], [sectionLeft + 7, cy + boreRadius + 8 + offset], 'M-HIDDEN')
+  }
+  dimH(sectionLeft, sectionRight, bottom, -13, '20')
+  dimV(sectionRight, bottom, top, 17, 'Ø120')
+  text([sectionLeft - 8, 32], 'SECTION B—B  ·  1:1', 1.55, 'ANNO')
+  text([11, 195], 'C45 STEEL  ·  SIX Ø10 THRU HOLES ON Ø90 PCD  ·  BREAK SHARP EDGES', 1.2, 'TITLE')
 }

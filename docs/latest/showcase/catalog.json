@@ -45,7 +45,7 @@
         "en": "Mechanical",
         "zh": "机械"
       },
-      "count": 1
+      "count": 2
     },
     {
       "id": "geology",
@@ -414,6 +414,70 @@
       "thumbnailSha256": "d99ad9861a8c75a907ddc19a164c2b2e7464206149a379d2c98a0ef80be612fa"
     },
     {
+      "id": "mechanical-flange",
+      "kind": "sample",
+      "sampleId": "sample-mechanical-flange",
+      "category": "mechanical",
+      "title": {
+        "en": "Six-hole mounting flange",
+        "zh": "六孔安装法兰"
+      },
+      "drawingType": {
+        "en": "Manufacturing drawing",
+        "zh": "制造工程图"
+      },
+      "summary": {
+        "en": "A parametric face and section drawing for a 120 mm flange with a 40 mm bore and six through holes on a 90 mm pitch circle.",
+        "zh": "120 毫米法兰的参数化端面与剖面图，包含 40 毫米孔和 Ø90 节圆上的六个通孔。"
+      },
+      "tags": {
+        "en": [
+          "mechanical",
+          "flange",
+          "holes",
+          "section"
+        ],
+        "zh": [
+          "机械",
+          "法兰",
+          "孔",
+          "剖面"
+        ]
+      },
+      "detailAnchor": "mechanical-flange",
+      "source": "packages/kjdraw-sdk/src/samples.ts",
+      "categoryTitle": {
+        "en": "Mechanical",
+        "zh": "机械"
+      },
+      "facts": {
+        "editableObjects": 85,
+        "layers": 8,
+        "units": "meter",
+        "entityTypes": {
+          "CIRCLE": 9,
+          "LINE": 58,
+          "LWPOLYLINE": 4,
+          "TEXT": 14
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-mechanical-flange",
+        "detail": "./mechanical-flange/",
+        "preview": "./assets/mechanical-flange.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
+      },
+      "artifact": {
+        "path": "showcase/assets/mechanical-flange.svg",
+        "svgStatus": "generated-thumbnail",
+        "renderedEntities": 85,
+        "diagnostics": 0,
+        "revision": 8
+      },
+      "thumbnail": "./assets/mechanical-flange.svg",
+      "thumbnailSha256": "05db0869563b8e2f4571cc93b67dc375c62a83eabcf3b3cdbf1beb84d97ddc17"
+    },
+    {
       "id": "borehole-log",
       "kind": "sample",
       "sampleId": "sample-borehole-log",
@@ -452,7 +516,7 @@
       },
       "facts": {
         "editableObjects": 149,
-        "layers": 10,
+        "layers": 13,
         "units": "meter",
         "entityTypes": {
           "LINE": 89,
@@ -471,7 +535,7 @@
         "svgStatus": "generated-thumbnail",
         "renderedEntities": 149,
         "diagnostics": 0,
-        "revision": 10
+        "revision": 9
       },
       "thumbnail": "./assets/borehole-log.svg",
       "thumbnailSha256": "f16e9b3f5b4090177f64f9f53b22fc6e04676b640053dc5f646d40bd23d27dfe"
@@ -516,7 +580,7 @@
       "facts": {
         "editableObjects": 113,
         "layers": 9,
-        "units": "meter",
+        "units": "millimeter",
         "entityTypes": {
           "CIRCLE": 5,
           "LINE": 52,
@@ -535,7 +599,7 @@
         "svgStatus": "generated-thumbnail",
         "renderedEntities": 113,
         "diagnostics": 0,
-        "revision": 9
+        "revision": 1
       },
       "thumbnail": "./assets/geology-section.svg",
       "thumbnailSha256": "5c475dc219315d5ea174994115e76258e90409e6ebda53fff9cfb0565cee65d8"
@@ -987,13 +1051,11 @@
         "definitionName": "PUBLIC-REFERENCE-MARK",
         "definitionEntityCount": 2,
         "insertCount": 3,
-        "editableObjects": 5,
+        "editableObjects": 3,
         "layers": 1,
         "units": "millimeter",
         "entityTypes": {
-          "CIRCLE": 1,
-          "INSERT": 3,
-          "LINE": 1
+          "INSERT": 3
         }
       },
       "links": {

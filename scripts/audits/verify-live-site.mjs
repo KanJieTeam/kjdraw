@@ -4,6 +4,7 @@ import { mkdir, readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { chromium, expect } from '@playwright/test'
 import { createKJDrawSDK, KJProjectSession } from '../../packages/kjdraw-sdk/src/index.js'
+import { INDUSTRY_SAMPLES } from '../../packages/kjdraw-sdk/src/samples.js'
 
 // Run after Pages succeeds, from the checkout that was deployed.
 // Example: node scripts/audits/verify-live-site.mjs https://kanjieteam.github.io/kjdraw/
@@ -48,7 +49,7 @@ try {
   page.on('pageerror', error => errors.push(error.message))
   await page.goto(base.href)
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
-  await expect(page.locator('#sample-select option')).toHaveCount(5)
+  await expect(page.locator('#sample-select option')).toHaveCount(INDUSTRY_SAMPLES.length + 1)
   const selectDrawing = async id => {
     await expect(page.locator('.workbench')).toHaveAttribute('aria-busy', 'false')
     await page.locator('#sample-select').selectOption(id)

@@ -21,14 +21,14 @@ The drawing contract is independent of the model vendor. A client that can launc
 | Doubao, DeepSeek and other domestic models | Use an MCP-capable host, or pass their tool-call JSON through `createKJModelAdapter` / `createKJDomesticModelAdapter` | Provider endpoint and transport | CAD tools, validation and receipts |
 | Custom harness, gateway or private model | Implement `KJAgentModel` or expose the stdio server from the host | Your conversation loop and credentials | The KJDraw agent session and document model |
 
-Portable MCP entry:
+Portable MCP entry for a locally built package containing `kjdraw-mcp.mjs`: create `proposals` and `results` in the host project and replace both absolute-path placeholders. Verify the installed npm version first; `next` may still resolve to an older candidate without this executable.
 
 ```jsonc
 {
   "mcpServers": {
     "kjdraw": {
-      "command": "npx",
-      "args": ["-y", "@kanjieteam/kjdraw", "mcp"]
+      "command": "node",
+      "args": ["/absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs", "--workspace", "/absolute/project", "--blank", "drawing.kjd", "--units", "millimeter", "--proposal-dir", "proposals", "--candidate-dir", "results"]
     }
   }
 }
@@ -146,14 +146,14 @@ KJDraw 不依赖特定 AI 厂商。选择协议适配器，传入模型和宿主
 | 豆包、DeepSeek 及其他国产模型 | 通过支持 MCP 的宿主接入，或把工具调用 JSON 交给 `createKJModelAdapter` / `createKJDomesticModelAdapter` | 模型接口和传输层 | CAD 工具、校验和回执 |
 | 自建 Harness、网关或私有模型 | 实现 `KJAgentModel`，或由宿主暴露 stdio server | 会话循环和凭据管理 | KJDraw Agent 会话和图档模型 |
 
-通用 MCP 配置：
+本地构建且包含 `kjdraw-mcp.mjs` 的包可使用以下配置：先在宿主工程创建 `proposals` 和 `results` 目录，替换两处绝对路径；npm `next` 仍可能是没有该命令的旧候选版，接入前须先核对实际安装版本。
 
 ```jsonc
 {
   "mcpServers": {
     "kjdraw": {
-      "command": "npx",
-      "args": ["-y", "@kanjieteam/kjdraw", "mcp"]
+      "command": "node",
+      "args": ["/absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs", "--workspace", "/absolute/project", "--blank", "drawing.kjd", "--units", "millimeter", "--proposal-dir", "proposals", "--candidate-dir", "results"]
     }
   }
 }

@@ -5,9 +5,9 @@ test('Showcase searches, filters and changes view using generated public sample 
   await page.goto('/docs/latest/showcase/')
   const portal = page.locator('.showcase-portal[data-locale="en"]')
   await expect(portal).toBeVisible()
-  await expect(portal.locator('.showcase-card:visible')).toHaveCount(12)
-  await expect(portal.locator('.showcase-thumb img')).toHaveCount(12)
-  await expect(portal.locator('.showcase-category[data-category="all"] b')).toHaveText('12')
+  await expect(portal.locator('.showcase-card:visible')).toHaveCount(15)
+  await expect(portal.locator('.showcase-thumb img')).toHaveCount(15)
+  await expect(portal.locator('.showcase-category[data-category="all"] b')).toHaveText('15')
   await expect(portal.locator('.showcase-category[data-category="core-capabilities"] b')).toHaveText('4')
 
   await portal.locator('.showcase-query').fill('bearing holes')
@@ -37,7 +37,7 @@ test('Showcase case detail opens a real editable workspace instead of a raw SVG'
   test.skip(testInfo.project.name !== 'chromium', 'One Chromium journey covers the documentation-only interaction')
   await page.goto('/docs/latest/showcase/mechanical-bracket/')
   await expect(page.locator('h1 .en')).toContainText('Bearing bracket')
-  await expect(page.locator('.viewport iframe')).toHaveAttribute('src', '../../../../?sample=sample-mechanical')
+  await expect(page.locator('.viewport iframe')).toHaveAttribute('src', '../../../../?sample=sample-mechanical&layout=focus')
   await expect(page.locator('a[href$="mechanical-bracket.kjd"]')).toBeVisible()
   await expect(page.locator('a[href$="mechanical-bracket.dxf"]')).toBeVisible()
   await expect(page.locator('img[src$="mechanical-bracket.svg"]')).toHaveCount(0)
@@ -46,6 +46,24 @@ test('Showcase case detail opens a real editable workspace instead of a raw SVG'
   await expect(page.locator('#source')).toContainText('createIndustrySamples')
 
   await page.goto('/docs/latest/showcase/editable-entities/')
-  await expect(page.locator('.viewport iframe')).toHaveAttribute('src', '../../../../?sample=specimen-editable-entities')
+  await expect(page.locator('.viewport iframe')).toHaveAttribute('src', '../../../../?sample=specimen-editable-entities&layout=focus')
   await expect(page.frameLocator('iframe').locator('.workbench')).toHaveAttribute('data-demo-state', 'ready', { timeout: 30000 })
+  await expect(page.frameLocator('iframe').locator('#layout-select')).toHaveValue('focus')
+
+  await page.goto('/docs/latest/showcase/a4-print-layout/')
+  await expect(page.locator('.viewport iframe')).toHaveAttribute('src', '../../../../?sample=specimen-a4-print-layout&layout=focus&space=paper')
+  const paper = page.frameLocator('iframe')
+  await expect(paper.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready', { timeout: 30000 })
+  await expect(paper.locator('#layout-select')).toHaveValue('focus')
+  const colorCount = await paper.locator('#canvas').evaluate(canvas => {
+    const { width, height } = canvas
+    const data = canvas.getContext('2d').getImageData(0, 0, width, height).data
+    const colors = new Set()
+    for (let y = 8; y < height; y += 8) for (let x = 8; x < width; x += 8) {
+      const offset = (y * width + x) * 4
+      colors.add(`${data[offset]},${data[offset + 1]},${data[offset + 2]}`)
+    }
+    return colors.size
+  })
+  expect(colorCount).toBeGreaterThan(2)
 })

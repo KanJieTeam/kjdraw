@@ -92,6 +92,18 @@
       "source": "packages/kjdraw-sdk/src/samples.ts"
     },
     {
+      "id": "mechanical-flange",
+      "kind": "sample",
+      "sampleId": "sample-mechanical-flange",
+      "category": "mechanical",
+      "title": { "en": "Six-hole mounting flange", "zh": "六孔安装法兰" },
+      "drawingType": { "en": "Manufacturing drawing", "zh": "制造工程图" },
+      "summary": { "en": "A parametric face and section drawing for a 120 mm flange with a 40 mm bore and six through holes on a 90 mm pitch circle.", "zh": "120 毫米法兰的参数化端面与剖面图，包含 40 毫米孔和 Ø90 节圆上的六个通孔。" },
+      "tags": { "en": ["mechanical", "flange", "holes", "section"], "zh": ["机械", "法兰", "孔", "剖面"] },
+      "detailAnchor": "mechanical-flange",
+      "source": "packages/kjdraw-sdk/src/samples.ts"
+    },
+    {
       "id": "borehole-log",
       "kind": "sample",
       "sampleId": "sample-borehole-log",
@@ -114,7 +126,8 @@
       "tags": { "en": ["geology", "section", "boreholes", "strata"], "zh": ["地质", "剖面", "钻孔", "地层"] },
       "detailAnchor": "geology-section",
       "source": "packages/kjdraw-sdk/src/samples.ts"
-    },    {
+    },
+    {
       "id": "editable-entities",
       "kind": "specimen",
       "specimenId": "geometry",

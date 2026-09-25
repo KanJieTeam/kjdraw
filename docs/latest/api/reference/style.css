@@ -25,3 +25,6 @@
 @media(max-width:1439px){.api-toc{display:none}}
 @media(max-width:1023px){.api-sidebar,.reference-sidebar{display:none}.api-main,.reference-main{width:auto;margin-left:0;padding:32px 24px 80px}.api-main article,.reference-main article{max-width:800px;margin:0 auto}}
 @media(max-width:767px){.topbar{height:64px;padding:0 16px}.brand{width:auto}.top-links{margin-left:auto;gap:10px}.top-links>a{display:none}.api-search-wrap,.api-search{width:min(170px,42vw)}.api-main,.reference-main{padding:26px 16px 72px}.framework-grid,.advanced-grid,.api-method dl{grid-template-columns:1fr}.wide-table{width:100%}}
+
+
+.reference-toc{gap:7px}.reference-toc>span{font:11px/1.45 Consolas,monospace;color:#8a95a2;overflow-wrap:anywhere}.reference-toc nav{display:flex;flex-direction:column;gap:2px;margin-top:6px}.reference-toc nav a{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 3px;color:#667486;text-decoration:none;font:11px/1.4 Consolas,monospace}.reference-toc nav a:hover{color:#1d56bc;background:#f3f7ff}

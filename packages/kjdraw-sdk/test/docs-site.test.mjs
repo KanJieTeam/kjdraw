@@ -127,3 +127,21 @@ test('generated documentation portal has no source or navigation drift', () => {
   })
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
 })
+
+test('published onboarding examples match executable package entry points and tool schema', async () => {
+  const packageJson = await json('packages/kjdraw-sdk/package.json')
+  assert.equal(packageJson.bin['kjdraw-mcp'], './bin/kjdraw-mcp.mjs')
+  for (const path of ['README.md', 'README.zh-CN.md', 'docs/site/pages/models.md']) {
+    const source = await readFile(new URL(path, repositoryRoot), 'utf8')
+    assert.doesNotMatch(source, /"@kanjieteam\/kjdraw",\s*"mcp"/)
+    assert.match(source, /bin\/kjdraw-mcp\.mjs/)
+    assert.match(source, /--workspace/)
+    assert.match(source, /--proposal-dir/)
+  }
+  const english = await readFile(new URL('README.md', repositoryRoot), 'utf8')
+  assert.match(english, /"tool": "cad_propose_move"[\s\S]*?"expectedRevision": 0,[\s\S]*?"units": "millimeter",[\s\S]*?"ids": \[/)
+  assert.doesNotMatch(english, /"objectIds":/)
+  const reference = await readFile(new URL('docs/site/pages/reference.md', repositoryRoot), 'utf8')
+  assert.doesNotMatch(reference, /createAgentSession/)
+  assert.match(reference, /import \{ KJAgentToolSession \} from '@kanjieteam\/kjdraw\/agent-tools'/)
+})
