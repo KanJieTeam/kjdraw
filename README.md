@@ -11,6 +11,7 @@
   <a href="#quick-start"><strong>Quick start</strong></a> ·
   <a href="https://kanjieteam.github.io/kjdraw/ai/"><strong>Try with AI</strong></a> ·
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>Live editor</strong></a> ·
+  <a href="https://kanjieteam.github.io/kjdraw/docs/latest/showcase/"><strong>Showcase</strong></a> ·
   <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><strong>Docs</strong></a> ·
   <a href="README.zh-CN.md">简体中文</a>
 </p>

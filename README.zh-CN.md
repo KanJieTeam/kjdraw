@@ -11,6 +11,7 @@
   <a href="#快速开始"><strong>快速开始</strong></a> ·
   <a href="https://kanjieteam.github.io/kjdraw/ai/"><strong>开始 AI 绘图</strong></a> ·
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>在线编辑器</strong></a> ·
+  <a href="https://kanjieteam.github.io/kjdraw/docs/latest/showcase/"><strong>案例库</strong></a> ·
   <a href="#接入你的应用"><strong>接入你的应用</strong></a> ·
   <a href="#给你的-agent-配上-cad-工具"><strong>构建 CAD Agent</strong></a> ·
   <a href="README.md">English</a>
