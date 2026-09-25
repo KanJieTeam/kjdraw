@@ -1,0 +1,24 @@
+// examples/curated-mechanical-sheets.mjs#L106-L126
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+function drawAngle(d) {
+  // Profile and top view share a 90 mm foot length; the 45 mm top view is depth.
+  d.poly([[53, 68], [143, 68], [143, 80], [65, 80], [65, 158], [53, 158]], true)
+  d.poly([[65, 80], [98, 80], [65, 113]], true)
+  d.add('HATCH', { boundaryLoops: [{ vertices: [p(65, 80), p(98, 80), p(65, 113)] }], patternName: 'ANSI31', patternScale: 2 }, 'hatch')
+  d.rect(179, 85, 269, 130)
+  d.line(191, 85, 191, 130)
+  for (const x of [215, 255]) {
+    d.circle(x, 107.5, 5)
+    d.center(x, 107.5, 8)
+  }
+  d.dim(53, 68, 143, 68, 98, 56)
+  d.dim(53, 68, 53, 158, 40, 113)
+  d.dim(179, 130, 269, 130, 224, 144)
+  d.dim(179, 85, 179, 130, 167, 107.5)
+  d.text(72, 161, 'PROFILE', 3.2)
+  d.text(210, 161, 'TOP VIEW', 3.2)
+  d.text(188, 68, '2X DIA 10 THRU', 3)
+  d.text(188, 58, 'HOLE PITCH 40', 3)
+  d.text(71, 49, 'WALL 12 / RIB SCHEMATIC', 2.75)
+}

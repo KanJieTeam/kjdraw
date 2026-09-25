@@ -1,0 +1,93 @@
+{
+  "schema": "com.kanjie.kjdraw.showcase-catalog@1",
+  "entries": [
+    {
+      "id": "sleeve-bushing", "kind": "specimen", "specimenId": "sleeve-bushing", "category": "mechanical",
+      "title": { "en": "Through-bore sleeve", "zh": "通孔轴套" },
+      "drawingType": { "en": "Manufacturing drawing", "zh": "机械制造图" },
+      "summary": { "en": "A dimensioned sleeve sheet with front, side and section views, centre lines and a title block.", "zh": "带正视、侧视与剖视、中心线、尺寸和图签的轴套图纸。" },
+      "tags": { "en": ["sleeve", "section", "dimensions", "manufacturing"], "zh": ["轴套", "剖视", "尺寸", "制造"] },
+      "source": "examples/curated-mechanical-sheets.mjs"
+    },
+    {
+      "id": "four-hole-plate", "kind": "specimen", "specimenId": "four-hole-plate", "category": "mechanical",
+      "title": { "en": "Four-hole mounting plate", "zh": "四孔安装板" },
+      "drawingType": { "en": "Manufacturing drawing", "zh": "机械制造图" },
+      "summary": { "en": "An editable mounting plate drawing with hole spacing, dimensions, side view and notes.", "zh": "带孔距、尺寸、侧视图和技术注释的可编辑安装板图纸。" },
+      "tags": { "en": ["plate", "hole pattern", "dimensions", "manufacturing"], "zh": ["安装板", "孔位", "尺寸", "制造"] },
+      "source": "examples/curated-mechanical-sheets.mjs"
+    },
+    {
+      "id": "angle-support", "kind": "specimen", "specimenId": "angle-support", "category": "mechanical",
+      "title": { "en": "Ribbed angle support", "zh": "带肋角支座" },
+      "drawingType": { "en": "Manufacturing drawing", "zh": "机械制造图" },
+      "summary": { "en": "A bracket sheet with orthographic views, an editable rib detail, holes and native dimensions.", "zh": "包含正投影视图、可编辑加强肋、孔和原生尺寸的支座图纸。" },
+      "tags": { "en": ["bracket", "rib", "holes", "orthographic"], "zh": ["支座", "加强肋", "孔", "正投影"] },
+      "source": "examples/curated-mechanical-sheets.mjs"
+    },
+    {
+      "id": "hole-gauge", "kind": "specimen", "specimenId": "hole-gauge", "category": "mechanical",
+      "title": { "en": "Six-point hole gauge", "zh": "六孔检验板" },
+      "drawingType": { "en": "Inspection drawing", "zh": "孔位检验图" },
+      "summary": { "en": "A repeated hole pattern with centre lines, dimension chains and an inspection-ready sheet layout.", "zh": "以中心线、尺寸链和检验图幅组织的重复孔位图纸。" },
+      "tags": { "en": ["inspection", "hole pattern", "dimension chain"], "zh": ["检验", "孔位", "尺寸链"] },
+      "source": "examples/curated-mechanical-sheets.mjs"
+    },
+    {
+      "id": "compact-office-plan", "kind": "specimen", "specimenId": "compact-office-plan", "category": "architecture",
+      "title": { "en": "Compact office floor plan", "zh": "小型办公平面图" },
+      "drawingType": { "en": "Architectural plan", "zh": "建筑平面图" },
+      "summary": { "en": "A not-to-scale office concept with editable rooms, circulation, doors and windows.", "zh": "包含房间、动线和门窗的可编辑办公概念平面（非比例）。" },
+      "tags": { "en": ["office", "floor plan", "doors", "windows"], "zh": ["办公", "平面", "门", "窗"] },
+      "source": "examples/curated-building-sheets.mjs"
+    },
+    {
+      "id": "door-window-elevations", "kind": "specimen", "specimenId": "door-window-elevations", "category": "architecture",
+      "title": { "en": "Door and window elevations", "zh": "门窗立面与编号表" },
+      "drawingType": { "en": "Architectural detail", "zh": "建筑详图" },
+      "summary": { "en": "Coordinated door and window elevations with editable marks, sizes and a compact schedule.", "zh": "带可编辑编号、尺寸与简表的门窗立面图。" },
+      "tags": { "en": ["doors", "windows", "elevations", "schedule"], "zh": ["门", "窗", "立面", "编号表"] },
+      "source": "examples/curated-building-sheets.mjs"
+    },
+    {
+      "id": "retail-power-one-line", "kind": "specimen", "specimenId": "retail-power-one-line", "category": "electrical",
+      "title": { "en": "Retail power one-line", "zh": "商铺配电单线图" },
+      "drawingType": { "en": "Electrical schematic", "zh": "电气原理图" },
+      "summary": { "en": "An editable distribution one-line with feeder, protective devices, branch circuits and load labels.", "zh": "带进线、保护器件、分支回路与负荷标注的可编辑配电单线图。" },
+      "tags": { "en": ["electrical", "distribution", "circuits", "schematic"], "zh": ["电气", "配电", "回路", "原理图"] },
+      "source": "examples/curated-building-sheets.mjs"
+    },
+    {
+      "id": "courtyard-circulation-plan", "kind": "specimen", "specimenId": "courtyard-circulation-plan", "category": "civil",
+      "title": { "en": "Courtyard circulation plan", "zh": "庭院步道与绿化平面" },
+      "drawingType": { "en": "Landscape plan", "zh": "景观场地平面" },
+      "summary": { "en": "A not-to-scale courtyard concept with editable paths, planting and seating.", "zh": "包含步道、种植区与座椅的可编辑庭院概念平面（非比例）。" },
+      "tags": { "en": ["courtyard", "path", "planting", "access"], "zh": ["庭院", "步道", "绿化", "通行"] },
+      "source": "examples/curated-building-sheets.mjs"
+    },
+    {
+      "id": "drainage-network", "kind": "specimen", "specimenId": "drainage-network", "category": "civil",
+      "title": { "en": "Site drainage network", "zh": "场地排水管网" },
+      "drawingType": { "en": "Utility plan", "zh": "管线平面图" },
+      "summary": { "en": "An editable schematic of inspection chambers, gravity pipes, flow arrows and a legend.", "zh": "带检查井、重力管、流向箭头和图例的可编辑排水示意图。" },
+      "tags": { "en": ["drainage", "pipes", "chambers", "flow"], "zh": ["排水", "管线", "检查井", "流向"] },
+      "source": "examples/curated-civil-sheets.mjs"
+    },
+    {
+      "id": "retaining-wall", "kind": "specimen", "specimenId": "retaining-wall", "category": "civil",
+      "title": { "en": "Retaining wall section", "zh": "挡土墙剖面" },
+      "drawingType": { "en": "Civil construction detail", "zh": "土木构造详图" },
+      "summary": { "en": "A section showing footing, wall stem, backfill, drain and editable hatch patterns.", "zh": "展示基础、墙身、回填、排水与可编辑填充的剖面图。" },
+      "tags": { "en": ["retaining wall", "section", "hatch", "drainage"], "zh": ["挡土墙", "剖面", "填充", "排水"] },
+      "source": "examples/curated-civil-sheets.mjs"
+    },
+    {
+      "id": "utility-trench", "kind": "specimen", "specimenId": "utility-trench", "category": "civil",
+      "title": { "en": "Shared utility trench", "zh": "综合管沟剖面" },
+      "drawingType": { "en": "Utility section", "zh": "管沟剖面图" },
+      "summary": { "en": "A typical trench schematic with duct bank, bedding, warning tape and clearance annotations.", "zh": "包含管群、垫层、警示带与净距标注的典型管沟示意图。" },
+      "tags": { "en": ["trench", "duct bank", "section", "utilities"], "zh": ["管沟", "管群", "剖面", "管线"] },
+      "source": "examples/curated-civil-sheets.mjs"
+    }
+  ]
+}

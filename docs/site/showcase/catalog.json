@@ -104,45 +104,6 @@
       "source": "packages/kjdraw-sdk/src/samples.ts"
     },
     {
-      "id": "borehole-log",
-      "kind": "sample",
-      "sampleId": "sample-borehole-log",
-      "category": "geology",
-      "title": { "en": "Borehole log", "zh": "柱状图" },
-      "reviewStatus": "layout-unverified",
-      "drawingType": { "en": "Engineering borehole log", "zh": "工程钻孔柱状图" },
-      "summary": { "en": "A 30 m editable borehole log with depth, elevation, lithology intervals, hatch, groundwater and title data.", "zh": "30 米可编辑钻孔柱状图，包含深度、标高、岩性分层、填充、地下水和图签信息。" },
-      "tags": { "en": ["geology", "borehole", "lithology", "groundwater"], "zh": ["地质", "钻孔", "岩性", "地下水"] },
-      "detailAnchor": "geology-borehole-log",
-      "source": "packages/kjdraw-sdk/src/samples.ts"
-    },
-    {
-      "id": "geology-section",
-      "kind": "sample",
-      "sampleId": "sample-geology-section",
-      "category": "geology",
-      "title": { "en": "Geological section", "zh": "剖面图" },
-      "reviewStatus": "layout-unverified",
-      "drawingType": { "en": "Five-borehole section", "zh": "五孔工程地质剖面" },
-      "summary": { "en": "An editable five-borehole illustrative section compiled from synthetic intervals, with native lithology hatches and exact interval links; not measured data.", "zh": "由合成分层编译的五孔可编辑示意剖面，包含原生岩性填充与明确的孔间层位连线；非实测数据。" },
-      "tags": { "en": ["geology", "section", "boreholes", "strata"], "zh": ["地质", "剖面", "钻孔", "地层"] },
-      "detailAnchor": "geology-section",
-      "source": "packages/kjdraw-sdk/src/samples.ts"
-    },
-    {
-      "id": "geology-plan",
-      "kind": "sample",
-      "sampleId": "sample-geology-plan",
-      "category": "geology",
-      "title": { "en": "Investigation plan", "zh": "平面图" },
-      "reviewStatus": "layout-unverified",
-      "drawingType": { "en": "Investigation-point location plan", "zh": "勘探点平面位置图" },
-      "summary": { "en": "Five synthetic investigation points, a referenced section route, coordinate grid and north arrow compiled as an editable A3 plan; not measured data.", "zh": "由五个合成勘探点、对应剖面线、坐标网格与指北针编译的可编辑 A3 平面图；非实测数据。" },
-      "tags": { "en": ["geology", "investigation", "boreholes", "plan"], "zh": ["勘察", "勘探点", "钻孔", "平面图"] },
-      "detailAnchor": "geology-plan",
-      "source": "packages/kjdraw-sdk/src/samples.ts"
-    },
-    {
       "id": "editable-entities",
       "kind": "specimen",
       "specimenId": "geometry",

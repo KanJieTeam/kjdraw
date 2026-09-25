@@ -1,10 +1,18 @@
 {
   "schema": "com.kanjie.kjdraw.showcase@1",
   "source": "docs/site/showcase/catalog.json",
+  "sources": [
+    "docs/site/showcase/catalog.json",
+    "docs/site/showcase/curated.json"
+  ],
   "generatedFrom": [
     "examples/sample.js",
     "packages/kjdraw-sdk/src/samples.ts",
-    "examples/cad-capability-specimens.mjs"
+    "examples/cad-capability-specimens.mjs",
+    "examples/curated-mechanical-sheets.mjs",
+    "examples/curated-building-sheets.mjs",
+    "examples/curated-civil-sheets.mjs",
+    "docs/site/showcase/curated.json"
   ],
   "categories": [
     {
@@ -21,13 +29,21 @@
         "en": "Civil & site",
         "zh": "场地与土木"
       },
-      "count": 1
+      "count": 5
     },
     {
       "id": "architecture",
       "title": {
         "en": "Architecture",
         "zh": "建筑"
+      },
+      "count": 3
+    },
+    {
+      "id": "electrical",
+      "title": {
+        "en": "Electrical",
+        "zh": "电气"
       },
       "count": 1
     },
@@ -45,15 +61,7 @@
         "en": "Mechanical",
         "zh": "机械"
       },
-      "count": 2
-    },
-    {
-      "id": "geology",
-      "title": {
-        "en": "Geology & surveying",
-        "zh": "地质与勘察"
-      },
-      "count": 3
+      "count": 6
     },
     {
       "id": "core-capabilities",
@@ -514,216 +522,796 @@
       "thumbnailSha256": "c164e12afd16ce9a8dfa05d95d8d11a9509cc4fa736d06ef50cffc29e9905069"
     },
     {
-      "id": "borehole-log",
-      "kind": "sample",
-      "sampleId": "sample-borehole-log",
-      "category": "geology",
+      "id": "sleeve-bushing",
+      "kind": "specimen",
+      "specimenId": "sleeve-bushing",
+      "category": "mechanical",
       "title": {
-        "en": "Borehole log",
-        "zh": "柱状图"
+        "en": "Through-bore sleeve",
+        "zh": "通孔轴套"
       },
-      "reviewStatus": "layout-unverified",
       "drawingType": {
-        "en": "Engineering borehole log",
-        "zh": "工程钻孔柱状图"
+        "en": "Manufacturing drawing",
+        "zh": "机械制造图"
       },
       "summary": {
-        "en": "A 30 m editable borehole log with depth, elevation, lithology intervals, hatch, groundwater and title data.",
-        "zh": "30 米可编辑钻孔柱状图，包含深度、标高、岩性分层、填充、地下水和图签信息。"
+        "en": "A dimensioned sleeve sheet with front, side and section views, centre lines and a title block.",
+        "zh": "带正视、侧视与剖视、中心线、尺寸和图签的轴套图纸。"
       },
       "tags": {
         "en": [
-          "geology",
-          "borehole",
-          "lithology",
-          "groundwater"
-        ],
-        "zh": [
-          "地质",
-          "钻孔",
-          "岩性",
-          "地下水"
-        ]
-      },
-      "detailAnchor": "geology-borehole-log",
-      "source": "packages/kjdraw-sdk/src/samples.ts",
-      "categoryTitle": {
-        "en": "Geology & surveying",
-        "zh": "地质与勘察"
-      },
-      "facts": {
-        "editableObjects": 149,
-        "layers": 10,
-        "units": "meter",
-        "entityTypes": {
-          "LINE": 89,
-          "LWPOLYLINE": 10,
-          "TEXT": 50
-        }
-      },
-      "links": {
-        "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-borehole-log",
-        "detail": "./borehole-log/",
-        "preview": "./assets/borehole-log.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts#L264-L278",
-        "sourceSnippet": "./assets/borehole-log.source.txt"
-      },
-      "artifact": {
-        "path": "showcase/assets/borehole-log.svg",
-        "svgStatus": "generated-thumbnail",
-        "renderedEntities": 149,
-        "diagnostics": 0,
-        "revision": 1
-      },
-      "sourceRange": {
-        "symbol": "buildBoreholeLog",
-        "startLine": 264,
-        "endLine": 278
-      },
-      "thumbnail": "./assets/borehole-log.svg",
-      "thumbnailSha256": "30cd03be3e1e666d066ba87eb62dc79e7c2b33fd3b7f1891383775189eb6e8da"
-    },
-    {
-      "id": "geology-section",
-      "kind": "sample",
-      "sampleId": "sample-geology-section",
-      "category": "geology",
-      "title": {
-        "en": "Geological section",
-        "zh": "剖面图"
-      },
-      "reviewStatus": "layout-unverified",
-      "drawingType": {
-        "en": "Five-borehole section",
-        "zh": "五孔工程地质剖面"
-      },
-      "summary": {
-        "en": "An editable five-borehole illustrative section compiled from synthetic intervals, with native lithology hatches and exact interval links; not measured data.",
-        "zh": "由合成分层编译的五孔可编辑示意剖面，包含原生岩性填充与明确的孔间层位连线；非实测数据。"
-      },
-      "tags": {
-        "en": [
-          "geology",
+          "sleeve",
           "section",
-          "boreholes",
-          "strata"
+          "dimensions",
+          "manufacturing"
         ],
         "zh": [
-          "地质",
-          "剖面",
-          "钻孔",
-          "地层"
+          "轴套",
+          "剖视",
+          "尺寸",
+          "制造"
         ]
       },
-      "detailAnchor": "geology-section",
-      "source": "packages/kjdraw-sdk/src/samples.ts",
+      "source": "examples/curated-mechanical-sheets.mjs",
       "categoryTitle": {
-        "en": "Geology & surveying",
-        "zh": "地质与勘察"
+        "en": "Mechanical",
+        "zh": "机械"
       },
       "facts": {
-        "editableObjects": 252,
-        "layers": 14,
+        "editableObjects": 37,
+        "layers": 7,
         "units": "millimeter",
         "entityTypes": {
-          "HATCH": 45,
-          "LINE": 106,
-          "LWPOLYLINE": 9,
-          "TEXT": 92
+          "CIRCLE": 2,
+          "DIMENSION": 2,
+          "HATCH": 2,
+          "LINE": 12,
+          "LWPOLYLINE": 3,
+          "TEXT": 16
         }
       },
       "links": {
-        "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-geology-section",
-        "detail": "./geology-section/",
-        "preview": "./assets/geology-section.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts#L284-L309",
-        "sourceSnippet": "./assets/geology-section.source.txt"
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-sleeve-bushing",
+        "detail": "./sleeve-bushing/",
+        "preview": "./assets/sleeve-bushing.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-mechanical-sheets.mjs#L60-L81",
+        "sourceSnippet": "./assets/sleeve-bushing.source.txt"
       },
       "artifact": {
-        "path": "showcase/assets/geology-section.svg",
-        "svgStatus": "generated-thumbnail",
-        "renderedEntities": 252,
+        "path": "showcase/assets/sleeve-bushing.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 37,
         "diagnostics": 0,
-        "revision": 9
+        "revision": 2
       },
       "sourceRange": {
-        "symbol": "buildGeologySectionCompiled",
-        "startLine": 284,
-        "endLine": 309
+        "symbol": "drawSleeve",
+        "startLine": 60,
+        "endLine": 81
       },
-      "thumbnail": "./assets/geology-section.svg",
-      "thumbnailSha256": "835ad572a735451c96c41e517bd9dca1a6880f40295c21b5a0b8387dd3a3b1a2"
+      "thumbnail": "./assets/sleeve-bushing.svg",
+      "thumbnailSha256": "6d3be3837a077c4fd2f21362bc61c9910ad7666ad84224cee89d1c911afadd28"
     },
     {
-      "id": "geology-plan",
-      "kind": "sample",
-      "sampleId": "sample-geology-plan",
-      "category": "geology",
+      "id": "four-hole-plate",
+      "kind": "specimen",
+      "specimenId": "four-hole-plate",
+      "category": "mechanical",
       "title": {
-        "en": "Investigation plan",
-        "zh": "平面图"
+        "en": "Four-hole mounting plate",
+        "zh": "四孔安装板"
       },
-      "reviewStatus": "layout-unverified",
       "drawingType": {
-        "en": "Investigation-point location plan",
-        "zh": "勘探点平面位置图"
+        "en": "Manufacturing drawing",
+        "zh": "机械制造图"
       },
       "summary": {
-        "en": "Five synthetic investigation points, a referenced section route, coordinate grid and north arrow compiled as an editable A3 plan; not measured data.",
-        "zh": "由五个合成勘探点、对应剖面线、坐标网格与指北针编译的可编辑 A3 平面图；非实测数据。"
+        "en": "An editable mounting plate drawing with hole spacing, dimensions, side view and notes.",
+        "zh": "带孔距、尺寸、侧视图和技术注释的可编辑安装板图纸。"
       },
       "tags": {
         "en": [
-          "geology",
-          "investigation",
-          "boreholes",
-          "plan"
+          "plate",
+          "hole pattern",
+          "dimensions",
+          "manufacturing"
         ],
         "zh": [
-          "勘察",
-          "勘探点",
-          "钻孔",
-          "平面图"
+          "安装板",
+          "孔位",
+          "尺寸",
+          "制造"
         ]
       },
-      "detailAnchor": "geology-plan",
-      "source": "packages/kjdraw-sdk/src/samples.ts",
+      "source": "examples/curated-mechanical-sheets.mjs",
       "categoryTitle": {
-        "en": "Geology & surveying",
-        "zh": "地质与勘察"
+        "en": "Mechanical",
+        "zh": "机械"
       },
       "facts": {
-        "editableObjects": 56,
-        "layers": 10,
-        "units": "meter",
+        "editableObjects": 47,
+        "layers": 7,
+        "units": "millimeter",
         "entityTypes": {
           "CIRCLE": 5,
-          "LINE": 22,
+          "DIMENSION": 4,
+          "LINE": 17,
+          "LWPOLYLINE": 4,
+          "TEXT": 17
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-four-hole-plate",
+        "detail": "./four-hole-plate/",
+        "preview": "./assets/four-hole-plate.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-mechanical-sheets.mjs#L83-L104",
+        "sourceSnippet": "./assets/four-hole-plate.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/four-hole-plate.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 47,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "drawPlate",
+        "startLine": 83,
+        "endLine": 104
+      },
+      "thumbnail": "./assets/four-hole-plate.svg",
+      "thumbnailSha256": "3648fcff0814a844a9fbc20b6db13fb352319c2c8f426be7969b148b73325752"
+    },
+    {
+      "id": "angle-support",
+      "kind": "specimen",
+      "specimenId": "angle-support",
+      "category": "mechanical",
+      "title": {
+        "en": "Ribbed angle support",
+        "zh": "带肋角支座"
+      },
+      "drawingType": {
+        "en": "Manufacturing drawing",
+        "zh": "机械制造图"
+      },
+      "summary": {
+        "en": "A bracket sheet with orthographic views, an editable rib detail, holes and native dimensions.",
+        "zh": "包含正投影视图、可编辑加强肋、孔和原生尺寸的支座图纸。"
+      },
+      "tags": {
+        "en": [
+          "bracket",
+          "rib",
+          "holes",
+          "orthographic"
+        ],
+        "zh": [
+          "支座",
+          "加强肋",
+          "孔",
+          "正投影"
+        ]
+      },
+      "source": "examples/curated-mechanical-sheets.mjs",
+      "categoryTitle": {
+        "en": "Mechanical",
+        "zh": "机械"
+      },
+      "facts": {
+        "editableObjects": 38,
+        "layers": 7,
+        "units": "millimeter",
+        "entityTypes": {
+          "CIRCLE": 2,
+          "DIMENSION": 4,
+          "HATCH": 1,
+          "LINE": 10,
+          "LWPOLYLINE": 5,
+          "TEXT": 16
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-angle-support",
+        "detail": "./angle-support/",
+        "preview": "./assets/angle-support.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-mechanical-sheets.mjs#L106-L126",
+        "sourceSnippet": "./assets/angle-support.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/angle-support.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 38,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "drawAngle",
+        "startLine": 106,
+        "endLine": 126
+      },
+      "thumbnail": "./assets/angle-support.svg",
+      "thumbnailSha256": "dc8971685ddbe4cf0e853f007ab0973bca2a40daae204b1770a951a7aa7cc0fd"
+    },
+    {
+      "id": "hole-gauge",
+      "kind": "specimen",
+      "specimenId": "hole-gauge",
+      "category": "mechanical",
+      "title": {
+        "en": "Six-point hole gauge",
+        "zh": "六孔检验板"
+      },
+      "drawingType": {
+        "en": "Inspection drawing",
+        "zh": "孔位检验图"
+      },
+      "summary": {
+        "en": "A repeated hole pattern with centre lines, dimension chains and an inspection-ready sheet layout.",
+        "zh": "以中心线、尺寸链和检验图幅组织的重复孔位图纸。"
+      },
+      "tags": {
+        "en": [
+          "inspection",
+          "hole pattern",
+          "dimension chain"
+        ],
+        "zh": [
+          "检验",
+          "孔位",
+          "尺寸链"
+        ]
+      },
+      "source": "examples/curated-mechanical-sheets.mjs",
+      "categoryTitle": {
+        "en": "Mechanical",
+        "zh": "机械"
+      },
+      "facts": {
+        "editableObjects": 55,
+        "layers": 7,
+        "units": "millimeter",
+        "entityTypes": {
+          "CIRCLE": 6,
+          "DIMENSION": 4,
+          "LINE": 19,
           "LWPOLYLINE": 3,
+          "TEXT": 23
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-hole-gauge",
+        "detail": "./hole-gauge/",
+        "preview": "./assets/hole-gauge.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-mechanical-sheets.mjs#L128-L148",
+        "sourceSnippet": "./assets/hole-gauge.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/hole-gauge.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 55,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "drawGauge",
+        "startLine": 128,
+        "endLine": 148
+      },
+      "thumbnail": "./assets/hole-gauge.svg",
+      "thumbnailSha256": "5a21138b9ac3d849fccabfb1100ae18b404fca19d4c6d2aee91d18703234107d"
+    },
+    {
+      "id": "compact-office-plan",
+      "kind": "specimen",
+      "specimenId": "compact-office-plan",
+      "category": "architecture",
+      "title": {
+        "en": "Compact office floor plan",
+        "zh": "小型办公平面图"
+      },
+      "drawingType": {
+        "en": "Architectural plan",
+        "zh": "建筑平面图"
+      },
+      "summary": {
+        "en": "A not-to-scale office concept with editable rooms, circulation, doors and windows.",
+        "zh": "包含房间、动线和门窗的可编辑办公概念平面（非比例）。"
+      },
+      "tags": {
+        "en": [
+          "office",
+          "floor plan",
+          "doors",
+          "windows"
+        ],
+        "zh": [
+          "办公",
+          "平面",
+          "门",
+          "窗"
+        ]
+      },
+      "source": "examples/curated-building-sheets.mjs",
+      "categoryTitle": {
+        "en": "Architecture",
+        "zh": "建筑"
+      },
+      "facts": {
+        "rooms": 4,
+        "workstations": 4,
+        "notToScale": true,
+        "concept": true,
+        "editableObjects": 82,
+        "layers": 8,
+        "units": "millimeter",
+        "entityTypes": {
+          "ARC": 5,
+          "CIRCLE": 11,
+          "LINE": 38,
+          "LWPOLYLINE": 14,
+          "TEXT": 14
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-compact-office-plan",
+        "detail": "./compact-office-plan/",
+        "preview": "./assets/compact-office-plan.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-building-sheets.mjs#L63-L119",
+        "sourceSnippet": "./assets/compact-office-plan.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/compact-office-plan.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 82,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "compactOfficePlanSheet",
+        "startLine": 63,
+        "endLine": 119
+      },
+      "thumbnail": "./assets/compact-office-plan.svg",
+      "thumbnailSha256": "050fd1d23eb06f9fc337fa58a44b964162d44e1cae3eb394f98145194a8cb615"
+    },
+    {
+      "id": "door-window-elevations",
+      "kind": "specimen",
+      "specimenId": "door-window-elevations",
+      "category": "architecture",
+      "title": {
+        "en": "Door and window elevations",
+        "zh": "门窗立面与编号表"
+      },
+      "drawingType": {
+        "en": "Architectural detail",
+        "zh": "建筑详图"
+      },
+      "summary": {
+        "en": "Coordinated door and window elevations with editable marks, sizes and a compact schedule.",
+        "zh": "带可编辑编号、尺寸与简表的门窗立面图。"
+      },
+      "tags": {
+        "en": [
+          "doors",
+          "windows",
+          "elevations",
+          "schedule"
+        ],
+        "zh": [
+          "门",
+          "窗",
+          "立面",
+          "编号表"
+        ]
+      },
+      "source": "examples/curated-building-sheets.mjs",
+      "categoryTitle": {
+        "en": "Architecture",
+        "zh": "建筑"
+      },
+      "facts": {
+        "openingTypes": 4,
+        "scheduleRows": 4,
+        "concept": true,
+        "editableObjects": 73,
+        "layers": 8,
+        "units": "millimeter",
+        "entityTypes": {
+          "ARC": 1,
+          "CIRCLE": 2,
+          "HATCH": 1,
+          "LINE": 23,
+          "LWPOLYLINE": 14,
+          "TEXT": 32
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-door-window-elevations",
+        "detail": "./door-window-elevations/",
+        "preview": "./assets/door-window-elevations.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-building-sheets.mjs#L121-L178",
+        "sourceSnippet": "./assets/door-window-elevations.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/door-window-elevations.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 73,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "doorWindowElevationsSheet",
+        "startLine": 121,
+        "endLine": 178
+      },
+      "thumbnail": "./assets/door-window-elevations.svg",
+      "thumbnailSha256": "d187b73ada787c443103f07bbd21a5eb45c0b148da7a52347641176e65e3dd0b"
+    },
+    {
+      "id": "retail-power-one-line",
+      "kind": "specimen",
+      "specimenId": "retail-power-one-line",
+      "category": "electrical",
+      "title": {
+        "en": "Retail power one-line",
+        "zh": "商铺配电单线图"
+      },
+      "drawingType": {
+        "en": "Electrical schematic",
+        "zh": "电气原理图"
+      },
+      "summary": {
+        "en": "An editable distribution one-line with feeder, protective devices, branch circuits and load labels.",
+        "zh": "带进线、保护器件、分支回路与负荷标注的可编辑配电单线图。"
+      },
+      "tags": {
+        "en": [
+          "electrical",
+          "distribution",
+          "circuits",
+          "schematic"
+        ],
+        "zh": [
+          "电气",
+          "配电",
+          "回路",
+          "原理图"
+        ]
+      },
+      "source": "examples/curated-building-sheets.mjs",
+      "categoryTitle": {
+        "en": "Electrical",
+        "zh": "电气"
+      },
+      "facts": {
+        "circuits": 4,
+        "panelCount": 1,
+        "concept": true,
+        "editableObjects": 72,
+        "layers": 8,
+        "units": "millimeter",
+        "entityTypes": {
+          "CIRCLE": 8,
+          "LINE": 25,
+          "LWPOLYLINE": 10,
+          "TEXT": 29
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-retail-power-one-line",
+        "detail": "./retail-power-one-line/",
+        "preview": "./assets/retail-power-one-line.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-building-sheets.mjs#L180-L234",
+        "sourceSnippet": "./assets/retail-power-one-line.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/retail-power-one-line.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 72,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "retailPowerOneLineSheet",
+        "startLine": 180,
+        "endLine": 234
+      },
+      "thumbnail": "./assets/retail-power-one-line.svg",
+      "thumbnailSha256": "7569b272007ae432ac5b45b37f38f9738eecc6441d75d9b43d9795930b35690e"
+    },
+    {
+      "id": "courtyard-circulation-plan",
+      "kind": "specimen",
+      "specimenId": "courtyard-circulation-plan",
+      "category": "civil",
+      "title": {
+        "en": "Courtyard circulation plan",
+        "zh": "庭院步道与绿化平面"
+      },
+      "drawingType": {
+        "en": "Landscape plan",
+        "zh": "景观场地平面"
+      },
+      "summary": {
+        "en": "A not-to-scale courtyard concept with editable paths, planting and seating.",
+        "zh": "包含步道、种植区与座椅的可编辑庭院概念平面（非比例）。"
+      },
+      "tags": {
+        "en": [
+          "courtyard",
+          "path",
+          "planting",
+          "access"
+        ],
+        "zh": [
+          "庭院",
+          "步道",
+          "绿化",
+          "通行"
+        ]
+      },
+      "source": "examples/curated-building-sheets.mjs",
+      "categoryTitle": {
+        "en": "Civil & site",
+        "zh": "场地与土木"
+      },
+      "facts": {
+        "trees": 10,
+        "plantingBeds": 3,
+        "pathCount": 2,
+        "notToScale": true,
+        "concept": true,
+        "editableObjects": 76,
+        "layers": 8,
+        "units": "millimeter",
+        "entityTypes": {
+          "CIRCLE": 20,
+          "HATCH": 4,
+          "LINE": 23,
+          "LWPOLYLINE": 15,
+          "TEXT": 14
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-courtyard-circulation-plan",
+        "detail": "./courtyard-circulation-plan/",
+        "preview": "./assets/courtyard-circulation-plan.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-building-sheets.mjs#L236-L289",
+        "sourceSnippet": "./assets/courtyard-circulation-plan.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/courtyard-circulation-plan.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 76,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "courtyardCirculationSheet",
+        "startLine": 236,
+        "endLine": 289
+      },
+      "thumbnail": "./assets/courtyard-circulation-plan.svg",
+      "thumbnailSha256": "e7d808e68929812c77b0fe535b7c1b65093764af4e0d98138dac47be24335a5a"
+    },
+    {
+      "id": "drainage-network",
+      "kind": "specimen",
+      "specimenId": "drainage-network",
+      "category": "civil",
+      "title": {
+        "en": "Site drainage network",
+        "zh": "场地排水管网"
+      },
+      "drawingType": {
+        "en": "Utility plan",
+        "zh": "管线平面图"
+      },
+      "summary": {
+        "en": "An editable schematic of inspection chambers, gravity pipes, flow arrows and a legend.",
+        "zh": "带检查井、重力管、流向箭头和图例的可编辑排水示意图。"
+      },
+      "tags": {
+        "en": [
+          "drainage",
+          "pipes",
+          "chambers",
+          "flow"
+        ],
+        "zh": [
+          "排水",
+          "管线",
+          "检查井",
+          "流向"
+        ]
+      },
+      "source": "examples/curated-civil-sheets.mjs",
+      "categoryTitle": {
+        "en": "Civil & site",
+        "zh": "场地与土木"
+      },
+      "facts": {
+        "chamberCount": 6,
+        "pipeCount": 5,
+        "illustrative": true,
+        "editableObjects": 67,
+        "layers": 6,
+        "units": "millimeter",
+        "entityTypes": {
+          "CIRCLE": 14,
+          "LINE": 21,
+          "LWPOLYLINE": 6,
           "TEXT": 26
         }
       },
       "links": {
-        "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-geology-plan",
-        "detail": "./geology-plan/",
-        "preview": "./assets/geology-plan.svg",
-        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts#L311-L324",
-        "sourceSnippet": "./assets/geology-plan.source.txt"
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-drainage-network",
+        "detail": "./drainage-network/",
+        "preview": "./assets/drainage-network.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-civil-sheets.mjs#L40-L90",
+        "sourceSnippet": "./assets/drainage-network.source.txt"
       },
       "artifact": {
-        "path": "showcase/assets/geology-plan.svg",
-        "svgStatus": "generated-thumbnail",
-        "renderedEntities": 56,
+        "path": "showcase/assets/drainage-network.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 67,
         "diagnostics": 0,
-        "revision": 1
+        "revision": 2
       },
       "sourceRange": {
-        "symbol": "buildGeologyPlanCompiled",
-        "startLine": 311,
-        "endLine": 324
+        "symbol": "drainageNetworkSheet",
+        "startLine": 40,
+        "endLine": 90
       },
-      "thumbnail": "./assets/geology-plan.svg",
-      "thumbnailSha256": "2ea1fb44f45045fba5519c28bc375c2ba3225d3eb917b55b1bbf24d66913c9f5"
+      "thumbnail": "./assets/drainage-network.svg",
+      "thumbnailSha256": "897a8848258f6fb668ecbd94eeb4ff169fd47b3f41a0d11cb4a75ccdf8d3e109"
+    },
+    {
+      "id": "retaining-wall",
+      "kind": "specimen",
+      "specimenId": "retaining-wall",
+      "category": "civil",
+      "title": {
+        "en": "Retaining wall section",
+        "zh": "挡土墙剖面"
+      },
+      "drawingType": {
+        "en": "Civil construction detail",
+        "zh": "土木构造详图"
+      },
+      "summary": {
+        "en": "A section showing footing, wall stem, backfill, drain and editable hatch patterns.",
+        "zh": "展示基础、墙身、回填、排水与可编辑填充的剖面图。"
+      },
+      "tags": {
+        "en": [
+          "retaining wall",
+          "section",
+          "hatch",
+          "drainage"
+        ],
+        "zh": [
+          "挡土墙",
+          "剖面",
+          "填充",
+          "排水"
+        ]
+      },
+      "source": "examples/curated-civil-sheets.mjs",
+      "categoryTitle": {
+        "en": "Civil & site",
+        "zh": "场地与土木"
+      },
+      "facts": {
+        "hatchCount": 3,
+        "drainageDetail": true,
+        "illustrative": true,
+        "editableObjects": 53,
+        "layers": 6,
+        "units": "millimeter",
+        "entityTypes": {
+          "CIRCLE": 1,
+          "HATCH": 3,
+          "LINE": 29,
+          "LWPOLYLINE": 7,
+          "TEXT": 13
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-retaining-wall",
+        "detail": "./retaining-wall/",
+        "preview": "./assets/retaining-wall.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-civil-sheets.mjs#L92-L131",
+        "sourceSnippet": "./assets/retaining-wall.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/retaining-wall.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 53,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "retainingWallSheet",
+        "startLine": 92,
+        "endLine": 131
+      },
+      "thumbnail": "./assets/retaining-wall.svg",
+      "thumbnailSha256": "87939acbf3d28c316259c33a23d99d7705bbb53a128122750cc6c3768a885b4b"
+    },
+    {
+      "id": "utility-trench",
+      "kind": "specimen",
+      "specimenId": "utility-trench",
+      "category": "civil",
+      "title": {
+        "en": "Shared utility trench",
+        "zh": "综合管沟剖面"
+      },
+      "drawingType": {
+        "en": "Utility section",
+        "zh": "管沟剖面图"
+      },
+      "summary": {
+        "en": "A typical trench schematic with duct bank, bedding, warning tape and clearance annotations.",
+        "zh": "包含管群、垫层、警示带与净距标注的典型管沟示意图。"
+      },
+      "tags": {
+        "en": [
+          "trench",
+          "duct bank",
+          "section",
+          "utilities"
+        ],
+        "zh": [
+          "管沟",
+          "管群",
+          "剖面",
+          "管线"
+        ]
+      },
+      "source": "examples/curated-civil-sheets.mjs",
+      "categoryTitle": {
+        "en": "Civil & site",
+        "zh": "场地与土木"
+      },
+      "facts": {
+        "ductCount": 5,
+        "illustrative": true,
+        "editableObjects": 51,
+        "layers": 6,
+        "units": "millimeter",
+        "entityTypes": {
+          "CIRCLE": 10,
+          "HATCH": 1,
+          "LINE": 22,
+          "LWPOLYLINE": 5,
+          "TEXT": 13
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=specimen-utility-trench",
+        "detail": "./utility-trench/",
+        "preview": "./assets/utility-trench.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/examples/curated-civil-sheets.mjs#L133-L169",
+        "sourceSnippet": "./assets/utility-trench.source.txt"
+      },
+      "artifact": {
+        "path": "showcase/assets/utility-trench.svg",
+        "svgStatus": "approximate",
+        "renderedEntities": 51,
+        "diagnostics": 0,
+        "revision": 2
+      },
+      "sourceRange": {
+        "symbol": "utilityTrenchSheet",
+        "startLine": 133,
+        "endLine": 169
+      },
+      "thumbnail": "./assets/utility-trench.svg",
+      "thumbnailSha256": "0eed39d1ebfbfffe975b1e41d8c356cb74babf2712fc25a025b723c9a229bb6d"
     },
     {
       "id": "editable-entities",
@@ -794,7 +1382,7 @@
         "endLine": 35
       },
       "thumbnail": "./assets/editable-entities.svg",
-      "thumbnailSha256": "7fb7fef41392cb867507b58d1acf2a86912cce7ac6f0f76d5c3ef457dc25283e"
+      "thumbnailSha256": "9df3d1d604fb86998a09db7b479687d7b87a2a36623dcb300b28c7f9213acbbf"
     },
     {
       "id": "hatch-patterns",
@@ -869,7 +1457,7 @@
         "endLine": 63
       },
       "thumbnail": "./assets/hatch-patterns.svg",
-      "thumbnailSha256": "ffdb7fd4b94ccb66192b04973223a16fa3b157e7b49a4f07c0a0385b6c47eda8"
+      "thumbnailSha256": "d5174fd047716ead6935d1fb4a17cf4a032b0bbac1fceebe15350102c63be292"
     },
     {
       "id": "native-dimensions",
@@ -941,7 +1529,7 @@
         "endLine": 74
       },
       "thumbnail": "./assets/native-dimensions.svg",
-      "thumbnailSha256": "01ee1b899565b27aa06468f952d3a9d83d000e2c1e7c68938c823b10616f26f7"
+      "thumbnailSha256": "623ef3957f190f3a55703b174ad66d404678ae1b3739af8b4f6a8df70a9f6fe9"
     },
     {
       "id": "bilingual-typography",
@@ -1010,7 +1598,7 @@
         "endLine": 84
       },
       "thumbnail": "./assets/bilingual-typography.svg",
-      "thumbnailSha256": "2e372f418097089f415d9d8970bee07ed0565da6bab55d7b12a1973d8b45b574"
+      "thumbnailSha256": "b3112ae087e289eeebc049fb63b4e26ed53d214735b8f4b3574c22b9dfdf691e"
     },
     {
       "id": "a4-print-layout",
@@ -1081,7 +1669,7 @@
         "endLine": 98
       },
       "thumbnail": "./assets/a4-print-layout.svg",
-      "thumbnailSha256": "0a092139bed00a4236c0a45be48686b1f58d44850c77ffaa1ce56a03b681bc86"
+      "thumbnailSha256": "e0179c84b44fb3be2d540087bde916b2c6f54f0ec11b4ab580b991a54829487f"
     },
     {
       "id": "dxf-import",
@@ -1159,7 +1747,7 @@
         "endLine": 109
       },
       "thumbnail": "./assets/dxf-import.svg",
-      "thumbnailSha256": "027e895d0efb4d872bdd25e4a1f06ccf351bbaa90cefb20b11743ca34a9a3b11"
+      "thumbnailSha256": "3b0ed944156c82d373becc16488cf87f21a36f9b185bf3b4bebb07d386c995e8"
     },
     {
       "id": "editing-history",
@@ -1241,7 +1829,7 @@
         "endLine": 124
       },
       "thumbnail": "./assets/editing-history.svg",
-      "thumbnailSha256": "b1a40962c277dec4e57f139db7f5d62bd1185ae625900cda67f7194a71654059"
+      "thumbnailSha256": "400b25b59f2855adfb26f41fa4118d1605fa05ac7f16b16693849359b1b7d097"
     },
     {
       "id": "block-references",
@@ -1310,7 +1898,7 @@
         "endLine": 135
       },
       "thumbnail": "./assets/block-references.svg",
-      "thumbnailSha256": "4f92bce9193b9753a149fde48fe569edd661559712ba8d2b9e1846ecf3464382"
+      "thumbnailSha256": "89ae39b5d2c9a5cab1c5b503ac0b17f6e95a81d8686fa5bf6f2bc2cd35b88bcd"
     }
   ]
 }

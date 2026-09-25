@@ -1009,7 +1009,7 @@ async function runTypedCommand(){
 }
 async function run(work){if(busy)return busyNotice();busy=true;workbench.setAttribute('aria-busy','true');try{await work();return true}catch(e){const text=e.cause?.message??e.message;message(text);$('hint').textContent=text;workbench.dataset.lastError=text;return false}finally{busy=false;workbench.setAttribute('aria-busy','false')}}
 async function freshSample(){
-  const specimen=SHOWCASE_SPECIMENS[REQUESTED_SAMPLE_ID]
+  const specimen=SHOWCASE_SPECIMENS[REQUESTED_SAMPLE_ID]??(/^specimen-[a-z0-9-]+$/.test(REQUESTED_SAMPLE_ID??'')?REQUESTED_SAMPLE_ID.slice('specimen-'.length):null)
   if(specimen){
     const source=new URL(`docs/latest/showcase/assets/${specimen}.kjd`,location.href)
     const response=await fetch(source)

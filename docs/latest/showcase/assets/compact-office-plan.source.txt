@@ -1,0 +1,60 @@
+// examples/curated-building-sheets.mjs#L63-L119
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+async function compactOfficePlanSheet() {
+  return createSheet('compact-office-plan', 'Compact office floor plan', 'architecture',
+    ({ line, rect, circle, arc, text, aligned, hatch }) => {
+      text(15, 190, 'FLOOR PLAN / FOUR FUNCTIONAL ZONES', 4, 'accent')
+      text(15, 183, 'CONCEPT PLAN / NTS / NOT FOR CONSTRUCTION', 2.6, 'detail')
+      line(52, 51, 108, 51); line(128, 51, 234, 51); line(52, 51, 52, 175); line(52, 175, 234, 175); line(234, 175, 234, 51)
+      line(55, 54, 108, 54, 'detail'); line(128, 54, 231, 54, 'detail'); line(55, 54, 55, 172, 'detail'); line(55, 172, 231, 172, 'detail'); line(231, 172, 231, 54, 'detail')
+      // Glazing: double lines interrupt the otherwise solid perimeter.
+      for (const [left, right] of [[75, 111], [163, 211]]) {
+        line(left, 172, right, 172, 'accent')
+        line(left, 175, right, 175, 'accent')
+        line((left + right) / 2, 172, (left + right) / 2, 175, 'accent')
+      }
+      line(55, 116, 129, 116)
+      line(145, 116, 184, 116); line(200, 116, 231, 116)
+      line(55, 119, 129, 119, 'detail')
+      line(145, 119, 184, 119, 'detail'); line(200, 119, 231, 119, 'detail')
+      line(139, 54, 139, 99)
+      line(139, 116, 139, 172)
+      line(142, 54, 142, 99, 'detail')
+      line(142, 116, 142, 172, 'detail')
+      line(99, 54, 99, 116)
+      line(102, 54, 102, 116, 'detail')
+      // Door leaves and swing arcs.
+      line(108, 54, 108, 74, 'accent')
+      arc(108, 54, 20, 0, Math.PI / 2, 'detail')
+      line(184, 116, 184, 100, 'accent')
+      arc(184, 116, 16, Math.PI * 1.5, Math.PI * 2, 'detail')
+      line(129, 116, 129, 100, 'accent')
+      arc(129, 116, 16, Math.PI * 1.5, Math.PI * 2, 'detail')
+      line(139, 99, 122, 99, 'accent')
+      arc(139, 99, 17, Math.PI, Math.PI * 1.5, 'detail')
+      line(99, 76, 84, 76, 'accent')
+      arc(99, 76, 15, Math.PI, Math.PI * 1.5, 'detail')
+      // Meeting table, chairs, display.
+      rect(72, 137, 119, 153, 'accent')
+      for (const x of [79, 94, 109]) { circle(x, 132, 3, 'detail'); circle(x, 158, 3, 'detail') }
+      line(58, 155, 58, 169, 'highlight')
+      text(69, 164, '01  MEETING', 2.4)
+      // Four individual workstations with visually distinct desk and monitor symbols.
+      for (const [x, y] of [[157, 139], [194, 139], [157, 81], [194, 81]]) {
+        rect(x, y, x + 25, y + 10, 'accent')
+        rect(x + 8, y + 5, x + 17, y + 9, 'detail')
+        circle(x + 12.5, y - 5, 3, 'detail')
+      }
+      text(157, 162, '02  OPEN WORKSPACE', 2.4)
+      // Pantry cabinetry / sink / shared reception bench.
+      rect(61, 59, 92, 67, 'accent')
+      rect(61, 82, 92, 87, 'detail')
+      circle(82, 63, 2.8, 'detail')
+      rect(112, 84, 132, 94, 'accent')
+      text(60, 101, '03  PANTRY', 2.4)
+      text(108, 101, '04  ENTRY', 2.4)
+
+      text(15, 48, 'Furniture and partitions are editable CAD objects.', 2.2, 'detail')
+    }, { rooms: 4, workstations: 4, notToScale: true, concept: true })
+}

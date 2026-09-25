@@ -2,14 +2,22 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { buildCadCapabilitySpecimenDocuments } from '../../examples/cad-capability-specimens.mjs'
+import { buildCuratedMechanicalSheetDocuments } from '../../examples/curated-mechanical-sheets.mjs'
+import { buildCuratedBuildingSheetDocuments } from '../../examples/curated-building-sheets.mjs'
+import { buildCuratedCivilSheetDocuments } from '../../examples/curated-civil-sheets.mjs'
 import { createSample } from '../../examples/sample.js'
 import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/sdk.js'
 import { createIndustrySamples, INDUSTRY_SAMPLES } from '../../packages/kjdraw-sdk/src/samples.js'
 import { exportDrawingSvg } from '../../packages/kjdraw-sdk/src/svg-export.js'
 
 export const SHOWCASE_CATALOG_SOURCE = 'docs/site/showcase/catalog.json'
+export const SHOWCASE_CURATED_CATALOG_SOURCE = 'docs/site/showcase/curated.json'
 export const SHOWCASE_GENERATION_SOURCES = Object.freeze([
   SHOWCASE_CATALOG_SOURCE,
+  SHOWCASE_CURATED_CATALOG_SOURCE,
+  'examples/curated-mechanical-sheets.mjs',
+  'examples/curated-building-sheets.mjs',
+  'examples/curated-civil-sheets.mjs',
   'examples/cad-capability-specimens.mjs',
   'examples/sample.js',
   'packages/kjdraw-sdk/src/samples.ts',
@@ -23,9 +31,6 @@ const sourceBuilderByCase = Object.freeze({
   'road-profile': 'buildRoadProfile',
   'mechanical-bracket': 'buildMechanical',
   'mechanical-flange': 'buildMechanicalFlange',
-  'borehole-log': 'buildBoreholeLog',
-  'geology-section': 'buildGeologySectionCompiled',
-  'geology-plan': 'buildGeologyPlanCompiled',
   'editable-entities': 'geometrySpecimen',
   'hatch-patterns': 'hatchPatternsSpecimen',
   'native-dimensions': 'dimensionsSpecimen',
@@ -34,6 +39,17 @@ const sourceBuilderByCase = Object.freeze({
   'dxf-import': 'importSpecimen',
   'editing-history': 'editingSpecimen',
   'block-references': 'blocksSpecimen',
+  'sleeve-bushing': 'drawSleeve',
+  'four-hole-plate': 'drawPlate',
+  'angle-support': 'drawAngle',
+  'hole-gauge': 'drawGauge',
+  'compact-office-plan': 'compactOfficePlanSheet',
+  'door-window-elevations': 'doorWindowElevationsSheet',
+  'retail-power-one-line': 'retailPowerOneLineSheet',
+  'courtyard-circulation-plan': 'courtyardCirculationSheet',
+  'drainage-network': 'drainageNetworkSheet',
+  'retaining-wall': 'retainingWallSheet',
+  'utility-trench': 'utilityTrenchSheet',
 })
 
 function caseSourceExcerpt(source, entry) {
@@ -51,6 +67,7 @@ const categories = Object.freeze({
   multidisciplinary: { en: 'Multidisciplinary', zh: '多专业' },
   civil: { en: 'Civil & site', zh: '场地与土木' },
   architecture: { en: 'Architecture', zh: '建筑' },
+  electrical: { en: 'Electrical', zh: '电气' },
   transportation: { en: 'Transportation', zh: '道路交通' },
   mechanical: { en: 'Mechanical', zh: '机械' },
   geology: { en: 'Geology & surveying', zh: '地质与勘察' },
@@ -179,7 +196,8 @@ function normalizeSpecimenPreview(svg) {
     if (!stableIds.has(key)) stableIds.set(key, `generated-${stableIds.size + 1}`)
     return stableIds.get(key)
   })
-  return deterministic.replace(/(<svg\b[^>]*>)/, '$1<style>svg{background:#101820;color:#c7d5d9}g[data-entity-id]{color:#c7d5d9!important;stroke-width:.8!important}text{font-weight:500}</style>')
+  const contrastPatterns = deterministic.replace(/<pattern\b[^>]*>[\s\S]*?<\/pattern>/g, pattern => pattern.replaceAll('stroke="currentColor"', 'stroke="#91a99e"'))
+  return contrastPatterns.replace(/(<svg\b[^>]*>)/, '$1<rect width="100%" height="100%" fill="#101820"/><style>svg{background:#101820;color:#c7d5d9}g[data-entity-id]{color:#c7d5d9!important;stroke-width:.8!important}text{font-weight:500}</style>')
 }
 
 function normalizeKjdArtifact(kjd) {
@@ -224,7 +242,7 @@ function validateCatalog(catalog) {
     invariant(!ids.has(entry.id), `Duplicate Showcase entry id: ${entry.id}`)
     invariant(!referenceIds.has(referenceId), `Duplicate Showcase reference id: ${referenceId}`)
     invariant(categories[entry.category], `Unknown Showcase category: ${entry.category}`)
-    invariant(entry.reviewStatus === undefined || entry.reviewStatus === 'layout-unverified', `Unknown Showcase review status: ${entry.id}`)
+    invariant(entry.reviewStatus === undefined, `Internal review status must not appear in public Showcase: ${entry.id}`)
     for (const locale of ['en', 'zh']) {
       invariant(entry.title?.[locale] && entry.drawingType?.[locale] && entry.summary?.[locale], `${entry.id} is missing ${locale} copy`)
       invariant(Array.isArray(entry.tags?.[locale]) && entry.tags[locale].length > 0, `${entry.id} is missing ${locale} tags`)
@@ -238,15 +256,24 @@ function validateCatalog(catalog) {
 export async function buildShowcasePortal(repositoryRoot) {
   const catalogSource = await readFile(resolve(repositoryRoot, SHOWCASE_CATALOG_SOURCE), 'utf8')
   const catalog = JSON.parse(catalogSource)
+  const curatedSource = await readFile(resolve(repositoryRoot, SHOWCASE_CURATED_CATALOG_SOURCE), 'utf8')
+  const curatedCatalog = JSON.parse(curatedSource)
+  invariant(curatedCatalog.schema === catalog.schema, 'Unexpected curated Showcase catalog schema')
+  // Lead with complete drawing sheets; keep minimal capability demos accessible after them.
+  const firstCapabilityIndex = catalog.entries.findIndex(entry => entry.category === 'core-capabilities')
+  catalog.entries.splice(firstCapabilityIndex < 0 ? catalog.entries.length : firstCapabilityIndex, 0, ...curatedCatalog.entries)
   validateCatalog(catalog)
   const sdk = createKJDrawSDK()
   const documents = [await createSample(sdk), ...await createIndustrySamples(sdk)]
   const documentById = new Map(documents.map(document => [document.id, document]))
-  const specimens = await buildCadCapabilitySpecimenDocuments()
+  const specimens = [...await buildCadCapabilitySpecimenDocuments(), ...await buildCuratedMechanicalSheetDocuments(), ...await buildCuratedBuildingSheetDocuments(), ...await buildCuratedCivilSheetDocuments()]
   const specimenById = new Map(specimens.map(specimen => [specimen.id, specimen]))
-  const publicSampleIds = new Set(['sample-resilient-campus', ...INDUSTRY_SAMPLES.map(sample => sample.id)])
-  invariant(catalog.entries.filter(entry => entry.kind === 'sample').length === publicSampleIds.size, 'Showcase catalog must cover every public Playground sample exactly once')
-  for (const sampleId of publicSampleIds) invariant(catalog.entries.some(entry => entry.sampleId === sampleId), `Showcase catalog is missing ${sampleId}`)
+  const availableSampleIds = new Set(['sample-resilient-campus', ...INDUSTRY_SAMPLES.map(sample => sample.id)])
+  const withheldSampleIds = new Set(['sample-borehole-log', 'sample-geology-section', 'sample-geology-plan'])
+  for (const entry of catalog.entries.filter(entry => entry.kind === 'sample')) {
+    invariant(availableSampleIds.has(entry.sampleId), `Showcase catalog references unknown Playground sample: ${entry.sampleId}`)
+    invariant(!withheldSampleIds.has(entry.sampleId), `Unverified geology sample must not appear in public Showcase: ${entry.sampleId}`)
+  }
   invariant(catalog.entries.filter(entry => entry.kind === 'specimen').length === specimens.length, 'Showcase catalog must cover every capability specimen exactly once')
   for (const specimen of specimens) invariant(catalog.entries.some(entry => entry.specimenId === specimen.id), `Showcase catalog is missing specimen ${specimen.id}`)
 
@@ -300,8 +327,9 @@ export async function buildShowcasePortal(repositoryRoot) {
   const manifest = {
     schema: 'com.kanjie.kjdraw.showcase@1',
     source: SHOWCASE_CATALOG_SOURCE,
-    generatedFrom: ['examples/sample.js', 'packages/kjdraw-sdk/src/samples.ts', 'examples/cad-capability-specimens.mjs'],
-    categories: Object.entries(categories).map(([id, title]) => ({ id, title, count: entries.filter(entry => entry.category === id).length })),
+    sources: [SHOWCASE_CATALOG_SOURCE, SHOWCASE_CURATED_CATALOG_SOURCE],
+    generatedFrom: ['examples/sample.js', 'packages/kjdraw-sdk/src/samples.ts', 'examples/cad-capability-specimens.mjs', 'examples/curated-mechanical-sheets.mjs', 'examples/curated-building-sheets.mjs', 'examples/curated-civil-sheets.mjs', SHOWCASE_CURATED_CATALOG_SOURCE],
+    categories: Object.entries(categories).map(([id, title]) => ({ id, title, count: entries.filter(entry => entry.category === id).length })).filter(category => category.count > 0),
     entries,
   }
   outputs.set('showcase/catalog.json', `${JSON.stringify(manifest, null, 2)}\n`)
@@ -347,7 +375,6 @@ header.site nav{display:flex;gap:18px;color:#5d6673;font-size:13px}header.site .
 h1{margin:0 0 9px;font-size:32px;line-height:1.18;letter-spacing:-.04em}.summary{max-width:780px;margin:0;color:#66717d;font-size:14px;line-height:1.6}
 .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.meta span{padding:5px 9px;border:1px solid #e4e8ee;border-radius:5px;color:#566272;font-size:11px}
 .heading>a{padding:9px 13px;border:1px solid #dce2e8;border-radius:6px;font-size:12px}.heading>a:hover{border-color:#9ebad3}
-.review-warning{margin:-5px 0 20px;padding:14px 17px;border:1px solid #e7d7a8;border-radius:6px;background:#fffaf0;color:#594516}.review-warning b{display:block;font-size:13px}.review-warning p{margin:5px 0 0;font-size:12px;line-height:1.6}
 .workspace{border:1px solid #dfe4e9;border-radius:8px;overflow:hidden;background:#f7f9fa}.workspace-bar,.tabs{display:flex;align-items:center;gap:18px;padding:0 14px;border-bottom:1px solid #e1e5e9;background:#fff}
 .workspace-bar{min-height:38px;justify-content:space-between;font-size:12px}.live:before{content:"";display:inline-block;width:6px;height:6px;margin-right:7px;border-radius:50%;background:#26ae54}
 .links{display:flex;gap:16px}.tabs{height:38px;gap:5px}.tabs button{height:100%;padding:0 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:#65717e;font-size:12px}.tabs button.active{border-bottom-color:#17212b;color:#17212b;font-weight:650}
@@ -377,7 +404,7 @@ function renderShowcaseDetail(entry) {
   <main class="wrap" data-source-snippet="../assets/${escapeHtml(entry.id)}.source.txt">
     <div class="crumb"><a href="../">Showcase</a><span>›</span><span class="en">${escapeHtml(entry.categoryTitle.en)}</span><span class="zh">${escapeHtml(entry.categoryTitle.zh)}</span><span>›</span><span class="en">${escapeHtml(entry.title.en)}</span><span class="zh">${escapeHtml(entry.title.zh)}</span></div>
     <div class="heading"><div><p class="eyebrow"><span class="en">${escapeHtml(entry.drawingType.en)}</span><span class="zh">${escapeHtml(entry.drawingType.zh)}</span></p><h1><span class="en">${escapeHtml(entry.title.en)}</span><span class="zh">${escapeHtml(entry.title.zh)}</span></h1><p class="summary"><span class="en">${escapeHtml(entry.summary.en)}</span><span class="zh">${escapeHtml(entry.summary.zh)}</span></p><div class="meta"><span>${entry.facts.editableObjects.toLocaleString()} <span class="en">editable objects</span><span class="zh">可编辑对象</span></span><span>${entry.facts.layers} <span class="en">layers</span><span class="zh">图层</span></span><span>${escapeHtml(entry.facts.units)}</span></div></div><a href="../"><span class="en">Browse examples</span><span class="zh">浏览案例</span> →</a></div>
-    ${entry.reviewStatus === 'layout-unverified' ? '<div class="review-warning"><b class="en">Technical demonstration — engineering layout not validated</b><b class="zh">技术示意 — 工程版式尚未验收</b><p class="en">Use this drawing to inspect editable CAD objects and the compiler workflow, not as a production drawing template.</p><p class="zh">此图仅用于检查可编辑 CAD 对象与编译流程，不应作为工程出图模板。</p></div>' : ''}<section class="workspace" aria-label="Interactive KJDraw workspace"><div class="workspace-bar"><b class="live"><span class="en">Live workspace</span><span class="zh">实时工作区</span></b><div class="links"><a href="${root}${escapeHtml(workspaceQuery)}" target="_blank" rel="noopener"><span class="en">Open Playground</span><span class="zh">打开工作台</span> ↗</a><a href="../assets/${escapeHtml(entry.id)}.kjd" download>KJD ↓</a><a href="../assets/${escapeHtml(entry.id)}.dxf" download>DXF ↓</a><button id="fullscreen" type="button"><span class="en">Fullscreen</span><span class="zh">全屏</span></button></div></div><div class="tabs" role="tablist"><button id="preview-tab" class="active" type="button" role="tab" aria-selected="true"><span class="en">Interactive drawing</span><span class="zh">交互图纸</span></button><button id="source-tab" type="button" role="tab" aria-selected="false"><span class="en">Source code</span><span class="zh">源码</span></button></div><div class="viewport" id="viewport"><div class="preview-status" id="preview-status" data-state="loading" role="status" aria-live="polite"><div class="preview-status-content"><span class="preview-status-dot" aria-hidden="true"></span><p class="preview-loading"><span class="en">Loading editable workspace…</span><span class="zh">正在载入可编辑工作区…</span></p><div class="preview-failed" hidden><p><span class="en">The workspace did not open.</span><span class="zh">工作区未能打开。</span></p><div><button id="preview-retry" type="button"><span class="en">Retry</span><span class="zh">重试</span></button><a href="${root}${escapeHtml(workspaceQuery)}" target="_blank" rel="noopener"><span class="en">Open full workspace</span><span class="zh">打开完整工作区</span> ↗</a></div></div></div></div><iframe src="${root}${escapeHtml(workspaceQuery)}" title="${escapeHtml(entry.title.en)} editable CAD workspace" loading="eager"></iframe></div><pre class="source" id="source" hidden>Loading source…</pre></section>
+    <section class="workspace" aria-label="Interactive KJDraw workspace"><div class="workspace-bar"><b class="live"><span class="en">Live workspace</span><span class="zh">实时工作区</span></b><div class="links"><a href="${root}${escapeHtml(workspaceQuery)}" target="_blank" rel="noopener"><span class="en">Open Playground</span><span class="zh">打开工作台</span> ↗</a><a href="../assets/${escapeHtml(entry.id)}.kjd" download>KJD ↓</a><a href="../assets/${escapeHtml(entry.id)}.dxf" download>DXF ↓</a><button id="fullscreen" type="button"><span class="en">Fullscreen</span><span class="zh">全屏</span></button></div></div><div class="tabs" role="tablist"><button id="preview-tab" class="active" type="button" role="tab" aria-selected="true"><span class="en">Interactive drawing</span><span class="zh">交互图纸</span></button><button id="source-tab" type="button" role="tab" aria-selected="false"><span class="en">Source code</span><span class="zh">源码</span></button></div><div class="viewport" id="viewport"><div class="preview-status" id="preview-status" data-state="loading" role="status" aria-live="polite"><div class="preview-status-content"><span class="preview-status-dot" aria-hidden="true"></span><p class="preview-loading"><span class="en">Loading editable workspace…</span><span class="zh">正在载入可编辑工作区…</span></p><div class="preview-failed" hidden><p><span class="en">The workspace did not open.</span><span class="zh">工作区未能打开。</span></p><div><button id="preview-retry" type="button"><span class="en">Retry</span><span class="zh">重试</span></button><a href="${root}${escapeHtml(workspaceQuery)}" target="_blank" rel="noopener"><span class="en">Open full workspace</span><span class="zh">打开完整工作区</span> ↗</a></div></div></div></div><iframe src="${root}${escapeHtml(workspaceQuery)}" title="${escapeHtml(entry.title.en)} editable CAD workspace" loading="eager"></iframe></div><pre class="source" id="source" hidden>Loading source…</pre></section>
     <div class="foot"><div class="provenance"><span class="en">Public synthetic example · not measured project data</span><span class="zh">公开示例图纸 · 非实测项目数据</span><a href="${escapeHtml(entry.links.source)}" target="_blank" rel="noopener"><span class="en">View generating source</span><span class="zh">查看生成源码</span> ↗</a><span><span class="en">Revision</span><span class="zh">版本</span> ${entry.artifact.revision}</span></div><div class="facts" aria-label="Entity types">${facts}</div></div>
   </main>
   <script type="module" src="../detail.js"></script>
@@ -406,9 +433,9 @@ export function renderShowcasePortal(manifest, locale) {
     const primary = `<a class="primary" href="${escapeHtml(entry.links.detail)}">${escapeHtml(text.playground)} →</a>`
     return `<article class="showcase-card" data-case-id="${escapeHtml(entry.id)}" data-category="${escapeHtml(entry.category)}" data-tags="${escapeHtml(entry.tags[locale].join('|'))}" data-search="${escapeHtml(search)}">
       <a class="showcase-thumb" href="${escapeHtml(thumbnailHref)}" aria-label="${escapeHtml(text.detail)}: ${localized(locale, entry.title)}"><img src="${escapeHtml(entry.thumbnail)}" alt="${localized(locale, entry.title)} · ${localized(locale, entry.drawingType)}" loading="lazy" width="720" height="420"></a>
-      <div class="showcase-card-body"><p class="showcase-discipline">${localized(locale, entry.categoryTitle)}</p><h3>${localized(locale, entry.title)}</h3>${entry.reviewStatus === 'layout-unverified' ? `<p class="showcase-review">${locale === 'zh' ? '技术示意 · 版式未验收' : 'Technical demo · layout unverified'}</p>` : ''}<p class="showcase-type">${localized(locale, entry.drawingType)}</p><p class="showcase-summary">${localized(locale, entry.summary)}</p>
+      <div class="showcase-card-body"><p class="showcase-discipline">${localized(locale, entry.categoryTitle)}</p><h3>${localized(locale, entry.title)}</h3><p class="showcase-type">${localized(locale, entry.drawingType)}</p><p class="showcase-summary">${localized(locale, entry.summary)}</p>
       <div class="showcase-facts"><span><b>${entry.facts.editableObjects.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US')}</b> ${escapeHtml(text.objects)}</span><span><b>${entry.facts.layers}</b> ${escapeHtml(text.layers)}</span><span>${escapeHtml(entry.facts.units)}</span></div>
-      <details class="showcase-details"><summary>${escapeHtml(text.detail)}</summary><p><code>${escapeHtml(referenceId)}</code></p><div><b>${escapeHtml(text.types)}</b>${entityFacts}</div><p>${escapeHtml(entry.artifact.svgStatus)} · ${entry.artifact.renderedEntities} rendered · ${entry.artifact.diagnostics} diagnostics</p></details>
+      <details class="showcase-details"><summary>${escapeHtml(text.detail)}</summary><p><code>${escapeHtml(referenceId)}</code></p><div><b>${escapeHtml(text.types)}</b>${entityFacts}</div></details>
       <div class="showcase-tags">${tagList}</div><div class="showcase-actions"><a href="${escapeHtml(entry.links.source)}">${escapeHtml(text.source)} ↗</a>${primary}</div></div>
     </article>`
   }).join('')

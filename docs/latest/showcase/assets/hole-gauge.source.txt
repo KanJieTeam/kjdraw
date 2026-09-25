@@ -1,0 +1,24 @@
+// examples/curated-mechanical-sheets.mjs#L128-L148
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+function drawGauge(d) {
+  d.rect(55, 67, 205, 157)
+  d.line(55, 60, 205, 60, 'center')
+  d.line(49, 67, 49, 157, 'center')
+  const xs = [81, 130, 179], ys = [93, 131]
+  for (let row = 0; row < ys.length; row++) for (let col = 0; col < xs.length; col++) {
+    d.circle(xs[col], ys[row], 4)
+    d.center(xs[col], ys[row], 7)
+    d.text(xs[col] - 5, ys[row] + 10, `${'ABC'[col]}${row + 1}`, 2.9)
+  }
+  d.dim(55, 157, 205, 157, 130, 169)
+  d.dim(55, 67, 55, 157, 38, 112)
+  d.dim(81, 93, 130, 93, 105.5, 82)
+  d.dim(179, 93, 179, 131, 191, 112)
+  d.text(215, 148, '6X DIA 8 THRU', 3.0)
+  d.text(215, 135, 'COLUMN PITCH 49', 3.0)
+  d.text(215, 122, 'ROW PITCH 38', 3.0)
+  d.text(215, 109, 'DATUM A: BOTTOM', 3.0)
+  d.text(215, 96, 'DATUM B: LEFT', 3.0)
+  d.text(68, 49, 'PATTERN CHECK / POSITION DEMONSTRATION', 3)
+}

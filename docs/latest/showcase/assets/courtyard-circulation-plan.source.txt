@@ -1,0 +1,57 @@
+// examples/curated-building-sheets.mjs#L236-L289
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+async function courtyardCirculationSheet() {
+  return createSheet('courtyard-circulation-plan', 'Courtyard circulation plan', 'site',
+    ({ line, rect, circle, poly, text, hatch, aligned }) => {
+      text(15, 190, 'SITE DIAGRAM / WALKWAY + LANDSCAPE', 4, 'accent')
+      text(15, 183, 'CONCEPT SITE PLAN / NTS / NOT FOR CONSTRUCTION', 2.2, 'detail')
+      rect(28, 47, 267, 180, 'detail')
+      line(28, 165, 267, 165, 'detail')
+      text(33, 169, 'NORTH PROPERTY EDGE', 2.1, 'detail')
+      // Building and entry terrace.
+      rect(44, 103, 96, 151)
+      rect(48, 107, 92, 147, 'detail')
+      line(60, 103, 76, 103, 'accent')
+      text(55, 126, 'BUILDING', 3.2)
+      rect(54, 88, 88, 103, 'accent')
+      // A clear branching paved walkway, with an explicitly editable hatch.
+      const path = [[70, 88], [89, 83], [121, 84], [145, 105], [170, 105], [196, 78], [225, 78], [245, 91]]
+      const lower = path.map(([x, y]) => [x, y - 7])
+      poly(path, 'accent')
+      poly(lower, 'accent')
+      hatch([...path, ...lower.reverse()], 'ANSI31', 4.5, 'detail')
+      line(145, 105, 145, 134, 'accent')
+      line(152, 105, 152, 134, 'accent')
+      rect(137, 134, 160, 151, 'accent')
+      text(140, 141, 'PLAZA', 2.5)
+      // Plant beds are bounded separately from tree canopy symbols.
+      const beds = [
+        [[105, 125], [130, 124], [128, 151], [110, 155]],
+        [[171, 118], [199, 110], [215, 140], [190, 151]],
+        [[209, 52], [252, 52], [252, 68], [214, 68]],
+      ]
+      for (const vertices of beds) {
+        poly(vertices, 'planting', true)
+        hatch(vertices, 'ANSI31', 3.4, 'planting')
+      }
+      for (const [x, y, r] of [
+        [116, 138, 6], [187, 133, 7], [202, 127, 5], [229, 59, 5], [243, 59, 5],
+        [110, 62, 7], [127, 61, 6], [167, 59, 7], [178, 64, 5], [242, 143, 7],
+      ]) {
+        circle(x, y, r, 'planting')
+        circle(x, y, 1, 'planting')
+        line(x - r * .7, y, x + r * .7, y, 'detail')
+      }
+      // Seating and wayfinding make the diagram readable at thumbnail scale.
+      for (const [x, y] of [[175, 99], [211, 97]]) {
+        rect(x, y, x + 15, y + 3, 'highlight')
+        line(x + 2, y - 2, x + 2, y, 'detail')
+        line(x + 13, y - 2, x + 13, y, 'detail')
+      }
+      line(256, 150, 256, 164, 'highlight')
+      poly([[252, 157], [256, 165], [260, 157]], 'highlight', true)
+      text(251, 148, 'N', 3, 'highlight')
+      text(33, 56, 'PEDESTRIAN ROUTE', 2.3, 'accent')
+    }, { trees: 10, plantingBeds: 3, pathCount: 2, notToScale: true, concept: true })
+}

@@ -1,0 +1,43 @@
+// examples/curated-civil-sheets.mjs#L92-L131
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+export async function retainingWallSheet() {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'curated-retaining-wall', title: 'Retaining wall section', units: 'millimeter' })
+  await document.transact('Draw editable retaining wall construction detail', tx => {
+    const d = sheet(tx, 'WALL', 'RETAINING WALL SECTION', 'Footing / drainage / backfill / construction notes')
+    d.text(17, 173, 'SECTION A-A  /  1:50', 4.2, 'view-label')
+    d.line(18,52,130,52,'ground-line','DETAIL')
+    d.line(129,52,129,151,'backfill-top','DETAIL')
+    d.line(129,151,184,151,'backfill-grade','DETAIL')
+    d.rect(47,42,154,55,'footing')
+    d.rect(101,55,119,151,'stem')
+    d.rect(91,151,129,156,'cap')
+    d.add('HATCH', { boundaryLoops: [{ vertices: [p(49,44),p(152,44),p(152,53),p(49,53)] }], patternName: 'ANSI31', patternScale: 3 }, 'footing-hatch','HATCH')
+    d.add('HATCH', { boundaryLoops: [{ vertices: [p(103,57),p(117,57),p(117,149),p(103,149)] }], patternName: 'ANSI31', patternScale: 3 }, 'stem-hatch','HATCH')
+    for (let y = 62; y < 141; y += 13) {
+      d.line(133,y,176,y + 9,`backfill-stratum-${y}`,'DETAIL')
+      d.line(147,y - 1,155,y + 7,`backfill-tick-${y}`,'DETAIL')
+    }
+    d.circle(126,66,4,'weep-hole','DETAIL')
+    d.line(119,66,122,66,'weep-sleeve','DETAIL')
+    d.rect(122,57,149,64,'drain-gravel','DETAIL')
+    d.add('HATCH', { boundaryLoops: [{ vertices: [p(123,58),p(148,58),p(148,63),p(123,63)] }], patternName: 'CROSS', patternScale: 2.5 }, 'gravel-hatch','HATCH')
+    d.line(27,55,27,151,'height-dim','ANNOTATION')
+    d.line(24,55,35,55,'height-foot','ANNOTATION')
+    d.line(24,151,35,151,'height-head','ANNOTATION')
+    d.text(17,105,'4.8 m',3.2,'height-label')
+    d.line(47,33,154,33,'footing-dim','ANNOTATION')
+    d.line(47,30,47,38,'footing-dim-left','ANNOTATION')
+    d.line(154,30,154,38,'footing-dim-right','ANNOTATION')
+    d.text(93,28,'5.4 m',3.1,'footing-width')
+    d.line(119,113,193,128,'backfill-leader','ANNOTATION')
+    d.text(194,128,'COMPACTED BACKFILL',2.9,'backfill-label')
+    d.line(126,66,193,76,'drain-leader','ANNOTATION')
+    d.text(194,75,'WEEP HOLE + FILTER',2.9,'drain-label')
+    d.rect(186,43,259,60,'note-box','FRAME')
+    d.text(191,52,'CONCRETE C30',3.1,'material-label')
+    d.text(191,46,'Example detail - design check required',2.2,'material-note')
+  })
+  return finish(document, sdk, 'retaining-wall', 'Retaining wall section', 'civil', { hatchCount: 3, drainageDetail: true, illustrative: true })
+}

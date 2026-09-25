@@ -8,23 +8,21 @@ import { createIndustrySamples } from '../src/samples.js'
 
 const repositoryRoot = new URL('../../../', import.meta.url)
 
-test('Showcase manifest is generated from every public sample and its facts remain exact', async () => {
+test('Showcase manifest is generated from curated public samples and its facts remain exact', async () => {
   const manifest = JSON.parse(await readFile(new URL('docs/latest/showcase/catalog.json', repositoryRoot), 'utf8'))
   assert.equal(manifest.schema, 'com.kanjie.kjdraw.showcase@1')
-  assert.equal(manifest.entries.length, 17)
-  assert.equal(manifest.entries.find(entry => entry.id === 'borehole-log').title.zh, '柱状图')
-  assert.equal(manifest.entries.find(entry => entry.id === 'geology-section').title.zh, '剖面图')
-  assert.equal(manifest.entries.find(entry => entry.id === 'geology-plan').title.zh, '平面图')
-  assert.match(manifest.entries.find(entry => entry.id === 'borehole-log').summary.zh, /30 米.*岩性分层/)
-  assert.match(manifest.entries.find(entry => entry.id === 'geology-section').summary.zh, /五孔.*剖面/)
-  assert.equal(manifest.entries.filter(entry => entry.kind === 'sample').length, 9)
-  assert.equal(manifest.entries.filter(entry => entry.kind === 'specimen').length, 8)
+  assert.ok(manifest.entries.length >= 14)
+  assert.equal(manifest.entries.filter(entry => entry.kind === 'sample').length, 6)
+  assert.ok(manifest.entries.filter(entry => entry.kind === 'specimen').length >= 8)
+  assert.equal(manifest.categories.some(category => category.count === 0), false)
+  assert.equal(manifest.entries.some(entry => entry.reviewStatus !== undefined), false)
   assert.equal(manifest.categories.reduce((sum, category) => sum + category.count, 0), manifest.entries.length)
 
   const sdk = createKJDrawSDK()
   const drawings = [await createSample(sdk), ...await createIndustrySamples(sdk)]
   const sampleEntries = manifest.entries.filter(entry => entry.kind === 'sample')
-  assert.deepEqual(new Set(sampleEntries.map(entry => entry.sampleId)), new Set(drawings.map(drawing => drawing.id)))
+  const withheldSampleIds = new Set(['sample-borehole-log', 'sample-geology-section', 'sample-geology-plan'])
+  assert.deepEqual(new Set(sampleEntries.map(entry => entry.sampleId)), new Set(drawings.map(drawing => drawing.id).filter(id => !withheldSampleIds.has(id))))
   for (const entry of sampleEntries) {
     const drawing = drawings.find(candidate => candidate.id === entry.sampleId)
     const entities = drawing.listEntities({ ownerId: drawing.snapshot().spaces.modelSpaceId })
@@ -53,8 +51,7 @@ test('Showcase manifest is generated from every public sample and its facts rema
     assert.equal(snippet.split('\n').slice(3).join('\n'), original.slice(startLine - 1, endLine).join('\n') + '\n')
     assert.match(snippet, new RegExp(`function ${symbol}\\(`))
   }
-  const sectionThumbnail = await readFile(new URL('docs/latest/showcase/assets/geology-section.svg', repositoryRoot), 'utf8')
-  assert.match(sectionThumbnail, /hatch-loess/)
+
   for (const entry of manifest.entries.filter(row => row.kind === 'specimen')) {
     assert.match(entry.links.preview, /^\.\/assets\/[a-z0-9-]+\.svg$/)
     assert.equal(entry.artifact.diagnostics, 0)
@@ -73,8 +70,9 @@ test('Showcase page exposes searchable cards, filters, view switching and manife
   const html = await readFile(new URL('docs/latest/showcase/index.html', repositoryRoot), 'utf8')
   const app = await readFile(new URL('docs/latest/app.js', repositoryRoot), 'utf8')
   assert.equal((html.match(/class="showcase-portal"/g) ?? []).length, 2)
-  assert.equal((html.match(/class="showcase-card"/g) ?? []).length, 34)
-  assert.equal((html.match(/class="showcase-thumb"/g) ?? []).length, 34)
+  const manifest = JSON.parse(await readFile(new URL('docs/latest/showcase/catalog.json', repositoryRoot), 'utf8'))
+  assert.equal((html.match(/class="showcase-card"/g) ?? []).length, manifest.entries.length * 2)
+  assert.equal((html.match(/class="showcase-thumb"/g) ?? []).length, manifest.entries.length * 2)
   assert.match(html, /class="showcase-query"/)
   assert.match(html, /class="showcase-tag-filter"/)
   assert.match(html, /data-view="grid"/)
