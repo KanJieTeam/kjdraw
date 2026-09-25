@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:734d197dccb887be21a1d8ce1caf1d0821ea601ea17570d65b62df4c27fee00b",
+  "sourceDigest": "sha256:9c42582f47728b742c743b27b118462aa2e2fb35fbcf60bb1dc19fe6510d4770",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -11898,7 +11898,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjmechanicalfourholeboltcircle",
       "anchor": "root-interface-kjmechanicalfourholeboltcircle",
-      "summary": "export interface KJMechanicalFourHoleBoltCircle { center: readonly [number, number]; pitchDiameter: number; holeDiameter: number; holeCenters: readonly (readonly [number, number])[]; }"
+      "summary": "export interface KJMechanicalFourHoleBoltCircle { center: readonly [number, number]; pitchDiameter: number; holeDiameter: number; /** Canonical angle of one hole in [0, π/2); suitable for a 4-hole component INSERT. */ st"
     },
     {
       "name": "KJMechanicalFourHoleBoltCircleDetection",

@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:734d197dccb887be21a1d8ce1caf1d0821ea601ea17570d65b62df4c27fee00b",
+  "sourceDigest": "sha256:9c42582f47728b742c743b27b118462aa2e2fb35fbcf60bb1dc19fe6510d4770",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -10624,7 +10624,7 @@
         {
           "name": "KJMechanicalFourHoleBoltCircle",
           "kind": "interface",
-          "declaration": "export interface KJMechanicalFourHoleBoltCircle {\n    center: readonly [number, number];\n    pitchDiameter: number;\n    holeDiameter: number;\n    holeCenters: readonly (readonly [number, number])[];\n}",
+          "declaration": "export interface KJMechanicalFourHoleBoltCircle {\n    center: readonly [number, number];\n    pitchDiameter: number;\n    holeDiameter: number;\n    /** Canonical angle of one hole in [0, π/2); suitable for a 4-hole component INSERT. */\n    startAngleRadians: number;\n    holeCenters: readonly (readonly [number, number])[];\n}",
           "source": "mechanical-topology.d.ts",
           "anchor": "root-interface-kjmechanicalfourholeboltcircle"
         },

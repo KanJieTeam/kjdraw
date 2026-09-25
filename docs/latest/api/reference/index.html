@@ -29059,6 +29059,8 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre></d
     center: readonly [number, number];
     pitchdiameter: number;
     holediameter: number;
+    /** canonical angle of one hole in [0, π/2); suitable for a 4-hole component insert. */
+    startangleradians: number;
     holecenters: readonly (readonly [number, number])[];
 }">
       <header><div><span class="kind">interface</span><h3>KJMechanicalFourHoleBoltCircle</h3></div><a class="permalink" href="#root-interface-kjmechanicalfourholeboltcircle" aria-label="Link to KJMechanicalFourHoleBoltCircle"></a></header>
@@ -29067,6 +29069,8 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre></d
     center: readonly [number, number];
     pitchDiameter: number;
     holeDiameter: number;
+    /** Canonical angle of one hole in [0, π/2); suitable for a 4-hole component INSERT. */
+    startAngleRadians: number;
     holeCenters: readonly (readonly [number, number])[];
 }</code></pre></details>
       <p class="source-path">mechanical-topology.d.ts</p>
