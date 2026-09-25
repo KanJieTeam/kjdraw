@@ -35,4 +35,5 @@
 .symbol-declaration{margin-top:10px}.symbol-declaration summary{width:max-content;cursor:pointer;color:#516275;font-size:12px}.symbol-declaration summary:hover{color:#1d56bc}
 .symbol-declaration pre{max-width:100%;max-height:none;overflow:auto}.symbol-declaration pre code{overflow-wrap:anywhere}
 .api-symbols{grid-template-columns:minmax(0,1fr)}.api-symbol,.api-module{min-width:0}.module-header h2,.module-source{overflow-wrap:anywhere}
+.reference-search-status{display:flex;align-items:center;gap:12px;margin:0 0 24px;padding:12px 14px;border:1px solid #e8c69f;border-radius:7px;background:#fffaf3;color:#714c25;font-size:13px;line-height:1.5}.reference-search-status[hidden]{display:none}.reference-search-status button{flex:none;margin-left:auto;padding:5px 9px;border:1px solid #d7ab76;border-radius:5px;background:#fff;color:#714c25;font:inherit;cursor:pointer}.reference-search-status button:hover,.reference-search-status button:focus-visible{border-color:#8d5b27;background:#fff1de}
 .symbol-import code{min-width:0}.api-symbol>header>div{min-width:0;flex-wrap:wrap}.api-symbol h3,.source-path{overflow-wrap:anywhere}.source-path{margin-top:10px}

@@ -496,10 +496,10 @@ const referenceSections = modules.map(module => `<section class="api-module" id=
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>${escapeHtml(module.packageName)}</code></h2></div>${permalink(module.anchor, module.packageName)}</header>
   <p class="module-source">${localized('Declaration', '类型声明')} <code>${escapeHtml(module.declaration)}</code></p>
   <div class="api-symbols">
-    ${module.symbols.map(symbol => `<article class="api-symbol" id="${symbol.anchor}" data-search="${escapeHtml(`${symbol.name} ${symbol.kind} ${module.packageName} ${symbol.declaration}`.toLowerCase())}">
+    ${module.symbols.map(symbol => `<article class="api-symbol" id="${symbol.anchor}" data-search="${escapeHtml(`${symbol.name} ${symbol.kind} ${module.packageName}`.toLowerCase())}">
       <header><div><span class="kind">${escapeHtml(symbol.kind)}</span><h3>${escapeHtml(symbol.name)}</h3></div>${permalink(symbol.anchor, symbol.name)}</header>
       ${symbolImport(symbol, module) ? `<div class="symbol-import"><code>${escapeHtml(symbolImport(symbol, module))}</code><button type="button" data-copy-import="${escapeHtml(symbolImport(symbol, module))}">${localized('Copy import', '复制导入')}</button></div>` : ''}
-      <details class="symbol-declaration"><summary>${localized('Type declaration', '类型声明')}</summary>${codeBlock(symbol.declaration, 'ts')}</details>
+      <details class="symbol-declaration" data-symbol="${symbol.anchor}"><summary>${localized('Type declaration', '类型声明')}</summary></details>
       <p class="source-path">${escapeHtml(symbol.source)}</p>
     </article>`).join('\n')}
   </div>
@@ -526,7 +526,8 @@ const referenceHtml = `<!doctype html>
   <div class="reference-shell">
     <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v${escapeHtml(packageJson.version)}</strong></div><nav>${referenceNavigation}</nav></aside>
     <main class="reference-main"><article>
-      <section class="reference-intro" id="api-reference"><p class="eyebrow">TYPESCRIPT</p><h1>${localized('Complete API reference', '完整 API 参考')}</h1><p class="lead">${localized('Browse the declarations for the root package and every public subpath. Start with the Editor API for application integration.', '浏览根包及每个公开子路径的类型声明；应用接入请先从 Editor API 开始。')}</p><a class="primary-link" href="../">${localized('Open Editor API', '打开 Editor API')} →</a></section>
+      <section class="reference-intro" id="api-reference"><p class="eyebrow">TYPESCRIPT</p><h1>${localized('Complete API reference', '完整 API 参考')}</h1><p class="lead">${localized('Browse the declarations for the root package and every public subpath. Start with the Editor API for application integration.', '浏览根包及每个公开子路径的类型声明；应用接入请先从 Editor API 开始。')}</p><p class="reference-load-note">${localized('Search includes every public declaration. Expand a symbol to load its type signature; browser Find only sees signatures already opened.', '站内搜索覆盖全部公开声明。展开符号时加载完整类型；浏览器页内查找仅能找到已展开的声明。')}</p><a class="primary-link" href="../">${localized('Open Editor API', '打开 Editor API')} →</a></section>
+      <div id="reference-search-status" class="reference-search-status" role="status" hidden><span class="lang-en">Full declaration search is unavailable while offline. Check your connection and retry.</span><span class="lang-zh">离线时无法搜索完整类型声明。请检查网络后重试。</span><button id="retry-reference-search" type="button">${localized('Retry search', '重试搜索')}</button></div>
       <div id="empty-state" hidden><h2>${localized('No matching API', '未找到匹配 API')}</h2></div>
       ${referenceSections}
     </article></main>
@@ -537,11 +538,48 @@ const referenceHtml = `<!doctype html>
 </html>
 `
 
-const referenceAppJs = `const html=document.documentElement,input=document.getElementById('api-search'),modules=[...document.querySelectorAll('.api-module')],empty=document.getElementById('empty-state')
+const referenceAppJs = `const html=document.documentElement,input=document.getElementById('api-search'),modules=[...document.querySelectorAll('.api-module')],empty=document.getElementById('empty-state'),searchStatus=document.getElementById('reference-search-status')
 let locale=localStorage.getItem('kjdraw.docs.language')||(navigator.language.toLowerCase().startsWith('zh')?'zh':'en')
 function applyLanguage(){html.dataset.locale=locale;html.lang=locale==='zh'?'zh-CN':'en';document.getElementById('language').textContent=locale==='zh'?'EN':'中文';input.placeholder=locale==='zh'?'搜索全部包导出':'Search package exports'}
 document.getElementById('language').onclick=()=>{locale=locale==='zh'?'en':'zh';localStorage.setItem('kjdraw.docs.language',locale);applyLanguage()}
-for(const button of document.querySelectorAll('[data-copy-code]'))button.onclick=async()=>{await navigator.clipboard.writeText(button.nextElementSibling.textContent);const old=button.textContent;button.textContent=locale==='zh'?'已复制':'Copied';setTimeout(()=>button.textContent=old,1200)}
+document.addEventListener('click',async event=>{const button=event.target.closest('[data-copy-code]');if(!button)return;await navigator.clipboard.writeText(button.nextElementSibling.textContent);const old=button.textContent;button.textContent=locale==='zh'?'已复制':'Copied';setTimeout(()=>button.textContent=old,1200)})
+let referencePromise
+function loadReference(){
+  if(!referencePromise)referencePromise=fetch('./api-reference.json').then(response=>{if(!response.ok)throw new Error('API reference unavailable');return response.json()}).then(data=>{
+    const declarations=new Map(),searchText=new Map()
+    for(const module of data.modules)for(const symbol of module.symbols){declarations.set(symbol.anchor,symbol.declaration);searchText.set(symbol.anchor,(symbol.name+' '+symbol.kind+' '+module.packageName+' '+symbol.declaration).toLowerCase())}
+    return {declarations,searchText}
+  }).catch(error=>{referencePromise=null;throw error})
+  return referencePromise
+}
+document.addEventListener('toggle',async event=>{
+  const details=event.target
+  if(!details.matches?.('.symbol-declaration')||!details.open||details.dataset.loaded||details.dataset.loading)return
+  details.dataset.loading='true'
+  details.querySelector('.declaration-status')?.remove()
+  const status=document.createElement('p')
+  status.className='declaration-status'
+  status.textContent=locale==='zh'?'正在加载类型声明…':'Loading type declaration…'
+  details.append(status)
+  try{
+    const {declarations}=await loadReference()
+    const declaration=declarations.get(details.dataset.symbol)
+    if(!declaration)throw new Error('Declaration not found')
+    const pre=document.createElement('pre')
+    pre.dataset.language='ts'
+    const button=document.createElement('button')
+    button.className='copy'
+    button.type='button'
+    button.dataset.copyCode=''
+    button.textContent='Copy'
+    const code=document.createElement('code')
+    code.textContent=declaration
+    pre.append(button,code)
+    status.replaceWith(pre)
+    details.dataset.loaded='true'
+  }catch{status.textContent=locale==='zh'?'类型声明暂时无法加载，请重试。':'Could not load declaration. Close and reopen to retry.'}
+  delete details.dataset.loading
+},true)
 for(const button of document.querySelectorAll('[data-copy-import]'))button.onclick=async()=>{await navigator.clipboard.writeText(button.dataset.copyImport);const old=button.innerHTML;button.textContent=locale==='zh'?'已复制':'Copied';setTimeout(()=>button.innerHTML=old,1200)}
 const toc=document.querySelector('.reference-toc'),tocTitle=document.getElementById('reference-toc-title'),tocLinks=document.getElementById('reference-toc-links')
 function updateReferenceToc(){
@@ -564,7 +602,44 @@ function updateReferenceToc(){
 }
 let tocFrame=0
 addEventListener('scroll',()=>{if(tocFrame)return;tocFrame=requestAnimationFrame(()=>{tocFrame=0;updateReferenceToc()})},{passive:true})
-function search(){const terms=input.value.trim().toLowerCase().split(/\\s+/).filter(Boolean);let visible=0;for(const module of modules){let moduleVisible=0;for(const symbol of module.querySelectorAll('.api-symbol')){const show=terms.every(term=>symbol.dataset.search.includes(term));symbol.hidden=!show;if(show)moduleVisible+=1}module.hidden=moduleVisible===0;visible+=moduleVisible}empty.hidden=visible!==0;const url=new URL(location.href);if(input.value)url.searchParams.set('q',input.value);else url.searchParams.delete('q');history.replaceState(null,'',url);updateReferenceToc()}
+let searchEpoch=0
+async function search(){
+  const epoch=++searchEpoch
+  const terms=input.value.trim().toLowerCase().split(/\\s+/).filter(Boolean)
+  const url=new URL(location.href)
+  if(input.value)url.searchParams.set('q',input.value)
+  else url.searchParams.delete('q')
+  history.replaceState(null,'',url)
+  searchStatus.hidden=true
+  let fullSearch
+  if(terms.length){
+    try{fullSearch=(await loadReference()).searchText}
+    catch{
+      if(epoch!==searchEpoch)return
+      for(const module of modules){module.hidden=false;for(const symbol of module.querySelectorAll('.api-symbol'))symbol.hidden=false}
+      empty.hidden=true
+      searchStatus.hidden=false
+      updateReferenceToc()
+      return
+    }
+  }
+  if(epoch!==searchEpoch)return
+  let visible=0
+  for(const module of modules){
+    let moduleVisible=0
+    for(const symbol of module.querySelectorAll('.api-symbol')){
+      const haystack=fullSearch?.get(symbol.id)??symbol.dataset.search
+      const show=terms.every(term=>haystack.includes(term))
+      symbol.hidden=!show
+      if(show)moduleVisible+=1
+    }
+    module.hidden=moduleVisible===0
+    visible+=moduleVisible
+  }
+  empty.hidden=visible!==0
+  updateReferenceToc()
+}
+document.getElementById('retry-reference-search').onclick=search;
 input.value=new URL(location.href).searchParams.get('q')??'';input.addEventListener('input',search);search();window.addEventListener('keydown',event=>{if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName)){event.preventDefault();input.focus()}});applyLanguage()
 `
 
@@ -607,6 +682,7 @@ const referenceTocCss = `
 .symbol-declaration{margin-top:10px}.symbol-declaration summary{width:max-content;cursor:pointer;color:#516275;font-size:12px}.symbol-declaration summary:hover{color:#1d56bc}
 .symbol-declaration pre{max-width:100%;max-height:none;overflow:auto}.symbol-declaration pre code{overflow-wrap:anywhere}
 .api-symbols{grid-template-columns:minmax(0,1fr)}.api-symbol,.api-module{min-width:0}.module-header h2,.module-source{overflow-wrap:anywhere}
+.reference-search-status{display:flex;align-items:center;gap:12px;margin:0 0 24px;padding:12px 14px;border:1px solid #e8c69f;border-radius:7px;background:#fffaf3;color:#714c25;font-size:13px;line-height:1.5}.reference-search-status[hidden]{display:none}.reference-search-status button{flex:none;margin-left:auto;padding:5px 9px;border:1px solid #d7ab76;border-radius:5px;background:#fff;color:#714c25;font:inherit;cursor:pointer}.reference-search-status button:hover,.reference-search-status button:focus-visible{border-color:#8d5b27;background:#fff1de}
 .symbol-import code{min-width:0}.api-symbol>header>div{min-width:0;flex-wrap:wrap}.api-symbol h3,.source-path{overflow-wrap:anywhere}.source-path{margin-top:10px}
 `
 const apiDocsPolish = `

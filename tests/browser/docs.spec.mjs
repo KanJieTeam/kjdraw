@@ -187,3 +187,20 @@ test('model integration guide exposes all connection routes in both languages on
   await page.locator('#search').fill('chatTokenParameter')
   await expect(page.locator('#results a[href*="/models/#zh-models-quickstart"]')).toBeVisible()
 })
+
+test('reference full-text search reports offline failure and retries without false empty state', async ({ page }) => {
+  await page.route('**/api-reference.json', route => route.abort())
+  await page.goto('/docs/latest/api/reference/')
+  const totalSymbols = await page.locator('.api-symbol').count()
+  await page.locator('#api-search').fill('onSelectionChange')
+
+  await expect(page.locator('#reference-search-status')).toBeVisible()
+  await expect(page.locator('#empty-state')).toBeHidden()
+  await expect(page.locator('.api-symbol:not([hidden])')).toHaveCount(totalSymbols)
+
+  await page.unroute('**/api-reference.json')
+  await page.locator('#retry-reference-search').click()
+  await expect(page.locator('#reference-search-status')).toBeHidden()
+  await expect(page.locator('.api-symbol:not([hidden])')).toHaveCount(3)
+  await expect(page.locator('#editor-interface-kjdraweditoroptions')).toBeVisible()
+})

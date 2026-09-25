@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:e7601f601e97ad8929cf785d2a0b353050b4d5e28f5b30bf3c85878403c5cfe8",
+  "sourceDigest": "sha256:e3614dda9cea3ec0275111d0a906bf318d712a3f9758feee85465c10a4a9eafb",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -6028,6 +6028,13 @@
           "declaration": "export declare function auditCommandBindings(sdk: KJCapabilitySDK, bindings?: readonly KJCommandBinding[]): Readonly<{\n    passed: boolean;\n    findings: readonly KJCommandBindingFinding[];\n}>;",
           "source": "capabilities.d.ts",
           "anchor": "root-function-auditcommandbindings"
+        },
+        {
+          "name": "auditMechanicalDimensionPictures",
+          "kind": "function",
+          "declaration": "export declare function auditMechanicalDimensionPictures(document: KJDocument): {\n    passed: boolean;\n    dimensions: number;\n    pictureBlocks: number;\n    findings: string[];\n};",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-function-auditmechanicaldimensionpictures"
         },
         {
           "name": "auditRoundTrip",
