@@ -301,7 +301,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'INSERT',
             'DELETE',
             'SET_BULGE',
-            'SET_WIDTH'
+            'SET_WIDTH',
+            'REVERSE'
         ],
         stableIdentity: true
     },
@@ -2234,6 +2235,10 @@ export function registerCoreCommands(registry) {
             if (operation === 'DELETE') migratePolylineDimensionAssociations(transaction, entity.id, {
                 operation,
                 vertexIndex: location.vertexIndex
+            });
+            if (operation === 'REVERSE') migratePolylineDimensionAssociations(transaction, entity.id, {
+                operation,
+                vertexCount: payload.vertices.length
             });
             refreshAssociativeDimensions(transaction, [
                 entity.id

@@ -156,7 +156,33 @@ test('AI PEDIT definition stays compact, optional by operation and available to 
   const definition = KJDRAW_AGENT_TOOLS.find(tool => tool.name === 'cad_propose_polyline_edit')
   assert.equal(definition.effect, 'propose')
   assert.deepEqual(definition.inputSchema.required, ['expectedRevision', 'units', 'id', 'operation'])
-  assert.deepEqual(definition.inputSchema.properties.operation.enum, ['INSERT', 'DELETE', 'SET_BULGE', 'SET_WIDTH'])
+  assert.deepEqual(definition.inputSchema.properties.operation.enum, ['INSERT', 'DELETE', 'SET_BULGE', 'SET_WIDTH', 'REVERSE'])
   assert.match(definition.description, /host approval/i)
   assert.ok(Buffer.byteLength(JSON.stringify(definition), 'utf8') < 3000)
+})
+
+test('AI PEDIT REVERSE previews exact vertex order and commits one reviewed stable-identity edit', async () => {
+  const { sdk, document, session } = await fixture()
+  const before = document.serialize(), original = document.getObject('path')
+  const proposal = value(await session.call('cad_propose_polyline_edit', {
+    expectedRevision: document.revision, units: 'millimeter', id: 'path', operation: 'REVERSE',
+  }))
+  assert.equal(document.serialize(), before)
+  assert.deepEqual(proposal.arguments, { id: 'path', operation: 'REVERSE' })
+  assert.deepEqual(proposal.preview.after[0].payload.vertices.map(vertex => vertex.point), [[10, 10, 0], [5, 10, 0], [0, 10, 0]])
+  const receipt = value(await session.approve(proposal.planId, 'host-reviewer'))
+  assert.equal(receipt.command, 'PEDIT')
+  assert.equal(document.getObject('path').id, original.id)
+  assert.equal(document.getObject('path').handle, original.handle)
+  await sdk.executeCommand('UNDO')
+  assert.deepEqual(document.getObject('path'), original)
+  await sdk.executeCommand('REDO')
+  assert.deepEqual(document.getObject('path').payload.vertices.map(vertex => vertex.point), [[10, 10, 0], [5, 10, 0], [0, 10, 0]])
+
+  const current = document.serialize()
+  const invalid = await session.call('cad_propose_polyline_edit', {
+    expectedRevision: document.revision, units: 'millimeter', id: 'path', operation: 'REVERSE', segmentIndex: 0,
+  })
+  assert.equal(invalid.ok, false)
+  assert.equal(document.serialize(), current)
 })

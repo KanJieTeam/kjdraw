@@ -1614,6 +1614,22 @@ function setPolylineSegmentWidth(payload: KJObjectPayload, vertices: EditablePol
   return { ...payload, vertices }
 }
 
+/** Reverse segment direction while keeping each vertex's non-geometric metadata attached to its point. */
+function reversePolyline(payload: KJObjectPayload, vertices: EditablePolylineVertex[]): KJObjectPayload {
+  const closed = Boolean(payload.closed), count = vertices.length
+  const reversed = vertices.toReversed().map((vertex, index) => {
+    const originalSegment = closed ? (count - 2 - index + count) % count : count - 2 - index
+    const segment = originalSegment >= 0 ? vertices[originalSegment]! : vertices[count - 1]!
+    return {
+      ...vertex,
+      bulge: originalSegment >= 0 && segment.bulge !== 0 ? -segment.bulge : segment.bulge,
+      startWidth: originalSegment >= 0 ? segment.endWidth : segment.startWidth,
+      endWidth: originalSegment >= 0 ? segment.startWidth : segment.endWidth,
+    }
+  })
+  return { ...payload, vertices: reversed }
+}
+
 /** Edit one polyline topology element without replacing the entity identity. */
 export function editPolylinePayload(target: KJEditingEntity | null | undefined, options: KJPolylineEditOptions = {}): KJObjectPayload {
   const type = normalizeName(target?.type)
@@ -1625,7 +1641,8 @@ export function editPolylinePayload(target: KJEditingEntity | null | undefined, 
   if (operation === 'DELETE') return deletePolylineVertex(payload, vertices, options)
   if (operation === 'SET_BULGE' || operation === 'ARC') return setPolylineSegmentBulge(payload, vertices, options)
   if (operation === 'SET_WIDTH' || operation === 'WIDTH') return setPolylineSegmentWidth(payload, vertices, options)
-  throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE or SET_WIDTH')
+  if (operation === 'REVERSE') return reversePolyline(payload, vertices)
+  throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE, SET_WIDTH or REVERSE')
 }
 
 /** Resolve a pointer-based PEDIT pick to the stable topology index used for association migration. */
@@ -1644,7 +1661,8 @@ export function resolvePolylineEditLocation(target: KJEditingEntity | null | und
   if (operation === 'DELETE') return { vertexIndex: options.vertexIndex == null
     ? pickedPolylineVertex(vertices, options.point, polylineEditTolerance(options.tolerance))
     : polylineEditIndex(options.vertexIndex, 'PEDIT vertexIndex', vertices.length) }
-  throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE or SET_WIDTH')
+  if (operation === 'REVERSE') return {}
+  throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE, SET_WIDTH or REVERSE')
 }
 
 interface SelectedRay {

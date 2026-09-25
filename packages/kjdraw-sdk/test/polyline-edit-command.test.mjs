@@ -175,6 +175,96 @@ test('PEDIT advertises exact stable topology operations', () => {
   const capability = createKJDrawSDK().capabilities().commands.find(command => command.id === 'PEDIT')
   assert.deepEqual(capability.aliases, ['PE', 'POLYLINEEDIT'])
   assert.deepEqual(capability.capabilities, {
-    domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'], operations: ['INSERT', 'DELETE', 'SET_BULGE', 'SET_WIDTH'], stableIdentity: true,
+    domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'], operations: ['INSERT', 'DELETE', 'SET_BULGE', 'SET_WIDTH', 'REVERSE'], stableIdentity: true,
   })
+})
+
+test('PEDIT REVERSE preserves open bulge geometry, tapered widths, metadata and exact double-reversal', async () => {
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'pedit-reverse-open', units: 'millimeter' })
+  const path = await sdk.executeCommand('CREATE', { type: 'LWPOLYLINE', payload: {
+    vertices: [
+      { point: [0, 0], bulge: 1, startWidth: 2, endWidth: 4, station: 'A' },
+      { point: [10, 0], bulge: 0, startWidth: 5, endWidth: 7, station: 'B' },
+      { point: [10, 10], bulge: -Math.tan(Math.PI / 8), startWidth: 8, endWidth: 10, station: 'C' },
+      { point: [20, 10], bulge: 0.25, startWidth: 11, endWidth: 13, station: 'D' },
+    ], closed: false, elevation: 6, color: 3,
+  } })
+  const before = drawing.getObject(path.id), beforeLength = entityLength2(before).value
+  const group = await sdk.executeCommand('GROUP', { name: 'Reversible path', ids: [path.id] })
+  const result = await sdk.executeCommand('PEDIT', { id: path.id, operation: 'REVERSE' })
+  assert.equal(result.id, path.id); assert.equal(result.handle, path.handle)
+  assert.deepEqual(points(result), [[20, 10, 0], [10, 10, 0], [10, 0, 0], [0, 0, 0]])
+  assert.deepEqual(result.payload.vertices.map(vertex => vertex.station), ['D', 'C', 'B', 'A'])
+  assert.deepEqual(result.payload.vertices.map(vertex => [vertex.bulge, vertex.startWidth, vertex.endWidth]), [
+    [Math.tan(Math.PI / 8), 10, 8], [0, 7, 5], [-1, 4, 2], [0.25, 11, 13],
+  ])
+  close(entityLength2(result).value, beforeLength)
+  assert.equal(result.payload.elevation, 6); assert.equal(result.payload.color, 3)
+  assert.deepEqual(drawing.getObject(group.id).payload.memberIds, [path.id])
+  const kjd = await sdk.writeDocument(drawing, { format: 'KJD' })
+  assert.deepEqual(KJDocument.open(kjd).getObject(path.id).payload.vertices, result.payload.vertices)
+  const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
+  const reopened = await sdk.fileAdapters.read(dxf, { format: 'DXF' })
+  const exported = reopened.listEntities({ type: 'LWPOLYLINE' })[0]
+  close(entityLength2(exported).value, beforeLength, 1e-7)
+  assert.deepEqual(exported.payload.vertices.slice(0, 3).map(vertex => [vertex.bulge, vertex.startWidth, vertex.endWidth]), [
+    [Math.tan(Math.PI / 8), 10, 8], [0, 7, 5], [-1, 4, 2],
+  ])
+  await sdk.executeCommand('PEDIT', { id: path.id, operation: 'REVERSE' })
+  assert.deepEqual(drawing.getObject(path.id).payload, before.payload)
+  await sdk.executeCommand('UNDO')
+  assert.deepEqual(drawing.getObject(path.id).payload, result.payload)
+  await sdk.executeCommand('REDO')
+  assert.deepEqual(drawing.getObject(path.id).payload, before.payload)
+})
+
+test('PEDIT REVERSE preserves the closing arc, directed widths and physical vertex identities', async () => {
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'pedit-reverse-closed' })
+  const path = await sdk.executeCommand('CREATE', { type: 'POLYLINE', payload: {
+    vertices: [
+      { point: [0, 0], bulge: 1, startWidth: 2, endWidth: 4, station: 'A' },
+      { point: [10, 0], bulge: 0, startWidth: 5, endWidth: 7, station: 'B' },
+      { point: [10, 10], bulge: -0.5, startWidth: 8, endWidth: 10, station: 'C' },
+      { point: [0, 10], bulge: 0.25, startWidth: 11, endWidth: 13, station: 'D' },
+    ], closed: true,
+  } })
+  const before = drawing.getObject(path.id), beforeLength = entityLength2(before).value
+  const result = await sdk.executeCommand('PEDIT', { id: path.id, operation: 'REVERSE' })
+  assert.equal(result.payload.closed, true)
+  assert.deepEqual(result.payload.vertices.map(vertex => [vertex.station, vertex.bulge, vertex.startWidth, vertex.endWidth]), [
+    ['D', 0.5, 10, 8], ['C', 0, 7, 5], ['B', -1, 4, 2], ['A', -0.25, 13, 11],
+  ])
+  close(entityLength2(result).value, beforeLength)
+  const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
+  const reopened = await sdk.fileAdapters.read(dxf, { format: 'DXF' })
+  const exported = reopened.listEntities({ type: 'POLYLINE' })[0]
+  assert.equal(exported.payload.closed, true)
+  close(entityLength2(exported).value, beforeLength, 1e-7)
+  assert.deepEqual(exported.payload.vertices.at(-1).bulge, -0.25)
+  await sdk.executeCommand('PEDIT', { id: path.id, operation: 'REVERSE' })
+  assert.deepEqual(drawing.getObject(path.id).payload, before.payload)
+})
+test('independent ezdxf audits reversed closing bulge and tapered widths without DXF repair', async t => {
+  if (!process.env.KJDRAW_PYTHON) return t.skip('KJDRAW_PYTHON is not configured')
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'pedit-reverse-ezdxf' })
+  const path = await sdk.executeCommand('CREATE', { type: 'LWPOLYLINE', payload: {
+    vertices: [
+      { point: [0, 0], bulge: 1, startWidth: 2, endWidth: 4 },
+      { point: [10, 0], bulge: 0, startWidth: 5, endWidth: 7 },
+      { point: [10, 10], bulge: -0.5, startWidth: 8, endWidth: 10 },
+      { point: [0, 10], bulge: 0.25, startWidth: 11, endWidth: 13 },
+    ], closed: true,
+  } })
+  await sdk.executeCommand('PEDIT', { id: path.id, operation: 'REVERSE' })
+  const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
+  const code = 'import os,io,json,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); p=list(d.modelspace().query("LWPOLYLINE")); print(json.dumps({"count":len(p),"closed":p[0].closed,"points":[list(v) for v in p[0].get_points("xyseb")],"errors":len(a.errors),"fixes":len(a.fixes)}))'
+  const run = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON, ['-c', code], dxf, { encoding: 'utf8', timeout: 30000 })
+  assert.equal(run.status, 0, run.stderr)
+  const result = JSON.parse(run.stdout)
+  assert.equal(result.count, 1); assert.equal(result.closed, true)
+  assert.equal(result.errors, 0); assert.equal(result.fixes, 0)
+  assert.deepEqual(result.points.map(vertex => vertex.slice(0, 4)), [
+    [0, 10, 10, 8], [10, 10, 7, 5], [10, 0, 4, 2], [0, 0, 13, 11],
+  ])
+  assert.deepEqual(result.points.map(vertex => vertex[4]), [0.5, 0, -1, -0.25])
 })

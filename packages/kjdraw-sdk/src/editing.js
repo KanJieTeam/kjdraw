@@ -1951,6 +1951,23 @@ function setPolylineSegmentWidth(payload, vertices, options) {
         vertices
     };
 }
+function reversePolyline(payload, vertices) {
+    const closed = Boolean(payload.closed), count = vertices.length;
+    const reversed = vertices.toReversed().map((vertex, index)=>{
+        const originalSegment = closed ? (count - 2 - index + count) % count : count - 2 - index;
+        const segment = originalSegment >= 0 ? vertices[originalSegment] : vertices[count - 1];
+        return {
+            ...vertex,
+            bulge: originalSegment >= 0 && segment.bulge !== 0 ? -segment.bulge : segment.bulge,
+            startWidth: originalSegment >= 0 ? segment.endWidth : segment.startWidth,
+            endWidth: originalSegment >= 0 ? segment.startWidth : segment.endWidth
+        };
+    });
+    return {
+        ...payload,
+        vertices: reversed
+    };
+}
 export function editPolylinePayload(target, options = {}) {
     const type = normalizeName(target?.type);
     if (type !== 'LWPOLYLINE' && type !== 'POLYLINE') throw new KJValidationError(`PEDIT requires a LWPOLYLINE or POLYLINE target, not ${type || 'unknown entity'}`);
@@ -1961,7 +1978,8 @@ export function editPolylinePayload(target, options = {}) {
     if (operation === 'DELETE') return deletePolylineVertex(payload, vertices, options);
     if (operation === 'SET_BULGE' || operation === 'ARC') return setPolylineSegmentBulge(payload, vertices, options);
     if (operation === 'SET_WIDTH' || operation === 'WIDTH') return setPolylineSegmentWidth(payload, vertices, options);
-    throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE or SET_WIDTH');
+    if (operation === 'REVERSE') return reversePolyline(payload, vertices);
+    throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE, SET_WIDTH or REVERSE');
 }
 export function resolvePolylineEditLocation(target, options = {}) {
     const type = normalizeName(target?.type);
@@ -1978,7 +1996,8 @@ export function resolvePolylineEditLocation(target, options = {}) {
     if (operation === 'DELETE') return {
         vertexIndex: options.vertexIndex == null ? pickedPolylineVertex(vertices, options.point, polylineEditTolerance(options.tolerance)) : polylineEditIndex(options.vertexIndex, 'PEDIT vertexIndex', vertices.length)
     };
-    throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE or SET_WIDTH');
+    if (operation === 'REVERSE') return {};
+    throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE, SET_WIDTH or REVERSE');
 }
 function selectedRay(line, intersection, pickPoint) {
     const payload = line.payload ?? {};

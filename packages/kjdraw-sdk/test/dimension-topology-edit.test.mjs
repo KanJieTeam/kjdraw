@@ -107,3 +107,32 @@ test('protected associated dimensions roll back PEDIT index migration', async t 
     })
   }
 })
+
+test('PEDIT REVERSE remaps associative vertex dimensions to the same physical points', async () => {
+  const { sdk, drawing, polyline, dimension } = await polylineFixture('dimension-pedit-reverse')
+  const originalSource = drawing.getObject(polyline.id), originalDimension = drawing.getObject(dimension.id)
+  const first = await sdk.executeCommand('PEDIT', { id: polyline.id, operation: 'REVERSE' }, { document: drawing })
+  assert.deepEqual(first.payload.vertices.map(vertex => vertex.point), [[10, 0, 0], [5, 0, 0], [0, 0, 0]])
+  assert.deepEqual(associations(drawing, dimension.id).map(item => item.vertexIndex), [2, 0])
+  assert.equal(measurement(drawing, dimension.id), 10)
+  assert.equal(drawing.getObject(dimension.id).handle, dimension.handle)
+  await sdk.executeCommand('PEDIT', { id: polyline.id, operation: 'REVERSE' }, { document: drawing })
+  assert.deepEqual(drawing.getObject(polyline.id).payload, originalSource.payload)
+  assert.deepEqual(associations(drawing, dimension.id), originalDimension.payload.dimensionAssociations)
+  assert.deepEqual(drawing.getObject(dimension.id).payload.definitionPoints, originalDimension.payload.definitionPoints)
+  assert.equal(measurement(drawing, dimension.id), 10)
+  await sdk.executeCommand('UNDO', {}, { document: drawing })
+  assert.deepEqual(associations(drawing, dimension.id).map(item => item.vertexIndex), [2, 0])
+  await sdk.executeCommand('REDO', {}, { document: drawing })
+  assert.deepEqual(associations(drawing, dimension.id).map(item => item.vertexIndex), [0, 2])
+})
+
+test('PEDIT REVERSE fails atomically when an associated dimension is protected', async () => {
+  const { sdk, drawing, polyline, dimension } = await polylineFixture('dimension-pedit-reverse-protected')
+  const layer = await sdk.executeCommand('LAYERNEW', { name: 'Protected reverse annotation' }, { document: drawing })
+  await sdk.executeCommand('PROPERTIES', { id: dimension.id, patch: { payload: { layerId: layer.id } } }, { document: drawing })
+  await sdk.executeCommand('LAYERUPDATE', { id: layer.id, patch: { locked: true } }, { document: drawing })
+  const before = drawing.serialize(), revision = drawing.revision, history = drawing.history
+  await assert.rejects(sdk.executeCommand('PEDIT', { id: polyline.id, operation: 'REVERSE' }, { document: drawing }), KJValidationError)
+  assert.equal(drawing.serialize(), before); assert.equal(drawing.revision, revision); assert.deepEqual(drawing.history, history)
+})

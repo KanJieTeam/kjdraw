@@ -381,7 +381,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   EXTEND: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
   LENGTHEN: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC', 'ELLIPSE'], modes: ['TOTAL', 'DELTA', 'PERCENT', 'DYNAMIC'], stableIdentity: true },
   STRETCH: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'LWPOLYLINE', 'POLYLINE'], selection: 'crossing-window', maximumEntities: 4096, stableIdentity: true },
-  PEDIT: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'], operations: ['INSERT', 'DELETE', 'SET_BULGE', 'SET_WIDTH'], stableIdentity: true },
+  PEDIT: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'], operations: ['INSERT', 'DELETE', 'SET_BULGE', 'SET_WIDTH', 'REVERSE'], stableIdentity: true },
   CHAMFER: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE'] },
   FILLET: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE'] },
   GRIPEDIT: { domain: 'geometry', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
@@ -1264,6 +1264,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       const updated = transaction.updateObject(entity.id, { payload })
       if (operation === 'INSERT') migratePolylineDimensionAssociations(transaction, entity.id, { operation, vertexIndex: location.segmentIndex! + 1 })
       if (operation === 'DELETE') migratePolylineDimensionAssociations(transaction, entity.id, { operation, vertexIndex: location.vertexIndex! })
+      if (operation === 'REVERSE') migratePolylineDimensionAssociations(transaction, entity.id, { operation, vertexCount: (payload.vertices as unknown[]).length })
       refreshAssociativeDimensions(transaction, [entity.id])
       return updated
     },
