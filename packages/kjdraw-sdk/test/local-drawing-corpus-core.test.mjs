@@ -109,6 +109,37 @@ test('canonical feature summaries are stable and the strict comparator catches k
   }
 })
 
+test('strict geology regression fingerprints native spline shape rather than treating every curve as unsupported', async () => {
+  const make = async patch => {
+    const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+    await document.transact('Synthetic curved boundary', tx => tx.createEntity('SPLINE', {
+      degree: 2, controlPoints: [[0, 0, 0], [5, 8, 0], [10, 0, 0]],
+      knots: [0, 0, 0, 1, 1, 1], weights: [1, 1, 1], closed: false, periodic: false,
+      ...patch,
+    }, { id: 'boundary' }))
+    return document
+  }
+  const reference = createCanonicalFeatureSummary(await make({}), { salt })
+  assert.equal(compareCanonicalFeatureSummaries(reference, createCanonicalFeatureSummary(await make({}), { salt })).passed, true)
+  assert.throws(() => compareCanonicalFeatureSummaries({ ...reference, schema: 'com.kanjie.kjdraw.canonical-feature-summary@4' }, reference), /canonical feature summaries/u)
+  for (const patch of [
+    { controlPoints: [[0, 0, 0], [5, 7, 0], [10, 0, 0]] },
+    { weights: [1, 0.75, 1] },
+    { knots: [0, 0, 0, 2, 2, 2] },
+    { fitPoints: [[0, 0, 0], [5, 6, 0], [10, 0, 0]] },
+    { closed: true },
+  ]) {
+    const actual = createCanonicalFeatureSummary(await make(patch), { salt })
+    const comparison = compareCanonicalFeatureSummaries(reference, actual)
+    assert.equal(comparison.passed, false, JSON.stringify(patch))
+    assert.ok(comparison.categoryCounts.geometry > 0, JSON.stringify(comparison))
+    assert.equal(Object.keys(actual.fingerprints.geometry).some(key => key.includes('unsupported')), false)
+  }
+  const sdk = createKJDrawSDK(), encoded = await sdk.writeDocument(await make({}), { format: 'DXF', version: '2018' })
+  const reopened = createCanonicalFeatureSummary(await sdk.readDocument(encoded, { format: 'DXF' }), { salt })
+  const reopenedComparison = compareCanonicalFeatureSummaries(reference, reopened)
+  assert.equal(reopenedComparison.categoryCounts.geometry ?? 0, 0, JSON.stringify(reopenedComparison.differences))
+})
 test('DXF imports of identical bytes ignore transient resource IDs but retain block and layer differences', async () => {
   const sdk = createKJDrawSDK()
   const encoded = async (blockName, color) => {

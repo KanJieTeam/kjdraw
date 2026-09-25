@@ -3,7 +3,7 @@ import { createHash, createHmac } from 'node:crypto'
 import { displayedEntityBounds } from '../../packages/kjdraw-sdk/src/selection-geometry.js'
 
 export const KJDRAW_LOCAL_CORPUS_SCHEMA = 'com.kanjie.kjdraw.local-drawing-corpus-manifest@3'
-export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@4'
+export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@5'
 export const KJDRAW_FEATURE_COMPARISON_SCHEMA = 'com.kanjie.kjdraw.feature-comparison@2'
 
 const textTypes = new Set(['TEXT', 'MTEXT', 'ATTRIB', 'ATTDEF'])
@@ -106,6 +106,11 @@ function geometryOf(document, entity, tolerance) {
   if (entity.type === 'CIRCLE') return pick('center', 'radius')
   if (entity.type === 'ARC') return pick('center', 'radius', 'startAngle', 'endAngle')
   if (entity.type === 'ELLIPSE') return pick('center', 'majorAxis', 'ratio', 'startParameter', 'endParameter')
+  if (entity.type === 'SPLINE') return hatchValue({
+    ...Object.fromEntries(['degree', 'controlPoints', 'knots', 'weights', 'closed', 'periodic', 'startTangent', 'endTangent']
+      .filter(key => source[key] !== undefined).map(key => [key, source[key]])),
+    ...(Array.isArray(source.fitPoints) && source.fitPoints.length ? { fitPoints: source.fitPoints } : {}),
+  }, tolerance)
   if (entity.type === 'INSERT') return { ...pick('position', 'scale', 'rotation'), blockDefinition: resourceIdentity(document, source.blockRecordId) }
   if (entity.type === 'TEXT' || entity.type === 'ATTRIB' || entity.type === 'ATTDEF') return pick(
     'position', 'alignmentPoint', 'height', 'rotation', 'widthFactor', 'obliqueAngle', 'generationFlags',
