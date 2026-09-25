@@ -49,6 +49,7 @@ async function main() {
   const mcpPath = join(canonicalInstall, 'packages', 'kjdraw-sdk', 'bin', 'kjdraw-mcp.mjs')
   const mcpInfo = await item(mcpPath)
   if (!mcpInfo?.isFile() || mcpInfo.isSymbolicLink()) throw new Error('current MCP entrypoint is missing or unsafe')
+  process.env.KJDRAW_KNOWLEDGE_UPDATES ??= 'on'
   await import(pathToFileURL(mcpPath).href)
 }
 

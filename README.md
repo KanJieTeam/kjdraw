@@ -113,7 +113,7 @@ irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.
 Your model key stays with your AI client — KJDraw never receives it. Create requests
 are materialized as independently verified KJD, DXF and SVG candidate files and never
 overwrite the source; in-place and destructive changes still require host review.
-The same command performs later in-place updates from the [explicitly promoted install channel](scripts/install-ai-channel.json); restart the client and open a new task afterward. Knowledge packs are currently part of the local runtime, so repository knowledge changes do not reach existing installations automatically. [Installation details and security model →](docs/try-in-ai.md)
+The same command performs later in-place updates from the [explicitly promoted install channel](scripts/install-ai-channel.json); restart the client and open a new task afterward. Once upgraded to the knowledge-delivery runtime, new geology JSON packs load at the next MCP start without reinstalling; runtime code updates still require the same install command. [Installation details and security model →](docs/try-in-ai.md)
 
 ### In your app
 

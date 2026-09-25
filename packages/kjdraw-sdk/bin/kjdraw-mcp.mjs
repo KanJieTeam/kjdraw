@@ -2,6 +2,7 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import { link, lstat, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createKJDrawSDK } from '../src/sdk.js'
@@ -10,6 +11,7 @@ import { KJDRAW_VERSION } from '../src/version.js'
 import { exportDrawingSvg } from '../src/svg-export.js'
 import { displayedEntityBounds } from '../src/selection-geometry.js'
 import { assertPortableMcpInputSchema, KJDRAW_MCP_SCHEMA_PROFILE, portableMcpInputSchema } from '../src/mcp-schema-compat.js'
+import { loadGeologyKnowledge } from './kjdraw-knowledge-delivery.mjs'
 
 const SERVER_NAME = '@kanjieteam/kjdraw-mcp'
 const PROTOCOL_VERSION = '2025-11-25'
@@ -503,6 +505,16 @@ async function openHost(options) {
     catch { throw new Error('--geology-section-pack must be strict UTF-8 JSON') }
     geologySectionKnowledge = { pack, sha256, path: relative(workspace, packPath).split(sep).join('/'), byteLength: bytes.byteLength }
   }
+  if (!geologyColumnKnowledge || !geologySectionKnowledge) {
+    const cacheRoot = process.env.LOCALAPPDATA
+      ? join(process.env.LOCALAPPDATA, 'KJDraw', 'knowledge-cache')
+      : join(homedir(), '.cache', 'kjdraw', 'knowledge-cache')
+    const delivered = await loadGeologyKnowledge({ cacheRoot })
+    for (const [role, item] of Object.entries(delivered.packs)) process.stderr.write(`kjdraw-mcp: geology ${role} knowledge ${item.pack.id}@${item.pack.version} ${item.sha256} (${delivered.source})\n`)
+    if (delivered.notice && delivered.source !== 'disabled') process.stderr.write(`kjdraw-mcp: ${delivered.notice}\n`)
+    if (!geologyColumnKnowledge && delivered.packs.column) geologyColumnKnowledge = { ...delivered.packs.column, source: delivered.source }
+    if (!geologySectionKnowledge && delivered.packs.section) geologySectionKnowledge = { ...delivered.packs.section, source: delivered.source }
+  }
   const input = options.blank
     ? await resolveVacantFileInside(workspace, options.blank, '--blank')
     : await resolveExistingInside(workspace, options.input, '--input')
@@ -563,9 +575,9 @@ async function openHost(options) {
     proposals: [],
     ...(geologyColumnKnowledgeDescriptor || geologySectionKnowledgeDescriptor ? { knowledge: {
       ...(geologyColumnKnowledgeDescriptor ? { geologyColumn: { ...geologyColumnKnowledgeDescriptor,
-        path: geologyColumnKnowledge.path, byteLength: geologyColumnKnowledge.byteLength } } : {}),
+        ...(geologyColumnKnowledge.path ? { path: geologyColumnKnowledge.path } : { source: geologyColumnKnowledge.source, url: geologyColumnKnowledge.url }), byteLength: geologyColumnKnowledge.byteLength } } : {}),
       ...(geologySectionKnowledgeDescriptor ? { geologySection: { ...geologySectionKnowledgeDescriptor,
-        path: geologySectionKnowledge.path, byteLength: geologySectionKnowledge.byteLength } } : {}),
+        ...(geologySectionKnowledge.path ? { path: geologySectionKnowledge.path } : { source: geologySectionKnowledge.source, url: geologySectionKnowledge.url }), byteLength: geologySectionKnowledge.byteLength } } : {}),
     } } : {}),
     ...(sessionId ? { session: { id: sessionId, ledgerPath: relative(workspace, proposals).split(sep).join('/') } } : {})
   }

@@ -1,0 +1,17 @@
+{
+  "schema": "kjdraw.knowledge-delivery.v1",
+  "packs": {
+    "column": {
+      "id": "geology.core",
+      "version": "1.0.0",
+      "sha256": "27e324246d28eb1ceeadae6c21560d5e6d7b632d7a78cd7a2b496e0e3dc18230",
+      "url": "https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/knowledge/geology/geology-core-1.0.0.json"
+    },
+    "section": {
+      "id": "geology.core",
+      "version": "1.0.0",
+      "sha256": "27e324246d28eb1ceeadae6c21560d5e6d7b632d7a78cd7a2b496e0e3dc18230",
+      "url": "https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/knowledge/geology/geology-core-1.0.0.json"
+    }
+  }
+}

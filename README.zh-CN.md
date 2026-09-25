@@ -108,7 +108,7 @@ irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.
 curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
 ```
 
-连接器会安全合并用户级配置，不再要求修改每个项目；可编辑图纸宿主统一保存在用户主目录。后续运行同一命令即可从[明确提升的安装渠道](scripts/install-ai-channel.json)原位更新，再重启客户端、新建对话；目前知识包编译在本地运行时，仓库知识更新不会自动进入已安装客户端。[安装细节与安全边界](docs/try-in-ai.zh-CN.md)
+连接器会安全合并用户级配置，不再要求修改每个项目；可编辑图纸宿主统一保存在用户主目录。后续运行同一命令即可从[明确提升的安装渠道](scripts/install-ai-channel.json)原位更新，再重启客户端、新建对话；升级一次到知识分发版运行时后，新的地质 JSON 知识包可在下次 MCP 启动时载入，无需每次重装；运行时代码更新仍需重新运行同一安装命令。[安装细节与安全边界](docs/try-in-ai.zh-CN.md)
 
 ### 体验在线编辑器
 
