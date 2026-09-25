@@ -92,6 +92,7 @@ function renderThumbnail(document, entry) {
     return [offsetX + (point[0] - bounds.minX) * scale, height - offsetY - (point[1] - bounds.minY) * scale]
   }
   const path = []
+  const hatchPatterns = new Set()
   for (const entity of entities) {
     const payload = entity.payload ?? {}
     if (entity.type === 'LINE') {
@@ -114,14 +115,30 @@ function renderThumbnail(document, entry) {
       if (vertices.length < 2) continue
       const command = vertices.map(([x, y], index) => `${index ? 'L' : 'M'}${fixed(x)} ${fixed(y)}`).join('')
       path.push(`<path d="${command}${payload.closed ? 'Z' : ''}"/>`)
-    } else if (entity.type === 'TEXT') {
+    } else if (entity.type === 'HATCH') {
+      const patternId = ({ GEO_TOPSOIL: 'topsoil', GEO_LOESS: 'loess', GEO_PALEOSOL: 'paleosol', GEO_SILTY_CLAY: 'silty-clay' })[String(payload.patternName ?? '').toUpperCase()] ?? 'generic'
+      hatchPatterns.add(patternId)
+      for (const loop of payload.boundaryLoops ?? []) {
+        const vertices = (loop.vertices ?? []).map(vertex => pointFrom(vertex?.point ?? vertex)).filter(Boolean)
+        if (vertices.length < 3) continue
+        const command = vertices.map(vertex => screen(vertex)).map(([x, y], index) => (index ? 'L' : 'M') + fixed(x) + ' ' + fixed(y)).join('')
+        path.push('<path d="' + command + 'Z" fill="url(#hatch-' + patternId + ')" stroke="none"/>')
+      }    } else if (entity.type === 'TEXT') {
       const [x, y] = screen(payload.position)
       const fontSize = Math.min(Math.max(Number(payload.height || 1) * scale, 4.5), 14)
       path.push(`<text x="${fixed(x)}" y="${fixed(y)}" font-size="${fixed(fontSize)}">${escapeHtml(payload.text ?? '')}</text>`)
     }
   }
+  const patterns = {
+    topsoil: '<path d="M0 0L10 10M-2 6L2 10M8 -2L12 2"/>',
+    loess: '<path d="M3 2v2m7 5v2"/>',
+    paleosol: '<path d="M0 4h7m7 0h2M3 11h10"/>',
+    'silty-clay': '<path d="M0 5h5m7 0h4M5 12h6"/>',
+    generic: '<path d="M0 0L12 12"/>',
+  }
+  const defs = [...hatchPatterns].map(id => '<pattern id="hatch-' + id + '" patternUnits="userSpaceOnUse" width="16" height="16"><rect width="16" height="16" fill="#f4f7f5"/><g fill="none" stroke="#91a99e" stroke-width=".8">' + patterns[id] + '</g></pattern>').join('')
   const title = `${entry.title.en} · ${entry.drawingType.en}`
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-labelledby="title desc"><title id="title">${escapeHtml(title)}</title><desc id="desc">Generated from ${entities.length} editable entities in ${escapeHtml(entry.sampleId)}.</desc><rect width="720" height="420" rx="12" fill="#f8fafc"/><g fill="none" stroke="#21324b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">${path.join('')}</g><rect x=".5" y=".5" width="719" height="419" rx="11.5" fill="none" stroke="#d9e1ec"/></svg>\n`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-labelledby="title desc"><title id="title">${escapeHtml(title)}</title><desc id="desc">Generated from ${entities.length} editable entities in ${escapeHtml(entry.sampleId)}.</desc><defs>${defs}</defs><rect width="720" height="420" rx="12" fill="#f8fafc"/><g fill="none" stroke="#21324b" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">${path.join('')}</g><rect x=".5" y=".5" width="719" height="419" rx="11.5" fill="none" stroke="#d9e1ec"/></svg>\n`
 }
 
 function normalizeSpecimenPreview(svg) {
@@ -287,7 +304,7 @@ h1{margin:0 0 9px;font-size:32px;line-height:1.18;letter-spacing:-.04em}.summary
 .workspace-bar{min-height:38px;justify-content:space-between;font-size:12px}.live:before{content:"";display:inline-block;width:6px;height:6px;margin-right:7px;border-radius:50%;background:#26ae54}
 .links{display:flex;gap:16px}.tabs{height:38px;gap:5px}.tabs button{height:100%;padding:0 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:#65717e;font-size:12px}.tabs button.active{border-bottom-color:#17212b;color:#17212b;font-weight:650}
 .viewport{height:min(72vh,850px);min-height:480px;background:#111920}.viewport iframe{display:block;width:100%;height:100%;border:0}.source{height:min(72vh,850px);min-height:480px;margin:0;padding:22px;overflow:auto;background:#101722;color:#dbe8ef;font:12px/1.7 Consolas,monospace}
-.foot{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:15px 4px;color:#6b7581;font-size:12px}.facts{display:flex;flex-wrap:wrap;gap:12px}.facts span{white-space:nowrap}.facts b{color:#303a46}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:16px 2px;color:#66717d;font-size:12px}.provenance{display:flex;align-items:center;flex-wrap:wrap;gap:12px}.provenance a{color:#245b46;text-decoration:underline;text-underline-offset:3px}.facts{display:flex;flex-wrap:wrap;gap:6px}.facts span{padding:4px 7px;border:1px solid #e2e7ea;border-radius:4px;white-space:nowrap}.facts b{color:#303a46}
 [hidden]{display:none!important}html[data-locale="zh"] .en,html:not([data-locale="zh"]) .zh{display:none!important}
 @media(max-width:700px){header.site{padding:0 14px}header.site nav{display:none}.wrap{padding:20px 12px 35px}.heading{display:block}.heading>a{display:inline-block;margin-top:14px}h1{font-size:25px}.viewport,.source{height:70vh;min-height:440px}.workspace-bar{gap:7px}.links{gap:8px}}
 `
@@ -312,7 +329,7 @@ function renderShowcaseDetail(entry) {
     <div class="crumb"><a href="../">Showcase</a><span>›</span><span class="en">${escapeHtml(entry.categoryTitle.en)}</span><span class="zh">${escapeHtml(entry.categoryTitle.zh)}</span><span>›</span><span class="en">${escapeHtml(entry.title.en)}</span><span class="zh">${escapeHtml(entry.title.zh)}</span></div>
     <div class="heading"><div><p class="eyebrow"><span class="en">${escapeHtml(entry.drawingType.en)}</span><span class="zh">${escapeHtml(entry.drawingType.zh)}</span></p><h1><span class="en">${escapeHtml(entry.title.en)}</span><span class="zh">${escapeHtml(entry.title.zh)}</span></h1><p class="summary"><span class="en">${escapeHtml(entry.summary.en)}</span><span class="zh">${escapeHtml(entry.summary.zh)}</span></p><div class="meta"><span>${entry.facts.editableObjects.toLocaleString()} <span class="en">editable objects</span><span class="zh">可编辑对象</span></span><span>${entry.facts.layers} <span class="en">layers</span><span class="zh">图层</span></span><span>${escapeHtml(entry.facts.units)}</span></div></div><a href="../"><span class="en">Browse examples</span><span class="zh">浏览案例</span> →</a></div>
     <section class="workspace" aria-label="Interactive KJDraw workspace"><div class="workspace-bar"><b class="live"><span class="en">Live workspace</span><span class="zh">实时工作区</span></b><div class="links"><a href="${root}${escapeHtml(workspaceQuery)}" target="_blank" rel="noopener"><span class="en">Open Playground</span><span class="zh">打开工作台</span> ↗</a><a href="../assets/${escapeHtml(entry.id)}.kjd" download>KJD ↓</a><a href="../assets/${escapeHtml(entry.id)}.dxf" download>DXF ↓</a><button id="fullscreen" type="button"><span class="en">Fullscreen</span><span class="zh">全屏</span></button></div></div><div class="tabs" role="tablist"><button id="preview-tab" class="active" type="button" role="tab" aria-selected="true"><span class="en">Interactive drawing</span><span class="zh">交互图纸</span></button><button id="source-tab" type="button" role="tab" aria-selected="false"><span class="en">Source code</span><span class="zh">源码</span></button></div><div class="viewport" id="viewport"><iframe src="${root}${escapeHtml(workspaceQuery)}" title="${escapeHtml(entry.title.en)} editable CAD workspace" loading="eager"></iframe></div><pre class="source" id="source" hidden>Loading source…</pre></section>
-    <div class="foot"><span class="en">Public synthetic example · not measured project data</span><span class="zh">公开示例图纸 · 非实测项目数据</span><div class="facts">${facts}</div></div>
+    <div class="foot"><div class="provenance"><span class="en">Public synthetic example · not measured project data</span><span class="zh">公开示例图纸 · 非实测项目数据</span><a href="${escapeHtml(entry.links.source)}" target="_blank" rel="noopener"><span class="en">View generating source</span><span class="zh">查看生成源码</span> ↗</a><span><span class="en">Revision</span><span class="zh">版本</span> ${entry.artifact.revision}</span></div><div class="facts" aria-label="Entity types">${facts}</div></div>
   </main>
   <script type="module" src="../detail.js"></script>
 </body></html>\n`

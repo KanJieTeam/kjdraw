@@ -10,7 +10,7 @@ test('industry collection contains editable, valid layered drawings that survive
   assert.ok(new Set(INDUSTRY_SAMPLES.map(sample => sample.discipline)).size >= 5)
   for (const drawing of drawings) {
     assert.equal(drawing.validate().valid, true)
-    assert.ok(drawing.listEntities().length >= (drawing.id === 'sample-mechanical-flange' ? 75 : 100))
+    assert.ok(drawing.listEntities().length >= (drawing.id === 'sample-geology-plan' ? 50 : drawing.id === 'sample-mechanical-flange' ? 75 : 100))
     assert.ok(drawing.snapshot().tables.layers.recordIds.length >= 8)
     const snapshot = drawing.fingerprint()
     const kjd = await sdk.writeDocument(drawing, { format: 'KJD' })
@@ -52,4 +52,24 @@ test('mechanical flange dimensions agree with editable geometry', async () => {
   assert.match(text, /Ø40 BORE/)
   assert.match(text, /6 × Ø10 THRU  ·  PCD Ø90/)
   assert.match(text, /SECTION B—B  ·  1:1/)
+})
+test('public geology section and investigation plan use native domain compilers', async () => {
+  const sdk = createKJDrawSDK()
+  const section = await createIndustrySample(sdk, 'sample-geology-section')
+  assert.equal(section.snapshot().header.units, 'millimeter')
+  assert.ok(section.listEntities({ type: 'HATCH' }).length >= 20, 'stratigraphic cells retain native lithology hatches')
+  assert.ok(section.listEntities({ type: 'HATCH' }).some(entity => entity.payload.patternName.includes('LOESS')))
+  assert.ok(section.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text.includes('NOT MEASURED')))
+  const plan = await createIndustrySample(sdk, 'sample-geology-plan')
+  assert.equal(plan.snapshot().header.units, 'meter')
+  assert.equal(plan.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+  assert.ok(plan.listEntities({ type: 'CIRCLE' }).length >= 5, 'the plan retains five editable investigation markers')
+  assert.ok(plan.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text.includes('ZK01')))
+  for (const drawing of [section, plan]) for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(drawing, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await sdk.readDocument(bytes, { format })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities().length, drawing.listEntities().length)
+    assert.equal(reopened.listEntities({ type: 'HATCH' }).length, drawing.listEntities({ type: 'HATCH' }).length)
+  }
 })

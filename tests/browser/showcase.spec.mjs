@@ -5,9 +5,15 @@ test('Showcase searches, filters and changes view using generated public sample 
   await page.goto('/docs/latest/showcase/')
   const portal = page.locator('.showcase-portal[data-locale="en"]')
   await expect(portal).toBeVisible()
-  await expect(portal.locator('.showcase-card:visible')).toHaveCount(15)
-  await expect(portal.locator('.showcase-thumb img')).toHaveCount(15)
-  await expect(portal.locator('.showcase-category[data-category="all"] b')).toHaveText('15')
+  await expect(portal.locator('.showcase-card:visible')).toHaveCount(16)
+  await expect(portal.locator('.showcase-thumb img')).toHaveCount(16)
+  const previewStyle = await portal.locator('.showcase-thumb').first().evaluate(element => ({
+    background: getComputedStyle(element).backgroundColor,
+    filter: getComputedStyle(element.querySelector('img')).filter,
+  }))
+  expect(previewStyle.background).toBe('rgb(16, 24, 32)')
+  expect(previewStyle.filter).toContain('invert(1)')
+  await expect(portal.locator('.showcase-category[data-category="all"] b')).toHaveText('16')
   await expect(portal.locator('.showcase-category[data-category="core-capabilities"] b')).toHaveText('4')
 
   await portal.locator('.showcase-query').fill('bearing holes')
@@ -41,6 +47,8 @@ test('Showcase case detail opens a real editable workspace instead of a raw SVG'
   await expect(page.locator('a[href$="mechanical-bracket.kjd"]')).toBeVisible()
   await expect(page.locator('a[href$="mechanical-bracket.dxf"]')).toBeVisible()
   await expect(page.locator('img[src$="mechanical-bracket.svg"]')).toHaveCount(0)
+  await expect(page.locator('.provenance a')).toHaveAttribute('href', /github.com\/KanJieTeam\/kjdraw\/blob\/main\//)
+  await expect(page.locator('.facts span').first()).toBeVisible()
   await expect(page.frameLocator('iframe').locator('.workbench')).toHaveAttribute('data-demo-state', 'ready', { timeout: 30000 })
   await page.locator('#source-tab').click()
   await expect(page.locator('#source')).toContainText('createIndustrySamples')
@@ -75,4 +83,34 @@ test('Showcase case detail opens a real editable workspace instead of a raw SVG'
   await paper.locator('#command-input').press('Enter')
   await expect(paper.locator('#revision')).not.toHaveText(beforeRevision)
   await expect(paper.locator('#status')).toContainText('MOVE committed')
+})
+
+test('390px Showcase keeps category navigation compact and opens a case detail', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'One Chromium journey covers mobile Showcase navigation')
+  await page.setViewportSize({ width: 390, height: 900 })
+  await page.goto('/docs/latest/showcase/')
+  const portal = page.locator('.showcase-portal[data-locale="en"]')
+  await expect(portal).toBeVisible()
+  const rail = portal.locator('.showcase-categories')
+  const firstCard = portal.locator('.showcase-card:visible').first()
+  const geometry = await rail.evaluate((element, card) => ({
+    direction: getComputedStyle(element).flexDirection,
+    height: element.getBoundingClientRect().height,
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+    firstCardTop: card.getBoundingClientRect().top,
+    pageWidth: document.documentElement.scrollWidth,
+  }), await firstCard.elementHandle())
+  expect(geometry.direction).toBe('row')
+  expect(geometry.height).toBeLessThan(80)
+  expect(geometry.scrollWidth).toBeGreaterThan(geometry.clientWidth)
+  expect(geometry.firstCardTop).toBeLessThan(600)
+  expect(geometry.pageWidth).toBe(390)
+
+  await rail.locator('.showcase-category[data-category="civil"]').click()
+  await expect(rail.locator('.showcase-category[data-category="civil"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(portal.locator('.showcase-card:visible')).toHaveCount(1)
+  await portal.locator('.showcase-card:visible .showcase-actions a.primary').click()
+  await expect(page).toHaveURL(/\/docs\/latest\/showcase\/site-plan\/$/)
+  await expect(page.locator('.viewport iframe')).toBeVisible()
 })

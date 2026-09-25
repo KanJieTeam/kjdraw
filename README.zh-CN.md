@@ -57,6 +57,14 @@ KJDraw 不是图片生成器，也不是一组固定模板。它是工程意图�
 
 ## AI 智能体接入
 
+使用 [Skills CLI](https://github.com/vercel-labs/skills)，一行命令将 KJDraw CAD Skill 安装到当前项目中已支持的智能体：
+
+```bash
+npx skills add KanJieTeam/kjdraw
+```
+
+Skill 负责告诉智能体何时、如何调用 KJDraw；它不会安装 CAD 引擎，也不会自动连接可执行的 MCP 服务。要让智能体实际读图和绘图，还需按下文配置 KJDraw MCP，或使用已支持的桌面客户端安装器。Skills CLI 默认安装到当前项目；加 `-g` 可安装到当前用户。
+
 KJDraw 通过标准 **stdio MCP** 提供 CAD 工具。只要客户端支持 MCP，就可以使用同一套连接配置；模型、图纸和审批仍由客户端或本地宿主掌控。
 
 | 客户端 / 接入方式 | 配置方式 | 适合场景 | 入口 |

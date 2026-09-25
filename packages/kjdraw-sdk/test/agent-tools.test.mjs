@@ -49,7 +49,7 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
         : tool.name === 'cad_propose_geology_column'
           ? ['locale', 'verticalScaleDenominator', 'projectName', 'title', 'pageHeightMillimeters', 'documentFacts']
         : tool.name === 'cad_propose_geology_section'
-          ? ['locale', 'projectName', 'title', 'documentFacts', 'manualConnections', 'sectionReference']
+          ? ['locale', 'projectName', 'title', 'documentFacts', 'manualConnections', 'sectionReference', 'uncorrelatedOccurrences']
         : tool.name === 'cad_propose_geology_plan'
           ? ['locale', 'title', 'revision', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'baseMapStyles', 'baseMapTextStyles', 'baseMapLinework', 'northAngleDegrees', 'baseMapBlocks', 'baseMapInserts']
         : tool.name === 'cad_propose_geology_plan_example'

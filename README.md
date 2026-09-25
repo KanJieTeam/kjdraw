@@ -45,6 +45,14 @@ is the execution layer between engineering intent and a reviewable CAD deliverab
 
 ## AI agent compatibility
 
+Install the KJDraw CAD Skill in a project for agents supported by the [Skills CLI](https://github.com/vercel-labs/skills):
+
+```bash
+npx skills add KanJieTeam/kjdraw
+```
+
+The Skill teaches an agent when and how to use KJDraw. It does not install the CAD engine or connect the executable MCP server. To actually read or draw CAD files, also configure the KJDraw MCP server below (or use the supported desktop installer). The Skills CLI detects compatible agents and installs the Skill in the current project by default; its `-g` option installs for the current user.
+
 KJDraw exposes CAD tools through standard **stdio MCP**. Any MCP-compatible client can use the same server configuration; model-specific adapters are optional and the drawing contract stays unchanged. Drawing files, model credentials and approval decisions remain with the client or local host.
 
 | Client / entry point | Setup | Best for | Guide |

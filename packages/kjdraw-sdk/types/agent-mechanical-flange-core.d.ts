@@ -454,7 +454,7 @@ export type KJFlangeSymbolMember = {
     kind: 'instance';
     symbolKey: string;
     position: Point2Or3;
-    scale?: Point2;
+    scale?: Point2Or3;
     rotation?: number;
     role: KJFlangeAuxiliaryLine['role'];
     entityStyleKey?: string;
@@ -486,7 +486,7 @@ export interface KJFlangeSymbolDefinition {
 export interface KJFlangeSymbolInstance {
     symbolKey: string;
     position: Point2Or3;
-    scale?: Point2;
+    scale?: Point2Or3;
     rotation?: number;
     role: KJFlangeAuxiliaryLine['role'];
     styleKey?: string;

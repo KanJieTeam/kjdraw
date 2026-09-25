@@ -2053,6 +2053,25 @@ const geologySectionSchema = objectWithOptional({
         maxItems: 512,
         items: geologySectionConnectionSchema
     },
+    uncorrelatedOccurrences: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 2048,
+        items: object({
+            holeId: {
+                ...text,
+                maxLength: 64
+            },
+            adjacentHoleId: {
+                ...text,
+                maxLength: 64
+            },
+            intervalId: {
+                ...text,
+                maxLength: 64
+            }
+        })
+    },
     horizontalScaleDenominator: radius,
     verticalScaleDenominator: radius,
     datumElevation: number,
@@ -2084,6 +2103,7 @@ const geologySectionSchema = objectWithOptional({
 }, [
     'locale',
     'manualConnections',
+    'uncorrelatedOccurrences',
     'projectName',
     'title',
     'sectionReference',
@@ -3528,7 +3548,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_section',
         effect: 'propose',
-        description: 'Compile one editable A3 engineering geological section from 2–24 supplied boreholes with exact station, collar elevation, continuous depth intervals, optional measured water/sample/SPT observations, and explicit compatible interval/layer correlations or source-backed manual boundaries for continuity, pinchout and lens conditions. Set locale=zh-CN for a Chinese request so compiler-generated visible labels and notes are Chinese; if omitted, Chinese source text is detected automatically. Hole facts, station, elevations, depths and datum are metres; CAD page is millimetres. Version 1.0.0 uses the bundled versioned professional section layout and original redistributable semantic hatch patterns. Optional projectName and declared documentFacts populate the title block; missing facts remain blank and are never inferred. It does not infer unsupplied cross-hole continuity, water, observations or raw MDB/DWG provenance. Ambiguous, reverse, duplicate or incompatible correlations and non-fitting scales are rejected; uncorrelated space remains blank. The model supplies facts and identity links, not low-level CAD entities, private hatch assets or approval. Requires a blank millimetre drawing and at least one declared correlation or manual connection. Returns a bounded native CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
+        description: 'Compile one editable A3 engineering geological section from 2–24 supplied boreholes with exact station, collar elevation, continuous depth intervals, optional measured water/sample/SPT observations, and exact interval-ID correlations with complete occurrence coverage for every adjacent hole pair. Every interval occurrence must be linked or explicitly listed in uncorrelatedOccurrences; code-only links, inferred groups and depth-only manual boundaries are refused on this factual route. This coverage is a caller assertion, not source provenance or 1:1 certification. Set locale=zh-CN for a Chinese request so compiler-generated visible labels and notes are Chinese; if omitted, Chinese source text is detected automatically. Hole facts, station, elevations, depths and datum are metres; CAD page is millimetres. Version 1.0.0 uses the bundled versioned professional section layout and original redistributable semantic hatch patterns. Optional projectName and declared documentFacts populate the title block; missing facts remain blank and are never inferred. It does not infer unsupplied cross-hole continuity, water, observations or raw MDB/DWG provenance. Ambiguous, reverse, duplicate or incompatible correlations and non-fitting scales are rejected; uncorrelated space remains blank. The model supplies facts and identity links, not low-level CAD entities, private hatch assets or approval. Requires a blank millimetre drawing and at least one declared correlation or manual connection. Returns a bounded native CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
         inputSchema: geologySectionSchema
     },
     {
@@ -4717,6 +4737,7 @@ export class KJAgentToolSession {
                             }
                             const compiled = compileGeologySection({
                                 ...intent,
+                                sourceFactMode: illustrative ? 'illustrative' : 'complete-occurrence-map',
                                 ...documentFacts ? {
                                     documentFacts
                                 } : {},

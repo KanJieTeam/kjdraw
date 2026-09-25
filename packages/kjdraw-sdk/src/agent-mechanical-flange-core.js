@@ -2437,10 +2437,14 @@ function validate(document, source) {
                     1,
                     1
                 ];
-                if (!Array.isArray(scaleSource) || scaleSource.length !== 2) throw new KJValidationError(`${memberLabel}.scale must contain two coordinates`);
+                if (!Array.isArray(scaleSource) || ![
+                    2,
+                    3
+                ].includes(scaleSource.length)) throw new KJValidationError(`${memberLabel}.scale must contain two or three coordinates`);
                 const scale = [
                     finite(scaleSource[0], `${memberLabel}.scale[0]`, 0.000_001, 1_000_000),
-                    finite(scaleSource[1], `${memberLabel}.scale[1]`, 0.000_001, 1_000_000)
+                    finite(scaleSource[1], `${memberLabel}.scale[1]`, 0.000_001, 1_000_000),
+                    finite(scaleSource[2] ?? 1, `${memberLabel}.scale[2]`, 0.000_001, 1_000_000)
                 ];
                 return {
                     kind: 'instance',
@@ -2478,10 +2482,14 @@ function validate(document, source) {
             1,
             1
         ];
-        if (!Array.isArray(scaleSource) || scaleSource.length !== 2) throw new KJValidationError(`${label}.scale must contain two coordinates`);
+        if (!Array.isArray(scaleSource) || ![
+            2,
+            3
+        ].includes(scaleSource.length)) throw new KJValidationError(`${label}.scale must contain two or three coordinates`);
         const scale = [
             finite(scaleSource[0], `${label}.scale[0]`, 0.000_001, 1_000_000),
-            finite(scaleSource[1], `${label}.scale[1]`, 0.000_001, 1_000_000)
+            finite(scaleSource[1], `${label}.scale[1]`, 0.000_001, 1_000_000),
+            finite(scaleSource[2] ?? 1, `${label}.scale[2]`, 0.000_001, 1_000_000)
         ];
         const styleKey = entityStyleKey(instance.styleKey, `${label}.styleKey`);
         if (instance.attributes != null && (!Array.isArray(instance.attributes) || instance.attributes.length > 64)) throw new KJValidationError(`${label}.attributes must contain at most 64 items`);
@@ -3638,7 +3646,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                     scale: [
                         member.scale?.[0] ?? 1,
                         member.scale?.[1] ?? 1,
-                        1
+                        member.scale?.[2] ?? 1
                     ],
                     rotation: member.rotation ?? 0,
                     attributes: {},
@@ -3673,7 +3681,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 scale: [
                     instance.scale?.[0] ?? 1,
                     instance.scale?.[1] ?? 1,
-                    1
+                    instance.scale?.[2] ?? 1
                 ],
                 rotation: instance.rotation ?? 0,
                 attributes: {},

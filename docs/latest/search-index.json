@@ -2,133 +2,43 @@
   "schema": "com.kanjie.kjdraw.docs-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:240a5dc28007e50a063220b08a97f21381607ed640880a26ad069222774cc01b",
+  "sourceDigest": "sha256:a5f7adb332e71a3b30deea6bf0ccf261a9b6c576890d7e68e018f0753d7fbeea",
   "entries": [
     {
       "locale": "en",
       "kind": "guide",
       "page": "introduction",
       "title": "KJDraw",
-      "summary": "Build editable engineering CAD experiences in the browser, in your application, or with an AI agent.",
+      "summary": "Build editable engineering CAD in your application, browser, or AI workflow.",
       "href": "./#en-introduction",
-      "text": "Engineering CAD, ready to extend what it is KJDraw combines an embeddable drawing workbench, a TypeScript SDK, and reviewable agent actions. Open an engineering drawing, edit its actual objects, save it, and reopen the result. The browser UI and headless workflows use the same document and command model. Edit in the browser. Mount a workbench with drawing tools, layers, properties, file actions, and undo and redo. Build with an SDK. Work with documents, typed commands, events, and KJD or DXF files from JavaScript or TypeScript. Connect an agent. Prepare proposed drawing changes, inspect the candidate, and keep a record of what was executed. Explore real drawings what you can do The Showcase contains editable public drawings and focused CAD capability examples. Open a sample in the Playground, inspect its objects and layers, then follow the source used to build it. These examples also participate in development regression checks. Public examples cover mechanical, borehole and section drawings, architecture, site plans and roads, plus geometry, dimensions, fonts, blocks, import and editing history. The capability reference states the supported boundaries for each area. Start with a working editor starting point Install the release candidate package and mount the editor in an element with an explicit height: The five minute quickstart includes a complete Vite project, a drawing command, and a save and reopen check. One document, several workflows runtime Use the same editable KJDocument in the workbench and SDK. Commands preserve object identity, group changes into transactions, and support undo and redo. KJD saves the native document; DXF exchanges drawing entities with other CAD tools. Agent proposals create a candidate for review. Read core concepts for documents and revisions, commands for changes, and files for import and export behavior. Choose your integration integrations The maintained starter projects cover vanilla browser, React, Vue, Node TypeScript, and an MCP client. Each has source code and a command you can run locally. The Editor API answers common integration tasks; the TypeScript reference lists public package exports. Build your drawing workflow next step Start with the quickstart, inspect an editable example, or browse the API. Contributions and issue reports are welcome on GitHub."
+      "text": "Build with KJDraw starting point Run the five minute guide, inspect an editable example, or find the exact method in the API. The same KJD document can be edited in the browser, accessed through the SDK, and reviewed in an agent workflow."
     },
     {
       "locale": "en",
       "kind": "section",
       "page": "introduction",
-      "title": "Engineering CAD, ready to extend",
-      "summary": "KJDraw",
-      "href": "./#en-introduction-what-it-is",
-      "text": "Engineering CAD, ready to extend what it is KJDraw combines an embeddable drawing workbench, a TypeScript SDK, and reviewable agent actions. Open an engineering drawing, edit its actual objects, save it, and reopen the result. The browser UI and headless workflows use the same document and command model. Edit in the browser. Mount a workbench with drawing tools, layers, properties, file actions, and undo and redo. Build with an SDK. Work with documents, typed commands, events, and KJD or DXF files from JavaScript or TypeScript. Connect an agent. Prepare proposed drawing changes, inspect the candidate, and keep a record of what was executed. Explore real drawings what you can do The Showcase contains editable public drawings and focused CAD capability examples. Open a sample in the Playground, inspect its objects and layers, then follow the source used to build it. These examples also participate in development regression checks. Public examples cover mechanical, borehole and section drawings, architecture, site plans and roads, plus geometry, dimensions, fonts, blocks, import and editing history. The capability reference states the supported boundaries for each area. Start with a working editor starting point Install the release candidate package and mount the editor in an element with an explicit height: The five minute quickstart includes a complete Vite project, a drawing command, and a save and reopen check. One document, several workflows runtime Use the same editable KJDocument in the workbench and SDK. Commands preserve object identity, group changes into transactions, and support undo and redo. KJD saves the native document; DXF exchanges drawing entities with other CAD tools. Agent proposals create a candidate for review. Read core concepts for documents and revisions, commands for changes, and files for import and export behavior. Choose your integration integrations The maintained starter projects cover vanilla browser, React, Vue, Node TypeScript, and an MCP client. Each has source code and a command you can run locally. The Editor API answers common integration tasks; the TypeScript reference lists public package exports. Build your drawing workflow next step Start with the quickstart, inspect an editable example, or browse the API. Contributions and issue reports are welcome on GitHub."
-    },
-    {
-      "locale": "en",
-      "kind": "section",
-      "page": "introduction",
-      "title": "Explore real drawings",
-      "summary": "KJDraw",
-      "href": "./#en-introduction-what-you-can-do",
-      "text": "Engineering CAD, ready to extend what it is KJDraw combines an embeddable drawing workbench, a TypeScript SDK, and reviewable agent actions. Open an engineering drawing, edit its actual objects, save it, and reopen the result. The browser UI and headless workflows use the same document and command model. Edit in the browser. Mount a workbench with drawing tools, layers, properties, file actions, and undo and redo. Build with an SDK. Work with documents, typed commands, events, and KJD or DXF files from JavaScript or TypeScript. Connect an agent. Prepare proposed drawing changes, inspect the candidate, and keep a record of what was executed. Explore real drawings what you can do The Showcase contains editable public drawings and focused CAD capability examples. Open a sample in the Playground, inspect its objects and layers, then follow the source used to build it. These examples also participate in development regression checks. Public examples cover mechanical, borehole and section drawings, architecture, site plans and roads, plus geometry, dimensions, fonts, blocks, import and editing history. The capability reference states the supported boundaries for each area. Start with a working editor starting point Install the release candidate package and mount the editor in an element with an explicit height: The five minute quickstart includes a complete Vite project, a drawing command, and a save and reopen check. One document, several workflows runtime Use the same editable KJDocument in the workbench and SDK. Commands preserve object identity, group changes into transactions, and support undo and redo. KJD saves the native document; DXF exchanges drawing entities with other CAD tools. Agent proposals create a candidate for review. Read core concepts for documents and revisions, commands for changes, and files for import and export behavior. Choose your integration integrations The maintained starter projects cover vanilla browser, React, Vue, Node TypeScript, and an MCP client. Each has source code and a command you can run locally. The Editor API answers common integration tasks; the TypeScript reference lists public package exports. Build your drawing workflow next step Start with the quickstart, inspect an editable example, or browse the API. Contributions and issue reports are welcome on GitHub."
-    },
-    {
-      "locale": "en",
-      "kind": "section",
-      "page": "introduction",
-      "title": "Start with a working editor",
+      "title": "Build with KJDraw",
       "summary": "KJDraw",
       "href": "./#en-introduction-starting-point",
-      "text": "Engineering CAD, ready to extend what it is KJDraw combines an embeddable drawing workbench, a TypeScript SDK, and reviewable agent actions. Open an engineering drawing, edit its actual objects, save it, and reopen the result. The browser UI and headless workflows use the same document and command model. Edit in the browser. Mount a workbench with drawing tools, layers, properties, file actions, and undo and redo. Build with an SDK. Work with documents, typed commands, events, and KJD or DXF files from JavaScript or TypeScript. Connect an agent. Prepare proposed drawing changes, inspect the candidate, and keep a record of what was executed. Explore real drawings what you can do The Showcase contains editable public drawings and focused CAD capability examples. Open a sample in the Playground, inspect its objects and layers, then follow the source used to build it. These examples also participate in development regression checks. Public examples cover mechanical, borehole and section drawings, architecture, site plans and roads, plus geometry, dimensions, fonts, blocks, import and editing history. The capability reference states the supported boundaries for each area. Start with a working editor starting point Install the release candidate package and mount the editor in an element with an explicit height: The five minute quickstart includes a complete Vite project, a drawing command, and a save and reopen check. One document, several workflows runtime Use the same editable KJDocument in the workbench and SDK. Commands preserve object identity, group changes into transactions, and support undo and redo. KJD saves the native document; DXF exchanges drawing entities with other CAD tools. Agent proposals create a candidate for review. Read core concepts for documents and revisions, commands for changes, and files for import and export behavior. Choose your integration integrations The maintained starter projects cover vanilla browser, React, Vue, Node TypeScript, and an MCP client. Each has source code and a command you can run locally. The Editor API answers common integration tasks; the TypeScript reference lists public package exports. Build your drawing workflow next step Start with the quickstart, inspect an editable example, or browse the API. Contributions and issue reports are welcome on GitHub."
-    },
-    {
-      "locale": "en",
-      "kind": "section",
-      "page": "introduction",
-      "title": "One document, several workflows",
-      "summary": "KJDraw",
-      "href": "./#en-introduction-runtime",
-      "text": "Engineering CAD, ready to extend what it is KJDraw combines an embeddable drawing workbench, a TypeScript SDK, and reviewable agent actions. Open an engineering drawing, edit its actual objects, save it, and reopen the result. The browser UI and headless workflows use the same document and command model. Edit in the browser. Mount a workbench with drawing tools, layers, properties, file actions, and undo and redo. Build with an SDK. Work with documents, typed commands, events, and KJD or DXF files from JavaScript or TypeScript. Connect an agent. Prepare proposed drawing changes, inspect the candidate, and keep a record of what was executed. Explore real drawings what you can do The Showcase contains editable public drawings and focused CAD capability examples. Open a sample in the Playground, inspect its objects and layers, then follow the source used to build it. These examples also participate in development regression checks. Public examples cover mechanical, borehole and section drawings, architecture, site plans and roads, plus geometry, dimensions, fonts, blocks, import and editing history. The capability reference states the supported boundaries for each area. Start with a working editor starting point Install the release candidate package and mount the editor in an element with an explicit height: The five minute quickstart includes a complete Vite project, a drawing command, and a save and reopen check. One document, several workflows runtime Use the same editable KJDocument in the workbench and SDK. Commands preserve object identity, group changes into transactions, and support undo and redo. KJD saves the native document; DXF exchanges drawing entities with other CAD tools. Agent proposals create a candidate for review. Read core concepts for documents and revisions, commands for changes, and files for import and export behavior. Choose your integration integrations The maintained starter projects cover vanilla browser, React, Vue, Node TypeScript, and an MCP client. Each has source code and a command you can run locally. The Editor API answers common integration tasks; the TypeScript reference lists public package exports. Build your drawing workflow next step Start with the quickstart, inspect an editable example, or browse the API. Contributions and issue reports are welcome on GitHub."
-    },
-    {
-      "locale": "en",
-      "kind": "section",
-      "page": "introduction",
-      "title": "Choose your integration",
-      "summary": "KJDraw",
-      "href": "./#en-introduction-integrations",
-      "text": "Engineering CAD, ready to extend what it is KJDraw combines an embeddable drawing workbench, a TypeScript SDK, and reviewable agent actions. Open an engineering drawing, edit its actual objects, save it, and reopen the result. The browser UI and headless workflows use the same document and command model. Edit in the browser. Mount a workbench with drawing tools, layers, properties, file actions, and undo and redo. Build with an SDK. Work with documents, typed commands, events, and KJD or DXF files from JavaScript or TypeScript. Connect an agent. Prepare proposed drawing changes, inspect the candidate, and keep a record of what was executed. Explore real drawings what you can do The Showcase contains editable public drawings and focused CAD capability examples. Open a sample in the Playground, inspect its objects and layers, then follow the source used to build it. These examples also participate in development regression checks. Public examples cover mechanical, borehole and section drawings, architecture, site plans and roads, plus geometry, dimensions, fonts, blocks, import and editing history. The capability reference states the supported boundaries for each area. Start with a working editor starting point Install the release candidate package and mount the editor in an element with an explicit height: The five minute quickstart includes a complete Vite project, a drawing command, and a save and reopen check. One document, several workflows runtime Use the same editable KJDocument in the workbench and SDK. Commands preserve object identity, group changes into transactions, and support undo and redo. KJD saves the native document; DXF exchanges drawing entities with other CAD tools. Agent proposals create a candidate for review. Read core concepts for documents and revisions, commands for changes, and files for import and export behavior. Choose your integration integrations The maintained starter projects cover vanilla browser, React, Vue, Node TypeScript, and an MCP client. Each has source code and a command you can run locally. The Editor API answers common integration tasks; the TypeScript reference lists public package exports. Build your drawing workflow next step Start with the quickstart, inspect an editable example, or browse the API. Contributions and issue reports are welcome on GitHub."
-    },
-    {
-      "locale": "en",
-      "kind": "section",
-      "page": "introduction",
-      "title": "Build your drawing workflow",
-      "summary": "KJDraw",
-      "href": "./#en-introduction-next-step",
-      "text": "Engineering CAD, ready to extend what it is KJDraw combines an embeddable drawing workbench, a TypeScript SDK, and reviewable agent actions. Open an engineering drawing, edit its actual objects, save it, and reopen the result. The browser UI and headless workflows use the same document and command model. Edit in the browser. Mount a workbench with drawing tools, layers, properties, file actions, and undo and redo. Build with an SDK. Work with documents, typed commands, events, and KJD or DXF files from JavaScript or TypeScript. Connect an agent. Prepare proposed drawing changes, inspect the candidate, and keep a record of what was executed. Explore real drawings what you can do The Showcase contains editable public drawings and focused CAD capability examples. Open a sample in the Playground, inspect its objects and layers, then follow the source used to build it. These examples also participate in development regression checks. Public examples cover mechanical, borehole and section drawings, architecture, site plans and roads, plus geometry, dimensions, fonts, blocks, import and editing history. The capability reference states the supported boundaries for each area. Start with a working editor starting point Install the release candidate package and mount the editor in an element with an explicit height: The five minute quickstart includes a complete Vite project, a drawing command, and a save and reopen check. One document, several workflows runtime Use the same editable KJDocument in the workbench and SDK. Commands preserve object identity, group changes into transactions, and support undo and redo. KJD saves the native document; DXF exchanges drawing entities with other CAD tools. Agent proposals create a candidate for review. Read core concepts for documents and revisions, commands for changes, and files for import and export behavior. Choose your integration integrations The maintained starter projects cover vanilla browser, React, Vue, Node TypeScript, and an MCP client. Each has source code and a command you can run locally. The Editor API answers common integration tasks; the TypeScript reference lists public package exports. Build your drawing workflow next step Start with the quickstart, inspect an editable example, or browse the API. Contributions and issue reports are welcome on GitHub."
+      "text": "Build with KJDraw starting point Run the five minute guide, inspect an editable example, or find the exact method in the API. The same KJD document can be edited in the browser, accessed through the SDK, and reviewed in an agent workflow."
     },
     {
       "locale": "zh",
       "kind": "guide",
       "page": "introduction",
       "title": "KJDraw",
-      "summary": "在浏览器、自己的应用或 AI 智能体中构建可编辑的工程 CAD 体验。",
+      "summary": "在应用、浏览器或 AI 工作流中构建可编辑工程 CAD。",
       "href": "./#zh-introduction",
-      "text": "可扩展的工程 CAD what it is KJDraw 将可嵌入的绘图工作台、TypeScript SDK 和可审核的智能体操作放在同一套图档模型上。打开工程图纸，编辑真实对象，保存后重新打开；浏览器界面和无界面流程使用相同的图档与命令机制。 在浏览器中编辑。 挂载带绘图工具、图层、属性、文件操作及撤销重做的工作台。 通过 SDK 构建。 在 JavaScript 或 TypeScript 中操作图档、类型化命令、事件以及 KJD、DXF 文件。 连接智能体。 生成候选修改，检查结果，并保留实际执行的回执。 浏览真实图纸 what you can do 案例库包含可编辑的公开图纸和聚焦 CAD 能力的示例。可以在 Playground 打开样例，检查对象和图层，再追溯生成源码。这些示例也参与开发回归。 目前公开示例涵盖机械、钻孔柱状与剖面、建筑、总平、道路，以及几何、标注、字体、块、导入和编辑历史。能力参考列明各项支持边界。 运行第一个编辑器 starting point 安装候选版，并将编辑器挂载到明确设定高度的容器： 五分钟快速上手给出完整 Vite 工程、绘图命令，以及保存重开检查。 一份图档，贯穿多种流程 runtime 工作台与 SDK 操作同一份可编辑的 KJDocument。命令维持对象身份，将修改组合为事务，并支持撤销重做。KJD 保存原生图档，DXF 用于与其他 CAD 工具交换图元。智能体提案会生成可检查的候选结果。 阅读核心概念了解图档与修订，命令了解修改方式，文件了解导入导出行为。 选择接入方式 integrations 维护中的示例工程包括原生浏览器、React、Vue、Node TypeScript 和 MCP 客户端，每个都有可本地运行的源码和命令。Editor API按常见任务查找；完整 TypeScript 参考列出公开包入口。 开始构建你的绘图流程 next step 从快速上手开始，打开一份可编辑的案例，或查询 API。欢迎在 GitHub 参与改进与反馈。"
+      "text": "用 KJDraw 开始构建 starting point 从五分钟指南开始，打开可编辑案例，或在 API 中查找方法。浏览器编辑器、SDK 与智能体流程操作同一份 KJD 图档。"
     },
     {
       "locale": "zh",
       "kind": "section",
       "page": "introduction",
-      "title": "可扩展的工程 CAD",
-      "summary": "KJDraw",
-      "href": "./#zh-introduction-what-it-is",
-      "text": "可扩展的工程 CAD what it is KJDraw 将可嵌入的绘图工作台、TypeScript SDK 和可审核的智能体操作放在同一套图档模型上。打开工程图纸，编辑真实对象，保存后重新打开；浏览器界面和无界面流程使用相同的图档与命令机制。 在浏览器中编辑。 挂载带绘图工具、图层、属性、文件操作及撤销重做的工作台。 通过 SDK 构建。 在 JavaScript 或 TypeScript 中操作图档、类型化命令、事件以及 KJD、DXF 文件。 连接智能体。 生成候选修改，检查结果，并保留实际执行的回执。 浏览真实图纸 what you can do 案例库包含可编辑的公开图纸和聚焦 CAD 能力的示例。可以在 Playground 打开样例，检查对象和图层，再追溯生成源码。这些示例也参与开发回归。 目前公开示例涵盖机械、钻孔柱状与剖面、建筑、总平、道路，以及几何、标注、字体、块、导入和编辑历史。能力参考列明各项支持边界。 运行第一个编辑器 starting point 安装候选版，并将编辑器挂载到明确设定高度的容器： 五分钟快速上手给出完整 Vite 工程、绘图命令，以及保存重开检查。 一份图档，贯穿多种流程 runtime 工作台与 SDK 操作同一份可编辑的 KJDocument。命令维持对象身份，将修改组合为事务，并支持撤销重做。KJD 保存原生图档，DXF 用于与其他 CAD 工具交换图元。智能体提案会生成可检查的候选结果。 阅读核心概念了解图档与修订，命令了解修改方式，文件了解导入导出行为。 选择接入方式 integrations 维护中的示例工程包括原生浏览器、React、Vue、Node TypeScript 和 MCP 客户端，每个都有可本地运行的源码和命令。Editor API按常见任务查找；完整 TypeScript 参考列出公开包入口。 开始构建你的绘图流程 next step 从快速上手开始，打开一份可编辑的案例，或查询 API。欢迎在 GitHub 参与改进与反馈。"
-    },
-    {
-      "locale": "zh",
-      "kind": "section",
-      "page": "introduction",
-      "title": "浏览真实图纸",
-      "summary": "KJDraw",
-      "href": "./#zh-introduction-what-you-can-do",
-      "text": "可扩展的工程 CAD what it is KJDraw 将可嵌入的绘图工作台、TypeScript SDK 和可审核的智能体操作放在同一套图档模型上。打开工程图纸，编辑真实对象，保存后重新打开；浏览器界面和无界面流程使用相同的图档与命令机制。 在浏览器中编辑。 挂载带绘图工具、图层、属性、文件操作及撤销重做的工作台。 通过 SDK 构建。 在 JavaScript 或 TypeScript 中操作图档、类型化命令、事件以及 KJD、DXF 文件。 连接智能体。 生成候选修改，检查结果，并保留实际执行的回执。 浏览真实图纸 what you can do 案例库包含可编辑的公开图纸和聚焦 CAD 能力的示例。可以在 Playground 打开样例，检查对象和图层，再追溯生成源码。这些示例也参与开发回归。 目前公开示例涵盖机械、钻孔柱状与剖面、建筑、总平、道路，以及几何、标注、字体、块、导入和编辑历史。能力参考列明各项支持边界。 运行第一个编辑器 starting point 安装候选版，并将编辑器挂载到明确设定高度的容器： 五分钟快速上手给出完整 Vite 工程、绘图命令，以及保存重开检查。 一份图档，贯穿多种流程 runtime 工作台与 SDK 操作同一份可编辑的 KJDocument。命令维持对象身份，将修改组合为事务，并支持撤销重做。KJD 保存原生图档，DXF 用于与其他 CAD 工具交换图元。智能体提案会生成可检查的候选结果。 阅读核心概念了解图档与修订，命令了解修改方式，文件了解导入导出行为。 选择接入方式 integrations 维护中的示例工程包括原生浏览器、React、Vue、Node TypeScript 和 MCP 客户端，每个都有可本地运行的源码和命令。Editor API按常见任务查找；完整 TypeScript 参考列出公开包入口。 开始构建你的绘图流程 next step 从快速上手开始，打开一份可编辑的案例，或查询 API。欢迎在 GitHub 参与改进与反馈。"
-    },
-    {
-      "locale": "zh",
-      "kind": "section",
-      "page": "introduction",
-      "title": "运行第一个编辑器",
+      "title": "用 KJDraw 开始构建",
       "summary": "KJDraw",
       "href": "./#zh-introduction-starting-point",
-      "text": "可扩展的工程 CAD what it is KJDraw 将可嵌入的绘图工作台、TypeScript SDK 和可审核的智能体操作放在同一套图档模型上。打开工程图纸，编辑真实对象，保存后重新打开；浏览器界面和无界面流程使用相同的图档与命令机制。 在浏览器中编辑。 挂载带绘图工具、图层、属性、文件操作及撤销重做的工作台。 通过 SDK 构建。 在 JavaScript 或 TypeScript 中操作图档、类型化命令、事件以及 KJD、DXF 文件。 连接智能体。 生成候选修改，检查结果，并保留实际执行的回执。 浏览真实图纸 what you can do 案例库包含可编辑的公开图纸和聚焦 CAD 能力的示例。可以在 Playground 打开样例，检查对象和图层，再追溯生成源码。这些示例也参与开发回归。 目前公开示例涵盖机械、钻孔柱状与剖面、建筑、总平、道路，以及几何、标注、字体、块、导入和编辑历史。能力参考列明各项支持边界。 运行第一个编辑器 starting point 安装候选版，并将编辑器挂载到明确设定高度的容器： 五分钟快速上手给出完整 Vite 工程、绘图命令，以及保存重开检查。 一份图档，贯穿多种流程 runtime 工作台与 SDK 操作同一份可编辑的 KJDocument。命令维持对象身份，将修改组合为事务，并支持撤销重做。KJD 保存原生图档，DXF 用于与其他 CAD 工具交换图元。智能体提案会生成可检查的候选结果。 阅读核心概念了解图档与修订，命令了解修改方式，文件了解导入导出行为。 选择接入方式 integrations 维护中的示例工程包括原生浏览器、React、Vue、Node TypeScript 和 MCP 客户端，每个都有可本地运行的源码和命令。Editor API按常见任务查找；完整 TypeScript 参考列出公开包入口。 开始构建你的绘图流程 next step 从快速上手开始，打开一份可编辑的案例，或查询 API。欢迎在 GitHub 参与改进与反馈。"
-    },
-    {
-      "locale": "zh",
-      "kind": "section",
-      "page": "introduction",
-      "title": "一份图档，贯穿多种流程",
-      "summary": "KJDraw",
-      "href": "./#zh-introduction-runtime",
-      "text": "可扩展的工程 CAD what it is KJDraw 将可嵌入的绘图工作台、TypeScript SDK 和可审核的智能体操作放在同一套图档模型上。打开工程图纸，编辑真实对象，保存后重新打开；浏览器界面和无界面流程使用相同的图档与命令机制。 在浏览器中编辑。 挂载带绘图工具、图层、属性、文件操作及撤销重做的工作台。 通过 SDK 构建。 在 JavaScript 或 TypeScript 中操作图档、类型化命令、事件以及 KJD、DXF 文件。 连接智能体。 生成候选修改，检查结果，并保留实际执行的回执。 浏览真实图纸 what you can do 案例库包含可编辑的公开图纸和聚焦 CAD 能力的示例。可以在 Playground 打开样例，检查对象和图层，再追溯生成源码。这些示例也参与开发回归。 目前公开示例涵盖机械、钻孔柱状与剖面、建筑、总平、道路，以及几何、标注、字体、块、导入和编辑历史。能力参考列明各项支持边界。 运行第一个编辑器 starting point 安装候选版，并将编辑器挂载到明确设定高度的容器： 五分钟快速上手给出完整 Vite 工程、绘图命令，以及保存重开检查。 一份图档，贯穿多种流程 runtime 工作台与 SDK 操作同一份可编辑的 KJDocument。命令维持对象身份，将修改组合为事务，并支持撤销重做。KJD 保存原生图档，DXF 用于与其他 CAD 工具交换图元。智能体提案会生成可检查的候选结果。 阅读核心概念了解图档与修订，命令了解修改方式，文件了解导入导出行为。 选择接入方式 integrations 维护中的示例工程包括原生浏览器、React、Vue、Node TypeScript 和 MCP 客户端，每个都有可本地运行的源码和命令。Editor API按常见任务查找；完整 TypeScript 参考列出公开包入口。 开始构建你的绘图流程 next step 从快速上手开始，打开一份可编辑的案例，或查询 API。欢迎在 GitHub 参与改进与反馈。"
-    },
-    {
-      "locale": "zh",
-      "kind": "section",
-      "page": "introduction",
-      "title": "选择接入方式",
-      "summary": "KJDraw",
-      "href": "./#zh-introduction-integrations",
-      "text": "可扩展的工程 CAD what it is KJDraw 将可嵌入的绘图工作台、TypeScript SDK 和可审核的智能体操作放在同一套图档模型上。打开工程图纸，编辑真实对象，保存后重新打开；浏览器界面和无界面流程使用相同的图档与命令机制。 在浏览器中编辑。 挂载带绘图工具、图层、属性、文件操作及撤销重做的工作台。 通过 SDK 构建。 在 JavaScript 或 TypeScript 中操作图档、类型化命令、事件以及 KJD、DXF 文件。 连接智能体。 生成候选修改，检查结果，并保留实际执行的回执。 浏览真实图纸 what you can do 案例库包含可编辑的公开图纸和聚焦 CAD 能力的示例。可以在 Playground 打开样例，检查对象和图层，再追溯生成源码。这些示例也参与开发回归。 目前公开示例涵盖机械、钻孔柱状与剖面、建筑、总平、道路，以及几何、标注、字体、块、导入和编辑历史。能力参考列明各项支持边界。 运行第一个编辑器 starting point 安装候选版，并将编辑器挂载到明确设定高度的容器： 五分钟快速上手给出完整 Vite 工程、绘图命令，以及保存重开检查。 一份图档，贯穿多种流程 runtime 工作台与 SDK 操作同一份可编辑的 KJDocument。命令维持对象身份，将修改组合为事务，并支持撤销重做。KJD 保存原生图档，DXF 用于与其他 CAD 工具交换图元。智能体提案会生成可检查的候选结果。 阅读核心概念了解图档与修订，命令了解修改方式，文件了解导入导出行为。 选择接入方式 integrations 维护中的示例工程包括原生浏览器、React、Vue、Node TypeScript 和 MCP 客户端，每个都有可本地运行的源码和命令。Editor API按常见任务查找；完整 TypeScript 参考列出公开包入口。 开始构建你的绘图流程 next step 从快速上手开始，打开一份可编辑的案例，或查询 API。欢迎在 GitHub 参与改进与反馈。"
-    },
-    {
-      "locale": "zh",
-      "kind": "section",
-      "page": "introduction",
-      "title": "开始构建你的绘图流程",
-      "summary": "KJDraw",
-      "href": "./#zh-introduction-next-step",
-      "text": "可扩展的工程 CAD what it is KJDraw 将可嵌入的绘图工作台、TypeScript SDK 和可审核的智能体操作放在同一套图档模型上。打开工程图纸，编辑真实对象，保存后重新打开；浏览器界面和无界面流程使用相同的图档与命令机制。 在浏览器中编辑。 挂载带绘图工具、图层、属性、文件操作及撤销重做的工作台。 通过 SDK 构建。 在 JavaScript 或 TypeScript 中操作图档、类型化命令、事件以及 KJD、DXF 文件。 连接智能体。 生成候选修改，检查结果，并保留实际执行的回执。 浏览真实图纸 what you can do 案例库包含可编辑的公开图纸和聚焦 CAD 能力的示例。可以在 Playground 打开样例，检查对象和图层，再追溯生成源码。这些示例也参与开发回归。 目前公开示例涵盖机械、钻孔柱状与剖面、建筑、总平、道路，以及几何、标注、字体、块、导入和编辑历史。能力参考列明各项支持边界。 运行第一个编辑器 starting point 安装候选版，并将编辑器挂载到明确设定高度的容器： 五分钟快速上手给出完整 Vite 工程、绘图命令，以及保存重开检查。 一份图档，贯穿多种流程 runtime 工作台与 SDK 操作同一份可编辑的 KJDocument。命令维持对象身份，将修改组合为事务，并支持撤销重做。KJD 保存原生图档，DXF 用于与其他 CAD 工具交换图元。智能体提案会生成可检查的候选结果。 阅读核心概念了解图档与修订，命令了解修改方式，文件了解导入导出行为。 选择接入方式 integrations 维护中的示例工程包括原生浏览器、React、Vue、Node TypeScript 和 MCP 客户端，每个都有可本地运行的源码和命令。Editor API按常见任务查找；完整 TypeScript 参考列出公开包入口。 开始构建你的绘图流程 next step 从快速上手开始，打开一份可编辑的案例，或查询 API。欢迎在 GitHub 参与改进与反馈。"
+      "text": "用 KJDraw 开始构建 starting point 从五分钟指南开始，打开可编辑案例，或在 API 中查找方法。浏览器编辑器、SDK 与智能体流程操作同一份 KJD 图档。"
     },
     {
       "locale": "en",

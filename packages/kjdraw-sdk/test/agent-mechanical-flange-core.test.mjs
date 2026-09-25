@@ -1785,3 +1785,45 @@ test('mechanical dimension picture audit rejects modified labels and lines', asy
     transaction.updateObject(line.id, { payload: { ...line.payload, end: [999, 999, 0] } }))
   assert.equal(auditMechanicalDimensionPictures(reopened).findings.includes('dimension[2]:PICTURE_LINES'), true)
 })
+test('nested and model symbol instances retain bounded three-axis scale through KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const symbols = { definitions: [
+    { key: 'child-scale', basePoint: [0, 0], members: [{ kind: 'circle', center: [0, 0], radius: 2, role: 'geometry' }] },
+    { key: 'parent-scale', basePoint: [0, 0], members: [
+      { kind: 'instance', symbolKey: 'child-scale', position: [8, 0, 0], scale: [1.5, 1, 2], role: 'geometry' },
+    ] },
+  ], instances: [{ symbolKey: 'parent-scale', position: [30, 40, 0], scale: [1, 1, 3], role: 'geometry' }] }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols })
+  const modelInsert = proposal.commandArgs.entities.find(entity => entity.type === 'INSERT')
+  const nestedInsert = proposal.commandArgs.resources.blocks.flatMap(block => block.entities).find(entity => entity.type === 'INSERT')
+  assert.deepEqual(modelInsert.payload.scale, [1, 1, 3])
+  assert.deepEqual(nestedInsert.payload.scale, [1.5, 1, 2])
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await sdk.readDocument(bytes, { format })
+    assert.equal(reopened.validate().valid, true)
+    const scales = reopened.listEntities({ type: 'INSERT' }).map(entity => entity.payload.scale)
+    assert.equal(scales.some(scale => scale[0] === 1 && scale[1] === 1 && scale[2] === 3), true)
+    assert.equal(scales.some(scale => scale[0] === 1.5 && scale[1] === 1 && scale[2] === 2), true)
+    if (format === 'DXF') {
+      const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+        'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=list(d.modelspace().query("INSERT")); n=[e for b in d.blocks if b.name.startswith("KJ_FLANGE_SYMBOL_") for e in b if e.dxftype()=="INSERT"]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"modelZScales":[float(e.dxf.zscale) for e in m],"nestedZScales":[float(e.dxf.zscale) for e in n]}))'],
+      bytes, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+        PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+      if (independent.error?.code === 'ENOENT' || independent.status !== 0 && /No module named ['"]ezdxf/u.test(independent.stderr ?? '')) {
+        if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr ?? independent.error?.message)
+        t.diagnostic('official ezdxf unavailable; independent check skipped')
+      } else {
+        assert.equal(independent.status, 0, independent.stderr)
+        assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, modelZScales: [3], nestedZScales: [2] })
+      }
+    }
+  }
+  for (const scale of [[1, 1, 0], [1, 1, Number.NaN], [1, 1, 1, 1]]) {
+    assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), expectedRevision: document.revision,
+      symbols: { ...symbols, instances: [{ ...symbols.instances[0], scale }] } }), /scale/u)
+    assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), expectedRevision: document.revision,
+      symbols: { ...symbols, definitions: [symbols.definitions[0], { ...symbols.definitions[1], members: [{ ...symbols.definitions[1].members[0], scale }] }] } }), /scale/u)
+  }
+})

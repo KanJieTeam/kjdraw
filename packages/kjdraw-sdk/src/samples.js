@@ -1,5 +1,7 @@
 // Generated from samples.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { transformEntityPayload } from './geometry/transform.js';
+import { compileGeologySection } from './geology-engineering.js';
+import { buildAgentGeologyPlan } from './agent-geology-plan.js';
 function omitUndefined(value) {
     if (Array.isArray(value)) return value.map((item)=>omitUndefined(item));
     if (value !== null && typeof value === 'object') {
@@ -59,7 +61,15 @@ const sampleCatalog = [
         title: 'Loess site / geological section',
         titleZh: '黄土场地 / 工程地质剖面',
         discipline: 'GEOLOGY',
-        build: buildGeologySection
+        buildCompiled: buildGeologySectionCompiled
+    },
+    {
+        id: 'sample-geology-plan',
+        title: 'Investigation points / location plan',
+        titleZh: '勘探点 / 平面位置图',
+        discipline: 'GEOLOGY',
+        units: 'meter',
+        buildCompiled: buildGeologyPlanCompiled
     }
 ];
 export const INDUSTRY_SAMPLES = Object.freeze(sampleCatalog.map(({ id, title, titleZh, discipline })=>Object.freeze({
@@ -326,23 +336,26 @@ async function createDrawing(sdk, sample) {
     }, {
         document
     });
-    sample.build(kit);
-    if (sample.modelScale) {
-        const scale = sample.modelScale;
-        for (const entity of entities)entity.payload = omitUndefined(transformEntityPayload(entity.type, entity.payload, [
-            scale,
-            0,
-            0,
-            scale,
-            0,
-            0
-        ]));
+    if (sample.buildCompiled) await sample.buildCompiled(sdk, document);
+    else {
+        sample.build(kit);
+        if (sample.modelScale) {
+            const scale = sample.modelScale;
+            for (const entity of entities)entity.payload = omitUndefined(transformEntityPayload(entity.type, entity.payload, [
+                scale,
+                0,
+                0,
+                scale,
+                0,
+                0
+            ]));
+        }
+        await sdk.executeCommand('CREATEBATCH', {
+            entities
+        }, {
+            document
+        });
     }
-    await sdk.executeCommand('CREATEBATCH', {
-        entities
-    }, {
-        document
-    });
     const baseline = document.toJSON();
     sdk.closeDocument(document.id);
     return sdk.openDocument(baseline);
@@ -1394,7 +1407,7 @@ function buildMechanical({ line, circle, arc, text, poly, rect, cross, dimH, dim
         146
     ], 'REMOVE BURRS · BREAK SHARP EDGES 0.5 · DIMENSIONS IN MILLIMETERS', 1.15, 'TITLE');
 }
-sampleCatalog[4].units = 'meter';
+sampleCatalog[5].units = 'meter';
 sampleCatalog[4].layers = [
     [
         'FRAME',
@@ -1568,7 +1581,7 @@ function buildBoreholeLog({ line, text, rect, poly, dimV, sheet }) {
     ], 'COLLAR 300.00 m  ·  DEPTH POSITIVE DOWNWARD  ·  SYNTHETIC SAMPLE', 1.15, 'TITLE');
 }
 sampleCatalog[5].units = 'meter';
-sampleCatalog[5].layers = [
+sampleCatalog[6].layers = [
     [
         'FRAME',
         7
@@ -1602,127 +1615,159 @@ sampleCatalog[5].layers = [
         7
     ]
 ];
-function buildGeologySection({ line, text, poly, rect, circle, cross, dimH, dimV, sheet }) {
-    sheet({
-        title: 'LOESS SITE · GEOLOGICAL SECTION A—A',
-        number: 'G-201',
-        scale: 'H 1:500 / V 1:200',
-        discipline: 'ENGINEERING GEOLOGY'
-    });
-    const left = 18, right = 232, base = 35, top = 130;
-    rect(left, base, right - left, top - base, 'GEO-GRID');
-    for(let i = 0; i <= 10; i++){
-        const x = left + i * (right - left) / 10;
-        line([
-            x,
-            base
-        ], [
-            x,
-            top
-        ], 'GEO-GRID');
-        text([
-            x - 2.5,
-            base - 5
-        ], String(i * 20), 1.05, 'ANNO');
-    }
-    for(let i = 0; i <= 8; i++){
-        const y = base + i * 11.5;
-        line([
-            left,
-            y
-        ], [
-            right,
-            y
-        ], 'GEO-GRID');
-        text([
-            left - 9,
-            y - .5
-        ], String(250 + i * 5), 1.05, 'ANNO');
-    }
-    const xholes = [
-        30,
-        72,
-        114,
-        156,
-        198
-    ];
-    const collars = [
-        116,
-        119,
-        113,
-        121,
-        117
-    ];
-    for(let i = 0; i < xholes.length; i++){
-        const x = xholes[i], collar = collars[i];
-        line([
-            x,
-            collar
-        ], [
-            x,
-            base + 2
-        ], 'GEO-POINTS');
-        circle([
-            x,
-            collar
-        ], 1.8, 'GEO-POINTS');
-        cross(x, collar, 3, 'GEO-POINTS');
-        text([
-            x - 5,
-            collar + 5
-        ], `ZK0${i + 1}`, 1.3, 'ANNO');
-        text([
-            x - 5,
-            collar - 5
-        ], `H=${(300 + i * .8).toFixed(2)}`, 1.05, 'ANNO');
-    }
-    const strata = [];
-    for(let layer = 0; layer < 6; layer++){
-        const points = [];
-        for(let i = 0; i <= 40; i++){
-            const x = left + i * (right - left) / 40;
-            const y = 108 - layer * 11 + Math.sin(i * .35 + layer) * (1.5 + layer * .15);
-            points.push([
-                x,
-                y
-            ]);
-        }
-        strata.push(points);
-        poly(points, 'GEO-STRATA', false);
-    }
-    for(let layer = 0; layer < 5; layer++){
-        const y = 104 - layer * 11;
-        text([
-            right - 53,
-            y
-        ], [
-            'MALAN LOESS',
-            'PALEOSOL',
-            'LISHI LOESS',
-            'PALEOSOL',
-            'SILTY CLAY'
-        ][layer], 1.25, 'ANNO');
-    }
-    poly([
+async function buildGeologySectionCompiled(sdk, document) {
+    const layers = [
         [
-            left,
-            101
+            '1',
+            'Cultivated soil',
+            'cultivated-soil'
         ],
         [
-            right,
-            104
+            '2',
+            'Loess',
+            'loess'
+        ],
+        [
+            '3',
+            'Paleosol',
+            'paleosol'
+        ],
+        [
+            '4',
+            'Loess',
+            'loess'
+        ],
+        [
+            '5',
+            'Silty clay',
+            'silty-clay'
         ]
-    ], 'GEO-WATER', false);
-    text([
-        right - 37,
-        98
-    ], 'GROUNDWATER', 1.2, 'GEO-WATER');
-    dimH(left, right, base, -10, 'SECTION LENGTH 100 m');
-    dimV(left, base, top, -8, 'ELEVATION');
-    text([
+    ];
+    const boundaries = [
+        0,
+        3,
+        8,
+        12,
         20,
-        21
-    ], 'A—A′  ·  FIVE BOREHOLES  ·  INTERPRETED STRATA  ·  SYNTHETIC SAMPLE', 1.15, 'TITLE');
+        30
+    ];
+    const holes = Array.from({
+        length: 5
+    }, (_, index)=>{
+        const id = `ZK${String(index + 1).padStart(2, '0')}`;
+        return {
+            id,
+            station: index * 25,
+            collarElevation: 300 + [
+                0,
+                0.35,
+                -0.15,
+                0.25,
+                -0.3
+            ][index],
+            depth: 30,
+            strata: layers.map(([code, name, lithology], layerIndex)=>({
+                    intervalId: `${id}-L${layerIndex + 1}`,
+                    code,
+                    name,
+                    lithology,
+                    top: boundaries[layerIndex],
+                    bottom: boundaries[layerIndex + 1]
+                }))
+        };
+    });
+    const correlations = [];
+    for(let holeIndex = 0; holeIndex < holes.length - 1; holeIndex++)for(let layerIndex = 0; layerIndex < layers.length; layerIndex++)correlations.push({
+        fromHoleId: holes[holeIndex].id,
+        toHoleId: holes[holeIndex + 1].id,
+        fromIntervalId: `${holes[holeIndex].id}-L${layerIndex + 1}`,
+        toIntervalId: `${holes[holeIndex + 1].id}-L${layerIndex + 1}`
+    });
+    const compiled = compileGeologySection({
+        holes,
+        correlations,
+        sourceFactMode: 'illustrative',
+        horizontalScaleDenominator: 500,
+        verticalScaleDenominator: 200,
+        datumElevation: 265,
+        surfaceRule: 'straight-between-supplied-collars',
+        expectedRevision: document.revision,
+        title: 'GEOLOGICAL SECTION A—A′ · ILLUSTRATIVE, NOT MEASURED'
+    });
+    await sdk.executeCommand('CREATEBATCH', structuredClone(compiled.commandArgs), {
+        document
+    });
+}
+async function buildGeologyPlanCompiled(sdk, document) {
+    const ids = Array.from({
+        length: 5
+    }, (_, index)=>`ZK${String(index + 1).padStart(2, '0')}`);
+    const input = {
+        version: '1.0.0',
+        expectedRevision: document.revision,
+        units: 'meter',
+        locale: 'en',
+        drawingId: 'SYNTHETIC-INVESTIGATION-PLAN',
+        title: 'INVESTIGATION POINT PLAN · ILLUSTRATIVE, NOT MEASURED',
+        scale: 500,
+        boundary: [
+            [
+                980,
+                980
+            ],
+            [
+                1120,
+                980
+            ],
+            [
+                1120,
+                1020
+            ],
+            [
+                980,
+                1020
+            ]
+        ],
+        boreholes: ids.map((id, index)=>({
+                id,
+                position: [
+                    1000 + index * 25,
+                    1000
+                ],
+                collarElevation: 300 + [
+                    0,
+                    0.35,
+                    -0.15,
+                    0.25,
+                    -0.3
+                ][index],
+                depth: 30,
+                kind: 'borehole'
+            })),
+        sectionLines: [
+            {
+                id: 'SECTION-A',
+                holeIds: ids,
+                label: 'A—A′',
+                endpointLabels: [
+                    'A',
+                    'A′'
+                ]
+            }
+        ],
+        coordinateGrid: {
+            origin: [
+                980,
+                980
+            ],
+            spacing: 20
+        },
+        northAngleDegrees: 0
+    };
+    const compiled = buildAgentGeologyPlan(document, input);
+    await sdk.executeCommand('CREATEBATCH', structuredClone(compiled.commandArgs), {
+        document
+    });
 }
 sampleCatalog[4].layers = [
     [

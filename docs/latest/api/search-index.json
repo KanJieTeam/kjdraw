@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:e3614dda9cea3ec0275111d0a906bf318d712a3f9758feee85465c10a4a9eafb",
+  "sourceDigest": "sha256:9b164040f0908d430bcc65732514300249cb411f759f57b8c25dce2c87a3297a",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -6653,6 +6653,14 @@
       "summary": "export declare function auditMechanicalDimensionPictures(document: KJDocument): { passed: boolean; dimensions: number; pictureBlocks: number; findings: string[]; };"
     },
     {
+      "name": "auditMechanicalSheetStructure",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-auditmechanicalsheetstructure",
+      "anchor": "root-function-auditmechanicalsheetstructure",
+      "summary": "export declare function auditMechanicalSheetStructure(source: KJDocument, candidate: KJDocument): { passed: boolean; layouts: { source: number; candidate: number; missing: number; extra: number; plotFields: number; paper"
+    },
+    {
       "name": "auditRoundTrip",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -11186,7 +11194,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjflangesymbolinstance",
       "anchor": "root-interface-kjflangesymbolinstance",
-      "summary": "export interface KJFlangeSymbolInstance { symbolKey: string; position: Point2Or3; scale?: Point2; rotation?: number; role: KJFlangeAuxiliaryLine['role']; styleKey?: string; attributes?: KJFlangeSymbolAttribute[]; }"
+      "summary": "export interface KJFlangeSymbolInstance { symbolKey: string; position: Point2Or3; scale?: Point2Or3; rotation?: number; role: KJFlangeAuxiliaryLine['role']; styleKey?: string; attributes?: KJFlangeSymbolAttribute[]; }"
     },
     {
       "name": "KJFlangeSymbolMember",

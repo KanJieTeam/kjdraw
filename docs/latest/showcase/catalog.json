@@ -53,7 +53,7 @@
         "en": "Geology & surveying",
         "zh": "地质与勘察"
       },
-      "count": 2
+      "count": 3
     },
     {
       "id": "core-capabilities",
@@ -145,7 +145,7 @@
         "revision": 13
       },
       "thumbnail": "./assets/resilient-campus.svg",
-      "thumbnailSha256": "79357698ca9ee482391ea751b8fbfffb8fdcdf8a466c7605d456fe79e0171ff5"
+      "thumbnailSha256": "8ab8f278939b2eeb7cdf7109111b2ad05a138ef625a9c3a0c095f85f23c97c63"
     },
     {
       "id": "site-plan",
@@ -211,7 +211,7 @@
         "revision": 11
       },
       "thumbnail": "./assets/site-plan.svg",
-      "thumbnailSha256": "fd228a5ca9bd2a127a12db556afe8a22da197949e268955bddc6c202f205cc91"
+      "thumbnailSha256": "3e29f765cdd742d1e330115805ff8ac61e1515ea7ff0f117a28c98bc98911b42"
     },
     {
       "id": "architecture-floor-plan",
@@ -278,7 +278,7 @@
         "revision": 11
       },
       "thumbnail": "./assets/architecture-floor-plan.svg",
-      "thumbnailSha256": "e0397b844d7c146290b2a1a21f910fed124d5a01d6856f2a199dbaf715d44549"
+      "thumbnailSha256": "6e6df834ecf27f86a01e1a747073249043aaf823967a137aeca7530c19d82580"
     },
     {
       "id": "road-profile",
@@ -344,7 +344,7 @@
         "revision": 10
       },
       "thumbnail": "./assets/road-profile.svg",
-      "thumbnailSha256": "69819cc3d7d0465631d63e2ef1b8e87bf640bd166ab0643f7a4d2e8f22ef0cc8"
+      "thumbnailSha256": "7a49aa52b61d2342ba18922a986095379d0599224791ff71967245cb6112bbd4"
     },
     {
       "id": "mechanical-bracket",
@@ -411,7 +411,7 @@
         "revision": 9
       },
       "thumbnail": "./assets/mechanical-bracket.svg",
-      "thumbnailSha256": "d99ad9861a8c75a907ddc19a164c2b2e7464206149a379d2c98a0ef80be612fa"
+      "thumbnailSha256": "e2f80a3a9b80dba87f83ba9969e398ed48012794b99b0f7d083086e470f873c3"
     },
     {
       "id": "mechanical-flange",
@@ -453,7 +453,7 @@
       "facts": {
         "editableObjects": 85,
         "layers": 8,
-        "units": "meter",
+        "units": "millimeter",
         "entityTypes": {
           "CIRCLE": 9,
           "LINE": 58,
@@ -475,7 +475,7 @@
         "revision": 8
       },
       "thumbnail": "./assets/mechanical-flange.svg",
-      "thumbnailSha256": "05db0869563b8e2f4571cc93b67dc375c62a83eabcf3b3cdbf1beb84d97ddc17"
+      "thumbnailSha256": "09511185d073472169f60ff957e759358f8a9cbf914e35f34e98c4208b1c2a6f"
     },
     {
       "id": "borehole-log",
@@ -483,8 +483,8 @@
       "sampleId": "sample-borehole-log",
       "category": "geology",
       "title": {
-        "en": "Loess borehole log",
-        "zh": "黄土钻孔柱状图"
+        "en": "Borehole log",
+        "zh": "柱状图"
       },
       "drawingType": {
         "en": "Engineering borehole log",
@@ -516,7 +516,7 @@
       },
       "facts": {
         "editableObjects": 149,
-        "layers": 13,
+        "layers": 10,
         "units": "meter",
         "entityTypes": {
           "LINE": 89,
@@ -535,10 +535,10 @@
         "svgStatus": "generated-thumbnail",
         "renderedEntities": 149,
         "diagnostics": 0,
-        "revision": 9
+        "revision": 1
       },
       "thumbnail": "./assets/borehole-log.svg",
-      "thumbnailSha256": "f16e9b3f5b4090177f64f9f53b22fc6e04676b640053dc5f646d40bd23d27dfe"
+      "thumbnailSha256": "fd1932f2ea3bd0642ea10849353f0041fdf830a4d3dee4e007b2c932f6f119b4"
     },
     {
       "id": "geology-section",
@@ -546,16 +546,16 @@
       "sampleId": "sample-geology-section",
       "category": "geology",
       "title": {
-        "en": "Loess site geological section",
-        "zh": "黄土场地工程地质剖面"
+        "en": "Geological section",
+        "zh": "剖面图"
       },
       "drawingType": {
         "en": "Five-borehole section",
         "zh": "五孔工程地质剖面"
       },
       "summary": {
-        "en": "A five-borehole section with interpreted strata, ground levels, groundwater line, grid and chainage annotations.",
-        "zh": "五个钻孔组成的工程地质剖面，包含解释地层、孔口标高、地下水线、网格和里程标注。"
+        "en": "An editable five-borehole illustrative section compiled from synthetic intervals, with native lithology hatches and exact interval links; not measured data.",
+        "zh": "由合成分层编译的五孔可编辑示意剖面，包含原生岩性填充与明确的孔间层位连线；非实测数据。"
       },
       "tags": {
         "en": [
@@ -578,14 +578,14 @@
         "zh": "地质与勘察"
       },
       "facts": {
-        "editableObjects": 113,
-        "layers": 9,
+        "editableObjects": 252,
+        "layers": 14,
         "units": "millimeter",
         "entityTypes": {
-          "CIRCLE": 5,
-          "LINE": 52,
-          "LWPOLYLINE": 11,
-          "TEXT": 45
+          "HATCH": 45,
+          "LINE": 106,
+          "LWPOLYLINE": 9,
+          "TEXT": 92
         }
       },
       "links": {
@@ -597,12 +597,76 @@
       "artifact": {
         "path": "showcase/assets/geology-section.svg",
         "svgStatus": "generated-thumbnail",
-        "renderedEntities": 113,
+        "renderedEntities": 252,
+        "diagnostics": 0,
+        "revision": 9
+      },
+      "thumbnail": "./assets/geology-section.svg",
+      "thumbnailSha256": "ea82000a2c5e89f69d6ae585d542ae49b7b26f4f4d715143414f53ec5fac175d"
+    },
+    {
+      "id": "geology-plan",
+      "kind": "sample",
+      "sampleId": "sample-geology-plan",
+      "category": "geology",
+      "title": {
+        "en": "Investigation plan",
+        "zh": "平面图"
+      },
+      "drawingType": {
+        "en": "Investigation-point location plan",
+        "zh": "勘探点平面位置图"
+      },
+      "summary": {
+        "en": "Five synthetic investigation points, a referenced section route, coordinate grid and north arrow compiled as an editable A3 plan; not measured data.",
+        "zh": "由五个合成勘探点、对应剖面线、坐标网格与指北针编译的可编辑 A3 平面图；非实测数据。"
+      },
+      "tags": {
+        "en": [
+          "geology",
+          "investigation",
+          "boreholes",
+          "plan"
+        ],
+        "zh": [
+          "勘察",
+          "勘探点",
+          "钻孔",
+          "平面图"
+        ]
+      },
+      "detailAnchor": "geology-plan",
+      "source": "packages/kjdraw-sdk/src/samples.ts",
+      "categoryTitle": {
+        "en": "Geology & surveying",
+        "zh": "地质与勘察"
+      },
+      "facts": {
+        "editableObjects": 56,
+        "layers": 10,
+        "units": "meter",
+        "entityTypes": {
+          "CIRCLE": 5,
+          "LINE": 22,
+          "LWPOLYLINE": 3,
+          "TEXT": 26
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-geology-plan",
+        "detail": "./geology-plan/",
+        "preview": "./assets/geology-plan.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
+      },
+      "artifact": {
+        "path": "showcase/assets/geology-plan.svg",
+        "svgStatus": "generated-thumbnail",
+        "renderedEntities": 56,
         "diagnostics": 0,
         "revision": 1
       },
-      "thumbnail": "./assets/geology-section.svg",
-      "thumbnailSha256": "5c475dc219315d5ea174994115e76258e90409e6ebda53fff9cfb0565cee65d8"
+      "thumbnail": "./assets/geology-plan.svg",
+      "thumbnailSha256": "feffd47ad75eeac52570670dd556a94425edc26dd7185d314a830b17f179104d"
     },
     {
       "id": "editable-entities",

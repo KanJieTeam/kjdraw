@@ -3999,6 +3999,69 @@ export function compileGeologyColumn(input) {
     renderFooterGrid();
     return finishColumn();
 }
+function validateSectionOccurrenceCoverage(input, holes, byId) {
+    const mode = input.sourceFactMode ?? 'illustrative';
+    if (mode !== 'illustrative' && mode !== 'complete-occurrence-map') throw new KJValidationError('Geology: invalid section source fact mode');
+    if (mode === 'illustrative') {
+        if (input.uncorrelatedOccurrences != null) throw new KJValidationError('Geology: uncorrelated occurrences require complete occurrence-map mode');
+        return undefined;
+    }
+    if ((input.correlationMode ?? 'explicit-correlations') !== 'explicit-correlations' || input.manualConnections?.length) throw new KJValidationError('Geology: complete occurrence map needs exact interval correlations, not inferred groups or depth-only connections');
+    const unlinked = input.uncorrelatedOccurrences ?? [];
+    if (!Array.isArray(unlinked) || unlinked.length > 2048) throw new KJValidationError('Geology: invalid uncorrelated occurrence list');
+    const key = (holeId, adjacentHoleId, intervalId)=>JSON.stringify([
+            holeId,
+            adjacentHoleId,
+            intervalId
+        ]);
+    const coverage = new Map();
+    for(let index = 0; index < holes.length - 1; index++){
+        const left = holes[index], right = holes[index + 1];
+        for (const [hole, adjacent] of [
+            [
+                left,
+                right
+            ],
+            [
+                right,
+                left
+            ]
+        ]){
+            const seen = new Set();
+            for (const stratum of byId.get(hole.id).strata){
+                if (!stratum.intervalId || seen.has(stratum.intervalId)) throw new KJValidationError('Geology: complete occurrence map needs unique source interval IDs in every hole');
+                seen.add(stratum.intervalId);
+                coverage.set(key(hole.id, adjacent.id, stratum.intervalId), undefined);
+            }
+        }
+    }
+    const mark = (holeId, adjacentHoleId, intervalId, status)=>{
+        const identity = key(holeId, adjacentHoleId, intervalId);
+        if (!coverage.has(identity)) throw new KJValidationError('Geology: occurrence map references an unknown or nonadjacent interval');
+        if (coverage.get(identity) != null) throw new KJValidationError('Geology: duplicate or conflicting interval occurrence declaration');
+        coverage.set(identity, status);
+    };
+    for (const link of input.correlations){
+        if (!link.fromIntervalId || !link.toIntervalId || link.fromStratumCode || link.toStratumCode) throw new KJValidationError('Geology: complete occurrence map requires exact interval-ID correlations');
+        mark(link.fromHoleId, link.toHoleId, link.fromIntervalId, 'linked');
+        mark(link.toHoleId, link.fromHoleId, link.toIntervalId, 'linked');
+    }
+    for (const item of unlinked){
+        if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).sort().join(',') !== 'adjacentHoleId,holeId,intervalId' || typeof item.holeId !== 'string' || typeof item.adjacentHoleId !== 'string' || typeof item.intervalId !== 'string') throw new KJValidationError('Geology: invalid uncorrelated occurrence');
+        mark(item.holeId, item.adjacentHoleId, item.intervalId, 'unlinked');
+    }
+    const missing = [
+        ...coverage.values()
+    ].filter((value)=>value == null).length;
+    if (missing) throw new KJValidationError(`Geology: incomplete adjacent-hole occurrence map (${missing} undeclared intervals)`);
+    return {
+        linked: [
+            ...coverage.values()
+        ].filter((value)=>value === 'linked').length,
+        unlinked: unlinked.length,
+        total: coverage.size
+    };
+}
 export function compileGeologySection(input) {
     if (input.surfaceRule !== 'straight-between-supplied-collars') throw new KJValidationError('Geology: an explicit surface connection rule is required');
     if (!Array.isArray(input.holes) || input.holes.length < 2 || input.holes.length > 24) throw new KJValidationError('Geology: section requires 2–24 holes');
@@ -4040,6 +4103,7 @@ export function compileGeologySection(input) {
         });
     }
     for(let i = 1; i < holes.length; i++)if (holes[i].station <= holes[i - 1].station) throw new KJValidationError('Geology: stations must be strictly increasing');
+    const occurrenceCoverage = validateSectionOccurrenceCoverage(input, holes, byId);
     const topology = correlationMode === 'source-group-topology' ? compileGeologySectionTopology(holes.map((hole)=>({
             id: hole.id,
             station: hole.station,
@@ -4677,6 +4741,12 @@ export function compileGeologySection(input) {
         } : {},
         datumElevation: datum,
         styleRule: 'geology-section-layout',
+        ...occurrenceCoverage ? {
+            sourceFactMode: 'caller-declared-complete-occurrence-map',
+            occurrenceCount: occurrenceCoverage.total,
+            linkedOccurrenceCount: occurrenceCoverage.linked,
+            unlinkedOccurrenceCount: occurrenceCoverage.unlinked
+        } : {},
         ...topology ? {
             correlationMode,
             topologyMainCellCount: topology.mainCells.length,

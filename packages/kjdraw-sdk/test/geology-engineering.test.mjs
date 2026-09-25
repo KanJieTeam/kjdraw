@@ -697,6 +697,43 @@ test('section correlations stay between adjacent holes and preserve one-to-one s
     'nine borehole bands plus three non-crossing correlation polygons are preserved')
 })
 
+test('complete section occurrence map fails closed on absent or guessed cross-hole facts', () => {
+  const left = hole('LEFT', 0, 105.25), right = hole('RIGHT', 20, 104.8)
+  for (const source of [left, right]) source.strata.forEach((stratum, index) => { stratum.intervalId = `${source.id}-${index}` })
+  const input = { holes: [left, right], correlations: [0, 1].map(index => ({
+    fromHoleId: left.id, toHoleId: right.id,
+    fromIntervalId: left.strata[index].intervalId, toIntervalId: right.strata[index].intervalId,
+  })), uncorrelatedOccurrences: [
+    { holeId: left.id, adjacentHoleId: right.id, intervalId: left.strata[2].intervalId },
+    { holeId: right.id, adjacentHoleId: left.id, intervalId: right.strata[2].intervalId },
+  ], sourceFactMode: 'complete-occurrence-map', horizontalScaleDenominator: 500,
+  verticalScaleDenominator: 200, datumElevation: 80, surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 }
+  const compiled = compileGeologySection(input)
+  assert.equal(compiled.evidence.parameters.sourceFactMode, 'caller-declared-complete-occurrence-map')
+  assert.equal(compiled.evidence.parameters.occurrenceCount, 6)
+  assert.equal(compiled.evidence.parameters.linkedOccurrenceCount, 4)
+  assert.equal(compiled.evidence.parameters.unlinkedOccurrenceCount, 2)
+  const absent = structuredClone(input); absent.uncorrelatedOccurrences.pop()
+  assert.throws(() => compileGeologySection(absent), /incomplete adjacent-hole occurrence map/)
+  const duplicate = structuredClone(input); duplicate.uncorrelatedOccurrences.push(duplicate.uncorrelatedOccurrences[0])
+  assert.throws(() => compileGeologySection(duplicate), /duplicate or conflicting interval occurrence/)
+  const guessed = structuredClone(input)
+  delete guessed.correlations[0].fromIntervalId; delete guessed.correlations[0].toIntervalId
+  guessed.correlations[0].fromStratumCode = '1'; guessed.correlations[0].toStratumCode = '1'
+  assert.throws(() => compileGeologySection(guessed), /exact interval-ID correlations/)
+  const inferred = structuredClone(input); inferred.correlationMode = 'source-group-topology'; inferred.correlations = []
+  assert.throws(() => compileGeologySection(inferred), /not inferred groups/)
+  const depthOnly = structuredClone(input); depthOnly.manualConnections = [
+    { fromHoleId: left.id, toHoleId: right.id, fromDepth: 3, toDepth: 3 },
+  ]
+  assert.throws(() => compileGeologySection(depthOnly), /not inferred groups or depth-only connections/)
+  const unknown = structuredClone(input); unknown.uncorrelatedOccurrences[0].intervalId = 'unknown'
+  assert.throws(() => compileGeologySection(unknown), /unknown or nonadjacent interval/)
+  const repeated = structuredClone(input); repeated.holes[0].strata[1].intervalId = repeated.holes[0].strata[0].intervalId
+  assert.throws(() => compileGeologySection(repeated), /repeated interval id|unique source interval IDs/)
+  const noMode = structuredClone(input); delete noMode.sourceFactMode
+  assert.throws(() => compileGeologySection(noMode), /uncorrelated occurrences require complete occurrence-map mode/)
+})
 test('engineering geography refuses invented, discontinuous or visually unreadable layers and correlations', () => {
   const base = { hole: hole('ZK-01', 0, 105.25), verticalScaleDenominator: 125, expectedRevision: 0 }
   const gap = structuredClone(base); gap.hole.strata[1].top = 3.1

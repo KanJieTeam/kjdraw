@@ -343,6 +343,14 @@ export interface KJGeologySectionInput {
     /** Explicit opt-in for source-declared group topology. The default keeps the
      * existing caller-supplied correlation contract unchanged. */
     correlationMode?: 'explicit-correlations' | 'source-group-topology';
+    /** Caller-asserted complete adjacent-hole interval mapping; not source or 1:1 certification. */
+    sourceFactMode?: 'illustrative' | 'complete-occurrence-map';
+    /** Explicitly unlinked interval occurrences for a single adjacent-hole pair. */
+    uncorrelatedOccurrences?: {
+        holeId: string;
+        adjacentHoleId: string;
+        intervalId: string;
+    }[];
     /** Explicit source-backed boundaries are rendered before inferred correlations. */
     manualConnections?: KJGeologySectionConnection[];
     /** Exact source-backed identifiers shown at the two ends of the section. */

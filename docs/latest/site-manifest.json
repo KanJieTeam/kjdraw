@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:240a5dc28007e50a063220b08a97f21381607ed640880a26ad069222774cc01b",
+  "sourceDigest": "sha256:a5f7adb332e71a3b30deea6bf0ccf261a9b6c576890d7e68e018f0753d7fbeea",
   "locales": [
     "en",
     "zh"
@@ -19,21 +19,11 @@
       "anchors": {
         "en": [
           "en-introduction",
-          "en-introduction-what-it-is",
-          "en-introduction-what-you-can-do",
-          "en-introduction-starting-point",
-          "en-introduction-runtime",
-          "en-introduction-integrations",
-          "en-introduction-next-step"
+          "en-introduction-starting-point"
         ],
         "zh": [
           "zh-introduction",
-          "zh-introduction-what-it-is",
-          "zh-introduction-what-you-can-do",
-          "zh-introduction-starting-point",
-          "zh-introduction-runtime",
-          "zh-introduction-integrations",
-          "zh-introduction-next-step"
+          "zh-introduction-starting-point"
         ]
       }
     },
@@ -612,6 +602,9 @@
     "showcase/assets/editing-history.dxf",
     "showcase/assets/editing-history.kjd",
     "showcase/assets/editing-history.svg",
+    "showcase/assets/geology-plan.dxf",
+    "showcase/assets/geology-plan.kjd",
+    "showcase/assets/geology-plan.svg",
     "showcase/assets/geology-section.dxf",
     "showcase/assets/geology-section.kjd",
     "showcase/assets/geology-section.svg",
@@ -642,6 +635,7 @@
     "showcase/dxf-import/index.html",
     "showcase/editable-entities/index.html",
     "showcase/editing-history/index.html",
+    "showcase/geology-plan/index.html",
     "showcase/geology-section/index.html",
     "showcase/index.html",
     "showcase/mechanical-bracket/index.html",
