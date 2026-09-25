@@ -40,8 +40,8 @@ test('documentation home keeps a focused product entry and stable global control
   })
   expect(landing.mainWidth / landing.viewport).toBeGreaterThanOrEqual(0.95)
   expect(landing.heroWidth / landing.viewport).toBeGreaterThanOrEqual(0.95)
-  expect(landing.sectionWidth).toBeGreaterThanOrEqual(960)
-  expect(landing.sectionWidth).toBeLessThanOrEqual(1280)
+  expect(landing.sectionWidth).toBeGreaterThanOrEqual(800)
+  expect(landing.sectionWidth).toBeLessThanOrEqual(900)
 
   await page.locator('#language').click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
@@ -102,7 +102,7 @@ test('Showcase uses the desktop canvas, supports four-column browsing and preser
   await expect(portal).toBeVisible()
   await expect(portal.locator('.showcase-query')).toBeVisible()
   await expect(portal.locator('.showcase-tag-filter')).toBeVisible()
-  await expect(portal.locator('.showcase-card:visible')).toHaveCount(15)
+  await expect(portal.locator('.showcase-card:visible')).toHaveCount(16)
 
   const desktop = await page.evaluate(() => {
     const rail = document.querySelector('.showcase-portal:not([hidden]) .showcase-categories').getBoundingClientRect()
