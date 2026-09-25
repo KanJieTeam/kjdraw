@@ -55,6 +55,33 @@ KJDraw 不是图片生成器，也不是一组固定模板。它是工程意图�
 | **接入不同智能体** | Kimi Code、WorkBuddy、ZCode 与 TraeCode 共享同一套 MCP CAD 工具；模型 Key 留在客户端。 |
 | **嵌入你的产品** | 同一引擎提供 TypeScript/JavaScript SDK、React、Vue、完整编辑器、CLI、MCP 与本地文件工作流。 |
 
+## AI 智能体接入
+
+KJDraw 通过标准 **stdio MCP** 提供 CAD 工具。只要客户端支持 MCP，就可以使用同一套连接配置；模型、图纸和审批仍由客户端或本地宿主掌控。
+
+| 客户端 / 接入方式 | 配置方式 | 适合场景 | 入口 |
+| --- | --- | --- | --- |
+| **OpenAI Codex** | 在 Codex 的 MCP 配置中加入下方 `kjdraw` server | 代码型 Agent 生成、检查和修改 KJD/DXF | [模型接入](https://kanjieteam.github.io/kjdraw/docs/latest/models/) |
+| **Claude Desktop / Cursor / Cline** | 在客户端 MCP 配置中加入下方 `kjdraw` server | 通用对话、IDE 内绘图和文件审阅 | [MCP 集成](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/) |
+| **Kimi Code / WorkBuddy / ZCode / TraeCode** | 运行一次用户级安装器；按客户端提示确认导入 | 国内桌面 Agent 的本地绘图工作流 | [安装与安全边界](docs/try-in-ai.zh-CN.md) |
+| **豆包 / DeepSeek / 其他国产模型** | 通过支持 MCP 的宿主接入同一 server；模型 API Key 留在宿主 | 企业内网、国产模型和自建 Agent | [Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) |
+| **自建 Agent / Harness / 企业平台** | 注册同一个 stdio MCP server，或调用 `agent-tools` / `model-adapters` | 私有部署、自定义 UI 和审批系统 | [模型接入](https://kanjieteam.github.io/kjdraw/docs/latest/models/) |
+| **不接模型** | 使用 TypeScript SDK、CLI 或在线编辑器 | 回归测试、批处理和人工编辑 | [文件工作流](https://kanjieteam.github.io/kjdraw/docs/latest/files/) |
+
+标准 MCP 配置如下，客户端只需把 JSON 放进自己的 MCP 配置位置：
+
+```jsonc
+{
+  "mcpServers": {
+    "kjdraw": {
+      "command": "npx",
+      "args": ["-y", "@kanjieteam/kjdraw", "mcp"]
+    }
+  }
+}
+```
+
+接入后先让 Agent 调用只读查询和预览工具，再由宿主审核提案；KJDraw 不会把模型回复当作 CAD 成功证据，也不会未经批准覆盖源图。完整工具清单、审批协议和模型适配器见：[Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) · [MCP 集成](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/) · [API 参考](https://kanjieteam.github.io/kjdraw/docs/latest/api/)。
 ## 快速开始
 
 ### 在 AI 智能体中使用 KJDraw

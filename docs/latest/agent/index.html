@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=a22fc9bcdefe6724">
+  <link rel="stylesheet" href="../style.css?v=4c11fb426e748cc4">
   <title>Agent workflows · KJDraw Docs</title>
 </head>
 <body>
@@ -68,9 +68,7 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-agent">
-          <header class="page-hero"><p class="eyebrow">KJDRAW / AGENT WORKFLOWS</p>
-          <h1>Agent workflows</h1>
-          <p class="lead">Let an AI read an authorized drawing, propose exact CAD changes, and hand the final decision to a trusted host.</p></header>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / AGENT WORKFLOWS</p><h1>Agent workflows</h1><p class="lead">Let an AI read an authorized drawing, propose exact CAD changes, and hand the final decision to a trusted host.</p></header>
           <h2 id="en-agent-agent-tools">Build a reviewed CAD workflow</h2>
 <p>The <code>@kanjieteam/kjdraw/agent-tools</code> entry point exports <code>KJAgentToolSession</code>, which gives any tool-calling model a controlled way to work with a KJDraw document. It exposes JSON-serializable tool definitions for reading, querying, measuring, checking and proposing CAD changes. Proposal tools return exact geometry for review and do not edit the document.</p>
 <p>The host creates the session for one authorized <code>KJDocument</code>, sends selected tool definitions to the model, dispatches model calls through <code>session.call(name, arguments)</code>, and keeps approval in its own trusted user interface. The same API works with different model providers; provider connection examples are covered in <a href="https://kanjieteam.github.io/kjdraw/docs/latest/models/">Models and harnesses</a>.</p>
@@ -219,9 +217,7 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
 <p>For the lifecycle and trust model, read the <a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent.md">Agent integration contract</a> and <a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent-protocol.md">Agent protocol</a>.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-agent">
-          <header class="page-hero"><p class="eyebrow">KJDRAW / Agent 工作流</p>
-          <h1>Agent 工作流</h1>
-          <p class="lead">让 AI 读取获准访问的图纸、提出明确的 CAD 修改方案，并由可信宿主决定是否应用。</p></header>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / Agent 工作流</p><h1>Agent 工作流</h1><p class="lead">让 AI 读取获准访问的图纸、提出明确的 CAD 修改方案，并由可信宿主决定是否应用。</p></header>
           <h2 id="zh-agent-agent-tools">构建可审核的 CAD 工作流</h2>
 <p><code>@kanjieteam/kjdraw/agent-tools</code> 入口导出的 <code>KJAgentToolSession</code> 为支持工具调用的模型提供受控的 KJDraw 图纸操作入口。它以可序列化的 JSON 定义提供读取、查询、测量、校核和修改提案能力。提案工具返回可供审核的准确几何，不会直接修改图纸。</p>
 <p>宿主为一份获准访问的 <code>KJDocument</code> 创建会话，把选定的工具定义交给模型，通过 <code>session.call(name, arguments)</code> 分派模型调用，并在自己的可信界面中保留批准权。这套 API 不绑定模型厂商；厂商接入示例见<a href="https://kanjieteam.github.io/kjdraw/docs/latest/models/">模型与执行框架</a>。</p>
@@ -375,6 +371,6 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=a22fc9bcdefe6724"></script>
+  <script type="module" src="../app.js?v=4c11fb426e748cc4"></script>
 </body>
 </html>

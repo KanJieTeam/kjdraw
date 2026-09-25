@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/models/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=a22fc9bcdefe6724">
+  <link rel="stylesheet" href="../style.css?v=4c11fb426e748cc4">
   <title>Connect your model · KJDraw Docs</title>
 </head>
 <body>
@@ -68,11 +68,22 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-models">
-          <header class="page-hero"><p class="eyebrow">KJDRAW / CONNECT YOUR MODEL</p>
-          <h1>Connect your model</h1>
-          <p class="lead">Bring your model, gateway or agent framework. Keep one CAD engine and one set of drawing tools.</p></header>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / CONNECT YOUR MODEL</p><h1>Connect your model</h1><p class="lead">Bring your model, gateway or agent framework. Keep one CAD engine and one set of drawing tools.</p></header>
           <h2 id="en-models-connection">Choose a connection</h2>
 <p>KJDraw does not require a particular AI vendor. Choose a protocol adapter, supply your model and host transport, and run the same CAD tools. A custom <code>KJAgentModel</code> connects frameworks, local models or other protocols without changing the drawing engine.</p>
+<h2 id="en-models-agent-client-matrix">Agent and client matrix</h2>
+<p>The drawing contract is independent of the model vendor. A client that can launch an stdio MCP server can use the same KJDraw tools; clients without native MCP support can connect through an MCP-capable host or call the TypeScript adapter directly.</p>
+<div class="table-wrap"><table><thead><tr><th>Client or model family</th><th>Recommended path</th><th>What changes</th><th>What stays the same</th></tr></thead><tbody><tr><td>OpenAI Codex</td><td>Register the <code>kjdraw</code> stdio server in Codex MCP settings</td><td>Client configuration only</td><td>Tool names, proposals and approval boundary</td></tr><tr><td>Claude Desktop, Cursor, Cline</td><td>Add the same server entry to the client&#39;s MCP configuration</td><td>Client configuration only</td><td>KJD/DXF document contract</td></tr><tr><td>Kimi Code, WorkBuddy, ZCode, TraeCode</td><td>Run the user-level installer and follow the client&#39;s import prompt</td><td>Client configuration and one-time import</td><td>Local files and host approval</td></tr><tr><td>Doubao, DeepSeek and other domestic models</td><td>Use an MCP-capable host, or pass their tool-call JSON through <code>createKJModelAdapter</code> / <code>createKJDomesticModelAdapter</code></td><td>Provider endpoint and transport</td><td>CAD tools, validation and receipts</td></tr><tr><td>Custom harness, gateway or private model</td><td>Implement <code>KJAgentModel</code> or expose the stdio server from the host</td><td>Your conversation loop and credentials</td><td>The KJDraw agent session and document model</td></tr></tbody></table></div>
+<p>Portable MCP entry:</p>
+<pre data-language="jsonc"><button class="copy" type="button">Copy</button><code>{
+  &quot;mcpServers&quot;: {
+    &quot;kjdraw&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [&quot;-y&quot;, &quot;@kanjieteam/kjdraw&quot;, &quot;mcp&quot;]
+    }
+  }
+}</code></pre>
+<p>KJDraw does not discover provider keys, choose network endpoints or approve edits. Keep those responsibilities in the client or host and treat model text as untrusted input.</p>
 <div class="table-wrap"><table><thead><tr><th>Connection</th><th>Adapter value</th><th>Host transport</th></tr></thead><tbody><tr><td>OpenAI Responses</td><td><code>responses</code></td><td>Responses REST endpoint</td></tr><tr><td>Chat Completions-compatible services</td><td><code>chat-completions</code></td><td>The selected service&#39;s compatible endpoint; DeepSeek is one evaluation option</td></tr><tr><td>Claude Messages</td><td><code>anthropic-messages</code></td><td>Messages REST endpoint</td></tr><tr><td>Gemini GenerateContent</td><td><code>gemini-generate-content</code></td><td>GenerateContent REST endpoint, with model in the URL</td></tr><tr><td>Your framework, gateway or local model</td><td>Custom <code>KJAgentModel</code></td><td>Your own conversation bridge</td></tr></tbody></table></div>
 <p>The built-in adapters support the protocols listed above. Compatibility with a particular model or vendor extension depends on that endpoint&#39;s function-calling behavior. For text-only models, a custom bridge can parse and validate a structured response; never execute model-generated JavaScript.</p>
 <h2 id="en-models-quickstart">Wire the model once</h2>
@@ -124,11 +135,22 @@ console.log({ totals, transportWallMs, runWallMs, complete })</code></pre>
 <p>Protocol references: <a href="https://developers.openai.com/api/docs/guides/function-calling">OpenAI function calling</a>, <a href="https://api-docs.deepseek.com/guides/tool_calls/">DeepSeek tool calls</a>, <a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls">Claude tool results</a>, <a href="https://ai.google.dev/api/generate-content">Gemini GenerateContent</a>.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-models">
-          <header class="page-hero"><p class="eyebrow">KJDRAW / 接入你的模型</p>
-          <h1>接入你的模型</h1>
-          <p class="lead">接入你选择的模型、网关或 Agent 框架，共用一套 CAD 引擎与绘图工具。</p></header>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / 接入你的模型</p><h1>接入你的模型</h1><p class="lead">接入你选择的模型、网关或 Agent 框架，共用一套 CAD 引擎与绘图工具。</p></header>
           <h2 id="zh-models-connection">选择接入方式</h2>
 <p>KJDraw 不依赖特定 AI 厂商。选择协议适配器，传入模型和宿主请求函数，就能使用同一套 CAD 工具。其他框架、本地模型或协议可实现 <code>KJAgentModel</code>，无需修改绘图引擎。</p>
+<h2 id="zh-models-agent-client-matrix-zh">智能体与客户端接入矩阵</h2>
+<p>图档和工具契约不绑定模型厂商。能启动 stdio MCP server 的客户端可以直接使用同一套 KJDraw 工具；不原生支持 MCP 的客户端，可通过支持 MCP 的宿主转接，或直接调用 TypeScript 适配器。</p>
+<div class="table-wrap"><table><thead><tr><th>客户端或模型家族</th><th>推荐路径</th><th>变化的部分</th><th>保持不变的部分</th></tr></thead><tbody><tr><td>OpenAI Codex</td><td>在 Codex MCP 设置中注册 <code>kjdraw</code> stdio server</td><td>客户端配置</td><td>工具名、提案和审批边界</td></tr><tr><td>Claude Desktop、Cursor、Cline</td><td>在客户端 MCP 配置中加入同一 server</td><td>客户端配置</td><td>KJD/DXF 图档契约</td></tr><tr><td>Kimi Code、WorkBuddy、ZCode、TraeCode</td><td>运行用户级安装器，按提示完成一次导入</td><td>客户端配置与一次导入</td><td>本地文件和宿主审批</td></tr><tr><td>豆包、DeepSeek 及其他国产模型</td><td>通过支持 MCP 的宿主接入，或把工具调用 JSON 交给 <code>createKJModelAdapter</code> / <code>createKJDomesticModelAdapter</code></td><td>模型接口和传输层</td><td>CAD 工具、校验和回执</td></tr><tr><td>自建 Harness、网关或私有模型</td><td>实现 <code>KJAgentModel</code>，或由宿主暴露 stdio server</td><td>会话循环和凭据管理</td><td>KJDraw Agent 会话和图档模型</td></tr></tbody></table></div>
+<p>通用 MCP 配置：</p>
+<pre data-language="jsonc"><button class="copy" type="button">Copy</button><code>{
+  &quot;mcpServers&quot;: {
+    &quot;kjdraw&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [&quot;-y&quot;, &quot;@kanjieteam/kjdraw&quot;, &quot;mcp&quot;]
+    }
+  }
+}</code></pre>
+<p>KJDraw 不会搜索模型密钥、选择网络地址或批准修改；这些职责由客户端或宿主承担，模型文本始终按不可信输入处理。</p>
 <div class="table-wrap"><table><thead><tr><th>接入方式</th><th>适配器值</th><th>宿主请求目标</th></tr></thead><tbody><tr><td>OpenAI Responses</td><td><code>responses</code></td><td>Responses REST 接口</td></tr><tr><td>Chat Completions 兼容服务</td><td><code>chat-completions</code></td><td>所选服务的兼容接口；DeepSeek 只是测试选项之一</td></tr><tr><td>Claude Messages</td><td><code>anthropic-messages</code></td><td>Messages REST 接口</td></tr><tr><td>Gemini GenerateContent</td><td><code>gemini-generate-content</code></td><td>GenerateContent REST 接口，模型名放在 URL 中</td></tr><tr><td>自有框架、网关、本地模型</td><td>自定义 <code>KJAgentModel</code></td><td>你的会话桥接实现</td></tr></tbody></table></div>
 <p>内置适配器支持上表所列协议；具体模型和厂商扩展字段的兼容性取决于对应接口的工具调用行为。纯文本模型可通过自定义桥接解析并校验结构化结果，但不能执行模型输出的 JavaScript。</p>
 <h2 id="zh-models-quickstart">配置一次模型连接</h2>
@@ -181,10 +203,10 @@ console.log({ totals, transportWallMs, runWallMs, complete })</code></pre>
         </article>
         <nav class="pager" aria-label="Adjacent documentation"><a href="../agent/"><strong class="lang-en">Agent workflows</strong><strong class="lang-zh">Agent 工作流</strong></a><a href="../mcp/"><strong class="lang-en">MCP integration</strong><strong class="lang-zh">MCP 集成</strong></a></nav>
       </div>
-      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-models-connection">Choose a connection</a><a class="toc-level-2" href="#en-models-quickstart">Wire the model once</a><a class="toc-level-2" href="#en-models-task-tools">Choose tools for a task</a><a class="toc-level-2" href="#en-models-review">Review the result</a><a class="toc-level-2" href="#en-models-usage">Measure tokens and time</a><a class="toc-level-2" href="#en-models-example">Run the packaged example</a><a class="toc-level-2" href="#en-models-extend">Extend and validate</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-models-connection">选择接入方式</a><a class="toc-level-2" href="#zh-models-quickstart">配置一次模型连接</a><a class="toc-level-2" href="#zh-models-task-tools">按任务选择工具</a><a class="toc-level-2" href="#zh-models-review">处理运行结果</a><a class="toc-level-2" href="#zh-models-usage">测量 token 与耗时</a><a class="toc-level-2" href="#zh-models-example">运行包内示例</a><a class="toc-level-2" href="#zh-models-extend">扩展与验证</a></div></aside>
+      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-models-connection">Choose a connection</a><a class="toc-level-2" href="#en-models-agent-client-matrix">Agent and client matrix</a><a class="toc-level-2" href="#en-models-quickstart">Wire the model once</a><a class="toc-level-2" href="#en-models-task-tools">Choose tools for a task</a><a class="toc-level-2" href="#en-models-review">Review the result</a><a class="toc-level-2" href="#en-models-usage">Measure tokens and time</a><a class="toc-level-2" href="#en-models-example">Run the packaged example</a><a class="toc-level-2" href="#en-models-extend">Extend and validate</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-models-connection">选择接入方式</a><a class="toc-level-2" href="#zh-models-agent-client-matrix-zh">智能体与客户端接入矩阵</a><a class="toc-level-2" href="#zh-models-quickstart">配置一次模型连接</a><a class="toc-level-2" href="#zh-models-task-tools">按任务选择工具</a><a class="toc-level-2" href="#zh-models-review">处理运行结果</a><a class="toc-level-2" href="#zh-models-usage">测量 token 与耗时</a><a class="toc-level-2" href="#zh-models-example">运行包内示例</a><a class="toc-level-2" href="#zh-models-extend">扩展与验证</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=a22fc9bcdefe6724"></script>
+  <script type="module" src="../app.js?v=4c11fb426e748cc4"></script>
 </body>
 </html>

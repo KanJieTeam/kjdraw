@@ -43,6 +43,33 @@ Use KJDraw when you need to:
 KJDraw is not an image generator and it is not a collection of frozen templates. It
 is the execution layer between engineering intent and a reviewable CAD deliverable.
 
+## AI agent compatibility
+
+KJDraw exposes CAD tools through standard **stdio MCP**. Any MCP-compatible client can use the same server configuration; model-specific adapters are optional and the drawing contract stays unchanged. Drawing files, model credentials and approval decisions remain with the client or local host.
+
+| Client / entry point | Setup | Best for | Guide |
+| --- | --- | --- | --- |
+| **OpenAI Codex** | Add the `kjdraw` server to Codex MCP settings | Code-first agents that generate, inspect and edit KJD/DXF | [Model guide](https://kanjieteam.github.io/kjdraw/docs/latest/models/) |
+| **Claude Desktop / Cursor / Cline** | Add the `kjdraw` server to the client MCP config | General chat, IDE workflows and drawing review | [MCP integration](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/) |
+| **Kimi Code / WorkBuddy / ZCode / TraeCode** | Run the user-level installer; confirm the one-time import when prompted | Local desktop agent workflows | [Installation and security](docs/try-in-ai.md) |
+| **Doubao / DeepSeek / other domestic models** | Connect the same server through an MCP-capable host; keep the model key in that host | Enterprise, private-network and domestic-model workflows | [Agent workflows](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) |
+| **Custom agents / harnesses / enterprise hosts** | Register the same stdio MCP server, or call `agent-tools` and `model-adapters` from your host | Private deployments, custom UI and approval systems | [Model adapters](https://kanjieteam.github.io/kjdraw/docs/latest/models/) |
+| **No model required** | Use the TypeScript SDK, CLI or browser editor | Regression tests, batch jobs and human editing | [File workflow](https://kanjieteam.github.io/kjdraw/docs/latest/files/) |
+
+The portable MCP configuration is:
+
+```jsonc
+{
+  "mcpServers": {
+    "kjdraw": {
+      "command": "npx",
+      "args": ["-y", "@kanjieteam/kjdraw", "mcp"]
+    }
+  }
+}
+```
+
+After connecting, start with read-only queries and previews, then let the host approve a proposal. KJDraw never treats model text as proof of CAD success and does not overwrite the source drawing without an explicit host decision. See [Agent workflows](https://kanjieteam.github.io/kjdraw/docs/latest/agent/), [MCP integration](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/) and the [API reference](https://kanjieteam.github.io/kjdraw/docs/latest/api/) for tool definitions, approval protocol and model adapters.
 ## Quick start
 
 ### From an AI agent

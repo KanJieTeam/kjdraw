@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/deployment/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=a22fc9bcdefe6724">
+  <link rel="stylesheet" href="../style.css?v=4c11fb426e748cc4">
   <title>Deployment · KJDraw Docs</title>
 </head>
 <body>
@@ -68,9 +68,7 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-deployment">
-          <header class="page-hero"><p class="eyebrow">KJDRAW / DEPLOYMENT</p>
-          <h1>Deployment</h1>
-          <p class="lead">Keep browser-local operation simple or attach explicit project, compute and scene providers for other product topologies.</p></header>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / DEPLOYMENT</p><h1>Deployment</h1><p class="lead">Keep browser-local operation simple or attach explicit project, compute and scene providers for other product topologies.</p></header>
           <h2 id="en-deployment-supported-profiles">Supported profiles</h2>
 <div class="table-wrap"><table><thead><tr><th>Profile</th><th>Where project data lives</th><th>Typical use</th></tr></thead><tbody><tr><td><code>browser-local</code></td><td>KJP file or browser storage</td><td>Zero-install tools and offline review</td></tr><tr><td><code>desktop-local</code></td><td>Application-managed project file</td><td>Desktop engineering products</td></tr><tr><td><code>self-hosted</code></td><td>Organization-selected providers</td><td>Private networks and regulated environments</td></tr><tr><td><code>cloud-assisted</code></td><td>Host-selected remote services</td><td>Managed compute or conversion</td></tr><tr><td><code>hybrid</code></td><td>Explicit local and remote providers</td><td>Local editing with selected acceleration</td></tr></tbody></table></div>
 <p>KJDraw uses the same editor, document and file APIs in every profile. A registered provider runs only when the application invokes it.</p>
@@ -108,9 +106,7 @@ const deployment = validateDeploymentProfile(createDeploymentProfile({
 <p>See the runnable <a href="https://github.com/KanJieTeam/kjdraw/blob/main/examples/deployment-providers.mjs">deployment provider example</a>.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-deployment">
-          <header class="page-hero"><p class="eyebrow">KJDRAW / 部署</p>
-          <h1>部署</h1>
-          <p class="lead">既可保持浏览器本地运行，也可为其他产品形态显式连接工程、计算与场景 Provider。</p></header>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / 部署</p><h1>部署</h1><p class="lead">既可保持浏览器本地运行，也可为其他产品形态显式连接工程、计算与场景 Provider。</p></header>
           <h2 id="zh-deployment-supported-profiles">支持的部署形态</h2>
 <div class="table-wrap"><table><thead><tr><th>形态</th><th>工程数据位置</th><th>常见用途</th></tr></thead><tbody><tr><td><code>browser-local</code></td><td>KJP 文件或浏览器存储</td><td>零安装工具与离线审核</td></tr><tr><td><code>desktop-local</code></td><td>应用管理的工程文件</td><td>桌面工程产品</td></tr><tr><td><code>self-hosted</code></td><td>组织选择的 Provider</td><td>内网与合规环境</td></tr><tr><td><code>cloud-assisted</code></td><td>宿主选择的远程服务</td><td>托管计算或转换</td></tr><tr><td><code>hybrid</code></td><td>显式本地与远程 Provider</td><td>本地编辑加选择性加速</td></tr></tbody></table></div>
 <p>KJDraw 在每种形态下都使用同一套编辑器、图档与文件 API。已注册的 Provider 只会在应用主动调用时运行。</p>
@@ -153,6 +149,6 @@ const deployment = validateDeploymentProfile(createDeploymentProfile({
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=a22fc9bcdefe6724"></script>
+  <script type="module" src="../app.js?v=4c11fb426e748cc4"></script>
 </body>
 </html>

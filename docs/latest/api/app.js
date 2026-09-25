@@ -14,4 +14,8 @@ function render(){const terms=input.value.trim().toLowerCase().split(/\s+/).filt
 function escape(value){const span=document.createElement('span');span.textContent=value;return span.innerHTML}
 input.addEventListener('input',render);input.addEventListener('focus',render);document.addEventListener('click',event=>{if(!event.target.closest('.api-search-wrap'))results.hidden=true});window.addEventListener('keydown',event=>{if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName)){event.preventDefault();input.focus()}if(event.key==='Escape')results.hidden=true})
 results.addEventListener('click',event=>{if(event.target.closest('a'))results.hidden=true})
+const tocLinks=[...document.querySelectorAll('.api-toc a')]
+const tocSections=tocLinks.map(link=>document.getElementById(link.getAttribute('href').slice(1))).filter(Boolean)
+const tocObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){for(const link of tocLinks)link.classList.toggle('active',link.getAttribute('href')==='#'+entry.target.id)}}},{rootMargin:'-18% 0px -68% 0px',threshold:0})
+for(const section of tocSections)tocObserver.observe(section)
 applyLanguage()

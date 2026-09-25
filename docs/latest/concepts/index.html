@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/concepts/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=a22fc9bcdefe6724">
+  <link rel="stylesheet" href="../style.css?v=4c11fb426e748cc4">
   <title>Core concepts · KJDraw Docs</title>
 </head>
 <body>
@@ -68,9 +68,7 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-concepts">
-          <header class="page-hero"><p class="eyebrow">KJDRAW / CORE CONCEPTS</p>
-          <h1>Core concepts</h1>
-          <p class="lead">Learn the document, object identity, command, transaction, adapter and proposal concepts shared by every KJDraw integration.</p></header>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / CORE CONCEPTS</p><h1>Core concepts</h1><p class="lead">Learn the document, object identity, command, transaction, adapter and proposal concepts shared by every KJDraw integration.</p></header>
           <h2 id="en-concepts-document">One drawing, several projections</h2>
 <p><code>KJDocument</code> is the source of truth. The canvas, property panel, selection overlay, SVG preview and exported file are projections of that document; none of them replaces it. A document owns its units, resources, model and paper spaces, layouts and drawing objects.</p>
 <p>Saving KJD preserves KJDraw&#39;s native document data. DXF is an interchange projection with an explicitly published compatibility boundary. Reopen the produced file when a workflow needs evidence that serialization did not change the drawing.</p>
@@ -97,9 +95,7 @@ console.log(document.revision, circleId)</code></pre>
 <p>Continue with <strong>Commands and transactions</strong> for application edits, <strong>Agent workflows</strong> for reviewed model changes, and <strong>Knowledge packs</strong> for domain compilers.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-concepts">
-          <header class="page-hero"><p class="eyebrow">KJDRAW / 核心概念</p>
-          <h1>核心概念</h1>
-          <p class="lead">理解所有 KJDraw 接入共同使用的图档、对象身份、命令、事务、适配器与提案概念。</p></header>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / 核心概念</p><h1>核心概念</h1><p class="lead">理解所有 KJDraw 接入共同使用的图档、对象身份、命令、事务、适配器与提案概念。</p></header>
           <h2 id="zh-concepts-document">一份图档，多种投影</h2>
 <p><code>KJDocument</code> 是规范真相。画布、属性面板、选择覆盖层、SVG 预览和导出文件都是图档的投影，任何一个都不能替代图档本身。图档管理单位、资源、模型/图纸空间、布局和绘图对象。</p>
 <p>保存 KJD 会保留 KJDraw 原生图档数据；DXF 是有明确公开兼容边界的交换投影。流程需要证明序列化没有改变图纸时，应重新打开生成的文件进行验证。</p>
@@ -131,6 +127,6 @@ console.log(document.revision, circleId)</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=a22fc9bcdefe6724"></script>
+  <script type="module" src="../app.js?v=4c11fb426e748cc4"></script>
 </body>
 </html>

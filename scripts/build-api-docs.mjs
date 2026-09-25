@@ -369,24 +369,30 @@ const editorHtml = `<!doctype html>
   </header>
   <div class="api-shell">
     <aside class="api-sidebar">
-      <div class="version"><span>${localized('RECOMMENDED API', '推荐 API')}</span><strong>v${escapeHtml(packageJson.version)}</strong></div>
+      <div class="version"><span>${localized('DOCUMENT VERSION', '文档版本')}</span><strong>v${escapeHtml(packageJson.version)}</strong></div>
+      <div class="api-tree-label">${localized('Editor API', '编辑器 API')}</div>
       <nav>
-        <a href="#overview">${localized('Overview', '概览')}</a>
+        <a class="active" href="#overview">${localized('Editor API overview', 'Editor API 简介')}</a>
         <a href="#quickstart">${localized('Quickstart', '快速接入')}</a>
-        <a href="#options">Options</a>
-        <a href="#properties">Properties</a>
-        <a href="#methods">Methods</a>
-        <a href="#events">Events</a>
+        <a href="#options">${localized('Options', '选项')}</a>
+        <a href="#properties">${localized('Properties', '属性')}</a>
+        <a href="#methods">${localized('Methods', '方法')}</a>
+        <a href="#events">${localized('Events', '事件')}</a>
+      </nav>
+      <div class="api-tree-label">${localized('Frameworks', '框架集成')}</div>
+      <nav>
         <a href="#frameworks">React / Vue</a>
         <a href="#advanced">${localized('Advanced access', '高级入口')}</a>
-        <a class="reference-link" href="./reference/">${localized('All package exports', '全部包导出')} <span>→</span></a>
       </nav>
+      <div class="api-tree-label">${localized('Reference', '参考')}</div>
+      <nav><a class="reference-link" href="./reference/">${localized('All package exports', '全部包导出')} <span>→</span></a></nav>
     </aside>
     <main class="api-main">
       <article>
         <section class="api-hero" id="overview">
-          <p class="eyebrow">@kanjieteam/kjdraw</p>
-          <h1>${localized(editorGuide.title.en, editorGuide.title.zh)}</h1>
+          <div class="api-breadcrumb"><a href="../">KJDraw</a><span>/</span><a href="../quickstart/">${localized('Guides', '指南')}</a><span>/</span><strong>API</strong></div>
+          <div class="api-hero-row"><div><p class="eyebrow">@kanjieteam/kjdraw</p>
+          <h1>${localized(editorGuide.title.en, editorGuide.title.zh)}</h1></div><button class="api-page-action" type="button" data-copy-value="https://kanjieteam.github.io/kjdraw/docs/latest/api/">${localized('Copy link', '复制链接')}</button></div>
           <p class="lead">${localized(editorGuide.lead.en, editorGuide.lead.zh)}</p>
           <div class="install"><code>${escapeHtml(installCommand)}</code><button type="button" data-copy-value="${escapeHtml(installCommand)}">Copy</button></div>
 ${installFromRelease ? `          <p>${localized('Install the published GitHub release package. npm registry publication is pending.', '安装已发布的 GitHub Release 包；npm 仓库发布尚待完成。')}</p>` : ''}
@@ -443,7 +449,7 @@ ${installFromRelease ? `          <p>${localized('Install the published GitHub r
         </section>
       </article>
     </main>
-    <aside class="api-toc"><b>${localized('On this page', '本页目录')}</b><a href="#overview">${localized('Overview', '概览')}</a><a href="#quickstart">${localized('Quickstart', '快速接入')}</a><a href="#options">${localized('Options', '选项')}</a><a href="#properties">${localized('Properties', '属性')}</a><a href="#methods">${localized('Methods', '方法')}</a><div class="api-toc-methods">${editorGuide.methods.map(method => `<a href="#method-${slug(method.name)}">${escapeHtml(method.name)}()</a>`).join('')}</div><a href="#events">${localized('Events', '事件')}</a><a href="#frameworks">React / Vue</a><a href="#advanced">${localized('Advanced access', '高级入口')}</a></aside>
+    <aside class="api-toc"><b>${localized('On this page', '本页目录')}</b><span class="api-toc-caption">${localized('Editor API', '编辑器 API')}</span><a href="#overview">${localized('Overview', '概览')}</a><a href="#quickstart">${localized('Quickstart', '快速接入')}</a><a href="#options">${localized('Options', '选项')}</a><a href="#properties">${localized('Properties', '属性')}</a><a href="#methods">${localized('Methods', '方法')}</a><div class="api-toc-methods">${editorGuide.methods.map(method => `<a href="#method-${slug(method.name)}">${escapeHtml(method.name)}()</a>`).join('')}</div><a href="#events">${localized('Events', '事件')}</a><a href="#frameworks">React / Vue</a><a href="#advanced">${localized('Advanced access', '高级入口')}</a></aside>
   </div>
   <script type="module" src="./app.js"></script>
 </body>
@@ -466,6 +472,10 @@ function render(){const terms=input.value.trim().toLowerCase().split(/\\s+/).fil
 function escape(value){const span=document.createElement('span');span.textContent=value;return span.innerHTML}
 input.addEventListener('input',render);input.addEventListener('focus',render);document.addEventListener('click',event=>{if(!event.target.closest('.api-search-wrap'))results.hidden=true});window.addEventListener('keydown',event=>{if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName)){event.preventDefault();input.focus()}if(event.key==='Escape')results.hidden=true})
 results.addEventListener('click',event=>{if(event.target.closest('a'))results.hidden=true})
+const tocLinks=[...document.querySelectorAll('.api-toc a')]
+const tocSections=tocLinks.map(link=>document.getElementById(link.getAttribute('href').slice(1))).filter(Boolean)
+const tocObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){for(const link of tocLinks)link.classList.toggle('active',link.getAttribute('href')==='#'+entry.target.id)}}},{rootMargin:'-18% 0px -68% 0px',threshold:0})
+for(const section of tocSections)tocObserver.observe(section)
 applyLanguage()
 `
 
@@ -554,6 +564,9 @@ const apiLayoutCss = `
 @media(max-width:767px){.topbar{height:64px;padding:0 16px}.brand{width:auto}.top-links{margin-left:auto;gap:10px}.top-links>a{display:none}.api-search-wrap,.api-search{width:min(170px,42vw)}.api-main,.reference-main{padding:26px 16px 72px}.framework-grid,.advanced-grid,.api-method dl{grid-template-columns:1fr}.wide-table{width:100%}}
 `
 
+const apiDocsPolish = `
+.api-tree-label{margin:22px 8px 8px;color:#9099a7;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}.api-sidebar nav a.active{background:#eaf0ff;color:#1d56bc;font-weight:600}.api-sidebar .reference-link{display:flex;justify-content:space-between;margin-top:4px;padding-top:9px;border-top:0;color:#526071}.api-breadcrumb{display:flex;align-items:center;gap:8px;margin-bottom:22px;color:#8793a1;font-size:12px}.api-breadcrumb a{color:#657386;text-decoration:none}.api-breadcrumb a:hover{color:#1d56bc}.api-breadcrumb strong{color:#25344b;font-weight:600}.api-hero-row{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}.api-page-action{flex:none;border:1px solid #d7dee8;border-radius:7px;background:#fff;color:#596779;padding:7px 10px;font-size:12px;cursor:pointer}.api-page-action:hover{border-color:#9bb7f0;color:#1d56bc;background:#f7faff}.api-main section{padding-top:35px}.api-main section:first-of-type{padding-top:0}.api-main section>h2{margin-top:0;padding-top:0}.api-main section>h2::after{content:'';display:inline-block;width:26px;height:1px;margin:5px 0 0 9px;background:#9bb8f5}.api-toc-caption{margin:-2px 0 3px;color:#9aa5b2;font-size:11px}.api-toc a{padding:2px 0;color:#657182;text-decoration:none}.api-toc a.active{color:#1d56bc;font-weight:600}.api-toc a.active::before{content:'';display:inline-block;width:2px;height:13px;margin-right:7px;vertical-align:-2px;border-radius:2px;background:#2863f0}.api-toc-methods a{font-size:11px}
+`
 const outputs = new Map([
   ['api-reference.json', `${JSON.stringify(api, null, 2)}\n`],
   ['editor-api.json', `${JSON.stringify(editorApi, null, 2)}\n`],

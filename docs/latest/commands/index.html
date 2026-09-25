@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/commands/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=a22fc9bcdefe6724">
+  <link rel="stylesheet" href="../style.css?v=4c11fb426e748cc4">
   <title>Commands and transactions · KJDraw Docs</title>
 </head>
 <body>
@@ -68,9 +68,7 @@
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-commands">
-          <header class="page-hero"><p class="eyebrow">KJDRAW / COMMANDS AND TRANSACTIONS</p>
-          <h1>Commands and transactions</h1>
-          <p class="lead">Make every UI, automation and Agent edit observable through the same revisioned transactional boundary.</p></header>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / COMMANDS AND TRANSACTIONS</p><h1>Commands and transactions</h1><p class="lead">Make every UI, automation and Agent edit observable through the same revisioned transactional boundary.</p></header>
           <h2 id="en-commands-execute-a-command">Execute a command</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const line = await sdk.executeCommand(&#39;CREATE&#39;, {
   type: &#39;LINE&#39;,
@@ -124,9 +122,7 @@ console.log(receipt.command, receipt.afterRevision)</code></pre>
 <p>Subscribe through <code>sdk.events.on(&#39;command:committed&#39;, listener)</code> and dispose the returned function when its owning UI scope unmounts. Renderers should derive their display state from the committed document rather than mutate canonical geometry directly.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-commands">
-          <header class="page-hero"><p class="eyebrow">KJDRAW / 命令与事务</p>
-          <h1>命令与事务</h1>
-          <p class="lead">让 UI、自动化与 Agent 修改都经过同一条带修订号、可观察的事务边界。</p></header>
+          <header class="page-hero"><p class="eyebrow">KJDRAW / 命令与事务</p><h1>命令与事务</h1><p class="lead">让 UI、自动化与 Agent 修改都经过同一条带修订号、可观察的事务边界。</p></header>
           <h2 id="zh-commands-execute-a-command">执行命令</h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const line = await sdk.executeCommand(&#39;CREATE&#39;, {
   type: &#39;LINE&#39;,
@@ -185,6 +181,6 @@ console.log(receipt.command, receipt.afterRevision)</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=a22fc9bcdefe6724"></script>
+  <script type="module" src="../app.js?v=4c11fb426e748cc4"></script>
 </body>
 </html>

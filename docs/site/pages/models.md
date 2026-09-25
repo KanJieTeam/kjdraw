@@ -9,6 +9,32 @@ summary.zh: 接入你选择的模型、网关或 Agent 框架，共用一套 CAD
 ## Choose a connection {#connection}
 
 KJDraw does not require a particular AI vendor. Choose a protocol adapter, supply your model and host transport, and run the same CAD tools. A custom `KJAgentModel` connects frameworks, local models or other protocols without changing the drawing engine.
+## Agent and client matrix {#agent-client-matrix}
+
+The drawing contract is independent of the model vendor. A client that can launch an stdio MCP server can use the same KJDraw tools; clients without native MCP support can connect through an MCP-capable host or call the TypeScript adapter directly.
+
+| Client or model family | Recommended path | What changes | What stays the same |
+| --- | --- | --- | --- |
+| OpenAI Codex | Register the `kjdraw` stdio server in Codex MCP settings | Client configuration only | Tool names, proposals and approval boundary |
+| Claude Desktop, Cursor, Cline | Add the same server entry to the client's MCP configuration | Client configuration only | KJD/DXF document contract |
+| Kimi Code, WorkBuddy, ZCode, TraeCode | Run the user-level installer and follow the client's import prompt | Client configuration and one-time import | Local files and host approval |
+| Doubao, DeepSeek and other domestic models | Use an MCP-capable host, or pass their tool-call JSON through `createKJModelAdapter` / `createKJDomesticModelAdapter` | Provider endpoint and transport | CAD tools, validation and receipts |
+| Custom harness, gateway or private model | Implement `KJAgentModel` or expose the stdio server from the host | Your conversation loop and credentials | The KJDraw agent session and document model |
+
+Portable MCP entry:
+
+```jsonc
+{
+  "mcpServers": {
+    "kjdraw": {
+      "command": "npx",
+      "args": ["-y", "@kanjieteam/kjdraw", "mcp"]
+    }
+  }
+}
+```
+
+KJDraw does not discover provider keys, choose network endpoints or approve edits. Keep those responsibilities in the client or host and treat model text as untrusted input.
 
 | Connection | Adapter value | Host transport |
 | --- | --- | --- |
@@ -108,6 +134,32 @@ Protocol references: [OpenAI function calling](https://developers.openai.com/api
 ## 选择接入方式 {#connection}
 
 KJDraw 不依赖特定 AI 厂商。选择协议适配器，传入模型和宿主请求函数，就能使用同一套 CAD 工具。其他框架、本地模型或协议可实现 `KJAgentModel`，无需修改绘图引擎。
+## 智能体与客户端接入矩阵 {#agent-client-matrix-zh}
+
+图档和工具契约不绑定模型厂商。能启动 stdio MCP server 的客户端可以直接使用同一套 KJDraw 工具；不原生支持 MCP 的客户端，可通过支持 MCP 的宿主转接，或直接调用 TypeScript 适配器。
+
+| 客户端或模型家族 | 推荐路径 | 变化的部分 | 保持不变的部分 |
+| --- | --- | --- | --- |
+| OpenAI Codex | 在 Codex MCP 设置中注册 `kjdraw` stdio server | 客户端配置 | 工具名、提案和审批边界 |
+| Claude Desktop、Cursor、Cline | 在客户端 MCP 配置中加入同一 server | 客户端配置 | KJD/DXF 图档契约 |
+| Kimi Code、WorkBuddy、ZCode、TraeCode | 运行用户级安装器，按提示完成一次导入 | 客户端配置与一次导入 | 本地文件和宿主审批 |
+| 豆包、DeepSeek 及其他国产模型 | 通过支持 MCP 的宿主接入，或把工具调用 JSON 交给 `createKJModelAdapter` / `createKJDomesticModelAdapter` | 模型接口和传输层 | CAD 工具、校验和回执 |
+| 自建 Harness、网关或私有模型 | 实现 `KJAgentModel`，或由宿主暴露 stdio server | 会话循环和凭据管理 | KJDraw Agent 会话和图档模型 |
+
+通用 MCP 配置：
+
+```jsonc
+{
+  "mcpServers": {
+    "kjdraw": {
+      "command": "npx",
+      "args": ["-y", "@kanjieteam/kjdraw", "mcp"]
+    }
+  }
+}
+```
+
+KJDraw 不会搜索模型密钥、选择网络地址或批准修改；这些职责由客户端或宿主承担，模型文本始终按不可信输入处理。
 
 | 接入方式 | 适配器值 | 宿主请求目标 |
 | --- | --- | --- |
