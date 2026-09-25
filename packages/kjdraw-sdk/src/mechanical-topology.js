@@ -129,6 +129,10 @@ export function detectMechanicalFourHoleBoltCircle(entities) {
                 item.y
             ]).sort((left, right)=>Math.atan2(left[1] - cy, left[0] - cx) - Math.atan2(right[1] - cy, right[0] - cx));
         if (found.some((item)=>near(item.center[0], cx) && near(item.center[1], cy) && near(item.pitchDiameter, pitchRadius * 2) && near(item.holeDiameter, a.radius * 2) && item.holeCenters.every((other, index)=>near(other[0], holeCenters[index][0]) && near(other[1], holeCenters[index][1])))) continue;
+        const quarterTurn = Math.PI / 2;
+        const angle = Math.atan2(holeCenters[0][1] - cy, holeCenters[0][0] - cx);
+        const normalizedAngle = (angle % quarterTurn + quarterTurn) % quarterTurn;
+        const startAngleRadians = Math.min(normalizedAngle, quarterTurn - normalizedAngle) < 1e-10 ? 0 : normalizedAngle;
         found.push({
             center: [
                 cx,
@@ -136,6 +140,7 @@ export function detectMechanicalFourHoleBoltCircle(entities) {
             ],
             pitchDiameter: pitchRadius * 2,
             holeDiameter: a.radius * 2,
+            startAngleRadians,
             holeCenters
         });
     }

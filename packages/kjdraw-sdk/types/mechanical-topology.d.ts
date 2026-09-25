@@ -24,6 +24,8 @@ export interface KJMechanicalFourHoleBoltCircle {
     center: readonly [number, number];
     pitchDiameter: number;
     holeDiameter: number;
+    /** Canonical angle of one hole in [0, π/2); suitable for a 4-hole component INSERT. */
+    startAngleRadians: number;
     holeCenters: readonly (readonly [number, number])[];
 }
 export interface KJMechanicalFourHoleBoltCircleDetection {

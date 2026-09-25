@@ -27,6 +27,8 @@ export interface KJMechanicalFourHoleBoltCircle {
   center: readonly [number, number]
   pitchDiameter: number
   holeDiameter: number
+  /** Canonical angle of one hole in [0, π/2); suitable for a 4-hole component INSERT. */
+  startAngleRadians: number
   holeCenters: readonly (readonly [number, number])[]
 }
 
@@ -150,7 +152,11 @@ export function detectMechanicalFourHoleBoltCircle(entities: readonly KJMechanic
     if (found.some(item => near(item.center[0], cx) && near(item.center[1], cy)
       && near(item.pitchDiameter, pitchRadius * 2) && near(item.holeDiameter, a.radius * 2)
       && item.holeCenters.every((other, index) => near(other[0], holeCenters[index]![0]) && near(other[1], holeCenters[index]![1])))) continue
-    found.push({ center: [cx, cy], pitchDiameter: pitchRadius * 2, holeDiameter: a.radius * 2, holeCenters })
+    const quarterTurn = Math.PI / 2
+    const angle = Math.atan2(holeCenters[0]![1] - cy, holeCenters[0]![0] - cx)
+    const normalizedAngle = ((angle % quarterTurn) + quarterTurn) % quarterTurn
+    const startAngleRadians = Math.min(normalizedAngle, quarterTurn - normalizedAngle) < 1e-10 ? 0 : normalizedAngle
+    found.push({ center: [cx, cy], pitchDiameter: pitchRadius * 2, holeDiameter: a.radius * 2, startAngleRadians, holeCenters })
   }
   found.sort((left, right) => left.center[0] - right.center[0] || left.center[1] - right.center[1]
     || left.pitchDiameter - right.pitchDiameter || left.holeDiameter - right.holeDiameter)

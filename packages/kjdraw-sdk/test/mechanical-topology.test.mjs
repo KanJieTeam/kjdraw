@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { detectMechanicalBearingSeatEndView, detectMechanicalFourHoleBoltCircle } from '../src/index.js'
+import { createKJDrawSDK, detectMechanicalBearingSeatEndView, detectMechanicalFourHoleBoltCircle } from '../src/index.js'
 
 const center = (x = 0, y = 0) => {
   const angle = Math.acos(18 / 38)
@@ -68,6 +68,7 @@ test('extracts a rotated four-hole PCD feature from noisy native circles without
   assert.deepEqual(feature.center, [230, 126])
   assert.equal(feature.pitchDiameter, 90)
   assert.equal(feature.holeDiameter, 10)
+  assert.ok(Math.abs(feature.startAngleRadians - Math.PI / 6) < 1e-12)
   assert.equal(feature.holeCenters.length, 4)
   assert.deepEqual(feature.holeCenters.map(([x, y]) => Math.round(Math.hypot(x - 230, y - 126))), [45, 45, 45, 45])
   assert.deepEqual(detectMechanicalFourHoleBoltCircle(entities.slice().reverse()), result)
@@ -95,4 +96,54 @@ test('separate four-hole features are reported as ambiguous and dense inputs abs
   assert.equal(samePitchDifferentRotation.status, 'ambiguous')
   assert.equal(samePitchDifferentRotation.candidates.length, 2)
   assert.equal(detectMechanicalFourHoleBoltCircle(new Array(127).fill({ type: 'CIRCLE', payload: { center: [0, 0], radius: 1 } })).status, 'none')
+})
+const circleFacts = circles => circles.map(item => {
+  const center = item.payload.center
+  return [center[0], center[1], item.payload.radius].map(value => Math.round(value * 1e8) / 1e8)
+}).sort((left, right) => left[0] - right[0] || left[1] - right[1] || left[2] - right[2])
+
+function expandedComponentCircles(document) {
+  const insert = document.listEntities({ ownerId: document.snapshot().spaces.modelSpaceId, type: 'INSERT' })
+  assert.equal(insert.length, 1)
+  const instance = insert[0], members = document.listEntities({ ownerId: instance.payload.blockRecordId, type: 'CIRCLE' })
+  assert.equal(members.length, 6)
+  const [x, y] = instance.payload.position, rotation = instance.payload.rotation ?? 0
+  const [sx, sy] = instance.payload.scale ?? [1, 1]
+  assert.equal(sx, 1)
+  assert.equal(sy, 1)
+  return members.map(item => {
+    const [localX, localY] = item.payload.center
+    return { payload: { center: [x + localX * Math.cos(rotation) - localY * Math.sin(rotation),
+      y + localX * Math.sin(rotation) + localY * Math.cos(rotation)], radius: item.payload.radius } }
+  })
+}
+
+test('detected rotated four-hole facts drive native parametric generation with exact KJD/DXF reopen', async () => {
+  const source = [
+    { type: 'CIRCLE', payload: { center: [230, 126, 0], radius: 60 } },
+    { type: 'CIRCLE', payload: { center: [230, 126, 0], radius: 20 } },
+    ...boltCircle(230, 126, 45, 5, Math.PI / 6),
+  ]
+  const detection = detectMechanicalFourHoleBoltCircle(source)
+  assert.equal(detection.status, 'match')
+  const feature = detection.candidates[0]
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const component = await sdk.executeCommand('COMPONENTINSERT', {
+    componentId: 'org.kjdraw.mechanical.four-hole-flange', version: '1.0.0', units: 'millimeter',
+    position: feature.center, rotation: feature.startAngleRadians, scale: 1,
+    parameters: {
+      outerDiameter: source[0].payload.radius * 2, boreDiameter: source[1].payload.radius * 2,
+      boltCircleDiameter: feature.pitchDiameter, holeDiameter: feature.holeDiameter, holeCount: 4,
+    },
+  }, { document, expectedRevision: 0 })
+  assert.equal(document.revision, 1)
+  assert.equal(component.definitionEntityCount, 6)
+  const expected = circleFacts(source)
+  assert.deepEqual(circleFacts(expandedComponentCircles(document)), expected)
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await createKJDrawSDK().readDocument(bytes, { format })
+    assert.equal(reopened.validate().valid, true)
+    assert.deepEqual(circleFacts(expandedComponentCircles(reopened)), expected)
+  }
 })
