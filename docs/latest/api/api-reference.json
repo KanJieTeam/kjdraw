@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:b4a4d14818213ffae288aa14ac40dcdbdcc5a59d05c3cb4b9e4d7783d473f1d9",
+  "sourceDigest": "sha256:734d197dccb887be21a1d8ce1caf1d0821ea601ea17570d65b62df4c27fee00b",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -6639,6 +6639,13 @@
           "anchor": "root-function-detectmechanicalbearingseatendview"
         },
         {
+          "name": "detectMechanicalFourHoleBoltCircle",
+          "kind": "function",
+          "declaration": "export declare function detectMechanicalFourHoleBoltCircle(entities: readonly KJMechanicalTopologyEntity[]): KJMechanicalFourHoleBoltCircleDetection;",
+          "source": "mechanical-topology.d.ts",
+          "anchor": "root-function-detectmechanicalfourholeboltcircle"
+        },
+        {
           "name": "determinant3",
           "kind": "function",
           "declaration": "export declare function determinant3(value: AffineMatrix3Input): number;",
@@ -10613,6 +10620,20 @@
           "declaration": "export interface KJMechanicalBearingSeatEndView {\n    center: readonly [number, number];\n    crownRadius: number;\n    housingDiameter: number;\n    boreDiameter: number;\n    mountingHoleDiameter: number;\n    mountingHoleSpacing: number;\n}",
           "source": "mechanical-topology.d.ts",
           "anchor": "root-interface-kjmechanicalbearingseatendview"
+        },
+        {
+          "name": "KJMechanicalFourHoleBoltCircle",
+          "kind": "interface",
+          "declaration": "export interface KJMechanicalFourHoleBoltCircle {\n    center: readonly [number, number];\n    pitchDiameter: number;\n    holeDiameter: number;\n    holeCenters: readonly (readonly [number, number])[];\n}",
+          "source": "mechanical-topology.d.ts",
+          "anchor": "root-interface-kjmechanicalfourholeboltcircle"
+        },
+        {
+          "name": "KJMechanicalFourHoleBoltCircleDetection",
+          "kind": "interface",
+          "declaration": "export interface KJMechanicalFourHoleBoltCircleDetection {\n    status: 'match' | 'none' | 'ambiguous';\n    candidates: readonly KJMechanicalFourHoleBoltCircle[];\n}",
+          "source": "mechanical-topology.d.ts",
+          "anchor": "root-interface-kjmechanicalfourholeboltcircledetection"
         },
         {
           "name": "KJMechanicalTopologyEntity",

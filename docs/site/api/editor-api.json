@@ -4,7 +4,7 @@
   "class": "KJDrawEditor",
   "distribution": {
     "version": "1.0.0-rc.3",
-    "channel": "npm"
+    "channel": "source"
   },
   "title": {
     "en": "KJDraw Editor API",

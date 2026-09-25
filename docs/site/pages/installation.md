@@ -18,12 +18,11 @@ KJDraw's core has no runtime npm dependencies. React and Vue are optional peer d
 
 | Intent | Command |
 | --- | --- |
-| Try the current release candidate | `npm install @kanjieteam/kjdraw@next` |
-| Pin this documented release | `npm install @kanjieteam/kjdraw@1.0.0-rc.3` |
-| Install the stable channel | `npm install @kanjieteam/kjdraw@latest` |
-| Install a local checkout | `npm install /path/to/kjdraw/packages/kjdraw-sdk` |
+| Try the published release-candidate channel | `npm install @kanjieteam/kjdraw@next` |
+| Check available version tags | `npm view @kanjieteam/kjdraw dist-tags` |
+| Install a built local checkout | `npm install /path/to/kjdraw/packages/kjdraw-sdk` |
 
-Use `next` for prereleases and `latest` for stable releases. Pin an exact version when builds must remain reproducible, and confirm the resolved version with `npm list @kanjieteam/kjdraw`.
+These source documents may describe APIs newer than the published `next` package. Check the resolved version with `npm list @kanjieteam/kjdraw` before using version-marked APIs. The npm `latest` tag is not a stable 1.0 release yet. For the documented candidate, clone the repository, run `npm install && npm run build:runtime && npm run build:types` there, then install its `packages/kjdraw-sdk` directory into your application. Pin an exact *published* version for reproducible builds.
 
 ## Verify the installation {#verify-installation}
 
@@ -60,12 +59,11 @@ KJDraw 核心的 npm 运行时依赖为零。React、Vue 是可选 peer dependen
 
 | 目标 | 命令 |
 | --- | --- |
-| 试用当前候选版 | `npm install @kanjieteam/kjdraw@next` |
-| 锁定本文档对应版本 | `npm install @kanjieteam/kjdraw@1.0.0-rc.3` |
-| 安装稳定渠道 | `npm install @kanjieteam/kjdraw@latest` |
-| 安装本地 checkout | `npm install /path/to/kjdraw/packages/kjdraw-sdk` |
+| 试用已发布的候选版渠道 | `npm install @kanjieteam/kjdraw@next` |
+| 查询可用版本标签 | `npm view @kanjieteam/kjdraw dist-tags` |
+| 安装已构建的本地源码 | `npm install /path/to/kjdraw/packages/kjdraw-sdk` |
 
-预发布版本使用 `next`，稳定版本使用 `latest`。需要可复现构建时应锁定确切版本，并用 `npm list @kanjieteam/kjdraw` 核对实际安装结果。
+本源码文档可能包含比 npm `next` 包更新的 API。使用标注版本的 API 前，先运行 `npm list @kanjieteam/kjdraw` 核对实际安装版本。npm `latest` 标签目前也不是稳定 1.0。若需使用本文档对应的候选版，请克隆仓库，在仓库中运行 `npm install && npm run build:runtime && npm run build:types`，然后在你的应用里安装其 `packages/kjdraw-sdk` 目录。需要可复现构建时，锁定已经公开发布的确切版本。
 
 ## 验证安装 {#verify-installation}
 

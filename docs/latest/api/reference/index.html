@@ -16761,6 +16761,12 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <details class="symbol-declaration"><summary><span class="lang-en">Type declaration</span><span class="lang-zh">类型声明</span></summary><pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function detectMechanicalBearingSeatEndView(entities: readonly KJMechanicalTopologyEntity[]): KJMechanicalBearingSeatDetection;</code></pre></details>
       <p class="source-path">mechanical-topology.d.ts</p>
     </article>
+<article class="api-symbol" id="root-function-detectmechanicalfourholeboltcircle" data-search="detectmechanicalfourholeboltcircle function @kanjieteam/kjdraw export declare function detectmechanicalfourholeboltcircle(entities: readonly kjmechanicaltopologyentity[]): kjmechanicalfourholeboltcircledetection;">
+      <header><div><span class="kind">function</span><h3>detectMechanicalFourHoleBoltCircle</h3></div><a class="permalink" href="#root-function-detectmechanicalfourholeboltcircle" aria-label="Link to detectMechanicalFourHoleBoltCircle"></a></header>
+      <div class="symbol-import"><code>import { detectMechanicalFourHoleBoltCircle } from &#39;@kanjieteam/kjdraw&#39;</code><button type="button" data-copy-import="import { detectMechanicalFourHoleBoltCircle } from &#39;@kanjieteam/kjdraw&#39;"><span class="lang-en">Copy import</span><span class="lang-zh">复制导入</span></button></div>
+      <details class="symbol-declaration"><summary><span class="lang-en">Type declaration</span><span class="lang-zh">类型声明</span></summary><pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function detectMechanicalFourHoleBoltCircle(entities: readonly KJMechanicalTopologyEntity[]): KJMechanicalFourHoleBoltCircleDetection;</code></pre></details>
+      <p class="source-path">mechanical-topology.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-function-determinant3" data-search="determinant3 function @kanjieteam/kjdraw export declare function determinant3(value: affinematrix3input): number;">
       <header><div><span class="kind">function</span><h3>determinant3</h3></div><a class="permalink" href="#root-function-determinant3" aria-label="Link to determinant3"></a></header>
       <div class="symbol-import"><code>import { determinant3 } from &#39;@kanjieteam/kjdraw&#39;</code><button type="button" data-copy-import="import { determinant3 } from &#39;@kanjieteam/kjdraw&#39;"><span class="lang-en">Copy import</span><span class="lang-zh">复制导入</span></button></div>
@@ -29046,6 +29052,34 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre></d
     boreDiameter: number;
     mountingHoleDiameter: number;
     mountingHoleSpacing: number;
+}</code></pre></details>
+      <p class="source-path">mechanical-topology.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjmechanicalfourholeboltcircle" data-search="kjmechanicalfourholeboltcircle interface @kanjieteam/kjdraw export interface kjmechanicalfourholeboltcircle {
+    center: readonly [number, number];
+    pitchdiameter: number;
+    holediameter: number;
+    holecenters: readonly (readonly [number, number])[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJMechanicalFourHoleBoltCircle</h3></div><a class="permalink" href="#root-interface-kjmechanicalfourholeboltcircle" aria-label="Link to KJMechanicalFourHoleBoltCircle"></a></header>
+      <div class="symbol-import"><code>import type { KJMechanicalFourHoleBoltCircle } from &#39;@kanjieteam/kjdraw&#39;</code><button type="button" data-copy-import="import type { KJMechanicalFourHoleBoltCircle } from &#39;@kanjieteam/kjdraw&#39;"><span class="lang-en">Copy import</span><span class="lang-zh">复制导入</span></button></div>
+      <details class="symbol-declaration"><summary><span class="lang-en">Type declaration</span><span class="lang-zh">类型声明</span></summary><pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJMechanicalFourHoleBoltCircle {
+    center: readonly [number, number];
+    pitchDiameter: number;
+    holeDiameter: number;
+    holeCenters: readonly (readonly [number, number])[];
+}</code></pre></details>
+      <p class="source-path">mechanical-topology.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjmechanicalfourholeboltcircledetection" data-search="kjmechanicalfourholeboltcircledetection interface @kanjieteam/kjdraw export interface kjmechanicalfourholeboltcircledetection {
+    status: &#39;match&#39; | &#39;none&#39; | &#39;ambiguous&#39;;
+    candidates: readonly kjmechanicalfourholeboltcircle[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJMechanicalFourHoleBoltCircleDetection</h3></div><a class="permalink" href="#root-interface-kjmechanicalfourholeboltcircledetection" aria-label="Link to KJMechanicalFourHoleBoltCircleDetection"></a></header>
+      <div class="symbol-import"><code>import type { KJMechanicalFourHoleBoltCircleDetection } from &#39;@kanjieteam/kjdraw&#39;</code><button type="button" data-copy-import="import type { KJMechanicalFourHoleBoltCircleDetection } from &#39;@kanjieteam/kjdraw&#39;"><span class="lang-en">Copy import</span><span class="lang-zh">复制导入</span></button></div>
+      <details class="symbol-declaration"><summary><span class="lang-en">Type declaration</span><span class="lang-zh">类型声明</span></summary><pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJMechanicalFourHoleBoltCircleDetection {
+    status: &#39;match&#39; | &#39;none&#39; | &#39;ambiguous&#39;;
+    candidates: readonly KJMechanicalFourHoleBoltCircle[];
 }</code></pre></details>
       <p class="source-path">mechanical-topology.d.ts</p>
     </article>

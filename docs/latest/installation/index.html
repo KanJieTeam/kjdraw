@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/installation/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=b5d7d2cd29f10fc1">
+  <link rel="stylesheet" href="../style.css?v=240a5dc28007e50a">
   <title>Installation · KJDraw Docs</title>
 </head>
 <body>
@@ -77,8 +77,8 @@
 </ul>
 <p>KJDraw&#39;s core has no runtime npm dependencies. React and Vue are optional peer dependencies: install the framework your application uses when importing <code>/react</code> or <code>/vue</code>. Headless and plain TypeScript applications do not need either framework.</p>
 <h2 id="en-installation-release-channels">Release channels</h2>
-<div class="table-wrap"><table><thead><tr><th>Intent</th><th>Command</th></tr></thead><tbody><tr><td>Try the current release candidate</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>Pin this documented release</td><td><code>npm install @kanjieteam/kjdraw@1.0.0-rc.3</code></td></tr><tr><td>Install the stable channel</td><td><code>npm install @kanjieteam/kjdraw@latest</code></td></tr><tr><td>Install a local checkout</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
-<p>Use <code>next</code> for prereleases and <code>latest</code> for stable releases. Pin an exact version when builds must remain reproducible, and confirm the resolved version with <code>npm list @kanjieteam/kjdraw</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Intent</th><th>Command</th></tr></thead><tbody><tr><td>Try the published release-candidate channel</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>Check available version tags</td><td><code>npm view @kanjieteam/kjdraw dist-tags</code></td></tr><tr><td>Install a built local checkout</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
+<p>These source documents may describe APIs newer than the published <code>next</code> package. Check the resolved version with <code>npm list @kanjieteam/kjdraw</code> before using version-marked APIs. The npm <code>latest</code> tag is not a stable 1.0 release yet. For the documented candidate, clone the repository, run <code>npm install &amp;&amp; npm run build:runtime &amp;&amp; npm run build:types</code> there, then install its <code>packages/kjdraw-sdk</code> directory into your application. Pin an exact <em>published</em> version for reproducible builds.</p>
 <h2 id="en-installation-verify-installation">Verify the installation</h2>
 <p>Run the packaged quickstart directly from a clean project:</p>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs</code></pre>
@@ -100,8 +100,8 @@ import { KJDeploymentRegistry } from &#39;@kanjieteam/kjdraw/deployment&#39;</co
 </ul>
 <p>KJDraw 核心的 npm 运行时依赖为零。React、Vue 是可选 peer dependency：导入 <code>/react</code> 或 <code>/vue</code> 时，安装应用所用的框架即可。无界面程序和原生 TypeScript 应用无需安装这两个框架。</p>
 <h2 id="zh-installation-release-channels">发布渠道</h2>
-<div class="table-wrap"><table><thead><tr><th>目标</th><th>命令</th></tr></thead><tbody><tr><td>试用当前候选版</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>锁定本文档对应版本</td><td><code>npm install @kanjieteam/kjdraw@1.0.0-rc.3</code></td></tr><tr><td>安装稳定渠道</td><td><code>npm install @kanjieteam/kjdraw@latest</code></td></tr><tr><td>安装本地 checkout</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
-<p>预发布版本使用 <code>next</code>，稳定版本使用 <code>latest</code>。需要可复现构建时应锁定确切版本，并用 <code>npm list @kanjieteam/kjdraw</code> 核对实际安装结果。</p>
+<div class="table-wrap"><table><thead><tr><th>目标</th><th>命令</th></tr></thead><tbody><tr><td>试用已发布的候选版渠道</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>查询可用版本标签</td><td><code>npm view @kanjieteam/kjdraw dist-tags</code></td></tr><tr><td>安装已构建的本地源码</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
+<p>本源码文档可能包含比 npm <code>next</code> 包更新的 API。使用标注版本的 API 前，先运行 <code>npm list @kanjieteam/kjdraw</code> 核对实际安装版本。npm <code>latest</code> 标签目前也不是稳定 1.0。若需使用本文档对应的候选版，请克隆仓库，在仓库中运行 <code>npm install &amp;&amp; npm run build:runtime &amp;&amp; npm run build:types</code>，然后在你的应用里安装其 <code>packages/kjdraw-sdk</code> 目录。需要可复现构建时，锁定已经公开发布的确切版本。</p>
 <h2 id="zh-installation-verify-installation">验证安装</h2>
 <p>在干净工程中直接运行安装包自带的快速示例：</p>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs</code></pre>
@@ -119,6 +119,6 @@ import { KJDeploymentRegistry } from &#39;@kanjieteam/kjdraw/deployment&#39;</co
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=b5d7d2cd29f10fc1"></script>
+  <script type="module" src="../app.js?v=240a5dc28007e50a"></script>
 </body>
 </html>

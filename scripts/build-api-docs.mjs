@@ -317,9 +317,11 @@ const editorApi = {
 // A published release artifact remains installable while the registry publication is pending.
 const installFromRelease = editorGuide.distribution?.version === packageJson.version
   && editorGuide.distribution?.channel === 'github-release'
+const sourceCandidate = editorGuide.distribution?.version === packageJson.version
+  && editorGuide.distribution?.channel === 'source'
 const installTarget = installFromRelease
   ? `https://github.com/KanJieTeam/kjdraw/releases/download/v${packageJson.version}/kanjieteam-kjdraw-${packageJson.version}.tgz`
-  : `${packageJson.name}@${packageJson.version}`
+  : sourceCandidate ? `${packageJson.name}@next` : `${packageJson.name}@${packageJson.version}`
 const installCommand = `npm install ${installTarget}`
 
 const localized = (en, zh, tag = 'span') => `<${tag} class="lang-en">${escapeHtml(en)}</${tag}><${tag} class="lang-zh">${escapeHtml(zh)}</${tag}>`
@@ -396,6 +398,7 @@ const editorHtml = `<!doctype html>
           <p class="lead">${localized(editorGuide.lead.en, editorGuide.lead.zh)}</p>
           <div class="install"><code>${escapeHtml(installCommand)}</code><button type="button" data-copy-value="${escapeHtml(installCommand)}">Copy</button></div>
 ${installFromRelease ? `          <p>${localized('Install the published GitHub release package. npm registry publication is pending.', '安装已发布的 GitHub Release 包；npm 仓库发布尚待完成。')}</p>` : ''}
+${sourceCandidate ? `          <p class="api-distribution-note">${localized(`These docs describe the ${packageJson.version} source candidate. The npm next tag can be older; check the installed version before using APIs marked since ${packageJson.version}.`, `本文档描述 ${packageJson.version} 源码候选版。npm next 标签可能仍指向旧版；使用标注自 ${packageJson.version} 起提供的 API 前，请先核对实际安装版本。`)}</p>` : ''}
         </section>
 
         <section id="quickstart">
