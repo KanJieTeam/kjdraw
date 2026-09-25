@@ -69,14 +69,14 @@ KJDraw 通过标准 **stdio MCP** 提供 CAD 工具。只要客户端支持 MCP�
 
 | 客户端 / 接入方式 | 配置方式 | 适合场景 | 入口 |
 | --- | --- | --- | --- |
-| **OpenAI Codex** | 在 Codex 的 MCP 配置中加入下方 `kjdraw` server | 代码型 Agent 生成、检查和修改 KJD/DXF | [模型接入](https://kanjieteam.github.io/kjdraw/docs/latest/models/) |
+| **OpenAI Codex** | 手动用 `codex mcp add` 添加 stdio server；一键安装器暂不配置 Codex | 代码型 Agent 生成、检查和修改 KJD/DXF | [Codex MCP 官方文档](https://developers.openai.com/codex/mcp) |
 | **Claude Desktop / Cursor / Cline** | 在客户端 MCP 配置中加入下方 `kjdraw` server | 通用对话、IDE 内绘图和文件审阅 | [MCP 集成](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/) |
 | **Kimi Code / WorkBuddy / ZCode / TraeCode** | 运行一次用户级安装器；按客户端提示确认导入 | 国内桌面 Agent 的本地绘图工作流 | [安装与安全边界](docs/try-in-ai.zh-CN.md) |
-| **豆包 / DeepSeek / 其他国产模型** | 通过支持 MCP 的宿主接入同一 server；模型 API Key 留在宿主 | 企业内网、国产模型和自建 Agent | [Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) |
+| **豆包 / DeepSeek 模型** | 在支持 MCP 的宿主或自建 Harness 中配置模型接口与密钥；不代表官方 App 已获一键接入 | 企业内网、国产模型和自建 Agent | [Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) |
 | **自建 Agent / Harness / 企业平台** | 注册同一个 stdio MCP server，或调用 `agent-tools` / `model-adapters` | 私有部署、自定义 UI 和审批系统 | [模型接入](https://kanjieteam.github.io/kjdraw/docs/latest/models/) |
 | **不接模型** | 使用 TypeScript SDK、CLI 或在线编辑器 | 回归测试、批处理和人工编辑 | [文件工作流](https://kanjieteam.github.io/kjdraw/docs/latest/files/) |
 
-以下配置要求本地已构建包含 `kjdraw-mcp.mjs` 的 1.0.0-rc.3 源码包、Node.js 22+，并在宿主工程中建好 `proposals`、`results` 目录；先将两个 `/absolute/project` 替换为真实绝对路径。npm `next` 可能仍指向旧候选版，不能只凭文档中的源码版本推断已发布。客户端再按自身格式保存 MCP server 配置：
+以下配置要求本地已构建包含 `kjdraw-mcp.mjs` 的 1.0.0-rc.3 源码包、Node.js 22+，并在宿主工程中建好 `proposals`、`results` 目录；先将两个 `/absolute/project` 替换为真实绝对路径。npm `next` 可能仍指向旧候选版，不能只凭文档中的源码版本推断已发布。下面的 JSON 仅适用于使用 `mcpServers` 的客户端，不是 Codex 配置：
 
 ```jsonc
 {
@@ -87,6 +87,13 @@ KJDraw 通过标准 **stdio MCP** 提供 CAD 工具。只要客户端支持 MCP�
     }
   }
 }
+```
+
+Codex CLI/IDE 请按[官方 stdio 接入格式](https://developers.openai.com/codex/mcp)添加同一个服务（先替换两处工程绝对路径），再用 `codex mcp list` 核对：
+
+```sh
+codex mcp add kjdraw -- node /absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --workspace /absolute/project --blank drawing.kjd --units millimeter --proposal-dir proposals --candidate-dir results
+codex mcp list
 ```
 
 接入后先让 Agent 调用只读查询和预览工具，再由宿主审核提案；KJDraw 不会把模型回复当作 CAD 成功证据，也不会未经批准覆盖源图。完整工具清单、审批协议和模型适配器见：[Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) · [MCP 集成](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/) · [API 参考](https://kanjieteam.github.io/kjdraw/docs/latest/api/)。
@@ -119,6 +126,8 @@ curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/inst
 安装候选版：
 
 ```sh
+npm view @kanjieteam/kjdraw@next version
+# 仅当 next 已发布 1.0.0-rc.3 或更新版时再运行下一行；否则请构建本仓库源码。
 npm install @kanjieteam/kjdraw@next
 ```
 

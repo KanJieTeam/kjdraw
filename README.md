@@ -57,14 +57,14 @@ KJDraw exposes CAD tools through standard **stdio MCP**. Any MCP-compatible clie
 
 | Client / entry point | Setup | Best for | Guide |
 | --- | --- | --- | --- |
-| **OpenAI Codex** | Add the `kjdraw` server to Codex MCP settings | Code-first agents that generate, inspect and edit KJD/DXF | [Model guide](https://kanjieteam.github.io/kjdraw/docs/latest/models/) |
+| **OpenAI Codex** | Add the stdio server manually with `codex mcp add` (the desktop installer does not configure Codex) | Code-first agents that generate, inspect and edit KJD/DXF | [Codex MCP setup](https://developers.openai.com/codex/mcp) |
 | **Claude Desktop / Cursor / Cline** | Add the `kjdraw` server to the client MCP config | General chat, IDE workflows and drawing review | [MCP integration](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/) |
 | **Kimi Code / WorkBuddy / ZCode / TraeCode** | Run the user-level installer; confirm the one-time import when prompted | Local desktop agent workflows | [Installation and security](docs/try-in-ai.md) |
-| **Doubao / DeepSeek / other domestic models** | Connect the same server through an MCP-capable host; keep the model key in that host | Enterprise, private-network and domestic-model workflows | [Agent workflows](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) |
+| **Doubao / DeepSeek models** | Use an MCP-capable host or your own harness and supply its model endpoint/key there; this is not one-click support for the official apps | Enterprise, private-network and domestic-model workflows | [Agent workflows](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) |
 | **Custom agents / harnesses / enterprise hosts** | Register the same stdio MCP server, or call `agent-tools` and `model-adapters` from your host | Private deployments, custom UI and approval systems | [Model adapters](https://kanjieteam.github.io/kjdraw/docs/latest/models/) |
 | **No model required** | Use the TypeScript SDK, CLI or browser editor | Regression tests, batch jobs and human editing | [File workflow](https://kanjieteam.github.io/kjdraw/docs/latest/files/) |
 
-For a locally built 1.0.0-rc.3 checkout, install the package in a Node.js 22+ host project, create `proposals` and `results`, and replace both `/absolute/project` placeholders below with that project path. Check that `bin/kjdraw-mcp.mjs` exists before connecting; the npm `next` tag may still point to an older candidate. The portable server entry is:
+For a locally built 1.0.0-rc.3 checkout, install the package in a Node.js 22+ host project, create `proposals` and `results`, and replace both `/absolute/project` placeholders below with that project path. Check that `bin/kjdraw-mcp.mjs` exists before connecting; the npm `next` tag may still point to an older candidate. This JSON entry is for clients that use `mcpServers`, not Codex:
 
 ```jsonc
 {
@@ -75,6 +75,13 @@ For a locally built 1.0.0-rc.3 checkout, install the package in a Node.js 22+ ho
     }
   }
 }
+```
+
+For Codex CLI/IDE, add the same server with the [official stdio command format](https://developers.openai.com/codex/mcp) (replace both project paths first), then check `codex mcp list`:
+
+```bash
+codex mcp add kjdraw -- node /absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --workspace /absolute/project --blank drawing.kjd --units millimeter --proposal-dir proposals --candidate-dir results
+codex mcp list
 ```
 
 After connecting, start with read-only queries and previews, then let the host approve a proposal. KJDraw never treats model text as proof of CAD success and does not overwrite the source drawing without an explicit host decision. See [Agent workflows](https://kanjieteam.github.io/kjdraw/docs/latest/agent/), [MCP integration](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/) and the [API reference](https://kanjieteam.github.io/kjdraw/docs/latest/api/) for tool definitions, approval protocol and model adapters.
@@ -118,6 +125,8 @@ The same command performs later in-place updates from the [explicitly promoted i
 ### In your app
 
 ```bash
+npm view @kanjieteam/kjdraw@next version
+# Install only if next is 1.0.0-rc.3 or newer; otherwise build this source checkout.
 npm install @kanjieteam/kjdraw@next
 ```
 
