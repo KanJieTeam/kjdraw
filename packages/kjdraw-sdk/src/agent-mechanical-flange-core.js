@@ -3926,3 +3926,83 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         }
     };
 }
+export function auditMechanicalDimensionPictures(document) {
+    const findings = [];
+    const near = (a, b)=>typeof a === 'number' && typeof b === 'number' && Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 1e-7 * Math.max(1, Math.abs(a), Math.abs(b));
+    const samePoint = (a, b)=>Array.isArray(a) && Array.isArray(b) && near(a[0], b[0]) && near(a[1], b[1]);
+    const blocks = document.listObjects().filter((record)=>record.type === 'BLOCK_RECORD' && /^\*D\d+$/u.test(record.name ?? ''));
+    const byName = new Map(blocks.map((block)=>[
+            block.name,
+            block
+        ]));
+    const dimensions = document.listEntities({
+        type: 'DIMENSION',
+        ownerId: document.spaces.modelSpaceId
+    });
+    const usedBlocks = new Set();
+    for (const [index, dimension] of dimensions.entries()){
+        const prefix = `dimension[${index}]`;
+        const payload = dimension.payload;
+        const name = payload.blockName;
+        const block = typeof name === 'string' ? byName.get(name) : undefined;
+        if (!block || usedBlocks.has(block.id)) {
+            findings.push(`${prefix}:MISSING_OR_SHARED_PICTURE_BLOCK`);
+            continue;
+        }
+        usedBlocks.add(block.id);
+        if (block.payload.dxfFlags !== 1) findings.push(`${prefix}:PICTURE_BLOCK_FLAGS`);
+        const style = typeof payload.styleId === 'string' ? document.getObject(payload.styleId)?.payload ?? {} : {};
+        const projection = projectDimension(payload, style);
+        if (!projection) {
+            findings.push(`${prefix}:UNPROJECTABLE_DIMENSION`);
+            continue;
+        }
+        if (payload.measurement != null && !near(payload.measurement, projection.measurement)) findings.push(`${prefix}:MEASUREMENT_MISMATCH`);
+        const members = document.listEntities({
+            ownerId: block.id
+        });
+        const lines = members.filter((member)=>member.type === 'LINE');
+        const arcs = members.filter((member)=>member.type === 'ARC');
+        const solids = members.filter((member)=>member.type === 'SOLID');
+        const texts = members.filter((member)=>member.type === 'TEXT');
+        if (members.length !== projection.lines.length + projection.arcs.length + projection.arrows.length + 1 || lines.length !== projection.lines.length || arcs.length !== projection.arcs.length || solids.length !== projection.arrows.length || texts.length !== 1) {
+            findings.push(`${prefix}:PICTURE_MEMBER_TYPES`);
+            continue;
+        }
+        if (!lines.every((member, part)=>samePoint(member.payload.start, projection.lines[part][0]) && samePoint(member.payload.end, projection.lines[part][1]))) findings.push(`${prefix}:PICTURE_LINES`);
+        if (!arcs.every((member, part)=>{
+            const expected = projection.arcs[part];
+            return samePoint(member.payload.center, expected.center) && near(member.payload.radius, expected.radius) && near(member.payload.startAngle, expected.startAngle) && near(member.payload.endAngle, expected.endAngle);
+        })) findings.push(`${prefix}:PICTURE_ARCS`);
+        if (!solids.every((member, part)=>{
+            const vertices = member.payload.vertices, arrow = projection.arrows[part];
+            return Array.isArray(vertices) && vertices.length === 4 && arrow.length === 3 && vertices.every((vertex, vertexIndex)=>samePoint(vertex, arrow[Math.min(vertexIndex, 2)]));
+        })) findings.push(`${prefix}:PICTURE_ARROWS`);
+        const text = texts[0].payload;
+        let expectedText = projection.label.text;
+        if (payload.dimensionType === 'DIAMETER') {
+            const measured = projectDimension({
+                ...payload,
+                textOverride: null
+            }, style)?.label.text;
+            if (!measured?.startsWith('⌀')) findings.push(`${prefix}:PICTURE_DIAMETER_LABEL`);
+            else {
+                const encoded = `%%c${measured.slice(1)}`;
+                expectedText = payload.textOverride == null || payload.textOverride === '' ? encoded : String(payload.textOverride).replaceAll('<>', encoded);
+            }
+        }
+        const decodedText = expectedText.replace(/%%([cdp])/giu, (_, code)=>({
+                c: 'Ø',
+                d: '°',
+                p: '±'
+            })[code.toLowerCase()]);
+        if (text.text !== decodedText || !samePoint(text.position, projection.label.position) || !near(text.height, projection.label.height) || !near(text.rotation ?? 0, projection.label.rotation) || text.horizontalAlignment !== 1 || text.verticalAlignment !== 1) findings.push(`${prefix}:PICTURE_TEXT`);
+    }
+    if (blocks.length !== usedBlocks.size) findings.push('ORPHAN_PICTURE_BLOCK');
+    return {
+        passed: findings.length === 0,
+        dimensions: dimensions.length,
+        pictureBlocks: blocks.length,
+        findings
+    };
+}

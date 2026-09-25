@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
-import { buildAgentMechanicalFlangeCore, createKJDrawSDK, KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK } from '../src/index.js'
+import { auditMechanicalDimensionPictures, buildAgentMechanicalFlangeCore, createKJDrawSDK, KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK } from '../src/index.js'
 import { projectDimension } from '../src/geometry/annotation.js'
 
 const input = expectedRevision => ({
@@ -1723,6 +1723,7 @@ test('bolt-circle diameter dimension stays measured from hole-pattern parameters
       assert.equal(native.length, 1)
       assert.equal(projectDimension(native[0].payload).measurement, pitchRadius * 2)
       if (format === 'DXF') {
+        assert.deepEqual(auditMechanicalDimensionPictures(reopened), { passed: true, dimensions: 3, pictureBlocks: 3, findings: [] })
         const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
           'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); q=[x for x in d.modelspace().query("DIMENSION") if x.dxf.text=="PCD <>"]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"count":len(q),"measurement":float(q[0].get_measurement()) if len(q)==1 else None}))'],
         bytes, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
@@ -1755,4 +1756,32 @@ test('bolt-circle diameter links reject unknown patterns, duplicate links and li
     assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...base, endView, boltCircleDiameterDimensions: links }), /boltCircleDiameterDimensions/u)
     assert.equal(document.serialize(), before)
   }
+})
+
+test('mechanical dimension picture audit rejects modified labels and lines', async () => {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ units: 'millimeter' })
+  const proposal = buildAgentMechanicalFlangeCore(document, {
+    ...input(document.revision),
+    endView: { center: [90, 150], ringRadii: [55], holePatterns: [{ count: 4, pitchRadius: 40, holeRadius: 4 }] },
+    boltCircleDiameterDimensions: [{ patternIndex: 0, textPosition: [160, 150], textOverride: 'PCD <>' }],
+  })
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const reopened = await sdk.readDocument(dxf, { format: 'DXF' })
+  assert.equal(reopened.validate().valid, true)
+  assert.equal(auditMechanicalDimensionPictures(reopened).passed, true)
+  const dimensions = reopened.listEntities({ type: 'DIMENSION', ownerId: reopened.spaces.modelSpaceId })
+  const picture = reopened.listObjects().find(record => record.type === 'BLOCK_RECORD' && record.name === dimensions.at(-1).payload.blockName)
+  const label = reopened.listEntities({ type: 'TEXT', ownerId: picture.id })[0]
+  await reopened.transact('Synthetic picture-label corruption', transaction =>
+    transaction.updateObject(label.id, { payload: { ...label.payload, text: 'WRONG' } }))
+  assert.equal(reopened.validate().valid, true)
+  assert.equal(auditMechanicalDimensionPictures(reopened).findings.includes('dimension[2]:PICTURE_TEXT'), true)
+  await reopened.transact('Restore synthetic picture label', transaction =>
+    transaction.updateObject(label.id, { payload: label.payload }))
+  const line = reopened.listEntities({ type: 'LINE', ownerId: picture.id })[0]
+  await reopened.transact('Synthetic picture-line corruption', transaction =>
+    transaction.updateObject(line.id, { payload: { ...line.payload, end: [999, 999, 0] } }))
+  assert.equal(auditMechanicalDimensionPictures(reopened).findings.includes('dimension[2]:PICTURE_LINES'), true)
 })

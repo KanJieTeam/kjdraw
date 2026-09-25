@@ -1,3 +1,4 @@
+import type { KJDocument } from './document.js';
 export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';
 type Point2 = [number, number];
 type Point3 = [number, number, number];
@@ -806,5 +807,13 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
         };
         limitations: string[];
     };
+};
+/** Verify DXF materialized dimension pictures without counting them as model-space entities.
+ * This checks dimension-owned native block geometry only; it is not a whole-sheet 1:1 audit. */
+export declare function auditMechanicalDimensionPictures(document: KJDocument): {
+    passed: boolean;
+    dimensions: number;
+    pictureBlocks: number;
+    findings: string[];
 };
 export {};
