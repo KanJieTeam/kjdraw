@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { detectMechanicalBearingSeatEndView } from '../src/index.js'
+import { detectMechanicalBearingSeatEndView, detectMechanicalFourHoleBoltCircle } from '../src/index.js'
 
 const center = (x = 0, y = 0) => {
   const angle = Math.acos(18 / 38)
@@ -46,4 +46,53 @@ test('ignores malformed primitives and guards unbounded input', () => {
   const tooManyArcs = new Array(500).fill({ type: 'ARC', payload: { center: [0, 0], radius: 1, startAngle: 0, endAngle: 1 } })
   const tooManyCircles = new Array(20).fill({ type: 'CIRCLE', payload: { center: [0, 0], radius: 0.5 } })
   assert.equal(detectMechanicalBearingSeatEndView([...tooManyArcs, ...tooManyCircles]).status, 'none')
+})
+
+const boltCircle = (cx, cy, pitchRadius = 45, holeRadius = 5, rotation = 0) =>
+  Array.from({ length: 4 }, (_, index) => {
+    const angle = rotation + index * Math.PI / 2
+    return { type: 'CIRCLE', payload: { center: [cx + pitchRadius * Math.cos(angle), cy + pitchRadius * Math.sin(angle), 0], radius: holeRadius } }
+  })
+
+test('extracts a rotated four-hole PCD feature from noisy native circles without treating it as a full drawing', () => {
+  const entities = [
+    { type: 'CIRCLE', payload: { center: [230, 126, 0], radius: 15 } },
+    ...boltCircle(230, 126, 45, 5, Math.PI / 6),
+    { type: 'CIRCLE', payload: { center: [230, 126, 0], radius: 60 } },
+    { type: 'CIRCLE', payload: { center: [310, 40, 0], radius: 3 } },
+  ]
+  const result = detectMechanicalFourHoleBoltCircle(entities)
+  assert.equal(result.status, 'match')
+  assert.equal(result.candidates.length, 1)
+  const feature = result.candidates[0]
+  assert.deepEqual(feature.center, [230, 126])
+  assert.equal(feature.pitchDiameter, 90)
+  assert.equal(feature.holeDiameter, 10)
+  assert.equal(feature.holeCenters.length, 4)
+  assert.deepEqual(feature.holeCenters.map(([x, y]) => Math.round(Math.hypot(x - 230, y - 126))), [45, 45, 45, 45])
+  assert.deepEqual(detectMechanicalFourHoleBoltCircle(entities.slice().reverse()), result)
+})
+
+test('four-hole PCD feature abstains on rectangular, missing, unequal and overlapping holes', () => {
+  const rectangular = boltCircle(0, 0).map((item, index) => ({
+    ...item, payload: { ...item.payload, center: [item.payload.center[0], item.payload.center[1] * (index % 2 ? 1.2 : 0.8), 0] },
+  }))
+  assert.equal(detectMechanicalFourHoleBoltCircle(rectangular).status, 'none')
+  assert.equal(detectMechanicalFourHoleBoltCircle(boltCircle(0, 0).slice(0, 3)).status, 'none')
+  const unequal = boltCircle(0, 0)
+  unequal[3].payload.radius = 6
+  assert.equal(detectMechanicalFourHoleBoltCircle(unequal).status, 'none')
+  assert.equal(detectMechanicalFourHoleBoltCircle(boltCircle(0, 0, 5, 5)).status, 'none')
+})
+
+test('separate four-hole features are reported as ambiguous and dense inputs abstain', () => {
+  const two = detectMechanicalFourHoleBoltCircle([...boltCircle(0, 0), ...boltCircle(200, 0)])
+  assert.equal(two.status, 'ambiguous')
+  assert.equal(two.candidates.length, 2)
+  const samePitchDifferentRotation = detectMechanicalFourHoleBoltCircle([
+    ...boltCircle(0, 0, 45, 5, 0), ...boltCircle(0, 0, 45, 5, Math.PI / 4),
+  ])
+  assert.equal(samePitchDifferentRotation.status, 'ambiguous')
+  assert.equal(samePitchDifferentRotation.candidates.length, 2)
+  assert.equal(detectMechanicalFourHoleBoltCircle(new Array(127).fill({ type: 'CIRCLE', payload: { center: [0, 0], radius: 1 } })).status, 'none')
 })

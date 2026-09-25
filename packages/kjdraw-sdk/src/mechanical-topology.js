@@ -96,3 +96,52 @@ export function detectMechanicalBearingSeatEndView(entities) {
         candidates: unique
     };
 }
+export function detectMechanicalFourHoleBoltCircle(entities) {
+    if (!Array.isArray(entities) || entities.length > 100_000) return {
+        status: 'none',
+        candidates: []
+    };
+    const circles = entities.filter((entity)=>entity?.type === 'CIRCLE').map(circle).filter((value)=>value != null);
+    if (circles.length ** 3 > 2_000_000) return {
+        status: 'none',
+        candidates: []
+    };
+    const found = [];
+    for(let i = 0; i < circles.length; i++)for(let j = i + 1; j < circles.length; j++){
+        const a = circles[i], b = circles[j];
+        if (!near(a.radius, b.radius)) continue;
+        const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+        const vx = a.x - cx, vy = a.y - cy;
+        const pitchRadius = Math.hypot(vx, vy);
+        if (pitchRadius <= a.radius + tolerance) continue;
+        const positive = circles.filter((item)=>near(item.radius, a.radius) && near(item.x, cx - vy) && near(item.y, cy + vx));
+        const negative = circles.filter((item)=>near(item.radius, a.radius) && near(item.x, cx + vy) && near(item.y, cy - vx));
+        if (positive.length !== 1 || negative.length !== 1) continue;
+        const holes = [
+            a,
+            b,
+            positive[0],
+            negative[0]
+        ];
+        if (new Set(holes).size !== 4) continue;
+        const holeCenters = holes.map((item)=>[
+                item.x,
+                item.y
+            ]).sort((left, right)=>Math.atan2(left[1] - cy, left[0] - cx) - Math.atan2(right[1] - cy, right[0] - cx));
+        if (found.some((item)=>near(item.center[0], cx) && near(item.center[1], cy) && near(item.pitchDiameter, pitchRadius * 2) && near(item.holeDiameter, a.radius * 2) && item.holeCenters.every((other, index)=>near(other[0], holeCenters[index][0]) && near(other[1], holeCenters[index][1])))) continue;
+        found.push({
+            center: [
+                cx,
+                cy
+            ],
+            pitchDiameter: pitchRadius * 2,
+            holeDiameter: a.radius * 2,
+            holeCenters
+        });
+    }
+    found.sort((left, right)=>left.center[0] - right.center[0] || left.center[1] - right.center[1] || left.pitchDiameter - right.pitchDiameter || left.holeDiameter - right.holeDiameter);
+    return {
+        status: found.length === 0 ? 'none' : found.length === 1 ? 'match' : 'ambiguous',
+        candidates: found
+    };
+}

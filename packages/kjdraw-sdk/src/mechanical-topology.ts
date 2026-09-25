@@ -22,6 +22,19 @@ export interface KJMechanicalBearingSeatDetection {
   candidates: readonly KJMechanicalBearingSeatEndView[]
 }
 
+/** A four-hole square pattern is a reusable feature, not a flange or a full sheet. */
+export interface KJMechanicalFourHoleBoltCircle {
+  center: readonly [number, number]
+  pitchDiameter: number
+  holeDiameter: number
+  holeCenters: readonly (readonly [number, number])[]
+}
+
+export interface KJMechanicalFourHoleBoltCircleDetection {
+  status: 'match' | 'none' | 'ambiguous'
+  candidates: readonly KJMechanicalFourHoleBoltCircle[]
+}
+
 type Circle = { x: number; y: number; radius: number }
 type Arc = Circle & { start: number; end: number }
 const tolerance = 1e-4
@@ -106,4 +119,40 @@ export function detectMechanicalBearingSeatEndView(entities: readonly KJMechanic
   }
   const unique = found.filter((item, index) => found.findIndex(other => near(item.center[0], other.center[0]) && near(item.center[1], other.center[1]) && near(item.crownRadius, other.crownRadius)) === index)
   return { status: unique.length === 0 ? 'none' : unique.length === 1 ? 'match' : 'ambiguous', candidates: unique }
+}
+
+/**
+ * Finds exact square four-hole circle groups in a noisy model-space view.
+ * An opposite pair fixes the centre and pitch radius; the perpendicular pair
+ * must have the same radius and lie at the two rotated positions. Source
+ * annotations, styles, construction circles and sheet ownership are not
+ * inferred. The bounded search abstains on very dense drawings.
+ */
+export function detectMechanicalFourHoleBoltCircle(entities: readonly KJMechanicalTopologyEntity[]): KJMechanicalFourHoleBoltCircleDetection {
+  if (!Array.isArray(entities) || entities.length > 100_000) return { status: 'none', candidates: [] }
+  const circles = entities.filter(entity => entity?.type === 'CIRCLE').map(circle).filter((value): value is Circle => value != null)
+  if (circles.length ** 3 > 2_000_000) return { status: 'none', candidates: [] }
+  const found: KJMechanicalFourHoleBoltCircle[] = []
+  for (let i = 0; i < circles.length; i++) for (let j = i + 1; j < circles.length; j++) {
+    const a = circles[i]!, b = circles[j]!
+    if (!near(a.radius, b.radius)) continue
+    const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2
+    const vx = a.x - cx, vy = a.y - cy
+    const pitchRadius = Math.hypot(vx, vy)
+    if (pitchRadius <= a.radius + tolerance) continue
+    const positive = circles.filter(item => near(item.radius, a.radius) && near(item.x, cx - vy) && near(item.y, cy + vx))
+    const negative = circles.filter(item => near(item.radius, a.radius) && near(item.x, cx + vy) && near(item.y, cy - vx))
+    if (positive.length !== 1 || negative.length !== 1) continue
+    const holes = [a, b, positive[0]!, negative[0]!]
+    if (new Set(holes).size !== 4) continue
+    const holeCenters = holes.map(item => [item.x, item.y] as const)
+      .sort((left, right) => Math.atan2(left[1] - cy, left[0] - cx) - Math.atan2(right[1] - cy, right[0] - cx))
+    if (found.some(item => near(item.center[0], cx) && near(item.center[1], cy)
+      && near(item.pitchDiameter, pitchRadius * 2) && near(item.holeDiameter, a.radius * 2)
+      && item.holeCenters.every((other, index) => near(other[0], holeCenters[index]![0]) && near(other[1], holeCenters[index]![1])))) continue
+    found.push({ center: [cx, cy], pitchDiameter: pitchRadius * 2, holeDiameter: a.radius * 2, holeCenters })
+  }
+  found.sort((left, right) => left.center[0] - right.center[0] || left.center[1] - right.center[1]
+    || left.pitchDiameter - right.pitchDiameter || left.holeDiameter - right.holeDiameter)
+  return { status: found.length === 0 ? 'none' : found.length === 1 ? 'match' : 'ambiguous', candidates: found }
 }
