@@ -48,6 +48,14 @@
       "count": 1
     },
     {
+      "id": "geology",
+      "title": {
+        "en": "Geology & surveying",
+        "zh": "地质与勘察"
+      },
+      "count": 2
+    },
+    {
       "id": "core-capabilities",
       "title": {
         "en": "Core capabilities",
@@ -404,6 +412,133 @@
       },
       "thumbnail": "./assets/mechanical-bracket.svg",
       "thumbnailSha256": "d99ad9861a8c75a907ddc19a164c2b2e7464206149a379d2c98a0ef80be612fa"
+    },
+    {
+      "id": "borehole-log",
+      "kind": "sample",
+      "sampleId": "sample-borehole-log",
+      "category": "geology",
+      "title": {
+        "en": "Loess borehole log",
+        "zh": "黄土钻孔柱状图"
+      },
+      "drawingType": {
+        "en": "Engineering borehole log",
+        "zh": "工程钻孔柱状图"
+      },
+      "summary": {
+        "en": "A 30 m editable borehole log with depth, elevation, lithology intervals, hatch, groundwater and title data.",
+        "zh": "30 米可编辑钻孔柱状图，包含深度、标高、岩性分层、填充、地下水和图签信息。"
+      },
+      "tags": {
+        "en": [
+          "geology",
+          "borehole",
+          "lithology",
+          "groundwater"
+        ],
+        "zh": [
+          "地质",
+          "钻孔",
+          "岩性",
+          "地下水"
+        ]
+      },
+      "detailAnchor": "geology-borehole-log",
+      "source": "packages/kjdraw-sdk/src/samples.ts",
+      "categoryTitle": {
+        "en": "Geology & surveying",
+        "zh": "地质与勘察"
+      },
+      "facts": {
+        "editableObjects": 149,
+        "layers": 10,
+        "units": "meter",
+        "entityTypes": {
+          "LINE": 89,
+          "LWPOLYLINE": 10,
+          "TEXT": 50
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-borehole-log",
+        "detail": "./borehole-log/",
+        "preview": "./assets/borehole-log.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
+      },
+      "artifact": {
+        "path": "showcase/assets/borehole-log.svg",
+        "svgStatus": "generated-thumbnail",
+        "renderedEntities": 149,
+        "diagnostics": 0,
+        "revision": 10
+      },
+      "thumbnail": "./assets/borehole-log.svg",
+      "thumbnailSha256": "f16e9b3f5b4090177f64f9f53b22fc6e04676b640053dc5f646d40bd23d27dfe"
+    },
+    {
+      "id": "geology-section",
+      "kind": "sample",
+      "sampleId": "sample-geology-section",
+      "category": "geology",
+      "title": {
+        "en": "Loess site geological section",
+        "zh": "黄土场地工程地质剖面"
+      },
+      "drawingType": {
+        "en": "Five-borehole section",
+        "zh": "五孔工程地质剖面"
+      },
+      "summary": {
+        "en": "A five-borehole section with interpreted strata, ground levels, groundwater line, grid and chainage annotations.",
+        "zh": "五个钻孔组成的工程地质剖面，包含解释地层、孔口标高、地下水线、网格和里程标注。"
+      },
+      "tags": {
+        "en": [
+          "geology",
+          "section",
+          "boreholes",
+          "strata"
+        ],
+        "zh": [
+          "地质",
+          "剖面",
+          "钻孔",
+          "地层"
+        ]
+      },
+      "detailAnchor": "geology-section",
+      "source": "packages/kjdraw-sdk/src/samples.ts",
+      "categoryTitle": {
+        "en": "Geology & surveying",
+        "zh": "地质与勘察"
+      },
+      "facts": {
+        "editableObjects": 113,
+        "layers": 9,
+        "units": "meter",
+        "entityTypes": {
+          "CIRCLE": 5,
+          "LINE": 52,
+          "LWPOLYLINE": 11,
+          "TEXT": 45
+        }
+      },
+      "links": {
+        "playground": "https://kanjieteam.github.io/kjdraw/?sample=sample-geology-section",
+        "detail": "./geology-section/",
+        "preview": "./assets/geology-section.svg",
+        "source": "https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/src/samples.ts"
+      },
+      "artifact": {
+        "path": "showcase/assets/geology-section.svg",
+        "svgStatus": "generated-thumbnail",
+        "renderedEntities": 113,
+        "diagnostics": 0,
+        "revision": 9
+      },
+      "thumbnail": "./assets/geology-section.svg",
+      "thumbnailSha256": "5c475dc219315d5ea174994115e76258e90409e6ebda53fff9cfb0565cee65d8"
     },
     {
       "id": "editable-entities",

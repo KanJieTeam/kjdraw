@@ -22,6 +22,7 @@ const categories = Object.freeze({
   architecture: { en: 'Architecture', zh: '建筑' },
   transportation: { en: 'Transportation', zh: '道路交通' },
   mechanical: { en: 'Mechanical', zh: '机械' },
+  geology: { en: 'Geology & surveying', zh: '地质与勘察' },
   'core-capabilities': { en: 'Core capabilities', zh: '核心能力' },
   'output-interop': { en: 'Output & interop', zh: '出图与交换' },
   editing: { en: 'Editing', zh: '编辑' },

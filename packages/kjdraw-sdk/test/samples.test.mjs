@@ -6,8 +6,8 @@ import { INDUSTRY_SAMPLES, createIndustrySample, createIndustrySamples } from '.
 test('industry collection contains editable, valid layered drawings that survive KJD and DXF', async () => {
   const sdk = createKJDrawSDK()
   const drawings = await createIndustrySamples(sdk)
-  assert.equal(drawings.length, 4)
-  assert.equal(new Set(INDUSTRY_SAMPLES.map(sample => sample.discipline)).size, 4)
+  assert.equal(drawings.length, INDUSTRY_SAMPLES.length)
+  assert.ok(new Set(INDUSTRY_SAMPLES.map(sample => sample.discipline)).size >= 5)
   for (const drawing of drawings) {
     assert.equal(drawing.validate().valid, true)
     assert.ok(drawing.listEntities().length >= 100)

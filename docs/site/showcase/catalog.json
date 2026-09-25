@@ -92,6 +92,29 @@
       "source": "packages/kjdraw-sdk/src/samples.ts"
     },
     {
+      "id": "borehole-log",
+      "kind": "sample",
+      "sampleId": "sample-borehole-log",
+      "category": "geology",
+      "title": { "en": "Loess borehole log", "zh": "黄土钻孔柱状图" },
+      "drawingType": { "en": "Engineering borehole log", "zh": "工程钻孔柱状图" },
+      "summary": { "en": "A 30 m editable borehole log with depth, elevation, lithology intervals, hatch, groundwater and title data.", "zh": "30 米可编辑钻孔柱状图，包含深度、标高、岩性分层、填充、地下水和图签信息。" },
+      "tags": { "en": ["geology", "borehole", "lithology", "groundwater"], "zh": ["地质", "钻孔", "岩性", "地下水"] },
+      "detailAnchor": "geology-borehole-log",
+      "source": "packages/kjdraw-sdk/src/samples.ts"
+    },
+    {
+      "id": "geology-section",
+      "kind": "sample",
+      "sampleId": "sample-geology-section",
+      "category": "geology",
+      "title": { "en": "Loess site geological section", "zh": "黄土场地工程地质剖面" },
+      "drawingType": { "en": "Five-borehole section", "zh": "五孔工程地质剖面" },
+      "summary": { "en": "A five-borehole section with interpreted strata, ground levels, groundwater line, grid and chainage annotations.", "zh": "五个钻孔组成的工程地质剖面，包含解释地层、孔口标高、地下水线、网格和里程标注。" },
+      "tags": { "en": ["geology", "section", "boreholes", "strata"], "zh": ["地质", "剖面", "钻孔", "地层"] },
+      "detailAnchor": "geology-section",
+      "source": "packages/kjdraw-sdk/src/samples.ts"
+    },    {
       "id": "editable-entities",
       "kind": "specimen",
       "specimenId": "geometry",

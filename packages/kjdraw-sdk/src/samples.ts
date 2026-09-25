@@ -41,6 +41,8 @@ const sampleCatalog: SampleDefinition[] = [
   { id: 'sample-architecture', title: 'Innovation hub / ground floor', titleZh: '创新中心 / 首层平面', discipline: 'ARCHITECTURE', build: buildArchitecture },
   { id: 'sample-road-profile', title: 'Hill route C2 / longitudinal profile', titleZh: '山区道路 C2 / 纵断面', discipline: 'TRANSPORTATION', build: buildRoadProfile },
   { id: 'sample-mechanical', title: 'Bearing bracket / manufacturing drawing', titleZh: '轴承支架 / 制造工程图', discipline: 'MECHANICAL', build: buildMechanical },
+  { id: 'sample-borehole-log', title: 'Loess borehole / engineering log', titleZh: '黄土钻孔 / 工程柱状图', discipline: 'GEOLOGY', build: buildBoreholeLog },
+  { id: 'sample-geology-section', title: 'Loess site / geological section', titleZh: '黄土场地 / 工程地质剖面', discipline: 'GEOLOGY', build: buildGeologySection },
 ]
 
 export const INDUSTRY_SAMPLES: readonly KJDrawSample[] = Object.freeze(sampleCatalog.map(({ id, title, titleZh, discipline }) => Object.freeze({ id, title, titleZh, discipline })))
@@ -245,4 +247,43 @@ function buildMechanical({ line, circle, arc, text, poly, rect, cross, dimH, dim
   rect(9, 20, 101, 20, 'FRAME'); line([9, 30], [110, 30], 'FRAME'); line([34, 20], [34, 40], 'FRAME'); line([76, 20], [76, 40], 'FRAME')
   text([12, 34], 'MATERIAL', 1, 'TITLE'); text([12, 25], 'EN-GJS-500-7', 1.25, 'TITLE'); text([38, 34], 'FINISH', 1, 'TITLE'); text([38, 25], 'Ra 3.2 UNLESS NOTED', 1.15, 'TITLE'); text([80, 34], 'TOLERANCE', 1, 'TITLE'); text([80, 25], 'ISO 2768-mK', 1.15, 'TITLE')
   text([9, 146], 'REMOVE BURRS · BREAK SHARP EDGES 0.5 · DIMENSIONS IN MILLIMETERS', 1.15, 'TITLE')
+}
+
+sampleCatalog[4]!.units = 'meter'
+sampleCatalog[4]!.layers = [
+  ['FRAME', 7], ['GEO-DEPTH', 8], ['GEO-ELEV', 3], ['GEO-BOUNDARY', 7], ['GEO-HATCH', 6], ['GEO-WATER', 4], ['DIMS', 2], ['ANNO', 7], ['TITLE', 7],
+]
+function buildBoreholeLog({ line, text, rect, poly, dimV, sheet }: ReturnType<typeof draftingKit>) {
+  sheet({ title: 'LOESS BOREHOLE LOG · ZK01', number: 'G-101', scale: 'V 1:200', discipline: 'ENGINEERING GEOLOGY' })
+  const top = 126, bottom = 30, left = 28, right = 92, depthStep = (top - bottom) / 30
+  rect(left, bottom, right - left, top - bottom, 'GEO-BOUNDARY')
+  line([left + 14, bottom], [left + 14, top], 'GEO-BOUNDARY'); line([left + 28, bottom], [left + 28, top], 'GEO-BOUNDARY'); line([left + 43, bottom], [left + 43, top], 'GEO-BOUNDARY')
+  const units = [
+    ['FILL', 2, 'GEO-HATCH'], ['MALAN LOESS', 7, 'GEO-HATCH'], ['PALEOSOL', 3, 'GEO-HATCH'], ['LISHI LOESS', 6, 'GEO-HATCH'], ['PALEOSOL', 2, 'GEO-HATCH'], ['SILTY CLAY', 10, 'GEO-HATCH'],
+  ] as const
+  let cursor = top
+  for (const [name, metres] of units) { const height = metres * depthStep; rect(left + 43, cursor - height, 21, height, 'GEO-BOUNDARY'); for (let x = left + 45; x < left + 63; x += 5) for (let y = cursor - 3; y > cursor - height + 2; y -= 5) line([x, y], [x + 3, y - 3], 'GEO-HATCH'); text([left + 45, cursor - height / 2], name, 1.35, 'ANNO'); cursor -= height }
+  for (let depth = 0; depth <= 30; depth += 3) { const y = top - depth * depthStep; line([left - 3, y], [right + 4, y], 'GEO-DEPTH'); text([left - 12, y - .5], String(depth), 1.15, 'GEO-DEPTH'); text([right + 7, y - .5], (300 - depth).toFixed(2), 1.1, 'GEO-ELEV') }
+  text([left + 2, top + 7], 'DEPTH m', 1.25, 'TITLE'); text([left + 16, top + 7], 'ELEV. m', 1.25, 'TITLE'); text([left + 31, top + 7], 'CODE', 1.25, 'TITLE'); text([left + 46, top + 7], 'LITHOLOGY', 1.25, 'TITLE')
+  for (let i = 1; i <= 9; i++) text([left + 2, top - i * 3.33 - 1], String(i), 1, 'ANNO')
+  line([left + 43, 33], [left + 64, 33], 'GEO-WATER'); text([left + 66, 33], 'GWL 18.40 m', 1.2, 'GEO-WATER'); dimV(left + 73, top, bottom, 6, '30.00 m'); text([left, 21], 'COLLAR 300.00 m  ·  DEPTH POSITIVE DOWNWARD  ·  SYNTHETIC SAMPLE', 1.15, 'TITLE')
+}
+
+sampleCatalog[5]!.units = 'meter'
+sampleCatalog[5]!.layers = [
+  ['FRAME', 7], ['GEO-GRID', 8], ['GEO-STRATA', 6], ['GEO-WATER', 4], ['GEO-POINTS', 3], ['DIMS', 2], ['ANNO', 7], ['TITLE', 7],
+]
+function buildGeologySection({ line, text, poly, rect, circle, cross, dimH, dimV, sheet }: ReturnType<typeof draftingKit>) {
+  sheet({ title: 'LOESS SITE · GEOLOGICAL SECTION A—A', number: 'G-201', scale: 'H 1:500 / V 1:200', discipline: 'ENGINEERING GEOLOGY' })
+  const left = 18, right = 232, base = 35, top = 130
+  rect(left, base, right - left, top - base, 'GEO-GRID')
+  for (let i = 0; i <= 10; i++) { const x = left + i * (right - left) / 10; line([x, base], [x, top], 'GEO-GRID'); text([x - 2.5, base - 5], String(i * 20), 1.05, 'ANNO') }
+  for (let i = 0; i <= 8; i++) { const y = base + i * 11.5; line([left, y], [right, y], 'GEO-GRID'); text([left - 9, y - .5], String(250 + i * 5), 1.05, 'ANNO') }
+  const xholes = [30, 72, 114, 156, 198]
+  const collars = [116, 119, 113, 121, 117]
+  for (let i = 0; i < xholes.length; i++) { const x = xholes[i]!, collar = collars[i]!; line([x, collar], [x, base + 2], 'GEO-POINTS'); circle([x, collar], 1.8, 'GEO-POINTS'); cross(x, collar, 3, 'GEO-POINTS'); text([x - 5, collar + 5], `ZK0${i + 1}`, 1.3, 'ANNO'); text([x - 5, collar - 5], `H=${(300 + i * .8).toFixed(2)}`, 1.05, 'ANNO') }
+  const strata: Point[][] = []
+  for (let layer = 0; layer < 6; layer++) { const points: Point[] = []; for (let i = 0; i <= 40; i++) { const x = left + i * (right - left) / 40; const y = 108 - layer * 11 + Math.sin(i * .35 + layer) * (1.5 + layer * .15); points.push([x, y]) } strata.push(points); poly(points, 'GEO-STRATA', false) }
+  for (let layer = 0; layer < 5; layer++) { const y = 104 - layer * 11; text([right - 53, y], ['MALAN LOESS', 'PALEOSOL', 'LISHI LOESS', 'PALEOSOL', 'SILTY CLAY'][layer]!, 1.25, 'ANNO') }
+  poly([[left, 101], [right, 104]], 'GEO-WATER', false); text([right - 37, 98], 'GROUNDWATER', 1.2, 'GEO-WATER'); dimH(left, right, base, -10, 'SECTION LENGTH 100 m'); dimV(left, base, top, -8, 'ELEVATION'); text([20, 21], 'A—A′  ·  FIVE BOREHOLES  ·  INTERPRETED STRATA  ·  SYNTHETIC SAMPLE', 1.15, 'TITLE')
 }
