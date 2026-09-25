@@ -56,6 +56,8 @@ test('mechanical flange dimensions agree with editable geometry', async () => {
 test('public geology section and investigation plan use native domain compilers', async () => {
   const sdk = createKJDrawSDK()
   const section = await createIndustrySample(sdk, 'sample-geology-section')
+  assert.equal(section.snapshot().metadata.title, 'Geological section')
+  assert.equal(section.snapshot().metadata.custom.titleZh, '剖面图')
   assert.equal(section.snapshot().header.units, 'millimeter')
   assert.ok(section.listEntities({ type: 'HATCH' }).length >= 20, 'stratigraphic cells retain native lithology hatches')
   assert.ok(section.listEntities({ type: 'HATCH' }).some(entity => entity.payload.patternName.includes('LOESS')))

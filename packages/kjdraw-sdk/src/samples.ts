@@ -46,7 +46,7 @@ const sampleCatalog: SampleDefinition[] = [
   { id: 'sample-mechanical', title: 'Bearing bracket / manufacturing drawing', titleZh: '轴承支架 / 制造工程图', discipline: 'MECHANICAL', build: buildMechanical },
   { id: 'sample-mechanical-flange', title: 'Six-hole mounting flange / manufacturing drawing', titleZh: '六孔安装法兰 / 制造工程图', discipline: 'MECHANICAL', build: buildMechanicalFlange },
   { id: 'sample-borehole-log', title: 'Loess borehole / engineering log', titleZh: '黄土钻孔 / 工程柱状图', discipline: 'GEOLOGY', build: buildBoreholeLog },
-  { id: 'sample-geology-section', title: 'Loess site / geological section', titleZh: '黄土场地 / 工程地质剖面', discipline: 'GEOLOGY', buildCompiled: buildGeologySectionCompiled },
+  { id: 'sample-geology-section', title: 'Geological section', titleZh: '剖面图', discipline: 'GEOLOGY', buildCompiled: buildGeologySectionCompiled },
   { id: 'sample-geology-plan', title: 'Investigation points / location plan', titleZh: '勘探点 / 平面位置图', discipline: 'GEOLOGY', units: 'meter', buildCompiled: buildGeologyPlanCompiled },
 ]
 

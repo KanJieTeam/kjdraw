@@ -58,8 +58,8 @@ const sampleCatalog = [
     },
     {
         id: 'sample-geology-section',
-        title: 'Loess site / geological section',
-        titleZh: '黄土场地 / 工程地质剖面',
+        title: 'Geological section',
+        titleZh: '剖面图',
         discipline: 'GEOLOGY',
         buildCompiled: buildGeologySectionCompiled
     },

@@ -2942,7 +2942,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       let labelHeight = textHeights?.majorValue ?? 2.1
       if (!majorGroupValueStyle) {
         labelY = yTop - Math.max(1.8, (yTop - yBottom) / 2)
-        if (textHeights) labelY = Math.min(labelY, yTop - labelHeight - 0.2)
+        labelY = Math.min(labelY, yTop - labelHeight - 0.2)
         if (textFlow && coreIndex < 2) {
           labelHeight = textFlow.labelHeightMm
           labelY = Math.min(yTop - textFlow.firstBaselineMm,
@@ -2960,7 +2960,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         layerName: displayAliases?.names[principal.name] ?? principal.name,
         baseElevation: metres(hole.collarElevation - groupBottom), thickness: metres(groupBottom - groupTop),
       }
-      const valueY = majorGroupValueStyle ? mid : textFlow && coreIndex < 2 ? labelY : yTop - yBottom < 2 ? labelY : mid
+      const valueY = majorGroupValueStyle ? mid : labelY
       const numberBandHeight = textFlow && coreIndex === 0
         ? Math.max(yTop - yBottom, textFlow.firstBaselineMm + textFlow.labelHeightMm + 1)
         : yTop - yBottom

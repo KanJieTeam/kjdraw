@@ -589,6 +589,17 @@ test('a declared text lane borrows space for a sourced thin first group without 
   const noBorrow = structuredClone(input)
   noBorrow.columnStylePack.rules['geology-column-layout'].textFlow.firstGroupBorrowMm = 0
   assert.throws(() => compileGeologyColumn(noBorrow), /core labels collide|description collides/)
+
+  const thinLaterGroup = structuredClone(input)
+  thinLaterGroup.hole.strata[2].bottom = 6
+  thinLaterGroup.hole.strata.push({ intervalId: 'd', groupId: '4', groupRole: 'principal', code: '4', name: 'Rock', top: 6, bottom: 10,
+    lithology: 'rock' })
+  const thinCompiled = compileGeologyColumn(thinLaterGroup)
+  const thinName = thinCompiled.commandArgs.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'Sand')
+  const thinTop = 340 - 56 - 10 - 5 * 4
+  const thinBottom = 340 - 56 - 10 - 6 * 4
+  assert.ok(thinName.payload.position[1] >= thinBottom + 0.4)
+  assert.ok(thinName.payload.position[1] + thinName.payload.height <= thinTop - 0.2 + 1e-6)
 })
 
 test('twelve sourced CJK layer-name characters reject a 20 mm lane and survive a 39 mm knowledge-pack lane without truncation', async () => {

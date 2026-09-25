@@ -5,6 +5,7 @@ import { kjdrawIcon } from '../../packages/kjdraw-sdk/src/theme.js'
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from '../../packages/kjdraw-sdk/src/layout.js'
 import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate } from '../../packages/kjdraw-sdk/src/drafting.js'
 import { editEntityGrip } from '../../packages/kjdraw-sdk/src/grips.js'
+import { transformEntityPayload } from '../../packages/kjdraw-sdk/src/geometry/transform.js'
 import { breakEntityPayloads, editPolylinePayload } from '../../packages/kjdraw-sdk/src/editing.js'
 import { createBoundaryEditSession } from '../../packages/kjdraw-sdk/src/boundary-edit.js'
 import { KJ_MODIFICATION_DEFINITIONS, getKJInteractiveModificationDefinition, getKJModificationDefinition, buildKJModificationCommand, getKJModificationSelectionCenter, parseKJModificationCommandValues, previewKJModification, validateKJModificationSelection } from '../../packages/kjdraw-sdk/src/modification-controls.js'
@@ -509,6 +510,7 @@ async function manageTextStyles(){
 }
 function refresh() {
   outputControls?.sync()
+  syncBlockInsertControl()
   syncDimensionStyleControl()
   syncTextStyleControls()
   const snapshot=doc().snapshot(),variables=snapshot.header.systemVariables
@@ -724,6 +726,68 @@ async function openBlockCreator(){
   if(doc()!==drawing)throw new Error(t('drawingChanged'))
   const receipt=await execute('BLOCKCREATE',{name:String(values.name).trim(),ids,basePoint,attributeDefinitions},{expectedRevision:revision})
   if(receipt.result.insert)replaceSelection([receipt.result.insert.id]);setTool('select');refresh();fit()
+}
+function insertableBlocks(drawing=doc()){
+  return drawing.getTable('blockRecords').records.filter(record=>!record.erased&&record.payload?.isSpace!==true&&Array.isArray(record.payload?.entityIds)&&record.payload.entityIds.some(id=>{const member=drawing.getObject(id);return member?.kind==='entity'&&!member.erased}))
+}
+function blockInsertionLayer(drawing=doc()){
+  const layer=drawing.getObject(drawing.getTable('layers').currentId)
+  return layer?.kind==='table-record'&&!layer.erased&&layer.payload.visible!==false&&layer.payload.locked!==true&&layer.payload.frozen!==true?layer:null
+}
+function syncBlockInsertControl(){
+  const button=$('block-insert');if(!button)return
+  const ready=Boolean(sdk&&session),blocks=ready?insertableBlocks():[],layer=ready?blockInsertionLayer():null
+  button.disabled=!ready||!blocks.length||!layer
+  button.title=!ready?t('blockInsertUnavailable'):!blocks.length?t('blockInsertEmpty'):!layer?t('blockInsertLayerLocked'):t('blockInsertHelp')
+}
+async function openBlockInserter(){
+  const drawing=doc(),revision=drawing.revision,blocks=insertableBlocks(drawing)
+  if(!blocks.length)throw new Error(t('blockInsertEmpty'))
+  if(!blockInsertionLayer(drawing))throw new Error(t('blockInsertLayerLocked'))
+  const selected=await requestLocalCommand({title:t('blockInsert'),description:t('blockInsertHelp'),fields:[
+    {name:'blockRecordId',label:t('blockDefinition'),value:blocks[0].id,options:blocks.map(block=>[block.id,block.name])},
+  ]})
+  if(!selected)return
+  const block=blocks.find(item=>item.id===selected.blockRecordId)
+  if(!block)throw new Error(t('blockInsertEmpty'))
+  const definitions=(block.payload.entityIds??[]).map(id=>drawing.getObject(id)).filter(item=>item?.kind==='entity'&&!item.erased&&item.type==='ATTDEF')
+  const fields=[
+    {name:'position',label:t('blockInsertPosition'),value:'0, 0'},
+    {name:'scaleX',label:t('blockInsertScaleX'),type:'number',step:'any',value:1},
+    {name:'scaleY',label:t('blockInsertScaleY'),type:'number',step:'any',value:1},
+    {name:'scaleZ',label:t('blockInsertScaleZ'),type:'number',step:'any',value:1},
+    {name:'rotation',label:t('componentRotation'),type:'number',step:'any',value:0},
+    ...definitions.map((definition,index)=>({name:`attribute_${index}`,label:`${t('blockAttributeValue')} · ${String(definition.payload.tag)}`,value:String(definition.payload.text??''),required:false})),
+  ]
+  const validate=values=>{
+    const position=String(values.position).split(/[ ,]+/).filter(Boolean).map(Number)
+    if(position.length!==2||position.some(value=>!Number.isFinite(value)))return t('blockInsertPositionInvalid')
+    if([values.scaleX,values.scaleY,values.scaleZ].some(value=>!Number.isFinite(value)||value===0))return t('blockInsertScaleInvalid')
+    if(!Number.isFinite(values.rotation))return t('blockInsertRotationInvalid')
+    if(Math.abs(Math.abs(values.scaleX)-Math.abs(values.scaleY))>1e-12*Math.max(Math.abs(values.scaleX),Math.abs(values.scaleY),1)){
+      const angle=Number(values.rotation)*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle)
+      const matrix=[values.scaleX*c,values.scaleX*s,-values.scaleY*s,values.scaleY*c,0,0]
+      try{
+        for(const id of block.payload.entityIds??[]){
+          const member=drawing.getObject(id)
+          if(member?.kind==='entity'&&!member.erased)transformEntityPayload(member.type,member.payload,matrix)
+        }
+      }catch(error){
+        if(error?.message==='Operation would turn circular geometry into non-circular geometry')return t('blockInsertNonuniformUnsupported')
+        throw error
+      }
+    }
+    return ''
+  }
+  const values=await requestLocalCommand({title:`${t('blockInsert')} · ${block.name}`,description:t('blockInsertReview'),submitLabel:t('blockInsert'),fields,validate})
+  if(!values)return
+  if(doc()!==drawing||drawing.revision!==revision||!insertableBlocks(drawing).some(item=>item.id===block.id))throw new Error(t('drawingChanged'))
+  const layer=blockInsertionLayer(drawing)
+  if(!layer)throw new Error(t('blockInsertLayerLocked'))
+  const position=String(values.position).split(/[ ,]+/).filter(Boolean).map(Number)
+  const attributeValues=Object.fromEntries(definitions.map((definition,index)=>[String(definition.payload.tag),String(values[`attribute_${index}`]??'')]))
+  const receipt=await execute('BLOCKINSERT',{blockRecordId:block.id,position,scale:[Number(values.scaleX),Number(values.scaleY),Number(values.scaleZ)],rotation:Number(values.rotation)*Math.PI/180,attributeValues,layerId:layer.id,ownerId:activeSpaceId()},{expectedRevision:revision})
+  replaceSelection([receipt.result.id]);setTool('select');refresh();fit()
 }
 async function openComponentLibrary(){
   const drawing=doc(),revision=drawing.revision,locale=i18n.locale==='zh'?'zh-CN':'en'
@@ -1471,6 +1535,7 @@ function initializeDraftingControls(){
   picker.setAttribute('aria-label',i18n.locale==='zh'?'绘图工具':'Drawing tool');picker.onchange=()=>{if(!busy){setTool(picker.value);canvas.focus()}}
   library.append(picker)
   const blocks=bilingual(document.createElement('button'),'Create block','创建块');blocks.id='block-create';blocks.type='button';blocks.onclick=()=>run(openBlockCreator);library.append(blocks)
+  const insert=bilingual(document.createElement('button'),'Insert block','插入已有块');insert.id='block-insert';insert.type='button';insert.disabled=true;insert.onclick=()=>run(openBlockInserter);library.append(insert)
   const components=bilingual(document.createElement('button'),'Components','部件库');components.id='component-library';components.type='button';components.onclick=()=>run(openComponentLibrary);library.append(components)
   document.querySelector('.ribbon-groups').insertBefore(library,document.querySelector('.ribbon-group[data-section="modify"]'))
   const annotation=document.createElement('div');annotation.className='ribbon-group annotation-library';annotation.dataset.section='draw';annotation.append(bilingual(document.createElement('small'),'ANNOTATION','注释') )

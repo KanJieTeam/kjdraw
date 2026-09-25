@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/workbench/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=12ef4a0410416f37">
+  <link rel="stylesheet" href="../style.css?v=f51e295f6529722a">
   <title>Using the workbench · KJDraw Docs</title>
 </head>
 <body>
@@ -87,6 +87,7 @@
 <li>Press <strong>Esc</strong> to cancel the current operation and return to Select. No entity is added and no undo entry is created.</li>
 </ul>
 <p>After a fixed-length object such as a line or circle is created, the same tool remains ready for the next object. Press <strong>Esc</strong> when you are finished drawing.</p>
+<p>To reuse a block, select its source objects and choose <strong>Draw → Create block</strong>. Then choose <strong>Draw → Insert existing block</strong>, pick the definition and enter the insertion point, scales, rotation and any attribute values. Each insertion is one undoable edit. A locked, hidden or frozen current layer must be changed before insertion. If a block&#39;s geometry cannot use different X and Y scales, the dialog explains this before changing the drawing.</p>
 <h2 id="en-workbench-coordinates">Enter exact coordinates</h2>
 <p>While a drawing or point-driven modification is active, use one of these forms in the command bar:</p>
 <div class="table-wrap"><table><thead><tr><th>Input</th><th>Meaning</th></tr></thead><tbody><tr><td><code>100,50</code></td><td>Absolute point X=100, Y=50</td></tr><tr><td><code>@40,-10</code></td><td>40 units right and 10 units down from the last accepted point</td></tr><tr><td><code>@25&lt;30</code></td><td>25 units from the last point at 30 degrees</td></tr></tbody></table></div>
@@ -190,6 +191,7 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
 <li>按 <strong>Esc</strong> 取消当前操作并回到选择状态；不会新增对象，也不会产生撤销记录。</li>
 </ul>
 <p>直线、圆等固定点数对象创建后，同一工具会继续等待绘制下一个对象。全部画完后按 <strong>Esc</strong> 返回选择。</p>
+<p>复用图块时，先选中源对象，再点击<strong>绘图 → 创建图块</strong>；随后点击<strong>绘图 → 插入已有块</strong>，选择定义并填写插入点、比例、角度和属性值。每次插入都可单独撤销。当前图层锁定、隐藏或冻结时需先切换图层；若图块图形不支持 X/Y 非等比缩放，对话框会先提示，不会改动图纸。</p>
 <h2 id="zh-workbench-coordinates">输入精确坐标</h2>
 <p>绘图或需要取点的修改操作进行中，可在命令栏使用以下格式：</p>
 <div class="table-wrap"><table><thead><tr><th>输入</th><th>含义</th></tr></thead><tbody><tr><td><code>100,50</code></td><td>绝对坐标点 X=100、Y=50</td></tr><tr><td><code>@40,-10</code></td><td>相对上一个已接受点，向右 40、向下 10 个单位</td></tr><tr><td><code>@25&lt;30</code></td><td>相对上一个点，按 30° 方向前进 25 个单位</td></tr></tbody></table></div>
@@ -279,6 +281,6 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=12ef4a0410416f37"></script>
+  <script type="module" src="../app.js?v=f51e295f6529722a"></script>
 </body>
 </html>

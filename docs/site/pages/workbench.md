@@ -34,6 +34,8 @@ Choose a drawing tool from the Ribbon or the **Drawing tool** list. Tool-specifi
 
 After a fixed-length object such as a line or circle is created, the same tool remains ready for the next object. Press **Esc** when you are finished drawing.
 
+To reuse a block, select its source objects and choose **Draw → Create block**. Then choose **Draw → Insert existing block**, pick the definition and enter the insertion point, scales, rotation and any attribute values. Each insertion is one undoable edit. A locked, hidden or frozen current layer must be changed before insertion. If a block's geometry cannot use different X and Y scales, the dialog explains this before changing the drawing.
+
 ## Enter exact coordinates {#coordinates}
 
 While a drawing or point-driven modification is active, use one of these forms in the command bar:
@@ -237,6 +239,8 @@ editor.setLayout('compact')
 - 按 **Esc** 取消当前操作并回到选择状态；不会新增对象，也不会产生撤销记录。
 
 直线、圆等固定点数对象创建后，同一工具会继续等待绘制下一个对象。全部画完后按 **Esc** 返回选择。
+
+复用图块时，先选中源对象，再点击**绘图 → 创建图块**；随后点击**绘图 → 插入已有块**，选择定义并填写插入点、比例、角度和属性值。每次插入都可单独撤销。当前图层锁定、隐藏或冻结时需先切换图层；若图块图形不支持 X/Y 非等比缩放，对话框会先提示，不会改动图纸。
 
 ## 输入精确坐标 {#coordinates}
 
