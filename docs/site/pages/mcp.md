@@ -8,10 +8,22 @@ summary.zh: 通过 MCP 向智能体提供有界图纸读取与可审核提案，
 :::en
 ## Start a local stdio server {#start-server}
 
-Install KJDraw in a host-owned Node.js 22+ project, create empty `proposals` and `results` directories, and start the packaged executable with absolute host-selected paths:
+The MCP executable is part of the **1.0.0-rc.3 source candidate**, not necessarily the package currently served by npm's `next` tag. Check whether that exact version is published before installing it:
 
 ```sh
-npm install @kanjieteam/kjdraw@next
+npm view @kanjieteam/kjdraw@1.0.0-rc.3 version
+```
+
+If the registry does not return `1.0.0-rc.3`, follow the [source-checkout installation](https://kanjieteam.github.io/kjdraw/docs/latest/installation/#en-installation-release-channels); do not install `@next` and assume it contains `kjdraw-mcp.mjs`. Once the exact version is published, install it in a host-owned Node.js 22+ project:
+
+```sh
+npm install @kanjieteam/kjdraw@1.0.0-rc.3
+node node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --check-tool-schemas
+```
+
+Create empty `proposals` and `results` directories, then start the verified executable with absolute host-selected paths:
+
+```sh
 node /absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --workspace /absolute/project --blank drawing.kjd --units millimeter --proposal-dir proposals --candidate-dir results
 ```
 
@@ -69,10 +81,22 @@ Run `node node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --check-tool-schema
 :::zh
 ## 启动本地 stdio 服务 {#start-server}
 
-在宿主管理的 Node.js 22+ 工程中安装 KJDraw，创建空的 `proposals`、`results` 目录，再用宿主选择的绝对路径启动安装包内的可执行文件：
+MCP 可执行文件属于 **1.0.0-rc.3 源码候选版**，npm `next` 标签当前不一定提供它。安装前先查询这个确切版本是否已发布：
 
 ```sh
-npm install @kanjieteam/kjdraw@next
+npm view @kanjieteam/kjdraw@1.0.0-rc.3 version
+```
+
+如果仓库未返回 `1.0.0-rc.3`，请按[源码安装步骤](https://kanjieteam.github.io/kjdraw/docs/latest/installation/#zh-installation-release-channels)操作；不要安装 `@next` 后直接假定存在 `kjdraw-mcp.mjs`。确切版本发布后，可在宿主管理的 Node.js 22+ 工程中安装并校验：
+
+```sh
+npm install @kanjieteam/kjdraw@1.0.0-rc.3
+node node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --check-tool-schemas
+```
+
+创建空的 `proposals`、`results` 目录，再用宿主选择的绝对路径启动已校验的可执行文件：
+
+```sh
 node /absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --workspace /absolute/project --blank drawing.kjd --units millimeter --proposal-dir proposals --candidate-dir results
 ```
 

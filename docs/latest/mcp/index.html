@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/mcp/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=bad2aa3bd24240ad">
+  <link rel="stylesheet" href="../style.css?v=97644b287ebdf543">
   <title>MCP integration · KJDraw Docs</title>
 </head>
 <body>
@@ -70,9 +70,13 @@
         <article class="lang-en" lang="en" id="en-mcp">
           <header class="page-hero"><p class="eyebrow">KJDRAW / MCP INTEGRATION</p><h1>MCP integration</h1><p class="lead">Expose bounded CAD reads and reviewable proposals to an MCP client without giving the model file or approval authority.</p></header>
           <h2 id="en-mcp-start-server">Start a local stdio server</h2>
-<p>Install KJDraw in a host-owned Node.js 22+ project, create empty <code>proposals</code> and <code>results</code> directories, and start the packaged executable with absolute host-selected paths:</p>
-<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm install @kanjieteam/kjdraw@next
-node /absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --workspace /absolute/project --blank drawing.kjd --units millimeter --proposal-dir proposals --candidate-dir results</code></pre>
+<p>The MCP executable is part of the <strong>1.0.0-rc.3 source candidate</strong>, not necessarily the package currently served by npm&#39;s <code>next</code> tag. Check whether that exact version is published before installing it:</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm view @kanjieteam/kjdraw@1.0.0-rc.3 version</code></pre>
+<p>If the registry does not return <code>1.0.0-rc.3</code>, follow the <a href="https://kanjieteam.github.io/kjdraw/docs/latest/installation/#en-installation-release-channels">source-checkout installation</a>; do not install <code>@next</code> and assume it contains <code>kjdraw-mcp.mjs</code>. Once the exact version is published, install it in a host-owned Node.js 22+ project:</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm install @kanjieteam/kjdraw@1.0.0-rc.3
+node node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --check-tool-schemas</code></pre>
+<p>Create empty <code>proposals</code> and <code>results</code> directories, then start the verified executable with absolute host-selected paths:</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>node /absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --workspace /absolute/project --blank drawing.kjd --units millimeter --proposal-dir proposals --candidate-dir results</code></pre>
 <p>Use <code>--input drawing.kjd</code> or <code>--input drawing.dxf</code> instead of <code>--blank</code> to inspect an existing drawing. Relative drawing and output paths are resolved inside <code>--workspace</code>; the server rejects path escapes, symbolic-link traversal and conflicting output files. <code>--candidate-dir</code> is an explicit host policy that lets exact create proposals produce new KJD, DXF and SVG candidates. It does not let the model choose a path or overwrite the input.</p>
 <p>For a persistent desktop-client connection, use the absolute installed script path in the client&#39;s stdio configuration instead of relying on a temporary package-manager cache. The <a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/try-in-ai.md">AI client installer</a> performs a safe user-level merge for supported clients.</p>
 <h2 id="en-mcp-client-config">Configure an MCP client</h2>
@@ -111,9 +115,13 @@ node /absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --work
         <article class="lang-zh" lang="zh-CN" id="zh-mcp">
           <header class="page-hero"><p class="eyebrow">KJDRAW / MCP 集成</p><h1>MCP 集成</h1><p class="lead">通过 MCP 向智能体提供有界图纸读取与可审核提案，同时不授予模型文件写入或批准权限。</p></header>
           <h2 id="zh-mcp-start-server">启动本地 stdio 服务</h2>
-<p>在宿主管理的 Node.js 22+ 工程中安装 KJDraw，创建空的 <code>proposals</code>、<code>results</code> 目录，再用宿主选择的绝对路径启动安装包内的可执行文件：</p>
-<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm install @kanjieteam/kjdraw@next
-node /absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --workspace /absolute/project --blank drawing.kjd --units millimeter --proposal-dir proposals --candidate-dir results</code></pre>
+<p>MCP 可执行文件属于 <strong>1.0.0-rc.3 源码候选版</strong>，npm <code>next</code> 标签当前不一定提供它。安装前先查询这个确切版本是否已发布：</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm view @kanjieteam/kjdraw@1.0.0-rc.3 version</code></pre>
+<p>如果仓库未返回 <code>1.0.0-rc.3</code>，请按<a href="https://kanjieteam.github.io/kjdraw/docs/latest/installation/#zh-installation-release-channels">源码安装步骤</a>操作；不要安装 <code>@next</code> 后直接假定存在 <code>kjdraw-mcp.mjs</code>。确切版本发布后，可在宿主管理的 Node.js 22+ 工程中安装并校验：</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm install @kanjieteam/kjdraw@1.0.0-rc.3
+node node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --check-tool-schemas</code></pre>
+<p>创建空的 <code>proposals</code>、<code>results</code> 目录，再用宿主选择的绝对路径启动已校验的可执行文件：</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>node /absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --workspace /absolute/project --blank drawing.kjd --units millimeter --proposal-dir proposals --candidate-dir results</code></pre>
 <p>检查已有图纸时，把 <code>--blank</code> 换成 <code>--input drawing.kjd</code> 或 <code>--input drawing.dxf</code>。图纸和输出的相对路径都在 <code>--workspace</code> 内解析；服务会拒绝路径越界、符号链接穿越和输出文件冲突。<code>--candidate-dir</code> 是宿主明确开启的策略，允许把准确的新建提案写成新的 KJD、DXF、SVG 候选文件，但模型不能选择路径，也不能覆盖输入图纸。</p>
 <p>桌面客户端需要长期连接时，应在 stdio 配置中使用已安装脚本的绝对路径，不要依赖包管理器的临时缓存。<a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/try-in-ai.zh-CN.md">智能体客户端安装器</a>可以为已支持客户端安全合并当前用户配置。</p>
 <h2 id="zh-mcp-client-config">配置 MCP 客户端</h2>
@@ -155,6 +163,6 @@ node /absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --work
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=bad2aa3bd24240ad"></script>
+  <script type="module" src="../app.js?v=97644b287ebdf543"></script>
 </body>
 </html>
