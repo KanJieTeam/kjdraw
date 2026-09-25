@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" role="img" aria-labelledby="title description">
+  <title id="title">KJDraw editable engineering model</title>
+  <desc id="description">A light CAD grid with editable geometry, constraints, dimensions, layers, and connected model objects.</desc>
+  <defs>
+    <pattern id="fine-grid" width="34" height="34" patternUnits="userSpaceOnUse">
+      <path d="M34 0H0V34" fill="none" stroke="#E8EDF4" stroke-width="1"/>
+    </pattern>
+    <pattern id="major-grid" width="170" height="170" patternUnits="userSpaceOnUse">
+      <path d="M170 0H0V170" fill="none" stroke="#DCE5F0" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="model-fill" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#F9FCFF"/>
+      <stop offset="1" stop-color="#EAF3FF"/>
+    </linearGradient>
+    <linearGradient id="node-fill" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#D9FF95"/>
+      <stop offset="1" stop-color="#AAEB4A"/>
+    </linearGradient>
+    <filter id="panel-shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="10" stdDeviation="15" flood-color="#42628F" flood-opacity=".10"/>
+    </filter>
+    <clipPath id="surface-clip"><rect x="12" y="12" width="1176" height="656" rx="14"/></clipPath>
+  </defs>
+
+  <rect x="1" y="1" width="1198" height="678" rx="18" fill="#FFFFFF" stroke="#CBD8E8" stroke-width="2"/>
+  <g clip-path="url(#surface-clip)">
+    <rect x="12" y="12" width="1176" height="656" fill="#FCFDFF"/>
+    <rect x="12" y="12" width="1176" height="656" fill="url(#fine-grid)"/>
+    <rect x="12" y="12" width="1176" height="656" fill="url(#major-grid)"/>
+
+    <!-- A quiet application frame keeps the drawing legible without becoming an embedded editor. -->
+    <path d="M12 51H1188" stroke="#DFE7F1"/>
+    <circle cx="38" cy="31" r="4" fill="#B9C7D9"/>
+    <circle cx="55" cy="31" r="4" fill="#B9C7D9"/>
+    <circle cx="72" cy="31" r="4" fill="#B9C7D9"/>
+    <text x="592" y="35" fill="#71819A" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="2" text-anchor="middle">KJDRAW  /  MODEL SPACE</text>
+    <text x="1147" y="35" fill="#71819A" font-family="Inter, Arial, sans-serif" font-size="12" text-anchor="end">100%</text>
+
+    <!-- Model construction lines and reference axes. -->
+    <g fill="none" stroke="#91A5BF" stroke-width="1.4" stroke-dasharray="6 7" opacity=".86">
+      <path d="M274 375H706M485 145V603M722 150V575M962 171V598"/>
+      <path d="M349 517H1023M722 250H1037"/>
+      <path d="M351 519 576 375 723 250M576 375 958 455"/>
+    </g>
+
+    <!-- Editable parametric profile. -->
+    <path d="M351 517 484 375 484 195 646 195 722 250 722 375 576 375 576 517Z" fill="url(#model-fill)" fill-opacity=".8" stroke="#263650" stroke-width="2.4" stroke-linejoin="round"/>
+    <path d="M484 375H576M646 195V250H722" fill="none" stroke="#263650" stroke-width="2.1"/>
+    <circle cx="575" cy="287" r="50" fill="#FFFFFF" stroke="#263650" stroke-width="2.1"/>
+    <path d="M575 225V349M513 287H637" fill="none" stroke="#8FA4BE" stroke-width="1.2" stroke-dasharray="5 5"/>
+    <circle cx="575" cy="287" r="3" fill="#7187A3"/>
+
+    <!-- A second selected object shares the same drawing space. -->
+    <path d="M810 252H963L1032 321V455H810Z" fill="#F5F9FF" fill-opacity=".88" stroke="#165DFA" stroke-width="2.3" stroke-linejoin="round"/>
+    <path d="M963 252V321H1032" fill="none" stroke="#165DFA" stroke-width="2.1"/>
+    <path d="M810 455 962 520 1032 455" fill="none" stroke="#263650" stroke-width="1.7"/>
+    <circle cx="919" cy="355" r="48" fill="#FFFFFF" stroke="#263650" stroke-width="1.9"/>
+    <path d="M919 299V411M863 355H975" fill="none" stroke="#9FB0C7" stroke-width="1.1" stroke-dasharray="5 5"/>
+
+    <!-- Constraint and dimension hints. -->
+    <g fill="none" stroke="#9ACC4B" stroke-width="1.5" stroke-dasharray="6 6">
+      <path d="M484 168H646M761 250H810"/>
+    </g>
+    <g fill="none" stroke="#6C7F99" stroke-width="1.1">
+      <path d="M485 146V166M646 146V166M485 156H646"/>
+      <path d="M758 250V455M750 250H766M750 455H766"/>
+    </g>
+    <text x="565" y="149" fill="#60718B" font-family="Inter, Arial, sans-serif" font-size="14" text-anchor="middle">160</text>
+    <text x="776" y="357" fill="#60718B" font-family="Inter, Arial, sans-serif" font-size="14" transform="rotate(-90 776 357)" text-anchor="middle">205</text>
+    <g fill="#FFFFFF" stroke="#165DFA" stroke-width="2">
+      <rect x="803" y="245" width="14" height="14"/>
+      <rect x="956" y="245" width="14" height="14"/>
+      <rect x="1025" y="314" width="14" height="14"/>
+      <rect x="1025" y="448" width="14" height="14"/>
+      <rect x="803" y="448" width="14" height="14"/>
+    </g>
+    <g fill="url(#node-fill)" stroke="#5FA91A" stroke-width="2">
+      <rect x="478" y="189" width="12" height="12"/>
+      <rect x="640" y="189" width="12" height="12"/>
+      <circle cx="484" cy="375" r="7"/>
+      <circle cx="576" cy="375" r="7"/>
+    </g>
+    <g fill="#FFFFFF" stroke="#263650" stroke-width="1.7">
+      <circle cx="351" cy="517" r="7"/>
+      <circle cx="576" cy="517" r="7"/>
+      <circle cx="722" cy="375" r="7"/>
+    </g>
+
+    <!-- Thin, detached controls suggest an editable model rather than a live canvas. -->
+    <g filter="url(#panel-shadow)">
+      <rect x="38" y="78" width="198" height="258" rx="12" fill="#FFFFFF" stroke="#E4EBF4"/>
+      <rect x="51" y="130" width="172" height="38" rx="7" fill="#EEF4FF"/>
+    </g>
+    <text x="58" y="109" fill="#263650" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">Layers</text>
+    <g font-family="Inter, Arial, sans-serif" font-size="14" fill="#50637F">
+      <text x="88" y="155">Geometry</text>
+      <text x="88" y="197">Relations</text>
+      <text x="88" y="239">Dimensions</text>
+      <text x="88" y="281">References</text>
+      <text x="88" y="323">Construction</text>
+    </g>
+    <g fill="none" stroke="#7188A7" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M60 150q9-9 18 0-9 9-18 0Zm9-3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>
+      <path d="M60 192q9-9 18 0-9 9-18 0Zm9-3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>
+      <path d="M60 234q9-9 18 0-9 9-18 0Zm9-3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>
+      <path d="M60 276q9-9 18 0-9 9-18 0Zm9-3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>
+      <path d="M60 318q9-9 18 0-9 9-18 0Zm9-3a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>
+      <path d="m60 312 18 12"/>
+    </g>
+
+    <g filter="url(#panel-shadow)">
+      <rect x="883" y="526" width="255" height="96" rx="10" fill="#FFFFFF" stroke="#DCE6F2"/>
+    </g>
+    <path d="M904 557h26M904 575h26M904 593h26" stroke="#B4C5D8" stroke-width="2" stroke-linecap="round"/>
+    <text x="946" y="561" fill="#263650" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700">One editable model</text>
+    <text x="946" y="584" fill="#62748E" font-family="Inter, Arial, sans-serif" font-size="13">Geometry · rules · actions</text>
+    <circle cx="1106" cy="587" r="5" fill="#A9E84F"/>
+  </g>
+</svg>

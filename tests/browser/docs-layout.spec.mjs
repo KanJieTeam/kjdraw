@@ -14,48 +14,49 @@ async function expectNoHorizontalOverflow(page) {
   expect(widths.document).toBeLessThanOrEqual(widths.viewport)
 }
 
-test('documentation home keeps a focused product entry and stable global controls', async ({ page }, testInfo) => {
+test('documentation home follows the model-led product story without embedding the editor in the hero', async ({ page }, testInfo) => {
   chromiumOnly(testInfo)
   await page.setViewportSize({ width: 1600, height: 1000 })
   await page.goto('/docs/latest/')
 
   await expect(page.locator('.topbar')).toBeVisible()
   await expect(page.locator('.brand')).toContainText('KJDraw')
-  await expect(page.locator('#search-button')).toBeVisible()
+  await expect(page.locator('#search-button')).toBeHidden()
   await expect(page.locator('#language')).toBeVisible()
   await expect(page.locator('.product-nav a[href$="api/"]')).toBeVisible()
   await expect(page.locator('.top-links a[href*="github.com/KanJieTeam/kjdraw"]')).toBeVisible()
-
   await expect(page.locator('#sidebar')).toBeHidden()
   await expect(page.locator('.toc')).toBeHidden()
-  await expect(page.locator('article.lang-en .home-actions a.primary')).toBeVisible()
-  await expect(page.locator('article.lang-en .home-entry-section a')).toHaveCount(3)
-  await expect(page.locator('article.lang-en .home-model-canvas')).toHaveCount(0)
-  await expect(page.locator('article.lang-en .home-live-frame iframe')).toHaveAttribute('src', /specimen-editable-entities/)
-  await expect(page.locator('article.lang-en > h2')).toHaveCount(0)
-  const sectionOrder = await page.evaluate(() => {
-    const demo = document.querySelector('article.lang-en .home-live-demo')
-    const entries = document.querySelector('article.lang-en .home-entry-section')
-    return demo.compareDocumentPosition(entries) & Node.DOCUMENT_POSITION_FOLLOWING
+  await expect(page.locator('article.lang-en .home-hero h1')).toContainText('One editable model')
+  await expect(page.locator('article.lang-en .home-actions a.primary').first()).toBeVisible()
+  await expect(page.locator('article.lang-en .home-visual img')).toBeVisible()
+  await expect(page.locator('article.lang-en .home-live-frame iframe')).toHaveCount(0)
+  await expect(page.locator('article.lang-en .home-value-strip > span')).toHaveCount(3)
+  await expect(page.locator('article.lang-en .home-path-list a')).toHaveCount(3)
+  await expect(page.locator('article.lang-en .home-example-grid a')).toHaveCount(3)
+  await expect(page.locator('article.lang-en .home-developer .home-code')).toBeVisible()
+  await expect(page.locator('article.lang-en .home-evidence-grid a')).toHaveCount(3)
+  for (const route of ['workbench/', 'api/', 'mcp/']) await expect(page.locator('article.lang-en .home-path-list a[href="./' + route + '"]')).toBeVisible()
+  const layout = await page.evaluate(() => {
+    const home = document.querySelector('article.lang-en')
+    const image = home.querySelector('.home-visual img')
+    const order = ['.home-hero', '.home-visual', '.home-value-strip', '.home-paths', '.home-examples', '.home-developer', '.home-evidence', '.home-closing']
+      .map(selector => home.querySelector(selector).getBoundingClientRect().top + scrollY)
+    return { order, imageLoaded: image.complete && image.naturalWidth > 0, mainWidth: document.querySelector('main').getBoundingClientRect().width, viewport: innerWidth }
   })
-  expect(sectionOrder).toBeTruthy()
-  for (const route of ['quickstart/', 'api/', 'mcp/']) await expect(page.locator('article.lang-en .home-entry-section a[href="./' + route + '"]')).toBeVisible()
-  const landing = await page.evaluate(() => {
-    const main = document.querySelector('main').getBoundingClientRect()
-    const hero = document.querySelector('article.lang-en .home-hero').getBoundingClientRect()
-    const section = document.querySelector('article.lang-en .home-entry-section').getBoundingClientRect()
-    return { mainWidth: main.width, heroWidth: hero.width, sectionWidth: section.width, viewport: innerWidth }
-  })
-  expect(landing.mainWidth / landing.viewport).toBeGreaterThanOrEqual(0.95)
-  expect(landing.heroWidth / landing.viewport).toBeGreaterThanOrEqual(0.95)
-  expect(landing.sectionWidth).toBeGreaterThanOrEqual(1000)
-  expect(landing.sectionWidth).toBeLessThanOrEqual(1150)
+  expect(layout.imageLoaded).toBe(true)
+  expect(layout.order).toEqual([...layout.order].sort((a, b) => a - b))
+  expect(layout.mainWidth / layout.viewport).toBeGreaterThanOrEqual(0.95)
 
   await page.locator('#language').click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
+  await expect(page.locator('article.lang-zh .home-hero h1')).toContainText('一份可编辑图档')
+  await expectNoHorizontalOverflow(page)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.locator('article.lang-zh .home-visual img')).toBeVisible()
   await expectNoHorizontalOverflow(page)
 })
-
 test('guide pages retain a readable article column and an independent right-hand table of contents', async ({ page }, testInfo) => {
   chromiumOnly(testInfo)
   await page.setViewportSize({ width: 1600, height: 1000 })
