@@ -4,13 +4,14 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { validateKnowledgePack } from '../src/knowledge-pack.js'
 import { KJDRAW_GEOLOGY_KNOWLEDGE_PACK } from '../src/knowledge-packs/geology-core.js'
+import { fetchKnowledgeThroughProxy } from './kjdraw-knowledge-proxy.mjs'
 
 export const GEOLOGY_MANIFEST_URL = 'https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/knowledge/geology/manifest.json'
 const ORIGIN = 'https://raw.githubusercontent.com'
 const ROOT = '/KanJieTeam/kjdraw/main/knowledge/geology/'
 const MAX_MANIFEST = 16 * 1024
 const MAX_PACK = 1024 * 1024
-const TIMEOUT_MS = 2500
+const TIMEOUT_MS = 5000
 const HEX = /^[a-f0-9]{64}$/u
 const STABLE_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u
 const ROLES = { column: 'geology-column-layout', section: 'geology-section-layout' }
@@ -108,7 +109,7 @@ async function atomicFile(path, bytes) {
 }
 
 /** Host-only, data-only updater. No drawing bytes or model input enter the network request. */
-export async function loadGeologyKnowledge({ cacheRoot, fetcher = fetch, manifestUrl = GEOLOGY_MANIFEST_URL,
+export async function loadGeologyKnowledge({ cacheRoot, fetcher = fetchKnowledgeThroughProxy, manifestUrl = GEOLOGY_MANIFEST_URL,
   enabled = process.env.KJDRAW_KNOWLEDGE_UPDATES === 'on' } = {}) {
   if (!enabled) return { source: 'disabled', packs: {}, notice: 'Knowledge updates disabled by KJDRAW_KNOWLEDGE_UPDATES=off' }
   officialUrl(manifestUrl)
