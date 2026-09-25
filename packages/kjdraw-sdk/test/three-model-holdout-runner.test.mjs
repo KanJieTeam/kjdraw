@@ -4,7 +4,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 
-import { MODEL_HOLDOUT_RUN_CONFIG_SCHEMA, runThreeModelHoldout, validateModelHoldoutRunConfig } from '../../../scripts/audits/run-three-model-holdout.mjs'
+import { MODEL_HOLDOUT_RUN_CONFIG_SCHEMA, candidateRepositoryFromOrigin, runThreeModelHoldout, validateModelHoldoutRunConfig } from '../../../scripts/audits/run-three-model-holdout.mjs'
 
 const candidate = { repository: 'KanJieTeam/kjdraw', commit: 'a'.repeat(40), package: { name: '@kanjieteam/kjdraw', version: '1.0.0-rc.3' } }
 const model = (id, vendor, classification, requestedModel, platform, apiKeyEnv) => ({ id, vendor: { id: vendor, name: vendor, classification }, requestedModel, endpoint: `https://${vendor}.example/v1/chat/completions`, apiKeyEnv, runOn: { platform, architecture: 'x64' }, settings: { maxOutputTokens: 4096, timeoutMs: 60000 } })
@@ -36,6 +36,19 @@ async function fakeReports(secretLog, failFirstGeneration = false, behavioralSta
   return { generation, behavioral }
 }
 
+test('candidate repository follows a bounded absolute local Git origin chain', () => {
+  const root = resolve('candidate'), bridge = resolve('bridge')
+  assert.equal(candidateRepositoryFromOrigin(root, directory => {
+    if (directory === root) return bridge
+    if (directory === bridge) return 'https://github.com/KanJieTeam/kjdraw.git'
+    throw new Error('Unexpected origin lookup')
+  }), 'KanJieTeam/kjdraw')
+  assert.equal(candidateRepositoryFromOrigin(root, () => 'git@github.com:KanJieTeam/kjdraw.git'), 'KanJieTeam/kjdraw')
+  assert.throws(() => candidateRepositoryFromOrigin(root, () => 'https://github.com.evil.example/KanJieTeam/kjdraw.git'), /neither GitHub/)
+  assert.throws(() => candidateRepositoryFromOrigin(root, () => resolve('github.com/KanJieTeam/kjdraw')), /cycle/)
+  assert.throws(() => candidateRepositoryFromOrigin(root, directory => directory === root ? bridge : root), /cycle/)
+  assert.throws(() => candidateRepositoryFromOrigin(root, () => '../untrusted'), /absolute local repository/)
+})
 test('run configuration contains metadata and environment variable names only', () => {
   assert.equal(validateModelHoldoutRunConfig(configuration()).models.length, 3)
   const compatible = configuration(); compatible.models[0].settings = { maxOutputTokens: 16384, timeoutMs: 120000, chatTokenParameter: 'max_completion_tokens', toolChoiceMode: 'required', temperature: null, stream: true, reasoningEffort: 'max' }

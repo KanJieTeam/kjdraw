@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
-import { dirname, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { buildModelHoldoutEvidence, MODEL_HOLDOUT_MANIFEST_SCHEMA, MODEL_HOLDOUT_MINIMUM_REPETITIONS } from './model-holdout-evidence.mjs'
@@ -30,7 +30,7 @@ const safeId = (value, label) => {
 
 function normalizeRepository(value) {
   const text = String(value ?? '').trim()
-  const match = text.match(/github\.com[/:]([^/]+\/[^/.]+)(?:\.git)?$/i)
+  const match = text.match(/^(?:(?:git\+)?https:\/\/github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?\/?$/i)
   return match?.[1] ?? null
 }
 
@@ -102,9 +102,24 @@ function command(root, args) {
   return result.stdout.trim()
 }
 
+export function candidateRepositoryFromOrigin(root, getOrigin = directory => command(directory, ['remote', 'get-url', 'origin'])) {
+  const visited = new Set()
+  let directory = resolve(root)
+  for (let hop = 0; hop < 4; hop++) {
+    if (visited.has(directory)) throw new Error('Git origin chain contains a cycle')
+    visited.add(directory)
+    const origin = getOrigin(directory)
+    const repository = normalizeRepository(origin)
+    if (repository) return repository
+    if (!isAbsolute(origin)) throw new Error('Git origin is neither GitHub nor an absolute local repository')
+    directory = resolve(origin)
+  }
+  throw new Error('Git origin chain is too deep')
+}
+
 export async function checkoutCandidateIdentity(root) {
   const sdkPackage = JSON.parse(await readFile(resolve(root, 'packages/kjdraw-sdk/package.json'), 'utf8'))
-  const repository = normalizeRepository(command(root, ['remote', 'get-url', 'origin']))
+  const repository = candidateRepositoryFromOrigin(root)
   const commit = command(root, ['rev-parse', 'HEAD']).toLowerCase()
   const dirty = command(root, ['status', '--porcelain', '--untracked-files=all', '--', 'scripts', 'packages', 'package.json'])
   if (dirty) throw new Error('Benchmark source differs from the candidate commit')
