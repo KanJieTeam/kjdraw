@@ -525,6 +525,16 @@ export interface KJFlangeDimension {
     entityStyleKey?: string;
     styleKey?: string;
 }
+/** A native PCD dimension derived from a polar hole pattern, not freehand endpoints. */
+export interface KJFlangeBoltCircleDiameterDimension {
+    patternIndex: number;
+    textPosition: Point2;
+    textOverride?: string;
+    textHeight?: number;
+    arrowSize?: number;
+    entityStyleKey?: string;
+    styleKey?: string;
+}
 /** A source-measured native leader without private annotation handles. */
 export interface KJFlangeLeader {
     vertices: Point2[];
@@ -664,6 +674,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
         sectionHatches?: KJFlangeSectionHatch[];
     };
     dimensions?: KJFlangeDimension[];
+    boltCircleDiameterDimensions?: KJFlangeBoltCircleDiameterDimension[];
     leaders?: KJFlangeLeader[];
     featureControlFrames?: KJFlangeFeatureControlFrame[];
     auxiliaryLines?: KJFlangeAuxiliaryLine[];
@@ -789,6 +800,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             dimensionStyleCount: number;
             noteCount: number;
             dimensionCount: number;
+            linkedBoltCircleDiameterDimensionCount: number;
             ordinateDimensionCount: number;
             leaderCount: number;
         };

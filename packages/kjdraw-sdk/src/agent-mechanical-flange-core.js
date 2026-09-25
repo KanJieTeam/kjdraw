@@ -65,6 +65,7 @@ function validate(document, source) {
         'endView',
         'sideViewAxis',
         'dimensions',
+        'boltCircleDiameterDimensions',
         'leaders',
         'featureControlFrames',
         'auxiliaryLines',
@@ -1199,6 +1200,80 @@ function validate(document, source) {
             }
         };
     });
+    if (input.boltCircleDiameterDimensions != null && !Array.isArray(input.boltCircleDiameterDimensions)) throw new KJValidationError('input.boltCircleDiameterDimensions must be an array');
+    const linkedSource = input.boltCircleDiameterDimensions ?? [];
+    if (linkedSource.length > 16 || dimensions.length + linkedSource.length > 128) throw new KJValidationError('input.boltCircleDiameterDimensions exceed the native dimension budget');
+    const usedPatternIndexes = new Set();
+    const linkedDimensions = linkedSource.map((value, index)=>{
+        const label = `input.boltCircleDiameterDimensions[${index}]`, dimension = plain(value, label);
+        exact(dimension, [
+            'patternIndex',
+            'textPosition',
+            'textOverride',
+            'textHeight',
+            'arrowSize',
+            'entityStyleKey',
+            'styleKey'
+        ], label);
+        const patternIndex = finite(dimension.patternIndex, `${label}.patternIndex`, 0, holePatterns.length - 1);
+        if (!Number.isSafeInteger(patternIndex) || usedPatternIndexes.has(patternIndex)) throw new KJValidationError(`${label}.patternIndex must identify a unique polar hole pattern`);
+        usedPatternIndexes.add(patternIndex);
+        const pattern = holePatterns[patternIndex];
+        const textPosition = point(dimension.textPosition, `${label}.textPosition`);
+        const textOverride = dimension.textOverride == null ? undefined : dimension.textOverride;
+        if (textOverride != null && (typeof textOverride !== 'string' || textOverride.length > 128 || !textOverride.includes('<>') || /[\r\n\u0000-\u001f\u007f]/u.test(textOverride))) {
+            throw new KJValidationError(`${label}.textOverride must be bounded text containing the measured <> placeholder`);
+        }
+        const textHeight = dimension.textHeight == null ? undefined : finite(dimension.textHeight, `${label}.textHeight`, 1e-12, 1e12);
+        const arrowSize = dimension.arrowSize == null ? undefined : finite(dimension.arrowSize, `${label}.arrowSize`, 0, 1e12);
+        const styleKey = annotationStyleKey(dimension.styleKey, dimensionStyleKeys, `${label}.styleKey`);
+        const dimensionEntityStyleKey = entityStyleKey(dimension.entityStyleKey, `${label}.entityStyleKey`);
+        const definitionPoints = [
+            [
+                center[0] - pattern.pitchRadius,
+                center[1]
+            ],
+            [
+                center[0] + pattern.pitchRadius,
+                center[1]
+            ]
+        ];
+        const projection = projectDimension({
+            dimensionType: 'DIAMETER',
+            definitionPoints: definitionPoints.map(([x, y])=>[
+                    x,
+                    y,
+                    0
+                ]),
+            textPosition: [
+                ...textPosition,
+                0
+            ],
+            textOverride: textOverride ?? null
+        });
+        if (!projection || Math.abs(projection.measurement - pattern.pitchRadius * 2) > 1e-8) throw new KJValidationError(`${label} cannot derive an exact native PCD dimension`);
+        return {
+            kind: 'diameter',
+            definitionPoints,
+            textPosition,
+            ...textOverride == null ? {} : {
+                textOverride
+            },
+            ...textHeight == null ? {} : {
+                textHeight
+            },
+            ...arrowSize == null ? {} : {
+                arrowSize
+            },
+            ...dimensionEntityStyleKey == null ? {} : {
+                entityStyleKey: dimensionEntityStyleKey
+            },
+            ...styleKey == null ? {} : {
+                styleKey
+            }
+        };
+    });
+    dimensions.push(...linkedDimensions);
     if (input.leaders != null && !Array.isArray(input.leaders)) throw new KJValidationError('input.leaders must be an array');
     if (input.leaders?.length && input.leaders.length > 64) throw new KJValidationError('input.leaders exceed their budget');
     const leaders = (input.leaders ?? []).map((value, index)=>{
@@ -2545,6 +2620,7 @@ function validate(document, source) {
         symmetricProfiles,
         sectionHatches,
         dimensions,
+        linkedDimensionCount: linkedDimensions.length,
         leaders,
         featureControlFrames,
         auxiliaryLines,
@@ -3838,6 +3914,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 dimensionStyleCount: input.dimensionStyles.length,
                 noteCount: input.notes.length,
                 dimensionCount: input.dimensions.length,
+                linkedBoltCircleDiameterDimensionCount: input.linkedDimensionCount,
                 ordinateDimensionCount: input.dimensions.filter((dimension)=>dimension.kind === 'ordinate').length,
                 leaderCount: input.leaders.length
             },

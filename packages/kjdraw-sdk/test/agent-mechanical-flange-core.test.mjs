@@ -3,6 +3,7 @@ import test from 'node:test'
 import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 import { buildAgentMechanicalFlangeCore, createKJDrawSDK, KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK } from '../src/index.js'
+import { projectDimension } from '../src/geometry/annotation.js'
 
 const input = expectedRevision => ({
   version: '1.0.0', expectedRevision, units: 'millimeter', drawingId: 'PUBLIC-TEST-FLANGE',
@@ -1692,4 +1693,66 @@ test('generic orthographic geometry remains native when the circular end view is
   const explicitAxis = buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...base, sideViewAxis: { xRange: [10, 30], axisCoordinate: 20 } })
   assert.equal(explicitAxis.evidence.parameters.endViewPresent, false)
   assert.equal(explicitAxis.commandArgs.entities.some(entity => entity.type === 'LINE'), true)
+})
+test('bolt-circle diameter dimension stays measured from hole-pattern parameters through generation and reopen', async t => {
+  const sdk = createKJDrawSDK()
+  const candidate = pitchRadius => {
+    const document = sdk.createDocument({ units: 'millimeter' })
+    const base = input(document.revision)
+    const intent = { ...base,
+      endView: { ...base.endView, holePatterns: [{ count: 4, pitchRadius, holeRadius: 4, startAngle: Math.PI / 6 }] },
+      boltCircleDiameterDimensions: [{ patternIndex: 0, textPosition: [160, 150], textOverride: 'PCD <>', textHeight: 2.5 }],
+    }
+    return { document, intent, compiled: buildAgentMechanicalFlangeCore(document, intent) }
+  }
+  for (const pitchRadius of [40, 46]) {
+    const { document, compiled } = candidate(pitchRadius)
+    const dimension = compiled.commandArgs.entities.filter(entity => entity.type === 'DIMENSION').at(-1)
+    assert.equal(dimension.payload.dimensionType, 'DIAMETER')
+    assert.equal(dimension.payload.textOverride, 'PCD <>')
+    assert.equal(projectDimension(dimension.payload).measurement, pitchRadius * 2)
+    assert.deepEqual(dimension.payload.definitionPoints.map(point => point.slice(0, 2)), [[90 - pitchRadius, 150], [90 + pitchRadius, 150]])
+    assert.equal(compiled.evidence.parameters.dimensionCount, 3)
+    assert.equal(compiled.evidence.parameters.linkedBoltCircleDiameterDimensionCount, 1)
+    await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document, expectedRevision: 0 })
+    for (const format of ['KJD', 'DXF']) {
+      const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+      const reopened = await sdk.readDocument(bytes, { format })
+      assert.equal(reopened.validate().valid, true)
+      const native = reopened.listEntities({ type: 'DIMENSION' }).filter(entity => entity.payload.textOverride === 'PCD <>')
+      assert.equal(native.length, 1)
+      assert.equal(projectDimension(native[0].payload).measurement, pitchRadius * 2)
+      if (format === 'DXF') {
+        const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+          'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); q=[x for x in d.modelspace().query("DIMENSION") if x.dxf.text=="PCD <>"]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"count":len(q),"measurement":float(q[0].get_measurement()) if len(q)==1 else None}))'],
+        bytes, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+          PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+        if (independent.error?.code === 'ENOENT' || independent.status !== 0 && /No module named ['"]ezdxf/u.test(independent.stderr ?? '')) {
+          if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr ?? independent.error?.message)
+          t.diagnostic('official ezdxf unavailable; independent check skipped')
+        } else {
+          assert.equal(independent.status, 0, independent.stderr)
+          assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, count: 1, measurement: pitchRadius * 2 })
+        }
+      }
+    }
+  }
+})
+
+test('bolt-circle diameter links reject unknown patterns, duplicate links and literal fabricated measurements atomically', () => {
+  const document = createKJDrawSDK().createDocument({ units: 'millimeter' })
+  const base = input(document.revision)
+  const endView = { ...base.endView, holePatterns: [{ count: 4, pitchRadius: 40, holeRadius: 4 }] }
+  const dimension = { patternIndex: 0, textPosition: [160, 150], textOverride: 'PCD <>' }
+  for (const links of [
+    [{ ...dimension, patternIndex: 1 }],
+    [dimension, dimension],
+    [{ ...dimension, textOverride: 'PCD 80' }],
+    [{ ...dimension, textPosition: undefined }],
+    [{ ...dimension, sourceHandle: 'PRIVATE' }],
+  ]) {
+    const before = document.serialize()
+    assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...base, endView, boltCircleDiameterDimensions: links }), /boltCircleDiameterDimensions/u)
+    assert.equal(document.serialize(), before)
+  }
 })

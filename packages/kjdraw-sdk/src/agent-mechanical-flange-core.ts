@@ -324,6 +324,17 @@ export interface KJFlangeDimension {
   styleKey?: string
 }
 
+/** A native PCD dimension derived from a polar hole pattern, not freehand endpoints. */
+export interface KJFlangeBoltCircleDiameterDimension {
+  patternIndex: number
+  textPosition: Point2
+  textOverride?: string
+  textHeight?: number
+  arrowSize?: number
+  entityStyleKey?: string
+  styleKey?: string
+}
+
 /** A source-measured native leader without private annotation handles. */
 export interface KJFlangeLeader {
   vertices: Point2[]
@@ -421,6 +432,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   endView?: { center: Point2; ringRadii: number[]; ringStyleKeys?: (string | null)[]; squareHoles?: { pitch: number; radius: number }; holePatterns?: KJFlangePolarHolePattern[]; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
   sideViewAxis?: { xRange?: Point2; stationRange?: Point2; orientation?: 'horizontal' | 'vertical'; axisCoordinate?: number; axisVisible?: boolean; axisDirection?: 'forward' | 'reverse'; axisStyleKey?: string; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
   dimensions?: KJFlangeDimension[]
+  boltCircleDiameterDimensions?: KJFlangeBoltCircleDiameterDimension[]
   leaders?: KJFlangeLeader[]
   featureControlFrames?: KJFlangeFeatureControlFrame[]
   auxiliaryLines?: KJFlangeAuxiliaryLine[]
@@ -467,7 +479,7 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'entityDrawOrder', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliaryPoints', 'pointDisplay', 'auxiliarySolids', 'auxiliaryWipeouts', 'auxiliaryCurves', 'auxiliaryHatches', 'symbols', 'styleResources', 'styleProfile', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'entityDrawOrder', 'endView', 'sideViewAxis', 'dimensions', 'boltCircleDiameterDimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliaryPoints', 'pointDisplay', 'auxiliarySolids', 'auxiliaryWipeouts', 'auxiliaryCurves', 'auxiliaryHatches', 'symbols', 'styleResources', 'styleProfile', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
   if (input.entityDrawOrder != null && (!Array.isArray(input.entityDrawOrder) || input.entityDrawOrder.length > 10_000)) throw new KJValidationError('input.entityDrawOrder must be an array within its item budget')
   const entityDrawOrder = input.entityDrawOrder == null ? null : input.entityDrawOrder.map((value, index) => {
@@ -946,6 +958,35 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       ...(textOverride == null ? {} : { textOverride }), rotation, ...(textHeight == null ? {} : { textHeight }),
       ...(arrowSize == null ? {} : { arrowSize }), ...(dimensionEntityStyleKey == null ? {} : { entityStyleKey: dimensionEntityStyleKey }), ...(styleKey == null ? {} : { styleKey }) }
   })
+  if (input.boltCircleDiameterDimensions != null && !Array.isArray(input.boltCircleDiameterDimensions)) throw new KJValidationError('input.boltCircleDiameterDimensions must be an array')
+  const linkedSource = (input.boltCircleDiameterDimensions ?? []) as unknown[]
+  if (linkedSource.length > 16 || dimensions.length + linkedSource.length > 128) throw new KJValidationError('input.boltCircleDiameterDimensions exceed the native dimension budget')
+  const usedPatternIndexes = new Set<number>()
+  const linkedDimensions: KJFlangeDimension[] = linkedSource.map((value, index) => {
+    const label = `input.boltCircleDiameterDimensions[${index}]`, dimension = plain(value, label)
+    exact(dimension, ['patternIndex', 'textPosition', 'textOverride', 'textHeight', 'arrowSize', 'entityStyleKey', 'styleKey'], label)
+    const patternIndex = finite(dimension.patternIndex, `${label}.patternIndex`, 0, holePatterns.length - 1)
+    if (!Number.isSafeInteger(patternIndex) || usedPatternIndexes.has(patternIndex)) throw new KJValidationError(`${label}.patternIndex must identify a unique polar hole pattern`)
+    usedPatternIndexes.add(patternIndex)
+    const pattern = holePatterns[patternIndex]!
+    const textPosition = point(dimension.textPosition, `${label}.textPosition`)
+    const textOverride = dimension.textOverride == null ? undefined : dimension.textOverride
+    if (textOverride != null && (typeof textOverride !== 'string' || textOverride.length > 128 || !textOverride.includes('<>') || /[\r\n\u0000-\u001f\u007f]/u.test(textOverride))) {
+      throw new KJValidationError(`${label}.textOverride must be bounded text containing the measured <> placeholder`)
+    }
+    const textHeight = dimension.textHeight == null ? undefined : finite(dimension.textHeight, `${label}.textHeight`, 1e-12, 1e12)
+    const arrowSize = dimension.arrowSize == null ? undefined : finite(dimension.arrowSize, `${label}.arrowSize`, 0, 1e12)
+    const styleKey = annotationStyleKey(dimension.styleKey, dimensionStyleKeys, `${label}.styleKey`)
+    const dimensionEntityStyleKey = entityStyleKey(dimension.entityStyleKey, `${label}.entityStyleKey`)
+    const definitionPoints: Point2[] = [[center[0] - pattern.pitchRadius, center[1]], [center[0] + pattern.pitchRadius, center[1]]]
+    const projection = projectDimension({ dimensionType: 'DIAMETER', definitionPoints: definitionPoints.map(([x, y]) => [x, y, 0]),
+      textPosition: [...textPosition, 0], textOverride: textOverride ?? null })
+    if (!projection || Math.abs(projection.measurement - pattern.pitchRadius * 2) > 1e-8) throw new KJValidationError(`${label} cannot derive an exact native PCD dimension`)
+    return { kind: 'diameter', definitionPoints, textPosition, ...(textOverride == null ? {} : { textOverride }),
+      ...(textHeight == null ? {} : { textHeight }), ...(arrowSize == null ? {} : { arrowSize }),
+      ...(dimensionEntityStyleKey == null ? {} : { entityStyleKey: dimensionEntityStyleKey }), ...(styleKey == null ? {} : { styleKey }) }
+  })
+  dimensions.push(...linkedDimensions)
   if (input.leaders != null && !Array.isArray(input.leaders)) throw new KJValidationError('input.leaders must be an array')
   if ((input.leaders as unknown[] | undefined)?.length && (input.leaders as unknown[]).length > 64) throw new KJValidationError('input.leaders exceed their budget')
   const leaders: KJFlangeLeader[] = ((input.leaders ?? []) as unknown[]).map((value, index) => {
@@ -1429,7 +1470,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   const placedSymbolHasGeometry = symbolDefinitions.some(definition => placedSymbolKeys.has(definition.key) && definition.members.length > 0)
   const hasDrawingGeometry = endViewPresent || axisVisible || symmetricProfiles.length > 0 || sideOutlineSegments.length > 0 || sectionHatches.length > 0 || auxiliaryLines.length > 0 || auxiliaryPoints.length > 0 || auxiliarySolids.length > 0 || auxiliaryWipeouts.length > 0 || auxiliaryCurves.length > 0 || auxiliaryHatches.length > 0 || placedSymbolHasGeometry
   if (!hasDrawingGeometry) throw new KJValidationError('input requires at least one actual geometry family when input.endView is omitted')
-  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, endViewPresent, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, orientation, axisCoordinate, axisVisible, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryPoints, pointDisplay, auxiliarySolids, auxiliaryWipeouts, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSideStyleKeys, insetFrameSideStyleKeys, outerFrameSides, insetFrameSides, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, endViewPresent, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, orientation, axisCoordinate, axisVisible, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, linkedDimensionCount: linkedDimensions.length, leaders, featureControlFrames, auxiliaryLines, auxiliaryPoints, pointDisplay, auxiliarySolids, auxiliaryWipeouts, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSideStyleKeys, insetFrameSideStyleKeys, outerFrameSides, insetFrameSides, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -1772,7 +1813,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
         sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryLineBudget: MAX_AUXILIARY_LINES, auxiliaryPointCount: input.auxiliaryPoints.length, pointDisplay: input.pointDisplay, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryWipeoutCount: input.auxiliaryWipeouts.length, auxiliaryWipeoutBudget: MAX_AUXILIARY_WIPEOUTS, auxiliaryCurveCount: input.auxiliaryCurves.length, auxiliaryCurveBudget: MAX_AUXILIARY_CURVES, auxiliaryArcRadiusMinimum: MIN_AUXILIARY_ARC_RADIUS,
         symbolDefinitionCount: input.symbolDefinitions.length, symbolDefinitionBudget: MAX_SYMBOL_DEFINITIONS, symbolMemberCount: input.symbolDefinitions.reduce((sum, definition) => sum + definition.members.length, 0), symbolMemberBudgetPerDefinition: MAX_SYMBOL_MEMBERS_PER_DEFINITION, symbolMemberBudgetTotal: MAX_SYMBOL_MEMBERS_TOTAL, symbolInstanceCount: input.symbolInstances.length, symbolInstanceBudget: MAX_SYMBOL_INSTANCES, symbolAttributeCount: input.symbolAttributeCount, featureControlFrameCount: input.featureControlFrames.length,
         entityStyleCount: input.customStyles.length, linetypePatternSegmentBudget: 32, textStyleCount: input.textStyles.length, dimensionStyleCount: input.dimensionStyles.length,
-        noteCount: input.notes.length, dimensionCount: input.dimensions.length, ordinateDimensionCount: input.dimensions.filter(dimension => dimension.kind === 'ordinate').length, leaderCount: input.leaders.length },
+        noteCount: input.notes.length, dimensionCount: input.dimensions.length, linkedBoltCircleDiameterDimensionCount: input.linkedDimensionCount, ordinateDimensionCount: input.dimensions.filter(dimension => dimension.kind === 'ordinate').length, leaderCount: input.leaders.length },
       limitations: ['Flange end-view, symmetric axial-profile, cut-face hatches, native dimension and sheet-grid core only', 'Local symbols are bounded to editable local blocks and complete attached attribute sequences', 'Private drawings and labels are not embedded'],
     },
   }
