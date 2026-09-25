@@ -28,6 +28,7 @@ html[data-page="showcase"] .toc{display:none}
 .showcase-card-body{padding:14px}
 .showcase-card .showcase-discipline{margin:0 0 5px;color:#2863f0;font:600 10px/1.3 Consolas,monospace;letter-spacing:.08em;text-transform:uppercase}
 .showcase-card h3{margin:0;font-size:18px;line-height:1.25;letter-spacing:-.02em}
+.showcase-card .showcase-review{display:inline-block;margin:7px 0 0;padding:3px 7px;border:1px solid #e7d7a8;border-radius:4px;background:#fffaf0;color:#72541b;font-size:10px;font-weight:600}
 .showcase-card .showcase-type{margin:3px 0 9px;color:#687386;font-size:12px;line-height:1.4}
 .showcase-card .showcase-summary{display:-webkit-box;min-height:58px;margin:0;color:#4f5b6d;font-size:12px;line-height:1.6;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .showcase-facts{display:flex;flex-wrap:wrap;gap:5px 12px;margin:12px 0 9px;padding-top:10px;border-top:1px solid #edf0f4;color:#697587;font-size:10px}

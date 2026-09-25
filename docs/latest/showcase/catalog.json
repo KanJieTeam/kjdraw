@@ -522,6 +522,7 @@
         "en": "Borehole log",
         "zh": "柱状图"
       },
+      "reviewStatus": "layout-unverified",
       "drawingType": {
         "en": "Engineering borehole log",
         "zh": "工程钻孔柱状图"
@@ -591,6 +592,7 @@
         "en": "Geological section",
         "zh": "剖面图"
       },
+      "reviewStatus": "layout-unverified",
       "drawingType": {
         "en": "Five-borehole section",
         "zh": "五孔工程地质剖面"
@@ -661,6 +663,7 @@
         "en": "Investigation plan",
         "zh": "平面图"
       },
+      "reviewStatus": "layout-unverified",
       "drawingType": {
         "en": "Investigation-point location plan",
         "zh": "勘探点平面位置图"

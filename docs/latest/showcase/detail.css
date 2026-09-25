@@ -9,6 +9,7 @@ header.site nav{display:flex;gap:18px;color:#5d6673;font-size:13px}header.site .
 h1{margin:0 0 9px;font-size:32px;line-height:1.18;letter-spacing:-.04em}.summary{max-width:780px;margin:0;color:#66717d;font-size:14px;line-height:1.6}
 .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.meta span{padding:5px 9px;border:1px solid #e4e8ee;border-radius:5px;color:#566272;font-size:11px}
 .heading>a{padding:9px 13px;border:1px solid #dce2e8;border-radius:6px;font-size:12px}.heading>a:hover{border-color:#9ebad3}
+.review-warning{margin:-5px 0 20px;padding:14px 17px;border:1px solid #e7d7a8;border-radius:6px;background:#fffaf0;color:#594516}.review-warning b{display:block;font-size:13px}.review-warning p{margin:5px 0 0;font-size:12px;line-height:1.6}
 .workspace{border:1px solid #dfe4e9;border-radius:8px;overflow:hidden;background:#f7f9fa}.workspace-bar,.tabs{display:flex;align-items:center;gap:18px;padding:0 14px;border-bottom:1px solid #e1e5e9;background:#fff}
 .workspace-bar{min-height:38px;justify-content:space-between;font-size:12px}.live:before{content:"";display:inline-block;width:6px;height:6px;margin-right:7px;border-radius:50%;background:#26ae54}
 .links{display:flex;gap:16px}.tabs{height:38px;gap:5px}.tabs button{height:100%;padding:0 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:#65717e;font-size:12px}.tabs button.active{border-bottom-color:#17212b;color:#17212b;font-weight:650}
