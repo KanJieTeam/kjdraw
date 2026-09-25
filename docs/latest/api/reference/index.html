@@ -15682,6 +15682,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             dimensionstylecount: number;
             notecount: number;
             dimensioncount: number;
+            linkedboltcirclediameterdimensioncount: number;
             ordinatedimensioncount: number;
             leadercount: number;
         };
@@ -15781,6 +15782,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             dimensionStyleCount: number;
             noteCount: number;
             dimensionCount: number;
+            linkedBoltCircleDiameterDimensionCount: number;
             ordinateDimensionCount: number;
             leaderCount: number;
         };
@@ -19268,6 +19270,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         sectionhatches?: kjflangesectionhatch[];
     };
     dimensions?: kjflangedimension[];
+    boltcirclediameterdimensions?: kjflangeboltcirclediameterdimension[];
     leaders?: kjflangeleader[];
     featurecontrolframes?: kjflangefeaturecontrolframe[];
     auxiliarylines?: kjflangeauxiliaryline[];
@@ -19334,6 +19337,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         sectionHatches?: KJFlangeSectionHatch[];
     };
     dimensions?: KJFlangeDimension[];
+    boltCircleDiameterDimensions?: KJFlangeBoltCircleDiameterDimension[];
     leaders?: KJFlangeLeader[];
     featureControlFrames?: KJFlangeFeatureControlFrame[];
     auxiliaryLines?: KJFlangeAuxiliaryLine[];
@@ -25965,6 +25969,28 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre></d
     clipBoundary: Point2[];
     boundaryType: 1 | 2;
     role: KJFlangeAuxiliaryLine[&#39;role&#39;];
+    styleKey?: string;
+}</code></pre></details>
+      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjflangeboltcirclediameterdimension" data-search="kjflangeboltcirclediameterdimension interface @kanjieteam/kjdraw export interface kjflangeboltcirclediameterdimension {
+    patternindex: number;
+    textposition: point2;
+    textoverride?: string;
+    textheight?: number;
+    arrowsize?: number;
+    entitystylekey?: string;
+    stylekey?: string;
+}">
+      <header><div><span class="kind">interface</span><h3>KJFlangeBoltCircleDiameterDimension</h3></div><a class="permalink" href="#root-interface-kjflangeboltcirclediameterdimension" aria-label="Link to KJFlangeBoltCircleDiameterDimension"></a></header>
+      <div class="symbol-import"><code>import type { KJFlangeBoltCircleDiameterDimension } from &#39;@kanjieteam/kjdraw&#39;</code><button type="button" data-copy-import="import type { KJFlangeBoltCircleDiameterDimension } from &#39;@kanjieteam/kjdraw&#39;"><span class="lang-en">Copy import</span><span class="lang-zh">复制导入</span></button></div>
+      <details class="symbol-declaration"><summary><span class="lang-en">Type declaration</span><span class="lang-zh">类型声明</span></summary><pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFlangeBoltCircleDiameterDimension {
+    patternIndex: number;
+    textPosition: Point2;
+    textOverride?: string;
+    textHeight?: number;
+    arrowSize?: number;
+    entityStyleKey?: string;
     styleKey?: string;
 }</code></pre></details>
       <p class="source-path">agent-mechanical-flange-core.d.ts</p>

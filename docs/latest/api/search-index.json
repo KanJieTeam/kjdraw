@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:9c42582f47728b742c743b27b118462aa2e2fb35fbcf60bb1dc19fe6510d4770",
+  "sourceDigest": "sha256:e7601f601e97ad8929cf785d2a0b353050b4d5e28f5b30bf3c85878403c5cfe8",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -10971,6 +10971,14 @@
       "href": "./api/reference/#root-interface-kjflangeauxiliarywipeout",
       "anchor": "root-interface-kjflangeauxiliarywipeout",
       "summary": "export interface KJFlangeAuxiliaryWipeout { position: Point2; uVector: Point2; vVector: Point2; clipBoundary: Point2[]; boundaryType: 1 | 2; role: KJFlangeAuxiliaryLine['role']; styleKey?: string; }"
+    },
+    {
+      "name": "KJFlangeBoltCircleDiameterDimension",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangeboltcirclediameterdimension",
+      "anchor": "root-interface-kjflangeboltcirclediameterdimension",
+      "summary": "export interface KJFlangeBoltCircleDiameterDimension { patternIndex: number; textPosition: Point2; textOverride?: string; textHeight?: number; arrowSize?: number; entityStyleKey?: string; styleKey?: string; }"
     },
     {
       "name": "KJFlangeCuttingPlaneMark",
