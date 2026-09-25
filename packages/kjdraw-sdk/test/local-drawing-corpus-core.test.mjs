@@ -140,6 +140,52 @@ test('strict geology regression fingerprints native spline shape rather than tre
   const reopenedComparison = compareCanonicalFeatureSummaries(reference, reopened)
   assert.equal(reopenedComparison.categoryCounts.geometry ?? 0, 0, JSON.stringify(reopenedComparison.differences))
 })
+test('strict geology regression compares polyline elevation and segment widths across KJD and DXF reopen', async () => {
+  const make = async patch => {
+    const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+    await document.transact('Synthetic geological contact', tx => tx.createEntity('LWPOLYLINE', {
+      vertices: [{ point: [0, 0, 0], bulge: 0, startWidth: 0.2, endWidth: 0.4 }, { point: [10, 3, 0] }],
+      closed: false, elevation: 5, ...patch,
+    }, { id: 'contact' }))
+    return document
+  }
+  const source = await make({}), reference = createCanonicalFeatureSummary(source, { salt })
+  for (const patch of [
+    { elevation: 6 },
+    { vertices: [{ point: [0, 0, 0], bulge: 0, startWidth: 0.3, endWidth: 0.4 }, { point: [10, 3, 0] }] },
+    { vertices: [{ point: [0, 0, 0], bulge: 0, startWidth: 0.2, endWidth: 0.5 }, { point: [10, 3, 0] }] },
+  ]) {
+    const comparison = compareCanonicalFeatureSummaries(reference, createCanonicalFeatureSummary(await make(patch), { salt }))
+    assert.equal(comparison.passed, false, JSON.stringify(patch))
+    assert.ok(comparison.categoryCounts.geometry > 0, JSON.stringify(comparison))
+  }
+  const sdk = createKJDrawSDK()
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(source, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await sdk.readDocument(bytes, { format })
+    const comparison = compareCanonicalFeatureSummaries(reference, createCanonicalFeatureSummary(reopened, { salt }))
+    assert.equal(comparison.categoryCounts.geometry ?? 0, 0, `${format}: ${JSON.stringify(comparison.differences)}`)
+  }
+})
+test('strict polyline regression retains non-closure DXF flags through reopen', async () => {
+  const make = async dxfFlags => {
+    const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+    await document.transact('Synthetic 3D contact', tx => tx.createEntity('POLYLINE', {
+      vertices: [[0, 0, 2], [10, 3, 4]], closed: false, dxfFlags,
+    }, { id: 'contact-3d' }))
+    return document
+  }
+  const source = await make(8), reference = createCanonicalFeatureSummary(source, { salt })
+  const changed = createCanonicalFeatureSummary(await make(0), { salt })
+  assert.ok(compareCanonicalFeatureSummaries(reference, changed).categoryCounts.geometry > 0)
+  const sdk = createKJDrawSDK()
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(source, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await sdk.readDocument(bytes, { format })
+    const comparison = compareCanonicalFeatureSummaries(reference, createCanonicalFeatureSummary(reopened, { salt }))
+    assert.equal(comparison.categoryCounts.geometry ?? 0, 0, `${format}: ${JSON.stringify(comparison.differences)}`)
+  }
+})
 test('DXF imports of identical bytes ignore transient resource IDs but retain block and layer differences', async () => {
   const sdk = createKJDrawSDK()
   const encoded = async (blockName, color) => {

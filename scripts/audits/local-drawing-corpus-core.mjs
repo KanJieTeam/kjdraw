@@ -3,7 +3,7 @@ import { createHash, createHmac } from 'node:crypto'
 import { displayedEntityBounds } from '../../packages/kjdraw-sdk/src/selection-geometry.js'
 
 export const KJDRAW_LOCAL_CORPUS_SCHEMA = 'com.kanjie.kjdraw.local-drawing-corpus-manifest@3'
-export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@5'
+export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@6'
 export const KJDRAW_FEATURE_COMPARISON_SCHEMA = 'com.kanjie.kjdraw.feature-comparison@2'
 
 const textTypes = new Set(['TEXT', 'MTEXT', 'ATTRIB', 'ATTDEF'])
@@ -120,9 +120,18 @@ function geometryOf(document, entity, tolerance) {
     'lineSpacingFactor', 'backgroundFill', 'backgroundScale', 'normal', 'extrusionDirection')
   if (entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') return {
     closed: source.closed === true,
+    elevation: rounded(source.elevation ?? 0, tolerance),
+    ...(finite(source.constantWidth) && source.constantWidth !== 0 ? { constantWidth: rounded(source.constantWidth, tolerance) } : {}),
+    ...(entity.type === 'POLYLINE' && Number.isSafeInteger(source.dxfFlags) && (source.dxfFlags & ~1)
+      ? { dxfFlags: source.dxfFlags & ~1 } : {}),
     vertices: Array.isArray(source.vertices) ? source.vertices.map(vertex => {
       const raw = vertex && typeof vertex === 'object' && !Array.isArray(vertex) ? vertex : { point: vertex }
-      return { point: point(raw.point, tolerance), ...(finite(raw.bulge) ? { bulge: rounded(raw.bulge, tolerance) } : {}) }
+      return {
+        point: point(raw.point, tolerance),
+        bulge: rounded(raw.bulge ?? 0, tolerance),
+        startWidth: rounded(raw.startWidth ?? 0, tolerance),
+        endWidth: rounded(raw.endWidth ?? 0, tolerance),
+      }
     }) : null,
   }
   if (entity.type === 'HATCH') return {
