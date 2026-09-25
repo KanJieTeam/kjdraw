@@ -22,7 +22,7 @@ test('public CAD capability specimens write independently reopenable editable ev
   const manifest = await buildCadCapabilitySpecimens(root)
   assert.equal(manifest.schemaVersion, 1)
   assert.equal(manifest.synthetic, true)
-  assert.deepEqual(manifest.specimens.map(item => item.id), ['geometry', 'dimensions', 'typography', 'layout-print', 'dxf-import', 'editing-history', 'blocks-references'])
+  assert.deepEqual(manifest.specimens.map(item => item.id), ['geometry', 'hatch-patterns', 'dimensions', 'typography', 'layout-print', 'dxf-import', 'editing-history', 'blocks-references'])
   const inMemory = await buildCadCapabilitySpecimenDocuments()
   assert.deepEqual(inMemory.map(item => item.id), manifest.specimens.map(item => item.id))
   assert.ok(inMemory.every(item => item.document.validate().valid && item.layoutId && item.facts))
