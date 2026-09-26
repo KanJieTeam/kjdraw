@@ -14,6 +14,8 @@ test('published package carries one canonical KJDraw agent skill with no scaffol
   const source = await readFile(join(skill, 'SKILL.md'), 'utf8')
   assert.equal(packageJson.files.includes('skills'), true)
   assert.match(source, /^---\nname: kjdraw-cad\ndescription: .+\n---\n/)
+  assert.match(source.split('\n')[2], /KJD\/DXF/)
+  assert.match(source.split('\n')[2], /图纸/)
   assert.doesNotMatch(source, /\bTODO\b|\[TODO:/)
   assert.match(source, /仅生成待审核提案/)
   assert.match(source, /references\/routes\.json/)
@@ -47,9 +49,9 @@ test('skill routes reference only real MCP tools and prefer every production dra
   ])
 })
 
-test('skill UI metadata is localized and invokes the canonical skill explicitly', async () => {
+test('skill UI metadata is globally readable and invokes the canonical skill explicitly', async () => {
   const source = await readFile(join(skill, 'agents', 'openai.yaml'), 'utf8')
   assert.match(source, /display_name: "KJDraw CAD"/)
-  assert.match(source, /short_description: "自然语言读取、生成、修改并验证可编辑 CAD 图纸"/)
-  assert.match(source, /default_prompt: "使用 \$kjdraw-cad /)
+  assert.match(source, /short_description: "[^"\n]*CAD[^"\n]*智能体[^"\n]*"/)
+  assert.match(source, /default_prompt: "Use \$kjdraw-cad /)
 })

@@ -14,6 +14,17 @@ async function synthetic({ extraSheet = true, paperLine = true, paperEnd = [20, 
   return { sdk, document }
 }
 
+async function syntheticBlock({ blockEnd = [6, 0, 0], basePoint = [0, 0, 0], extraBlock = false } = {}) {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await document.transact('synthetic reusable mechanical detail', transaction => {
+    const definition = transaction.upsertTableRecord('blockRecords', { name: 'FLANGE DETAIL', payload: { basePoint, entityIds: [], isSpace: false } })
+    transaction.createEntity('LINE', { start: [0, 0, 0], end: blockEnd }, { ownerId: definition.id })
+    transaction.createEntity('INSERT', { blockRecordId: definition.id, position: [20, 20, 0] })
+    if (extraBlock) transaction.upsertTableRecord('blockRecords', { name: 'UNUSED DETAIL', payload: { basePoint: [0, 0, 0], entityIds: [], isSpace: false } })
+  })
+  return { sdk, document }
+}
+
 test('mechanical structure gate keeps layout, paper, layer and plot checks after KJD/DXF reopening', async () => {
   const { sdk, document } = await synthetic()
   for (const format of ['KJD', 'DXF']) {
@@ -52,4 +63,34 @@ test('mechanical structure gate rejects altered paper geometry even when entity 
   assert.equal(result.layouts.paperEntityTypes, 0)
   assert.equal(result.layouts.paperEntitySemantics, 1)
   assert.equal(JSON.stringify(result).includes('21'), false)
+})
+
+test('mechanical structure gate rejects changed reusable block geometry behind an unchanged model INSERT', async () => {
+  const { sdk, document: source } = await syntheticBlock()
+  const { document: sameFacts } = await syntheticBlock()
+  const { document: changed } = await syntheticBlock({ blockEnd: [7, 0, 0] })
+  for (const format of ['KJD', 'DXF']) {
+    const options = format === 'DXF' ? { format, version: '2018' } : { format }
+    const reopen = async document => sdk.readDocument(await sdk.writeDocument(document, options), { format })
+    const [original, equivalent, altered] = await Promise.all([reopen(source), reopen(sameFacts), reopen(changed)])
+    assert.equal(auditMechanicalSheetStructure(original, equivalent).passed, true)
+    const result = auditMechanicalSheetStructure(original, altered)
+    assert.equal(result.passed, false)
+    assert.equal(result.blocks.entityTypes, 0)
+    assert.equal(result.blocks.entitySemantics, 1)
+    assert.equal(result.layouts.paperEntitySemantics, 0)
+    assert.equal(JSON.stringify(result).includes('FLANGE DETAIL'), false)
+  }
+})
+
+test('mechanical structure gate compares reusable block metadata and missing or extra definitions', async () => {
+  const { document: source } = await syntheticBlock()
+  const { document: movedBase } = await syntheticBlock({ basePoint: [1, 0, 0] })
+  const { document: extra } = await syntheticBlock({ extraBlock: true })
+  const changed = auditMechanicalSheetStructure(source, movedBase)
+  assert.equal(changed.passed, false)
+  assert.ok(changed.blocks.definitionFields >= 1)
+  assert.equal(changed.blocks.entitySemantics, 0)
+  assert.equal(auditMechanicalSheetStructure(source, extra).blocks.extra, 1)
+  assert.equal(auditMechanicalSheetStructure(extra, source).blocks.missing, 1)
 })

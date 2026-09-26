@@ -1,6 +1,6 @@
 ---
 name: kjdraw-cad
-description: 使用 KJDraw 读取、测量、生成或精确修改可编辑 CAD 图纸。当用户要求 AI 智能体处理 KJD/DXF 几何、工程图、地质柱状图或剖面图、平面图、图表、图层、标注、对象关系时使用；仅做图片效果图或要求未经支持的工程认证时不要使用。
+description: Use KJDraw to inspect, measure, create, or precisely edit reviewable engineering CAD drawings (KJD/DXF), including geometry, layers, dimensions, references, mechanical drawings, and geological plans or sections. Not for raster-only illustrations or unsupported engineering certification. 用于智能体读取、生成和精确修改可编辑工程图纸。
 ---
 
 # KJDraw CAD
@@ -9,7 +9,7 @@ description: 使用 KJDraw 读取、测量、生成或精确修改可编辑 CAD 
 
 ## 为一次请求选择一条路线
 
-选择工具前完整读取 [references/routes.json](references/routes.json)。一次只选择一条顶层路线：查询、创建或修改。当前查询或提案结束后，后续用户回合可以重新选择路线。
+先判断是查询、创建还是修改。简单只读查询直接从 `cad_read_drawing` 开始；创建或修改图纸时，再完整读取 [references/routes.json](references/routes.json) 选择一条路线和最小匹配工具。后续用户回合可重新选择路线。
 
 - 现有图纸：先调用 `cad_read_drawing` 并保留其 revision。窄范围分页或查询，不得假定被省略的内容。
 - 新建图纸：优先选择与需求完全匹配的单个高层编译器。只有没有专用编译器时，才使用通用标注、阵列、紧凑或基础图元提案。
@@ -34,4 +34,4 @@ description: 使用 KJDraw 读取、测量、生成或精确修改可编辑 CAD 
 
 ## 用证据结束
 
-报告变更结果前完整读取 [references/acceptance.md](references/acceptance.md)。严格区分模型提案证据与宿主验收证据。使用用户的语言说明所选路线、工具、源 revision、提案状态、未解决输入以及下一步宿主审核动作。
+报告创建或修改结果前完整读取 [references/acceptance.md](references/acceptance.md)。只读查询无需加载变更验收流程，但局部查询不得冒充整图结论。严格区分模型提案证据与宿主验收证据，使用用户的语言说明路线、工具、源 revision、提案状态、未解决输入和下一步宿主审核动作。

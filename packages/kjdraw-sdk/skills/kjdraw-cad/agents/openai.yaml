@@ -1,4 +1,4 @@
 interface:
   display_name: "KJDraw CAD"
-  short_description: "自然语言读取、生成、修改并验证可编辑 CAD 图纸"
-  default_prompt: "使用 $kjdraw-cad 查询当前图纸，或根据用户要求生成带宿主审核证据的 CAD 修改提案。"
+  short_description: "Reviewable CAD drawings for AI agents · 智能体工程制图"
+  default_prompt: "Use $kjdraw-cad to inspect a drawing or prepare a reviewable CAD edit proposal."

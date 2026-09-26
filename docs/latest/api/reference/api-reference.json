@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:c94750a4abccb1d8ead46273a2e2c69643b5059ec4c00648cf6332dd8fd199c3",
+  "sourceDigest": "sha256:377d6c626d3a78d131cb266e26e62770af9d5b47bb086ebad906c83399dd1918",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -6039,7 +6039,7 @@
         {
           "name": "auditMechanicalSheetStructure",
           "kind": "function",
-          "declaration": "export declare function auditMechanicalSheetStructure(source: KJDocument, candidate: KJDocument): {\n    passed: boolean;\n    layouts: {\n        source: number;\n        candidate: number;\n        missing: number;\n        extra: number;\n        plotFields: number;\n        paperEntityTypes: number;\n        paperEntitySemantics: number;\n        viewportFields: number;\n    };\n    layers: {\n        source: number;\n        candidate: number;\n        missing: number;\n        extra: number;\n        fields: number;\n    };\n};",
+          "declaration": "export declare function auditMechanicalSheetStructure(source: KJDocument, candidate: KJDocument): {\n    passed: boolean;\n    layouts: {\n        source: number;\n        candidate: number;\n        missing: number;\n        extra: number;\n        plotFields: number;\n        paperEntityTypes: number;\n        paperEntitySemantics: number;\n        viewportFields: number;\n    };\n    layers: {\n        source: number;\n        candidate: number;\n        missing: number;\n        extra: number;\n        fields: number;\n    };\n    blocks: {\n        source: number;\n        candidate: number;\n        missing: number;\n        extra: number;\n        definitionFields: number;\n        entityTypes: number;\n        entitySemantics: number;\n    };\n};",
           "source": "agent-mechanical-structure-gate.d.ts",
           "anchor": "root-function-auditmechanicalsheetstructure"
         },
