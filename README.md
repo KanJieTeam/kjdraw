@@ -9,7 +9,6 @@
 The model describes engineering intent. KJDraw compiles it into real CAD drawings<br/>
 that stay editable, verifiable, undoable, and reopenable.
 
-<!-- TODO: confirm in a browser that /ai/ opens the AI page, not the plain editor -->
 [**Quick start**](#-quick-start) · [**Try with AI**](https://kanjieteam.github.io/kjdraw/ai/) · [**Live editor**](https://kanjieteam.github.io/kjdraw/) · [**Docs**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [简体中文](README.zh-CN.md)
 
 [![GitHub release](https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0)](https://github.com/KanJieTeam/kjdraw/releases)
@@ -18,9 +17,6 @@ that stay editable, verifiable, undoable, and reopenable.
 
 </div>
 
-<!-- TODO (most important): replace this GIF with a 15–30 s recording in a real AI client:
-     one sentence → drawing appears → one follow-up edit → drawing updates → Undo.
-     Then delete the "preset scenario" sentence in the caption. -->
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/">
     <img src="docs/media/kjdraw-workflow.gif" alt="KJDraw workbench: open a drawing, review a change, draw and dimension a part" width="100%" />
@@ -39,33 +35,20 @@ KJDraw gives any model or agent the same CAD execution layer: **the model decide
 
 ## 🚀 Quick start
 
-**Use KJDraw from an AI agent.** The `kjdraw-cad` Skill can be installed in Codex, Claude Code, Cursor and other terminal-capable agents. The new `kjdraw agent` CLI lets that Skill inspect drawings and create review proposals locally; **MCP registration is optional**. The CLI-bearing npm release is pending, so use the [source-checkout instructions](docs/try-in-ai.md#skill-first-local-cli) to test this path today.
+For Codex, Claude Code or Cursor, install the CAD runtime and the `kjdraw-cad` Skill (Node.js 22+):
 
-The current one-line installer is the existing MCP route and uses a pinned release channel that can lag the source candidate. The source candidate configures **Kimi Code, WorkBuddy, ZCode, Claude Code and Cursor**; **TraeCode** uses an import confirmation. These source-candidate additions have not yet been promoted to the public installer. Your model API key stays in your AI client.
-
-**Windows PowerShell**
-
-```powershell
-irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.ps1 | iex
+```sh
+npm install -g @kanjieteam/kjdraw@next
+npx skills add KanJieTeam/kjdraw --skill kjdraw-cad -g -a codex -a claude-code -a cursor -y
 ```
 
-**macOS / Linux**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
-```
-
-The portable Skill can be distributed with `npx skills add`, but **installing instructions alone does not install the CAD engine**. See [Skill-first setup and optional MCP](docs/try-in-ai.md).
-
-Then ask your AI client:
+Install only for the agents you use by removing the other `-a` options. Restart your agent, then ask:
 
 ```text
 Use KJDraw to draw a circle with a radius of 5 mm.
 ```
 
-The existing MCP installer can produce independently verified KJD/DXF candidates and SVG previews without overwriting the source. The new local CLI returns a proposal first; a human reviews it before KJD/DXF candidates are written. [Installation details and security model](docs/try-in-ai.md)
-
-> **1.0 release candidate:** command-line setup and real-engine smoke tests pass; independent GUI and live-model acceptance for each client is still in progress.
+The Skill calls `kjdraw agent` locally; **no MCP registration or model API key is needed by KJDraw**. `npx skills add` installs the Skill instructions, while `npm install -g` installs the CAD engine. Edits remain proposals until a human approves them. [Other agents, verification and optional MCP setup](docs/try-in-ai.md).
 
 ## What you can build
 
@@ -94,8 +77,7 @@ KJDraw is a CAD engine and execution layer. It is not trying to replace desktop 
 npm install @kanjieteam/kjdraw@next
 ```
 
-<!-- Once npm `latest` points to 1.0.0-rc.3 or newer, switch to `npm install @kanjieteam/kjdraw` and delete the note below. -->
-> As of 2026-09-28, npm `next` still resolves to `1.0.0-rc.2`. The example below reflects the `1.0.0-rc.3` source candidate and may not work with `@next` until it is published. See [release status](docs/status.md) and [source installation](https://kanjieteam.github.io/kjdraw/docs/latest/installation/).
+`next` currently points to the public `1.0.0-rc.3` release candidate; `latest` still points to an older preview. Pin `1.0.0-rc.3` if you need a reproducible installation.
 
 ```html
 <div id="cad" style="height: 720px"></div>

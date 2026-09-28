@@ -9,7 +9,6 @@
 模型只需表达工程意图，KJDraw 负责把它编译为<br/>
 可编辑、可验证、可撤销、可保存重开的真实 CAD 图纸。
 
-<!-- TODO：请在浏览器确认 /ai/ 链接打开的是 AI 绘图页，而不是普通编辑器 -->
 [**快速开始**](#-快速开始) · [**AI 绘图**](https://kanjieteam.github.io/kjdraw/ai/) · [**在线编辑器**](https://kanjieteam.github.io/kjdraw/) · [**文档**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [English](README.md)
 
 [![GitHub release](https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0)](https://github.com/KanJieTeam/kjdraw/releases)
@@ -18,8 +17,6 @@
 
 </div>
 
-<!-- TODO（最重要）：用 Kimi Code / Trae 等真实客户端录一段 15～30 秒的视频或 GIF 替换下面这张：
-     输入一句话 → 生成图纸 → 再说一句修改 → 图纸更新 → 撤销。录好后删掉说明里“预设场景”那句。 -->
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/">
     <img src="docs/media/kjdraw-workflow.gif" alt="KJDraw 工作台：打开图纸、审核改动、绘制并标注零件" width="100%" />
@@ -38,33 +35,20 @@ KJDraw 给不同的模型和智能体提供同一套 CAD 执行层：**模型负
 
 ## 🚀 快速开始
 
-**在 AI 智能体中使用：** `kjdraw-cad` Skill 可安装到 Codex、Claude Code、Cursor 等支持终端的智能体。新增的 `kjdraw agent` 本地 CLI 能让 Skill 直接读取图纸、生成待审提案，**无需注册 MCP**。包含该命令的 npm 版本尚未发布，今天可按[源码检出使用说明](docs/try-in-ai.zh-CN.md#skill-优先的本地-cli)测试。
+在 Codex、Claude Code 或 Cursor 中，先安装 CAD 运行时和 `kjdraw-cad` Skill（需要 Node.js 22+）：
 
-下面的一行安装器是现有的 MCP 接入路线，采用锁定的安装渠道，可能落后于源码候选。源码候选配置 **Kimi Code、WorkBuddy、ZCode、Claude Code、Cursor**；**TraeCode** 走官方导入确认。这些新增接入尚未提升到公开安装器。模型 API Key 始终留在你的 AI 客户端。
-
-**Windows PowerShell**
-
-```powershell
-irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.ps1 | iex
+```sh
+npm install -g @kanjieteam/kjdraw@next
+npx skills add KanJieTeam/kjdraw --skill kjdraw-cad -g -a codex -a claude-code -a cursor -y
 ```
 
-**macOS / Linux**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
-```
-
-可通过 `npx skills add` 分发 Skill；但**只装指令不会安装 CAD 引擎**。详见[Skill 优先与可选 MCP 接入说明](docs/try-in-ai.zh-CN.md)。
-
-安装后，在你的 AI 客户端里试试：
+只用其中一个智能体，就保留对应的 `-a` 参数。重启智能体后，直接说：
 
 ```text
 用 KJDraw 画一个半径 5 毫米的圆。
 ```
 
-现有 MCP 安装器可以生成独立校验的 KJD/DXF 候选文件及 SVG 预览，不覆盖源图；新的本地 CLI 则先返回待审提案，由真人审核后再写出 KJD/DXF 候选。[安装细节与安全边界](docs/try-in-ai.zh-CN.md)
-
-> **1.0 候选版状态：** 命令行配置和真实引擎冒烟测试已通过；各客户端的界面与真实模型独立验收仍在进行中。
+Skill 在本地调用 `kjdraw agent`，**不用注册 MCP，也不用把模型 API Key 给 KJDraw**。`npx skills add` 安装使用说明，`npm install -g` 安装 CAD 引擎。修改会先生成待审提案，须由真人批准。[其他智能体、验证方法与可选 MCP 接入](docs/try-in-ai.zh-CN.md)。
 
 ## 核心能力
 
@@ -93,8 +77,7 @@ KJDraw 是 CAD 引擎和执行层，不打算取代桌面 CAD。
 npm install @kanjieteam/kjdraw@next
 ```
 
-<!-- 等 npm 的 latest 指向 1.0.0-rc.3 或更新版本后，改成 npm install @kanjieteam/kjdraw，并删掉下面这句。 -->
-> 截至 2026-09-28，npm 的 `next` 标签仍指向 `1.0.0-rc.2`。下方示例对应源码中的 `1.0.0-rc.3` 候选版；在该版本发布前，安装 `@next` 后可能无法直接运行。详见 [版本状态](docs/status.md) 和 [源码安装说明](https://kanjieteam.github.io/kjdraw/docs/latest/installation/)。
+`next` 目前指向已公开发布的 `1.0.0-rc.3` 候选版；`latest` 仍是旧预览版。需要固定版本时请安装 `1.0.0-rc.3`。
 
 ```html
 <div id="cad" style="height: 720px"></div>

@@ -2,24 +2,25 @@
 
 ## Skill 优先的本地 CLI
 
-支持终端的智能体默认让 `kjdraw-cad` Skill 调用 `kjdraw agent`，**不必**为 Codex、Claude Code 或 Cursor 注册 MCP。可用 [Skills CLI](https://github.com/vercel-labs/skills) 分发 Skill：
+在支持终端的智能体中，安装 Node.js 22+、已发布的 CAD 运行时和 `kjdraw-cad` Skill。Codex、Claude Code、Cursor 走这条路线**不必注册 MCP**：
 
 ```sh
+npm install -g @kanjieteam/kjdraw@next
 npx skills add KanJieTeam/kjdraw --skill kjdraw-cad -g -a codex -a claude-code -a cursor -y
 ```
 
-Skill 是指令，不是 CAD 引擎。包含 `agent` 命令的 npm 包目前仍是**源码候选，尚未发布到 npm `next`**。在 KJDraw 源码检出目录运行 `node packages/kjdraw-sdk/bin/kjdraw.mjs agent tools cad_propose_circles`，可验证真实工具 schema；待包含此命令的 npm 包发布后，才可直接使用安装后的 `kjdraw` 命令。不要把 `npx skills add` 当作已经安装绘图运行时。
+只使用其中一个智能体，就只保留对应的 `-a` 参数。`npx skills add` 只安装指令，**不会安装 CAD 引擎**；前一行 npm 命令负责安装引擎。用 `kjdraw agent tools cad_propose_circles` 验证安装。只想临时查看工具时也能运行 `npx --yes --package=@kanjieteam/kjdraw@1.0.0-rc.3 kjdraw agent tools cad_propose_circles`，但日常使用 Skill 仍需要持久可用的 `kjdraw` 命令。
 
-本地冒烟测试：在源码目录新建 `circle.json`，内容为 `{"expectedRevision":0,"units":"millimeter","circles":[{"center":{"x":0,"y":0},"radius":5}]}`，然后运行：
+本地冒烟测试：在测试工作区新建 `circle.json`，内容为 `{"expectedRevision":0,"units":"millimeter","circles":[{"center":{"x":0,"y":0},"radius":5}]}`，然后在该目录运行：
 
 ```sh
-node packages/kjdraw-sdk/bin/kjdraw.mjs agent call cad_propose_circles --blank demo.kjd --units millimeter --args-file circle.json
+kjdraw agent call cad_propose_circles --blank demo.kjd --units millimeter --args-file circle.json
 ```
 
-返回 `.kjdraw/proposals/` 下的账本与 `awaiting-host-approval`；`demo.kjd` 保持空白。先查看提案，再由真人在**交互终端**执行下列审核命令，把路径替换成实际返回的账本与源码目录绝对路径：
+返回 `.kjdraw/proposals/` 下的账本与 `awaiting-host-approval`；不会改动源图。先查看提案，再由真人在**交互终端**执行下列审核命令，把路径替换成实际返回的账本与工作区绝对路径：
 
 ```sh
-node packages/kjdraw-sdk/bin/kjdraw-review.mjs --workspace <源码目录绝对路径> --ledger <返回的账本路径> --sequence 1 --candidate reviewed.kjd --approve
+kjdraw-review --workspace <工作区绝对路径> --ledger <返回的账本路径> --sequence 1 --candidate reviewed.kjd --approve
 ```
 
 审核器将生成经独立检查的 KJD/DXF，不覆盖源图。`kjdraw agent tools <name>` 给出当前工具参数 schema；Skill 应优先选高层工程工具，而非逐个生成几百个基础图元。
@@ -46,9 +47,9 @@ curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/inst
 
 要求 Node.js 22 或更新版本；macOS/Linux 还需要 `curl` 与 `tar`。安装器读取仓库维护的[安装渠道清单](../scripts/install-ai-channel.json)，校验其中精确的公开提交 SHA，再下载该提交；不依赖 Git 凭据，也不会使用临时 `npx` 缓存作为长期 MCP 入口。
 
-## 源码候选的接入范围
+## 可选 MCP 接入范围
 
-下表描述当前源码候选；公开一行安装器锁定的渠道尚未提升到包含 Claude Code、Cursor 和 Codex Skill 的版本。不能据此认为公开安装器已经写入这些配置。
+下表描述当前连接器代码，并不保证单独锁定版本的一行 MCP 安装器与 npm 包相同。Codex、Claude Code、Cursor 优先使用上面的 npm + Skill 路线。选择 MCP 时，请先核对[安装器锁定的提交](../scripts/install-ai-channel.json)，不要仅凭表格判断客户端配置已经写入。
 
 | 客户端 | 当前用户 MCP 配置 | 当前用户 Skill | 生效范围 |
 | --- | --- | --- | --- |
@@ -66,13 +67,13 @@ TraeCode 保留一次客户端确认是它的官方安全边界。KJDraw 不通�
 
 ## Codex 与通用 Skill
 
-官方安装器会把 KJDraw Skill 复制到 Codex、Claude Code、Cursor 等已列出的客户端。若要给 [Skills CLI](https://github.com/vercel-labs/skills) 支持的其它智能体安装或更新同一个 Skill，可指定目标客户端：
+上方的 `npx skills add` 命令会把 KJDraw Skill 安装到 `-a` 指定的智能体。要给 [Skills CLI](https://github.com/vercel-labs/skills) 支持的其他智能体安装或更新同一个 Skill，换成对应的 `-a` 参数即可：
 
 ```sh
 npx skills add KanJieTeam/kjdraw --skill kjdraw-cad -g -a codex -a claude-code -a cursor -y
 ```
 
-Skills CLI 也提供 `-a '*'` 批量分发给它支持的所有客户端。但 **Skill 只是一套使用说明**：不会安装 CAD 引擎，也不代表客户端与真实模型已经验收。具备终端的客户端装好运行时后可直接走上面的本地 CLI。没有终端、或明确希望使用原生工具注册的客户端仍可选择 MCP，并按各自格式配置[标准 stdio 服务条目](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/#zh-client-config)。
+Skills CLI 也提供 `-a '*'` 批量分发给它支持的所有客户端。但 **Skill 只是一套使用说明**：CAD 引擎要按上面的 npm 命令另行安装。没有终端、或明确希望使用原生工具注册的客户端仍可选择 MCP，并按各自格式配置[标准 stdio 服务条目](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/#zh-client-config)。
 
 **仅当选择可选 MCP 路线时**，Codex 才需要按 [Codex 官方 MCP 命令](https://learn.chatgpt.com/docs/extend/mcp)注册稳定启动器；本地 CLI 路线不需要。Codex 使用独立 TOML 配置，KJDraw 安装器不会直接改写它。Windows PowerShell：
 
@@ -123,8 +124,8 @@ codex mcp list
 3. `~/.kjdraw/host.kjd` 保持可重开且未被覆盖，提案和候选图分别写入独立目录；
 4. 客户端界面能识别 KJDraw 名称或 Skill，而不是仅由模型口头声称“已经绘图”。
 
-## 当前候选状态
+## 版本与验收
 
-这是固定公开源码候选安装，不是 npm `latest` 发布证明。源码版本为 `1.0.0-rc.3`；npm `next` 可能仍是旧候选版，请以实时 `npm view @kanjieteam/kjdraw dist-tags` 为准；在新包完成版本、完整性、`gitHead` 与 provenance 验收前，不应把尚未发布的 npm 命令写成可用安装方式。
+`1.0.0-rc.3` 已发布到 npm 的 `next` 渠道；`latest` 仍是旧预览版。上面的一行 MCP 安装器使用单独锁定的源码渠道，不等于 npm 安装。正式 1.0 仍需独立用户、跨模型和真实图纸验收。
 
 连接器与 CLI 已覆盖用户级路径、幂等安装、冲突拒绝、事务回滚、PowerShell 5.1、MCP 启动和只读诊断。各客户端的真实 GUI 与真实模型独立验收仍是正式 1.0 发布门槛，不能由自动化文件测试替代。

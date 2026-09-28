@@ -2,24 +2,25 @@
 
 ## Skill-first local CLI
 
-The `kjdraw-cad` Skill uses `kjdraw agent` as its default execution route in terminal-capable agents. It does **not** require a Codex, Claude Code or Cursor MCP entry. [Skills CLI](https://github.com/vercel-labs/skills) can distribute the Skill:
+For a terminal-capable agent, install Node.js 22+, the published CAD runtime, and the `kjdraw-cad` Skill. Codex, Claude Code and Cursor do **not** need an MCP entry for this route:
 
 ```sh
+npm install -g @kanjieteam/kjdraw@next
 npx skills add KanJieTeam/kjdraw --skill kjdraw-cad -g -a codex -a claude-code -a cursor -y
 ```
 
-The Skill is instructions, not the CAD engine. The CLI-bearing package is currently a **source candidate, not yet the published npm `next` package**. From a KJDraw checkout, verify the real command with `node packages/kjdraw-sdk/bin/kjdraw.mjs agent tools cad_propose_circles`; after the npm release containing `agent` is published, the installed `kjdraw` binary can be used instead. Do not infer that `npx skills add` alone installed that binary.
+Keep only the `-a` options for agents you use. `npx skills add` installs instructions, **not** the CAD engine; the global npm command installs the engine. Verify the installed CLI with `kjdraw agent tools cad_propose_circles`. If you only want to inspect a tool without installing globally, `npx --yes --package=@kanjieteam/kjdraw@1.0.0-rc.3 kjdraw agent tools cad_propose_circles` also works, but the Skill needs a persistent `kjdraw` command for normal use.
 
-For a local smoke test, create a new `circle.json` in the checkout containing `{"expectedRevision":0,"units":"millimeter","circles":[{"center":{"x":0,"y":0},"radius":5}]}`, then run:
+For a local smoke test, create `circle.json` in a test workspace containing `{"expectedRevision":0,"units":"millimeter","circles":[{"center":{"x":0,"y":0},"radius":5}]}`, then run there:
 
 ```sh
-node packages/kjdraw-sdk/bin/kjdraw.mjs agent call cad_propose_circles --blank demo.kjd --units millimeter --args-file circle.json
+kjdraw agent call cad_propose_circles --blank demo.kjd --units millimeter --args-file circle.json
 ```
 
-The result gives a `.kjdraw/proposals/` ledger and says `awaiting-host-approval`; `demo.kjd` remains blank. Inspect the returned proposal. A human can then run the review command in an **interactive terminal**, substituting the exact ledger path and absolute checkout path:
+The result gives a `.kjdraw/proposals/` ledger and says `awaiting-host-approval`; the source drawing is not modified. Inspect the returned proposal. A human can then run the review command in an **interactive terminal**, substituting the exact ledger path and absolute workspace path:
 
 ```sh
-node packages/kjdraw-sdk/bin/kjdraw-review.mjs --workspace <absolute-checkout-path> --ledger <returned-ledger-path> --sequence 1 --candidate reviewed.kjd --approve
+kjdraw-review --workspace <absolute-workspace-path> --ledger <returned-ledger-path> --sequence 1 --candidate reviewed.kjd --approve
 ```
 
 The reviewer writes independently checked KJD/DXF candidates without overwriting the source. `kjdraw agent tools <name>` provides the live argument schema; the Skill should use a high-level drawing tool rather than emit hundreds of primitives.
@@ -47,9 +48,9 @@ curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/inst
 
 Requirements: Node.js 22 or newer; macOS/Linux also need `curl` and `tar`. The bootstrap reads the repository-controlled [install channel](../scripts/install-ai-channel.json), validates its exact public commit SHA, and downloads that pinned source archive into a persistent user-data directory. TraeCode uses its official `trae-cn://` import confirmation. Git credentials are not required. The official installer explicitly replaces only the named `kjdraw` MCP entry and KJDraw Skill during an upgrade; unrelated MCP servers and configuration fields are preserved. Other configuration conflicts still stop installation.
 
-## Source-candidate connector coverage
+## Optional MCP connector coverage
 
-The table below describes the current source candidate; the pinned public install channel has not yet been promoted to include its Claude Code, Cursor and Codex Skill changes. Do not treat the table as proof that the public one-line installer already made those changes.
+The table describes the current connector code, not a guarantee that the separately pinned one-line MCP installer has the same version. Use the Skill-first npm setup above for Codex, Claude Code and Cursor. For the MCP route, check the [installer's pinned commit](../scripts/install-ai-channel.json) before assuming a client entry was configured.
 
 | Client | User-level MCP configuration | User Skill |
 | --- | --- | --- |
@@ -65,13 +66,13 @@ The connector preserves unrelated JSON fields and MCP servers. It creates `~/.kj
 
 ## Codex and portable Skills
 
-The installer copies the KJDraw Skill into Codex, Claude Code and Cursor as well as the original clients. To distribute or update that same Skill in additional agents supported by the [Skills CLI](https://github.com/vercel-labs/skills), select the agents you use:
+The `npx skills add` command above installs the KJDraw Skill into the agents selected with `-a`. To add or update it in other agents supported by the [Skills CLI](https://github.com/vercel-labs/skills), select those agents instead:
 
 ```sh
 npx skills add KanJieTeam/kjdraw --skill kjdraw-cad -g -a codex -a claude-code -a cursor -y
 ```
 
-The Skills CLI also accepts `-a '*'` for all of its supported agent types. This installs **instructions only**; it does not install the engine or prove a live-model workflow. Terminal-capable clients can use the local CLI above once its runtime is installed. MCP remains optional for clients that cannot run the CLI or deliberately want native tool registration; those clients can use the [standard stdio entry](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/#en-client-config) after checking their own configuration format.
+The Skills CLI also accepts `-a '*'` for all of its supported agent types. This installs **instructions only**; install the CAD runtime separately as shown above. MCP remains optional for clients that cannot run the CLI or deliberately want native tool registration; those clients can use the [standard stdio entry](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/#en-client-config) after checking their own configuration format.
 
 For the **optional MCP route**, Codex uses its own TOML configuration, so the KJDraw installer does not edit it. After installing that runtime, register its stable launcher using the [official Codex MCP CLI](https://learn.chatgpt.com/docs/extend/mcp). On Windows PowerShell:
 
