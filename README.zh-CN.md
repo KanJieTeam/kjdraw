@@ -1,147 +1,85 @@
-<p align="center"><img src="docs/assets/hero.svg" alt="KJDraw——面向 AI 智能体的工程图纸运行时" width="100%"></p>
+<div align="center">
 
-<p align="center"><strong>面向 AI 智能体的开源工程图纸运行时。</strong></p>
+<img src="docs/assets/mark.svg" width="72" alt="KJDraw logo" />
 
+# KJDraw
+
+### 为 AI Agent 打造的开源 CAD 引擎
+
+让 AI 修改真实的工程图纸：每一次改动都先预览、由人确认、随时可撤销。<br/>
+也可以用一个组件，把完整的 CAD 编辑器嵌进你的 Web 应用。
+
+[**▶ 在线体验**](https://kanjieteam.github.io/kjdraw/) · [**文档**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [**Agent 指南**](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) · [English](README.md)
+
+[![GitHub release](https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0)](https://github.com/KanJieTeam/kjdraw/releases)
+[![npm next](https://img.shields.io/npm/v/@kanjieteam/kjdraw/next?style=flat-square&label=npm&labelColor=30363d&color=2863f0)](https://www.npmjs.com/package/@kanjieteam/kjdraw)
+[![License](https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d)](LICENSE)
+
+</div>
+
+<!-- TODO（最重要）：用真实模型录制的 GIF 替换下面这张，录好后删掉说明里“预设场景”那句。 -->
 <p align="center">
-  通过高层工程编译器、稳定对象身份和事务化编辑构建工程绘图工作流，
-  并以同一运行时连接浏览器、Node.js、CLI 与 MCP。
+  <a href="https://kanjieteam.github.io/kjdraw/">
+    <img src="docs/media/kjdraw-workflow.gif" alt="KJDraw 工作台：打开图纸、审核 Agent 改动、绘制并标注零件" width="100%" />
+  </a>
+  <br/>
+  <sub>录制于内置工作台。图中 Agent 面板播放的是预设场景；接入你自己的模型请看下方 <a href="#-给你的-agent-装上-cad-工具">Agent 工具</a>。</sub>
 </p>
 
-<p align="center">
-  <a href="#快速开始"><strong>快速开始</strong></a> ·
-  <a href="https://kanjieteam.github.io/kjdraw/ai/"><strong>开始 AI 绘图</strong></a> ·
-  <a href="https://kanjieteam.github.io/kjdraw/"><strong>在线编辑器</strong></a> ·
-  <a href="https://kanjieteam.github.io/kjdraw/docs/latest/showcase/"><strong>案例库</strong></a> ·
-  <a href="#接入你的应用"><strong>接入你的应用</strong></a> ·
-  <a href="#给你的-agent-配上-cad-工具"><strong>构建 CAD Agent</strong></a> ·
-  <a href="README.md">English</a>
-</p>
+<p align="center"><b>无需注册。文件在浏览器本地打开，不会上传。</b></p>
 
-<p align="center">
-  <a href="https://github.com/KanJieTeam/kjdraw/releases"><img src="https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0" alt="GitHub 候选版本"></a>
-  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/v/@kanjieteam/kjdraw/next?style=flat-square&label=npm_next&labelColor=30363d&color=2863f0" alt="npm 候选版渠道"></a>
-  <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><img src="https://img.shields.io/badge/Docs-get_started-2863f0?style=flat-square&labelColor=30363d" alt="使用文档"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
-</p>
+---
 
-## KJDraw 是什么？
+## 为什么选 KJDraw
 
-KJDraw 是以 TypeScript 为核心的开源 CAD 引擎和智能体运行时，用来把工程绘图能力嵌入自己的产品。人、应用和 AI 可以通过同一套接口创建、读取、编辑、校验、预览并交付结构化图纸，结果不是截图，也不是无法继续修改的黑盒文件。
+**🤖 可信的 Agent 编辑。** Agent 可以读取图纸、提出修改，但在人确认具体改动之前，图纸不会有任何变化。每个修改提议都绑定到提出时的图纸版本，只能使用一次，并作为一个完整事务提交，撤销方式和手动编辑完全一样。
 
-适合以下场景：
+**📐 真正的 CAD 编辑器，不只是查看器。** 直线、多段线、圆弧、文字、尺寸标注和图层；移动、复制、旋转、偏移、阵列、修剪/延伸、倒角/圆角；捕捉、夹点和完整的撤销/重做。可保存为原生 KJD/KJP 或 DXF。
 
-- 给 AI 提供有边界的高层 CAD 工具，而不是让模型逐个猜测和输出数百个坐标；
-- 在浏览器、React 或 Vue 应用中嵌入可编辑 CAD 工作台；
-- 通过稳定对象 ID、图层、引用和空间查询读懂现有图纸；
-- 把已经支持的工程意图确定性编译为原生 CAD 实体；
-- 通过诊断、撤销重做、KJD/DXF 重开和 SVG 渲染证据验证结果；
-- 让图纸和模型凭据留在用户自己的本地环境。
+**🧩 随处嵌入，数据留在本地。** 原生 JS、React、Vue 都只需要一个组件。全程 TypeScript，可选 Rust/WASM 内核。默认纯浏览器本地运行，不需要后端，没有数据统计。
 
-KJDraw 不是图片生成器，也不是一组固定模板。它是工程意图与可审核 CAD 交付物之间的执行层。
+## 🤖 给你的 Agent 装上 CAD 工具
 
-## KJDraw 真正解决什么
+模型由你的应用提供；KJDraw 提供工具、审核环节和撤销历史。
 
-| 原则 | KJDraw 的做法 |
-| --- | --- |
-| **模型只表达意图** | 模型通过少量高层工具提供需求、约束和修改，不逐个堆砌基础图元。 |
-| **引擎确定性执行** | KJDraw 解析几何、对象身份、图层、引用和单事务执行；缺少关键数据就拒绝。 |
-| **图纸始终可编辑** | 结果是结构化 CAD，不是截图；支持继续修改、撤销重做、DXF/KJD/KJP 保存和重新打开。 |
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant M as 你的模型
+    participant K as KJDraw
+    U->>M: "把水泵向东移动 500 mm"
+    M->>K: 查询图纸（图层、图元、几何）
+    K-->>M: 只读结果，绑定当前版本
+    M->>K: 提出移动方案
+    K-->>U: 预览具体改动
+    U->>K: 批准
+    K->>K: 作为一个事务提交（可撤销）
+```
 
-| 核心能力 | 现在能做什么 |
-| --- | --- |
-| **读懂现有图纸** | 分页读取、空间/属性查询、稳定对象 ID、图层、块引用、拓扑和修改影响分析。 |
-| **高层工程成图** | 机械加工图、建筑平面图、场地与管线图、道路平纵横、柱状图、地质剖面图、折线图和柱状图。 |
-| **精确多轮改图** | 定位对象后移动、复制、旋转、缩放、偏移、拉伸、延长、改文字、换图层，以及删除后关系重建。 |
-| **确定性质量闭环** | 每次执行检查几何、图层、引用和版本；一个修改对应一个可撤销事务，并可保存、重开、再验证。 |
-| **接入不同智能体** | Kimi Code、WorkBuddy、ZCode 与 TraeCode 共享同一套 MCP CAD 工具；模型 Key 留在客户端。 |
-| **嵌入你的产品** | 同一引擎提供 TypeScript/JavaScript SDK、React、Vue、完整编辑器、CLI、MCP 与本地文件工作流。 |
+- **不绑定模型。** 内置多个模型 API 适配器，也支持自定义接口接入任何模型。
+- **当前是起步工具集：** 查询图元和图层、测量、创建直线和圆、移动对象。更多工具在路线图上，[欢迎贡献](#参与贡献)。
+- **不需要 API Key 也能试：** 克隆仓库后运行 [命令示例](examples/agent-command.mjs)，完整走一遍“提议 → 批准 → 撤销”。
+  <!-- TODO：确认下面这条命令在 npm ci 之后可以直接运行 -->
+  ```bash
+  node examples/agent-command.mjs
+  ```
 
-## AI 智能体接入
+[Agent 工作流指南](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) · [接入模型](https://kanjieteam.github.io/kjdraw/docs/latest/models/) · [给编程 Agent 的集成说明](docs/agent.md)
 
-使用 [Skills CLI](https://github.com/vercel-labs/skills)，一行命令将 KJDraw CAD Skill 安装到当前项目中已支持的智能体：
+## 📦 把 CAD 加进你的应用
 
 ```bash
-npx skills add KanJieTeam/kjdraw
-```
-
-Skill 负责告诉智能体何时、如何调用 KJDraw；它不会安装 CAD 引擎，也不会自动连接可执行的 MCP 服务。要让智能体实际读图和绘图，还需按下文配置 KJDraw MCP，或使用已支持的桌面客户端安装器。Skills CLI 默认安装到当前项目；加 `-g` 可安装到当前用户。
-
-KJDraw 通过标准 **stdio MCP** 提供 CAD 工具。只要客户端支持 MCP，就可以使用同一套连接配置；模型、图纸和审批仍由客户端或本地宿主掌控。
-
-| 客户端 / 接入方式 | 配置方式 | 适合场景 | 入口 |
-| --- | --- | --- | --- |
-| **OpenAI Codex** | 手动用 `codex mcp add` 添加 stdio server；一键安装器暂不配置 Codex | 代码型 Agent 生成、检查和修改 KJD/DXF | [Codex MCP 官方文档](https://developers.openai.com/codex/mcp) |
-| **Claude Desktop / Cursor / Cline** | 在客户端 MCP 配置中加入下方 `kjdraw` server | 通用对话、IDE 内绘图和文件审阅 | [MCP 集成](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/) |
-| **Kimi Code / WorkBuddy / ZCode / TraeCode** | 运行一次用户级安装器；按客户端提示确认导入 | 国内桌面 Agent 的本地绘图工作流 | [安装与安全边界](docs/try-in-ai.zh-CN.md) |
-| **豆包 / DeepSeek 模型** | 在支持 MCP 的宿主或自建 Harness 中配置模型接口与密钥；不代表官方 App 已获一键接入 | 企业内网、国产模型和自建 Agent | [Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) |
-| **自建 Agent / Harness / 企业平台** | 注册同一个 stdio MCP server，或调用 `agent-tools` / `model-adapters` | 私有部署、自定义 UI 和审批系统 | [模型接入](https://kanjieteam.github.io/kjdraw/docs/latest/models/) |
-| **不接模型** | 使用 TypeScript SDK、CLI 或在线编辑器 | 回归测试、批处理和人工编辑 | [文件工作流](https://kanjieteam.github.io/kjdraw/docs/latest/files/) |
-
-以下配置要求本地已构建包含 `kjdraw-mcp.mjs` 的 1.0.0-rc.3 源码包、Node.js 22+，并在宿主工程中建好 `proposals`、`results` 目录；先将两个 `/absolute/project` 替换为真实绝对路径。npm `next` 可能仍指向旧候选版，不能只凭文档中的源码版本推断已发布。下面的 JSON 仅适用于使用 `mcpServers` 的客户端，不是 Codex 配置：
-
-```jsonc
-{
-  "mcpServers": {
-    "kjdraw": {
-      "command": "node",
-      "args": ["/absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs", "--workspace", "/absolute/project", "--blank", "drawing.kjd", "--units", "millimeter", "--proposal-dir", "proposals", "--candidate-dir", "results"]
-    }
-  }
-}
-```
-
-Codex CLI/IDE 请按[官方 stdio 接入格式](https://developers.openai.com/codex/mcp)添加同一个服务（先替换两处工程绝对路径），再用 `codex mcp list` 核对：
-
-```sh
-codex mcp add kjdraw -- node /absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --workspace /absolute/project --blank drawing.kjd --units millimeter --proposal-dir proposals --candidate-dir results
-codex mcp list
-```
-
-接入后先让 Agent 调用只读查询和预览工具，再由宿主审核提案；KJDraw 不会把模型回复当作 CAD 成功证据，也不会未经批准覆盖源图。完整工具清单、审批协议和模型适配器见：[Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) · [MCP 集成](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/) · [API 参考](https://kanjieteam.github.io/kjdraw/docs/latest/api/)。
-## 快速开始
-
-### 在 AI 智能体中使用 KJDraw
-
-在任意目录运行一次即可。安装器会把 KJDraw 接入当前用户的 Kimi Code、WorkBuddy 与 ZCode，之后可在任意工作区使用；TraeCode 会打开官方的一次性导入确认。模型 API Key 始终留在你的 AI 客户端，不交给 KJDraw。
-
-**Windows PowerShell**
-
-```powershell
-irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.ps1 | iex
-```
-
-**macOS / Linux**
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
-```
-
-连接器会安全合并用户级配置，不再要求修改每个项目；可编辑图纸宿主统一保存在用户主目录。后续运行同一命令即可从[明确提升的安装渠道](scripts/install-ai-channel.json)原位更新，再重启客户端、新建对话；升级一次到知识分发版运行时后，新的地质 JSON 知识包可在下次 MCP 启动时载入，无需每次重装；运行时代码更新仍需重新运行同一安装命令。[安装细节与安全边界](docs/try-in-ai.zh-CN.md)
-
-### 体验在线编辑器
-
-[打开在线编辑器](https://kanjieteam.github.io/kjdraw/)，无需注册或上传文件。可体验机械、建筑、场地和道路样例，检查图层、执行修改、撤销、保存并重新打开。样例仅用于产品体验，不作为施工图使用。详见[工作台操作指南](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/)。
-
-## 接入你的应用
-
-安装候选版：
-
-```sh
-npm view @kanjieteam/kjdraw@next version
-# 仅当 next 已发布 1.0.0-rc.3 或更新版时再运行下一行；否则请构建本仓库源码。
 npm install @kanjieteam/kjdraw@next
 ```
 
-以下示例需要 **1.0.0-rc.3 或更新版本**。使用 `next` 前先运行 `npm view @kanjieteam/kjdraw dist-tags` 确认实际安装版本；若尚未发布 rc.3，请从当前源码构建。已发布版本及尚未发布到 npm 的源码更新，详见[版本状态](docs/status.md)。
-
-### JavaScript / TypeScript
-
-准备一个有高度的容器：
+<!-- 等 npm 的 latest 标签指向 1.0.0-rc.3 或更新版本后，改成 npm install @kanjieteam/kjdraw，并删掉下面这句。 -->
+> 截至 2026-09-28，npm 的 `next` 标签仍指向 `1.0.0-rc.2`。下方示例对应源码中的 `1.0.0-rc.3` 候选版；在该版本发布前，安装 `@next` 后可能无法直接运行。详见 [发布状态](docs/status.md) 和 [源码安装说明](https://kanjieteam.github.io/kjdraw/docs/latest/installation/)。
 
 ```html
 <div id="cad" style="height: 720px"></div>
 ```
 
+<!-- TODO：确认中文界面的 locale 取值（zh-CN 还是 zh） -->
 ```ts
 import { createKJDrawEditor } from '@kanjieteam/kjdraw/editor'
 
@@ -149,17 +87,16 @@ const editor = createKJDrawEditor('#cad', {
   document: 'sample',
   locale: 'zh-CN',
   theme: 'dark',
-  layout: 'classic',
+  layout: 'classic', // 'classic' | 'compact' | 'focus'
 })
 
 await editor.ready
-// await editor.open(file) // 来自文件选择框的 File
+// await editor.open(file)                              // 来自文件选择器的 File
 // await editor.save({ format: 'DXF', download: true })
 ```
 
-### React
-
-在已有的 React 应用中使用：
+<details>
+<summary><b>React</b></summary>
 
 ```tsx
 import { KJDraw } from '@kanjieteam/kjdraw/react'
@@ -169,9 +106,10 @@ export default function DrawingPage() {
 }
 ```
 
-### Vue
+</details>
 
-在已有的 Vue 3 应用中使用：
+<details>
+<summary><b>Vue 3</b></summary>
 
 ```vue
 <script setup lang="ts">
@@ -183,51 +121,59 @@ import { KJDraw } from '@kanjieteam/kjdraw/vue'
 </template>
 ```
 
-按需要选择**经典、紧凑或专注布局**。切换布局保留当前图纸和撤销记录。
+</details>
 
-[快速开始](https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/) · [React 指南](https://kanjieteam.github.io/kjdraw/docs/latest/react/) · [Vue 指南](https://kanjieteam.github.io/kjdraw/docs/latest/vue/) · [可运行示例](packages/kjdraw-sdk/examples)
+[快速开始](https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/) · [React 指南](https://kanjieteam.github.io/kjdraw/docs/latest/react/) · [Vue 指南](https://kanjieteam.github.io/kjdraw/docs/latest/vue/) · [可运行示例](packages/kjdraw-sdk/examples) · [API 参考](https://kanjieteam.github.io/kjdraw/docs/latest/api/)
 
-## 给你的 Agent 配上 CAD 工具
+## KJDraw 适合你吗？
 
-你的应用负责接入 AI 模型，KJDraw 提供 CAD 工具。Agent 可以调用接口创建和修改图形；支持预览的操作可交给用户检查、确认后再应用。修改结果仍可继续编辑或撤销。
+| ✅ 适合 | ⏳ 暂时不适合 |
+| --- | --- |
+| 你在做需要修改图纸的 AI 助手，并且希望由人把关 | 你需要直接打开和保存 DWG |
+| 你需要在 Web 产品里嵌入 CAD 编辑器（审图、巡检、选型配置、内部工具） | 你需要完整的桌面 CAD 功能或三维实体建模 |
+| 你要在脚本或 CI 里批量处理 DXF/KJD 文件，无界面、不上传 | 你需要经过认证的打印或出图输出 |
 
-例如，你的 Agent 应用可以把“移动选中的设备”转成一次待确认的移动操作，让用户批准后应用到当前图纸。批准后的修改和手动编辑一样，可以撤销。
+KJDraw 是用来构建产品和 Agent 工作流的引擎，不打算取代桌面 CAD。
 
-- [构建 Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/)：调用绘图工具，检查修改并应用。
-- [Agent 接入说明](docs/agent.md)：供编程 Agent 使用的接入指南。
-- [运行命令示例](examples/agent-command.mjs)：无需模型或 API Key，即可验证提议修改、批准和撤销。
+## 目前能做什么
 
-## 文件与自动化
+| 方面 | 状态 |
+| --- | --- |
+| **KJD** 原生图纸 | ✅ 读写、校验、事务、版本、撤销/重做 |
+| **KJP** 项目包 | ✅ 一个包内多张图纸，含快照、哈希和命令日志 |
+| **DXF**（ASCII） | ✅ 有文档说明的子集，R14–2024 版本标签，见 [兼容性说明](docs/dxf-compatibility.md) |
+| 二进制 DXF | ❌ 不支持 |
+| **DWG** | ❌ 不在 1.0 范围内，请先转换为 DXF（例如使用 ODA File Converter） |
+| **3D** | 🧪 实验性：网格、基本体和盒体布尔运算 |
+| 命令行工具 | ✅ 无界面检查、校验和转换 KJD、KJP、DXF，见 [文件指南](https://kanjieteam.github.io/kjdraw/docs/latest/files/) |
 
-无需 AI 模型，也可以通过代码或命令行读取、编辑和保存图纸。用法见[文件指南](https://kanjieteam.github.io/kjdraw/docs/latest/files/)。
-
-KJDraw 支持原生 KJD 图纸、KJP 工程，以及有明确[兼容范围的 DXF](docs/dxf-compatibility.md)。当前不支持直接打开 DWG。
+不支持的内容会被明确拒绝，而不是悄悄丢弃。完整边界见 [发布状态](docs/status.md) · [1.0 范围](docs/1.0-scope.md)。
 
 ## 参与贡献
 
-**我们的使命，是让 KJDraw 成为 AI 时代首选的开源 CAD 引擎。**
+**我们的目标：让 KJDraw 成为 AI 时代默认的开源 CAD 引擎。**
 
-带来一张能复现问题的图纸、接入你正在开发的应用，或者一起改进引擎。几何与文件兼容、编辑工具、Agent 示例、无障碍、性能和文档，都是直接帮助用户的贡献方向。
+现在最有价值的贡献：
 
-试用 1.0 候选版时，请按[独立试用清单](docs/audits/independent-tester-checklist.zh-CN.md)检查，并[提交可复现的反馈](https://github.com/KanJieTeam/kjdraw/issues/new/choose)。不要公开上传私有图纸或密钥。
+- **一张能让 KJDraw 出错的图纸。** 打不开或显示不对的真实 DXF 文件，是改进兼容性最快的方式。
+- **新的 Agent 工具**和 Agent 示例。
+- **编辑工具**、性能、无障碍和文档。
 
-从[贡献指南](CONTRIBUTING.md)了解开发流程，从[治理规则](GOVERNANCE.md)了解决策和维护方式。较大改动请先通过 [Issue](https://github.com/KanJieTeam/kjdraw/issues) 讨论设计。
-
-```sh
+```bash
 git clone https://github.com/KanJieTeam/kjdraw.git
 cd kjdraw
 npm ci --ignore-scripts
-npm run dev
+npm run dev          # http://localhost:4173
 ```
 
-访问 **http://localhost:4173**。提交修改前运行 `npm run typecheck` 和 `npm test`；界面修改还需运行 `npm run test:browser`。
+提交 PR 前请运行 `npm run typecheck` 和 `npm test`（界面改动还需 `npm run test:browser`）。较大的改动请先 [开 issue](https://github.com/KanJieTeam/kjdraw/issues) 讨论。参见 [贡献指南](CONTRIBUTING.md) · [项目治理](GOVERNANCE.md) · [路线图](docs/roadmap.md)。
 
-[使用文档](https://kanjieteam.github.io/kjdraw/docs/latest/) · [API 参考](https://kanjieteam.github.io/kjdraw/docs/latest/api/) · [路线图](docs/roadmap.md) · [获取支持](SUPPORT.md) · [版本状态](docs/status.md) · [许可证](LICENSE)
+---
 
-## Star History
+<div align="center">
 
-<p align="center"><a href="https://www.star-history.com/#KanJieTeam/kjdraw&Date"><img src="https://api.star-history.com/svg?repos=KanJieTeam/kjdraw&type=Date" alt="KJDraw Star History" width="680"></a></p>
+如果 KJDraw 对你有用，点个 ⭐ 能帮更多工程师发现它。
 
-**由 [KanJieTeam](https://github.com/KanJieTeam) 发起，欢迎全球开发者参与。**
+由 [KanJieTeam](https://github.com/KanJieTeam) 开发 · [kanjieteam@163.com](mailto:kanjieteam@163.com) · [Apache-2.0](LICENSE)
 
-[kanjieteam@163.com](mailto:kanjieteam@163.com) · Apache-2.0
+</div>
