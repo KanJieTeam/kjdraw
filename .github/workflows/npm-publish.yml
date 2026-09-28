@@ -59,6 +59,7 @@ jobs:
           pages_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pages.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
           test "$ci_conclusion" = "success"
           test "$pages_conclusion" = "success"
+      - run: npm ci --ignore-scripts
       - id: setup-python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -74,7 +75,6 @@ jobs:
         env:
           KJDRAW_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: |
-          npm ci --ignore-scripts
           npm run typecheck
           node scripts/build-declarations.mjs --check
           node scripts/build-docs-site.mjs
