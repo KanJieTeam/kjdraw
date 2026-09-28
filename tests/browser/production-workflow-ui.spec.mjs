@@ -22,12 +22,13 @@ const sheet = {
   width: 180,
   thickness: 12,
   holePatterns: [
-    { rows: 8, columns: 12, origin: [12.5, 15], spacing: [25, 21], throughDiameter: 5 },
-    { rows: 2, columns: 2, origin: [20, 20], spacing: [260, 140], throughDiameter: 9, counterboreDiameter: 16, counterboreDepth: 6 },
+    { rows: 4, columns: 12, origin: [25, 25], spacing: [22, 18], throughDiameter: 5 },
+    { rows: 4, columns: 12, origin: [25, 105], spacing: [22, 18], throughDiameter: 5 },
+    { rows: 2, columns: 2, origin: [10, 10], spacing: [280, 160], throughDiameter: 9, counterboreDiameter: 16, counterboreDepth: 6 },
   ],
   slots: [
-    { center: [150, 90], length: 40, width: 10, orientationDegrees: 0 },
-    { center: [80, 90], length: 30, width: 8, orientationDegrees: 90 },
+    { center: [150, 92], length: 40, width: 10, orientationDegrees: 0 },
+    { center: [80, 92], length: 30, width: 8, orientationDegrees: 90 },
   ],
   sheet: { origin: [0, 0], size: [594, 420] },
   textHeight: 3.5,
