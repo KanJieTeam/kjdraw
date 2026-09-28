@@ -4,12 +4,9 @@ import { lstat, mkdir, readFile, readdir, realpath, stat, writeFile } from 'node
 import { homedir } from 'node:os'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  KJDRAW_VERSION,
-  createKJDrawSDK,
-  createKjpPackage,
-  openKjpPackage,
-} from '../src/index.js'
+import { KJDRAW_VERSION } from '../src/version.js'
+import { createKJDrawSDK } from '../src/sdk.js'
+import { createKjpPackage, openKjpPackage } from '../src/project-package.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { portableMcpInputSchema } from '../src/mcp-schema-compat.js'
 
