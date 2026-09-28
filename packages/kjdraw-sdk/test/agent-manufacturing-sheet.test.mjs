@@ -28,8 +28,8 @@ function complexInput(overrides = {}) {
       { rows: 1, columns: 2, origin: [70, 70], spacing: [100, 0], throughDiameter: 6.5 },
     ],
     slots: [
-      { center: [120, 40], length: 42, width: 12, orientationDegrees: 0 },
-      { center: [120, 100], length: 30, width: 10, orientationDegrees: 90 },
+      { center: [120, 70], length: 42, width: 12, orientationDegrees: 0 },
+      { center: [40, 70], length: 30, width: 10, orientationDegrees: 90 },
     ],
     sheet: { origin: [15, 25], size: [420, 297] },
     textHeight: 3.5,
@@ -163,10 +163,14 @@ test('compiled manufacturing sheet executes through CREATEBATCH and reopens thro
 
 test('manufacturing sheet compiler rejects stale, unsupported, out-of-bounds and oversized inputs', () => {
   const document = KJDocument.create({ documentId: 'manufacturing-invalid', units: 'millimeter' })
-  const rejects = (patch, pattern) => assert.throws(
-    () => buildAgentManufacturingSheet(document, complexInput(patch)),
-    error => error instanceof KJValidationError && pattern.test(error.message),
-  )
+  const before = document.serialize()
+  const rejects = (patch, pattern) => {
+    assert.throws(
+      () => buildAgentManufacturingSheet(document, complexInput(patch)),
+      error => error instanceof KJValidationError && pattern.test(error.message),
+    )
+    assert.equal(document.serialize(), before)
+  }
 
   rejects({ version: '2.0.0' }, /version/)
   rejects({ expectedRevision: 1 }, /does not match document revision/)
@@ -179,11 +183,32 @@ test('manufacturing sheet compiler rejects stale, unsupported, out-of-bounds and
   rejects({ boltCirclePatterns: [{ count: 12, center: [120, 70], pitchDiameter: 20, throughDiameter: 8 }] }, /overlap/)
   rejects({ boltCirclePatterns: [{ count: 6, center: [120, 70], pitchDiameter: 80, throughDiameter: 8, counterboreDiameter: 14 }] }, /supplied together/)
   rejects({ slots: [{ center: [120, 70], length: 40, width: 10, orientationDegrees: 45 }] }, /0 or 90/)
+  rejects({ holePatterns: [{ rows: 1, columns: 2, origin: [30, 30], spacing: [8, 0], throughDiameter: 10 }], slots: [] }, /overlap or touch/)
+  rejects({ holePatterns: [{ rows: 1, columns: 2, origin: [30, 30], spacing: [10, 0], throughDiameter: 10 }], slots: [] }, /overlap or touch/)
+  rejects({ holePatterns: [
+    { rows: 1, columns: 1, origin: [30, 30], spacing: [0, 0], throughDiameter: 6, counterboreDiameter: 18, counterboreDepth: 5 },
+    { rows: 1, columns: 1, origin: [46, 30], spacing: [0, 0], throughDiameter: 6, counterboreDiameter: 18, counterboreDepth: 5 },
+  ], slots: [] }, /overlap or touch/)
+  rejects({ holePatterns: [{ rows: 1, columns: 1, origin: [120, 70], spacing: [0, 0], throughDiameter: 10 }], slots: [{ center: [120, 70], length: 40, width: 10, orientationDegrees: 0 }] }, /overlap or touch/)
+  rejects({ holePatterns: [], slots: [
+    { center: [120, 70], length: 40, width: 10, orientationDegrees: 0 },
+    { center: [120, 70], length: 30, width: 10, orientationDegrees: 90 },
+  ] }, /overlap or touch/)
+  rejects({ holePatterns: [{ rows: 1, columns: 1, origin: [160, 70], spacing: [0, 0], throughDiameter: 8 }], slots: [],
+    boltCirclePatterns: [{ count: 4, center: [120, 70], pitchDiameter: 80, throughDiameter: 8 }],
+  }, /overlap or touch/)
   rejects({ length: 2_000, width: 1_000 }, /1:1 model-space scale/)
   rejects({
-    holePatterns: [{ rows: 8, columns: 16, origin: [10, 10], spacing: [14, 17], throughDiameter: 6, counterboreDiameter: 20, counterboreDepth: 5 }],
+    holePatterns: [{ rows: 8, columns: 16, origin: [10, 10], spacing: [14, 17], throughDiameter: 6, counterboreDiameter: 13, counterboreDepth: 5 }],
     slots: [],
   }, /maximum is 512/)
+
+  const separated = buildAgentManufacturingSheet(document, complexInput({
+    holePatterns: [{ rows: 1, columns: 2, origin: [30, 30], spacing: [10.01, 0], throughDiameter: 10 }],
+    slots: [],
+  }))
+  assert.equal(separated.evidence.parameters.holeCount, 2)
+  assert.equal(document.serialize(), before)
 
   const inchDocument = KJDocument.create({ documentId: 'manufacturing-inch', units: 'inch' })
   assert.throws(() => buildAgentManufacturingSheet(inchDocument, complexInput()), /millimeter document/)

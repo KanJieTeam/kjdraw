@@ -113,6 +113,67 @@ function locale(value: unknown, ...sourceText: unknown[]): 'zh-CN' | 'en' {
   return sourceText.some(item => typeof item === 'string' && /[\u3400-\u9fff]/u.test(item)) ? 'zh-CN' : 'en'
 }
 
+function validateFeatureSeparation(
+  holePatterns: readonly { rows: number; columns: number; origin: [number, number]; spacing: [number, number]; throughDiameter: number; counterboreDiameter: number | undefined }[],
+  boltCirclePatterns: readonly { count: number; center: [number, number]; pitchDiameter: number; startAngleDegrees: number; throughDiameter: number; counterboreDiameter: number | undefined }[],
+  slots: readonly KJAgentManufacturingSlot[],
+): void {
+  // This compiler cannot model intersecting cuts as one merged manufacturing feature.
+  // Use the widest cut on the top face so a counterbore cannot silently collide with a slot.
+  const holes: { x: number; y: number; radius: number; label: string }[] = []
+  for (const [patternIndex, pattern] of holePatterns.entries()) {
+    for (let row = 0; row < pattern.rows; row += 1) for (let column = 0; column < pattern.columns; column += 1) {
+      holes.push({
+        x: pattern.origin[0] + column * pattern.spacing[0],
+        y: pattern.origin[1] + row * pattern.spacing[1],
+        radius: (pattern.counterboreDiameter ?? pattern.throughDiameter) / 2,
+        label: `holePatterns[${patternIndex}] row ${row} column ${column}`,
+      })
+    }
+  }
+  for (const [patternIndex, pattern] of boltCirclePatterns.entries()) {
+    for (let index = 0; index < pattern.count; index += 1) {
+      const angle = (pattern.startAngleDegrees + index * 360 / pattern.count) * Math.PI / 180
+      holes.push({
+        x: pattern.center[0] + pattern.pitchDiameter / 2 * Math.cos(angle),
+        y: pattern.center[1] + pattern.pitchDiameter / 2 * Math.sin(angle),
+        radius: (pattern.counterboreDiameter ?? pattern.throughDiameter) / 2,
+        label: `boltCirclePatterns[${patternIndex}] hole ${index}`,
+      })
+    }
+  }
+  const capsules = slots.map((slot, index) => {
+    const halfStraight = (slot.length - slot.width) / 2
+    return {
+      minX: slot.center[0] - (slot.orientationDegrees === 0 ? halfStraight : 0),
+      maxX: slot.center[0] + (slot.orientationDegrees === 0 ? halfStraight : 0),
+      minY: slot.center[1] - (slot.orientationDegrees === 90 ? halfStraight : 0),
+      maxY: slot.center[1] + (slot.orientationDegrees === 90 ? halfStraight : 0),
+      radius: slot.width / 2,
+      label: `slots[${index}]`,
+    }
+  })
+  const collides = (distance: number, radii: number) => distance <= radii + 1e-9
+  for (let i = 0; i < holes.length; i += 1) {
+    const a = holes[i]!
+    for (let j = i + 1; j < holes.length; j += 1) {
+      const b = holes[j]!
+      if (collides(Math.hypot(a.x - b.x, a.y - b.y), a.radius + b.radius)) throw new KJValidationError(`${a.label} and ${b.label} overlap or touch on the plate face`)
+    }
+    for (const slot of capsules) {
+      const dx = a.x - Math.max(slot.minX, Math.min(slot.maxX, a.x))
+      const dy = a.y - Math.max(slot.minY, Math.min(slot.maxY, a.y))
+      if (collides(Math.hypot(dx, dy), a.radius + slot.radius)) throw new KJValidationError(`${a.label} and ${slot.label} overlap or touch on the plate face`)
+    }
+  }
+  for (let i = 0; i < capsules.length; i += 1) for (let j = i + 1; j < capsules.length; j += 1) {
+    const a = capsules[i]!, b = capsules[j]!
+    const dx = Math.max(0, a.minX - b.maxX, b.minX - a.maxX)
+    const dy = Math.max(0, a.minY - b.maxY, b.minY - a.maxY)
+    if (collides(Math.hypot(dx, dy), a.radius + b.radius)) throw new KJValidationError(`${a.label} and ${b.label} overlap or touch on the plate face`)
+  }
+}
+
 function validateInput(document: ManufacturingDocument, source: KJAgentManufacturingSheetInput) {
   if (!document || typeof document.id !== 'string' || !Number.isInteger(document.revision) || typeof document.snapshot !== 'function') {
     throw new KJValidationError('Manufacturing sheet compiler requires a KJDraw document')
@@ -212,6 +273,8 @@ function validateInput(document: ManufacturingDocument, source: KJAgentManufactu
     }
     return { center, length: slotLength, width: slotWidth, orientationDegrees: slot.orientationDegrees as 0 | 90 }
   })
+
+  validateFeatureSeparation(holePatterns, boltCirclePatterns, slots)
 
   return {
     version: input.version,
@@ -531,7 +594,7 @@ export function buildAgentManufacturingSheet(document: ManufacturingDocument, so
         holeCount: input.holePatterns.reduce((total, pattern) => total + pattern.rows * pattern.columns, 0) + input.boltCirclePatterns.reduce((total, pattern) => total + pattern.count, 0),
         slotCount: input.slots.length, sheet: input.sheet, textHeight: input.textHeight, viewScale: scale,
       },
-      limitations: ['Hole arrays support rectangular grids and evenly spaced bolt circles', 'Slot orientations are limited to 0 or 90 degrees', 'Views are orthographic and compiled at 1:1; the compiler refuses a sheet that cannot contain the requested geometry'],
+      limitations: ['Hole arrays support rectangular grids and evenly spaced bolt circles', 'Slot orientations are limited to 0 or 90 degrees', 'Touching or overlapping holes, counterbores and slots are rejected; merged cuts require a separate feature compiler', 'Views are orthographic and compiled at 1:1; the compiler refuses a sheet that cannot contain the requested geometry'],
     },
   }
 }

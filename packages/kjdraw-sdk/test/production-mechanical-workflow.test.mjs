@@ -31,8 +31,8 @@ const input = () => ({
     { rows: 1, columns: 2, origin: [70, 70], spacing: [100, 0], throughDiameter: 6.5 },
   ],
   slots: [
-    { center: [120, 40], length: 42, width: 12, orientationDegrees: 0 },
-    { center: [120, 100], length: 30, width: 10, orientationDegrees: 90 },
+    { center: [120, 70], length: 42, width: 12, orientationDegrees: 0 },
+    { center: [40, 70], length: 30, width: 10, orientationDegrees: 90 },
   ],
   sheet: { origin: [15, 25], size: [420, 297] },
   textHeight: 3.5,
