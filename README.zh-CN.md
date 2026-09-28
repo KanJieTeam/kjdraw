@@ -9,8 +9,6 @@
 模型只需表达工程意图，KJDraw 负责把它编译为<br/>
 可编辑、可验证、可撤销、可保存重开的真实 CAD 图纸。
 
-**一键接入：** Kimi Code · TraeCode · WorkBuddy · ZCode
-
 <!-- TODO：请在浏览器确认 /ai/ 链接打开的是 AI 绘图页，而不是普通编辑器 -->
 [**快速开始**](#-快速开始) · [**AI 绘图**](https://kanjieteam.github.io/kjdraw/ai/) · [**在线编辑器**](https://kanjieteam.github.io/kjdraw/) · [**文档**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [English](README.md)
 

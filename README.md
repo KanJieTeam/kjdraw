@@ -9,8 +9,6 @@
 The model describes engineering intent. KJDraw compiles it into real CAD drawings<br/>
 that stay editable, verifiable, undoable, and reopenable.
 
-**One-line setup for:** Kimi Code · TraeCode · WorkBuddy · ZCode
-
 <!-- TODO: confirm in a browser that /ai/ opens the AI page, not the plain editor -->
 [**Quick start**](#-quick-start) · [**Try with AI**](https://kanjieteam.github.io/kjdraw/ai/) · [**Live editor**](https://kanjieteam.github.io/kjdraw/) · [**Docs**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [简体中文](README.zh-CN.md)
 
