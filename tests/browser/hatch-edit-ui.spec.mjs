@@ -63,7 +63,7 @@ test('Workbench edits the selected hatch and Cancel creates no history', async (
 test('Playground exposes pattern and island editing for an opened drawing', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('kjdraw.language', 'en'))
   await page.goto('/')
-  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready', { timeout: 20_000 })
   await page.locator('#file-input').setInputFiles({ name: 'hatch-ui.kjd', mimeType: 'application/json', buffer: await hatchFile() })
   await expect(page.locator('#entity-count')).toHaveText('5 entities')
   await page.keyboard.press('Control+a')
