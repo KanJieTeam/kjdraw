@@ -608,7 +608,10 @@ const annotationSource = object({
             'proposal'
         ]
     },
-    id: text
+    id: {
+        ...text,
+        description: 'For proposal geometry use zero-based group indexes: polyline:0 is the first polyline, circle:0 the first circle. Do not start at 1.'
+    }
 });
 const annotationPoint = {
     ...object({
@@ -629,7 +632,8 @@ const annotationPoint = {
         vertexIndex: {
             type: 'integer',
             minimum: 0,
-            maximum: 63
+            maximum: 63,
+            description: 'Zero-based index within the referenced polyline; its first vertex is 0.'
         }
     }),
     required: [
@@ -3545,7 +3549,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_drawing_annotated',
         effect: 'propose',
-        description: 'Compose editable engineering geometry, open native NURBS, polygonal native HATCH, TEXT/MTEXT leader notes and measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Preserve requested native primitives: use circles for circular features, arcs for curved segments and lines or straight polylines for straight edges. Leaders create a native LEADER plus its owned editable MTEXT. Hatch loop 0 is the outer boundary and later loops are islands; built-in SOLID/ANSI31/ANSI37/CROSS patterns remain editable. Arrays use group-local curve seed refs. Styles apply named editable layers to geometry, annotations and array copies; sources may be empty when the drawing requires an unused layer. A continuous style uses pattern=[]; every nonempty dash pattern strictly alternates positive dash and negative gap values. No edit occurs before host approval; approval creates one undoable transaction.',
+        description: 'Compose editable engineering geometry, open native NURBS, polygonal native HATCH, TEXT/MTEXT leader notes and measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. ALL proposal group references and polyline vertexIndex values are zero-based: polyline:0 is the first polyline, circle:0 the first circle, vertexIndex:0 its first vertex. A reference to polyline:1 means the second polyline. Preserve requested native primitives: use circles for circular features, arcs for curved segments and lines or straight polylines for straight edges. Leaders create a native LEADER plus its owned editable MTEXT. Hatch loop 0 is the outer boundary and later loops are islands; built-in SOLID/ANSI31/ANSI37/CROSS patterns remain editable. Arrays use group-local curve seed refs. Styles apply named editable layers to geometry, annotations and array copies; sources may be empty when the drawing requires an unused layer. A continuous style uses pattern=[]; every nonempty dash pattern strictly alternates positive dash and negative gap values. No edit occurs before host approval; approval creates one undoable transaction.',
         inputSchema: annotatedDrawingSchema
     },
     {

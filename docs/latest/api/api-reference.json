@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:377d6c626d3a78d131cb266e26e62770af9d5b47bb086ebad906c83399dd1918",
+  "sourceDigest": "sha256:0020f99e3809a8417c063a432342b7ec46c42011c165d0bc0ac15509011d8e97",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -787,7 +787,7 @@
         {
           "name": "KJAgentToolSchema",
           "kind": "interface",
-          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n    readonly enum?: readonly (string | number)[];\n}",
+          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';\n    readonly description?: string;\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n    readonly enum?: readonly (string | number)[];\n}",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-interface-kjagenttoolschema"
         },
@@ -7992,7 +7992,7 @@
         {
           "name": "KJAgentToolSchema",
           "kind": "interface",
-          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n    readonly enum?: readonly (string | number)[];\n}",
+          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';\n    readonly description?: string;\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n    readonly enum?: readonly (string | number)[];\n}",
           "source": "agent-tools.d.ts",
           "anchor": "root-interface-kjagenttoolschema"
         },

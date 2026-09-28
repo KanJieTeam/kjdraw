@@ -163,6 +163,7 @@ export interface KJAgentGeometryValidationInput {
 }
 export interface KJAgentToolSchema {
     readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';
+    readonly description?: string;
     readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;
     readonly required?: readonly string[];
     readonly additionalProperties?: false;

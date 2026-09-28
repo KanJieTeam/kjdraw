@@ -29,7 +29,7 @@ that stay editable, verifiable, undoable, and reopenable.
 
 Generating something that looks like CAD is no longer hard. Engineering CAD means keeping hundreds of related objects correct across a long conversation: finding the same object again, preserving dimensions, layers, blocks, hatches and references, and getting a consistent result after Undo, export, save and reopen.
 
-Asking an LLM to emit coordinates and primitives one by one burns tokens, lets geometry drift, and leaves later turns guessing which object to change.
+Re-emitting a whole DXF on every edit can use more tokens and produce invalid files. The interface matters: a large tool schema can cost **more** than direct DXF for a tiny one-shot drawing. Our [reproducible DeepSeek study](docs/benchmarks/deepseek-2026-09-28.md) publishes both outcomes and failed cases.
 
 KJDraw gives any model or agent the same CAD execution layer: **the model decides what to draw; the engine makes sure it is drawn correctly.** Geometry, object identity, layers, references, transactions, validation and file output are handled deterministically by a local engine — and when key data is missing, it refuses instead of guessing.
 

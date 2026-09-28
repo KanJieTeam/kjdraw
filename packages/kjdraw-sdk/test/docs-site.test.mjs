@@ -144,7 +144,7 @@ test('published onboarding examples match executable package entry points and to
     const source = await readFile(new URL(path, repositoryRoot), 'utf8')
     assert.match(source, /agent tools cad_propose_circles/)
     assert.match(source, /agent call cad_propose_circles --blank demo\.kjd --units millimeter --args-file circle\.json/)
-    assert.match(source, /bin\/kjdraw-review\.mjs/)
+    assert.match(source, /kjdraw-review --workspace/)
     assert.match(source, /--workspace/)
     assert.match(source, /--ledger/)
   }

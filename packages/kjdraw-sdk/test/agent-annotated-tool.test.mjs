@@ -12,6 +12,17 @@ function fixture(){const sdk=createKJDrawSDK(),document=sdk.createDocument({unit
 function value(result){assert.equal(result.ok,true,JSON.stringify(result));return result.value}
 function drawing(){return{...empty(),circles:[[20,20,3.3]],polylines:[{points:[[0,0],[180,0],[180,100],[0,100]],closed:true}],texts:[note()],rotatedDimensions:[{from:ref('polylines:0','vertex',0),to:ref('polylines:0','vertex',1),position:{x:0,y:-10},height:2.5,rotationDegrees:0}],diameterDimensions:[{source:{source:'proposal',id:'circles:0'},directionDegrees:45,position:{x:35,y:35},height:2.5}]}}
 
+test('model-facing annotated references explain zero-based indexes and reject an out-of-range vertex without editing',async()=>{
+ const {document,session}=fixture(),definition=session.definitions.find(item=>item.name===tool)
+ assert.match(definition.description,/zero-based/)
+ assert.match(definition.inputSchema.properties.rotatedDimensions.items.properties.from.properties.id.description,/polyline:0/)
+ const input=drawing();input.rotatedDimensions[0].from.vertexIndex=4
+ const before=document.serialize(),proposal=await session.call(tool,input)
+ assert.equal(proposal.ok,false)
+ assert.match(proposal.error.message,/zero-based/)
+ assert.equal(document.serialize(),before)
+})
+
 test('annotated drawing previews kernel-measured native dimensions and commits as one editable undoable batch',async()=>{
  const {sdk,document,session}=fixture(),before=document.serialize(),input=drawing()
  const plan=value(await session.call(tool,input))

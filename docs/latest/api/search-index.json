@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:377d6c626d3a78d131cb266e26e62770af9d5b47bb086ebad906c83399dd1918",
+  "sourceDigest": "sha256:0020f99e3809a8417c063a432342b7ec46c42011c165d0bc0ac15509011d8e97",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -802,7 +802,7 @@
       "module": "@kanjieteam/kjdraw/agent-tools",
       "href": "./api/reference/#agent-tools-interface-kjagenttoolschema",
       "anchor": "agent-tools-interface-kjagenttoolschema",
-      "summary": "export interface KJAgentToolSchema { readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null'; readonly properties?: Readonly<Record<string, KJAgentToolSchema>>; readonly required?: readon"
+      "summary": "export interface KJAgentToolSchema { readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null'; readonly description?: string; readonly properties?: Readonly<Record<string, KJAgentToolSchem"
     },
     {
       "name": "KJAgentToolSession",
@@ -8890,7 +8890,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjagenttoolschema",
       "anchor": "root-interface-kjagenttoolschema",
-      "summary": "export interface KJAgentToolSchema { readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null'; readonly properties?: Readonly<Record<string, KJAgentToolSchema>>; readonly required?: readon"
+      "summary": "export interface KJAgentToolSchema { readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null'; readonly description?: string; readonly properties?: Readonly<Record<string, KJAgentToolSchem"
     },
     {
       "name": "KJAgentToolSession",

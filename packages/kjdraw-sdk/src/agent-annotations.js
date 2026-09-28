@@ -255,6 +255,7 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
         if (ref.feature === 'vertex') {
             if (object.type !== 'LWPOLYLINE' || !Number.isSafeInteger(ref.vertexIndex) || ref.vertexIndex < 0 || ref.vertexIndex > 4095 || !Array.isArray(payload.vertices) || payload.vertices.length > 4096) fail('Vertex references require a bounded native polyline vertex index');
             const vertices = payload.vertices;
+            if (ref.vertexIndex >= vertices.length) fail('Vertex index is outside the referenced polyline; group and vertex indexes are zero-based');
             if (vertices.some((vertex)=>vertex.bulge !== 0)) fail('Annotation vertex references currently require straight polylines');
             return {
                 point: nativePoint(vertices[ref.vertexIndex]?.point),
