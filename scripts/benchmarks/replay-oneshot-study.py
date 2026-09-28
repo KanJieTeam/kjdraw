@@ -36,8 +36,13 @@ def main():
             elif row['arm'] in ('kjdraw','kjdraw-compact'):
                 result=pilot.node('materialize',{'response':{'model':response['model'],'choices':[{'finish_reason':response['finish_reason'],'message':response['message']}]}})
             else:
-                result={'ok':True,'dxf':response['message']['content']}
-            item['replay']=pilot.validate(result['dxf'],expected[row['task']]) if result['ok'] else {'passed':False,'reason':'Engine materialization rejected'}
+                content=response['message'].get('content') or ''
+                # Match the live runner: a truncated or markdown-wrapped DXF is
+                # not a complete deliverable even if its prefix parses.
+                complete=response['finish_reason']=='stop' and '```' not in content
+                result={'ok':complete,'dxf':content}
+            reason='Incomplete or markdown-wrapped DXF' if row['arm']=='direct-dxf' else 'Engine materialization rejected'
+            item['replay']=pilot.validate(result['dxf'],expected[row['task']]) if result['ok'] else {'passed':False,'reason':reason}
         else: item['replay']={'passed':False,'reason':'Saved response missing'}
         results.append(item)
     audit={'kind':'offline replay; original report untouched','sourceReportSha256':sha256(directory/'report.json'),

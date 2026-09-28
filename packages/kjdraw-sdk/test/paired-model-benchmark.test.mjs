@@ -18,6 +18,20 @@ const fixtureKey = 'fixture-credential-never-artifact'
 const python = process.env.KJDRAW_PYTHON ?? 'python'
 const baseOptions = { mode: 'fixture', protocol: 'chat-completions', model: 'fixture-model', apiKey: fixtureKey, repetitions: 5, maxRequests: 30, python }
 const close = server => new Promise(resolve => { server.close(resolve); server.closeAllConnections() })
+test('persistent compact JSON benchmark host isolates documents and recovers after invalid input', () => {
+  const response = content => ({ response: { choices: [{ message: { content: JSON.stringify(content) } }] } })
+  const valid = response({ circles: [[0, 0, 5]] })
+  const invalid = response({ unexpected: true })
+  const input = [valid, invalid, valid].map(value => JSON.stringify(value)).join('\n') + '\n'
+  const child = spawnSync(process.execPath, [fileURLToPath(new URL('../../../scripts/benchmarks/model-drawing-pilot.mjs', import.meta.url)), 'serve-json'], { input, encoding: 'utf8', timeout: 10_000, maxBuffer: 4_000_000 })
+  assert.equal(child.status, 0, child.stderr)
+  const results = child.stdout.trim().split('\n').map(line => JSON.parse(line))
+  assert.equal(results.length, 3)
+  assert.deepEqual(results.map(result => result.ok), [true, false, true])
+  assert.deepEqual([results[0].entities, results[2].entities], [1, 1])
+  assert.match(results[0].dxf, /\bCIRCLE\b/)
+  assert.match(results[2].dxf, /\bCIRCLE\b/)
+})
 async function directory(t) { const folder = await mkdtemp(join(tmpdir(), 'kjdraw-paired-model-')); t.after(() => rm(folder, { recursive: true, force: true })); return folder }
 function requireValidator(t) {
   try { independentValidation({ python }); return true } catch {
