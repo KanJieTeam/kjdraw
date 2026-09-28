@@ -52,8 +52,18 @@ test('nested HATCH instances keep their own phase after movement and reuse cache
     const { createKJDrawSDK } = await import('/packages/kjdraw-sdk/src/sdk.js')
     const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js')
     const sdk = createKJDrawSDK(), drawing = sdk.createDocument(), Native = globalThis.OffscreenCanvas
+    const createElement = document.createElement
     let masks = 0
-    globalThis.OffscreenCanvas = class extends Native { constructor(...args) { super(...args); masks++ } }
+    if (typeof Native === 'function') {
+      globalThis.OffscreenCanvas = class extends Native { constructor(...args) { super(...args); masks++ } }
+    } else {
+      // WebKit uses the renderer's HTMLCanvasElement fallback for hatch masks.
+      document.createElement = function (tag, ...args) {
+        const element = Reflect.apply(createElement, document, [tag, ...args])
+        if (String(tag).toLowerCase() === 'canvas') masks++
+        return element
+      }
+    }
     try {
       const hatch = await sdk.executeCommand('CREATE', { type: 'HATCH', payload: {
         solid: false, trueColor: 0, patternName: 'ORIGINAL', transparency: .5,
@@ -63,7 +73,7 @@ test('nested HATCH instances keep their own phase after movement and reuse cache
       const inner = await sdk.executeCommand('BLOCKCREATE', { name: 'detail', id: hatch.id, basePoint: [0,0] })
       const outer = await sdk.executeCommand('BLOCKCREATE', { name: 'assembly', id: inner.insert.id, basePoint: [0,0] })
       await drawing.transact('another instance', tx => tx.createEntity('INSERT', { ...drawing.getObject(outer.insert.id).payload, position: [20,0,0] }))
-      const canvas = document.createElement('canvas'); canvas.style.cssText = 'width:200px;height:120px'; document.body.append(canvas)
+      const canvas = Reflect.apply(createElement, document, ['canvas']); canvas.style.cssText = 'width:200px;height:120px'; document.body.append(canvas)
       const renderer = new KJCanvasRenderer(canvas, { pixelRatio: 1, grid: false, background: '#ffffff' })
       renderer.resize(200,120); Object.assign(renderer.camera, { centerX: 20, centerY: 6, scale: 4 }); renderer.setDocument(drawing)
       const read = point => { const [x,y] = renderer.worldToScreen(point); return canvas.getContext('2d').getImageData(Math.floor(x),Math.floor(y),1,1).data[0] }
@@ -75,7 +85,10 @@ test('nested HATCH instances keep their own phase after movement and reuse cache
       const diagnostics = renderer.report.hatchDiagnostics
       renderer.dispose(); canvas.remove()
       return { before, initialMasks, stationaryMasks, moved, diagnostics }
-    } finally { globalThis.OffscreenCanvas = Native }
+    } finally {
+      globalThis.OffscreenCanvas = Native
+      document.createElement = createElement
+    }
   })
   // Half-opacity black over white differs by one 8-bit step across raster backends.
   for(const shade of [...result.before,...result.moved.slice(1)]){expect(shade).toBeGreaterThanOrEqual(126);expect(shade).toBeLessThanOrEqual(128)}
