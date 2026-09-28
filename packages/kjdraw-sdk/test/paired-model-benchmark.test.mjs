@@ -43,6 +43,10 @@ async function fixtureDxf(task) {
 test('paired live plan defaults to no network and refuses incomplete budgets or implicit provider configuration', async t => {
   const plan = pairedModelPlan()
   assert.equal(plan.mode, 'dry-run'); assert.equal(plan.actualRequests, 0); assert.equal(plan.plannedRequests, 30)
+  const bounded = pairedModelPlan({ taskSuite: 'manufacturing-30', taskIds: ['fixture-plate-240x140-a3'], repetitions: 1, maxRequests: 2, exploratory: true })
+  assert.equal(bounded.plannedRequests, 2)
+  assert.deepEqual(bounded.taskIds, ['fixture-plate-240x140-a3'])
+  assert.throws(() => pairedModelPlan({ taskSuite: 'manufacturing-30', taskIds: ['not-a-task'], repetitions: 1, maxRequests: 2, exploratory: true }), /Unknown task ID/)
   assert.throws(() => pairedModelPlan({ repetitions: 4, maxRequests: 30 }))
   assert.throws(() => pairedModelPlan({ repetitions: 5, maxRequests: 29 }))
   assert.throws(() => liveModelConfiguration({}), /Set explicit/)

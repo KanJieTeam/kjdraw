@@ -62,7 +62,15 @@ export function benchmarkRunCost(usage, pricing) {
   return { currency: normalized.currency, amount: Number(amount.toFixed(12)), uncachedInputTokens: uncached, cachedInputTokens: cached, outputTokens, ratesPerMillion: normalized }
 }
 
-export function pairedModelPlan({ repetitions = 5, maxRequests = 30, taskSuite = 'pilot', drawingTool, maxOutputTokens = 4096, exploratory = false, chatTokenParameter = 'max_tokens', temperature = 0, stream = false, thinkingMode, enableThinking, reasoningEffort } = {}) {
+function selectTasks(taskSuite, taskIds) {
+  const tasks = taskSuites[taskSuite]
+  if (taskIds === undefined) return tasks
+  if (!Array.isArray(taskIds) || taskIds.length === 0 || taskIds.some(id => typeof id !== 'string' || !id.trim()) || new Set(taskIds).size !== taskIds.length) throw new Error('Choose distinct, nonempty task IDs')
+  if (taskIds.some(id => !tasks.some(task => task.id === id))) throw new Error('Unknown task ID for selected suite')
+  return tasks.filter(task => taskIds.includes(task.id))
+}
+
+export function pairedModelPlan({ repetitions = 5, maxRequests = 30, taskSuite = 'pilot', taskIds, drawingTool, maxOutputTokens = 4096, exploratory = false, chatTokenParameter = 'max_tokens', temperature = 0, stream = false, thinkingMode, enableThinking, reasoningEffort } = {}) {
   if (typeof exploratory !== 'boolean') throw new Error('Exploratory mode must be explicit boolean')
   if (!Object.hasOwn(taskSuites, taskSuite)) throw new Error('Choose an explicit supported task suite')
   const perTaskTools = taskSuite === 'release-holdout-generation'
@@ -72,11 +80,11 @@ export function pairedModelPlan({ repetitions = 5, maxRequests = 30, taskSuite =
   if (!perTaskTools && !drawingTools.includes(selectedDrawingTool)) throw new Error('Unsupported explicit drawing tool')
   if (requiredDrawingTool && selectedDrawingTool !== requiredDrawingTool) throw new Error(`${taskSuite} requires ${requiredDrawingTool}`)
   if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 4096 || maxOutputTokens > 32768) throw new Error('Choose an output cap from 4096 to 32768 tokens')
-  const tasks = taskSuites[taskSuite]
+  const tasks = selectTasks(taskSuite, taskIds)
   if (!Number.isSafeInteger(repetitions) || repetitions < (exploratory ? 1 : 5) || repetitions > 30) throw new Error('Choose 5–30 repetitions, or explicitly exploratory 1–30')
   const plannedRequests = tasks.length * arms.length * repetitions
   if (!Number.isSafeInteger(maxRequests) || maxRequests < plannedRequests || maxRequests > 1800) throw new Error('Explicit request budget must cover the complete paired plan and be at most 1800')
-  return { mode: 'dry-run', exploratory, protocol, repetitions, maxRequests, plannedRequests, actualRequests: 0, tasks: tasks.map(task => ({ id: task.id, prompt: task.prompt, ...(task.version ? { version: task.version } : {}), ...(task.category ? { category: task.category } : {}), ...(task.drawingTool ? { drawingTool: task.drawingTool } : {}), ...(task.units ? { units: task.units } : {}), ...(task.inputSha256 ? { inputSha256: task.inputSha256 } : {}), ...(task.referenceInputSha256 ? { referenceInputSha256: task.referenceInputSha256 } : {}), ...(task.acceptanceSha256 ? { acceptanceSha256: task.acceptanceSha256 } : {}), ...(task.budget ? { budget: structuredClone(task.budget) } : {}) })), taskSuite, drawingTool: perTaskTools ? releaseHoldoutDrawingTool : selectedDrawingTool, arms, chatTokenParameter, settings: benchmarkProviderSettings({ chatTokenParameter, maxOutputTokens, temperature, stream, thinkingMode, enableThinking, reasoningEffort }), scope: taskSuite === 'engineering' ? engineeringDrawingScope : taskSuite === 'manufacturing' ? manufacturingDrawingScope : taskSuite === 'manufacturing-30' ? manufacturingTaskSuiteScope : taskSuite === 'release-holdout-generation' ? releaseHoldoutTaskSuiteScope : taskSuite === 'pilot' ? 'Three simple fully specified synthetic tasks, repeated one-shot generation. This is not a complex autonomous CAD evaluation.' : 'Three fully specified synthetic 2D geometry tasks with repeated patterns, repeated one-shot generation. No dimensions, annotations, complete drawing sheets or autonomous design are evaluated.' }
+  return { mode: 'dry-run', exploratory, protocol, repetitions, maxRequests, plannedRequests, actualRequests: 0, taskIds: tasks.map(task => task.id), tasks: tasks.map(task => ({ id: task.id, prompt: task.prompt, ...(task.version ? { version: task.version } : {}), ...(task.category ? { category: task.category } : {}), ...(task.drawingTool ? { drawingTool: task.drawingTool } : {}), ...(task.units ? { units: task.units } : {}), ...(task.inputSha256 ? { inputSha256: task.inputSha256 } : {}), ...(task.referenceInputSha256 ? { referenceInputSha256: task.referenceInputSha256 } : {}), ...(task.acceptanceSha256 ? { acceptanceSha256: task.acceptanceSha256 } : {}), ...(task.budget ? { budget: structuredClone(task.budget) } : {}) })), taskSuite, drawingTool: perTaskTools ? releaseHoldoutDrawingTool : selectedDrawingTool, arms, chatTokenParameter, settings: benchmarkProviderSettings({ chatTokenParameter, maxOutputTokens, temperature, stream, thinkingMode, enableThinking, reasoningEffort }), scope: taskSuite === 'engineering' ? engineeringDrawingScope : taskSuite === 'manufacturing' ? manufacturingDrawingScope : taskSuite === 'manufacturing-30' ? manufacturingTaskSuiteScope : taskSuite === 'release-holdout-generation' ? releaseHoldoutTaskSuiteScope : taskSuite === 'pilot' ? 'Three simple fully specified synthetic tasks, repeated one-shot generation. This is not a complex autonomous CAD evaluation.' : 'Three fully specified synthetic 2D geometry tasks with repeated patterns, repeated one-shot generation. No dimensions, annotations, complete drawing sheets or autonomous design are evaluated.' }
 }
 
 export function liveModelConfiguration(env = process.env) {
@@ -303,7 +311,8 @@ export function taskBudgetCompliance(run, budget) {
 export async function runPairedModelBenchmark(options) {
   const config = configuration(options)
   await mkdir(dirname(config.output), { recursive: true }); await mkdir(config.output)
-  const reportTasks = taskSuites[config.taskSuite].map(task => {
+  const selectedTasks = selectTasks(config.taskSuite, config.taskIds)
+  const reportTasks = selectedTasks.map(task => {
     const { referenceInput, ...record } = task
     return { ...record, fixtureSha256: hash(JSON.stringify(task.expected)), inputSha256: task.inputSha256 ?? null }
   })
@@ -329,7 +338,7 @@ export async function runPairedModelBenchmark(options) {
     await writeFile(temporary, JSON.stringify(report, null, 2), { flag: 'wx' })
     await rename(temporary, resolve(config.output, 'report.json'))
   }
-  const tasks = taskSuites[config.taskSuite]
+  const tasks = selectedTasks
   try {
     const kinds = [...new Set(tasks.map(task => task.validatorKind).filter(Boolean))]
     report.validator = kinds.length ? Object.fromEntries(kinds.map(kind => [kind, independentValidation({ python: config.python, taskSuite: config.taskSuite, validatorKind: kind })])) : independentValidation({ python: config.python, taskSuite: config.taskSuite })
@@ -391,10 +400,10 @@ export async function runPairedModelBenchmark(options) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2)
-  if (args.some(argument => argument !== '--live' && argument !== '--explore' && !/^--(?:output|repetitions|max-requests|timeout-ms|task-suite|max-output-tokens|chat-token-parameter|temperature|stream|reasoning-effort)=.+$/.test(argument))) throw new Error('Use --live only with explicit configuration; options: --output, --repetitions, --max-requests, --timeout-ms, --task-suite, --max-output-tokens, --chat-token-parameter, --temperature, --stream, --reasoning-effort')
+  if (args.some(argument => argument !== '--live' && argument !== '--explore' && !/^--(?:output|repetitions|max-requests|timeout-ms|task-suite|task-ids|max-output-tokens|chat-token-parameter|temperature|stream|reasoning-effort)=.+$/.test(argument))) throw new Error('Use --live only with explicit configuration; options: --output, --repetitions, --max-requests, --timeout-ms, --task-suite, --task-ids, --max-output-tokens, --chat-token-parameter, --temperature, --stream, --reasoning-effort')
   const value = (name, fallback) => args.find(argument => argument.startsWith(`--${name}=`))?.slice(name.length + 3) ?? fallback
   const exploratory = args.includes('--explore')
-  const repetitions = Number(value('repetitions', 5)), maxRequests = Number(value('max-requests', 30)), taskSuite = value('task-suite', 'pilot'), maxOutputTokens = Number(value('max-output-tokens', 4096))
+  const repetitions = Number(value('repetitions', 5)), maxRequests = Number(value('max-requests', 30)), taskSuite = value('task-suite', 'pilot'), taskIds = value('task-ids')?.split(','), maxOutputTokens = Number(value('max-output-tokens', 4096))
   const chatTokenParameter = value('chat-token-parameter', process.env.KJDRAW_BENCH_CHAT_TOKEN_PARAMETER ?? 'max_tokens'), reasoningEffort = value('reasoning-effort', process.env.KJDRAW_BENCH_REASONING_EFFORT)
   const temperatureValue = value('temperature', process.env.KJDRAW_BENCH_TEMPERATURE)
   const temperature = temperatureValue === 'omit' ? null : temperatureValue === undefined ? 0 : Number(temperatureValue)
@@ -403,11 +412,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const stream = streamValue === 'true'
   const enableThinkingValue = process.env.KJDRAW_BENCH_ENABLE_THINKING
   if (enableThinkingValue !== undefined && !['true', 'false'].includes(enableThinkingValue)) throw new Error('KJDRAW_BENCH_ENABLE_THINKING must be true or false when configured')
-  if (!args.includes('--live')) console.log(JSON.stringify(pairedModelPlan({ repetitions, maxRequests, taskSuite, maxOutputTokens, exploratory, chatTokenParameter, temperature, stream, reasoningEffort, thinkingMode: process.env.KJDRAW_BENCH_THINKING, ...(enableThinkingValue !== undefined ? { enableThinking: enableThinkingValue === 'true' } : {}) }), null, 2))
+  if (!args.includes('--live')) console.log(JSON.stringify(pairedModelPlan({ repetitions, maxRequests, taskSuite, taskIds, maxOutputTokens, exploratory, chatTokenParameter, temperature, stream, reasoningEffort, thinkingMode: process.env.KJDRAW_BENCH_THINKING, ...(enableThinkingValue !== undefined ? { enableThinking: enableThinkingValue === 'true' } : {}) }), null, 2))
   else {
     const live = liveModelConfiguration()
     if ((taskSuite === 'manufacturing-30' || taskSuite === 'release-holdout-generation') && process.env.KJDRAW_BENCH_DRAWING_TOOL === undefined) delete live.drawingTool
-    const report = await runPairedModelBenchmark({ ...live, repetitions, maxRequests, taskSuite, maxOutputTokens, exploratory, chatTokenParameter, temperature, stream, reasoningEffort, timeoutMs: Number(value('timeout-ms', 60000)), output: value('output') })
+    const report = await runPairedModelBenchmark({ ...live, repetitions, maxRequests, taskSuite, taskIds, maxOutputTokens, exploratory, chatTokenParameter, temperature, stream, reasoningEffort, timeoutMs: Number(value('timeout-ms', 60000)), output: value('output') })
     console.log(JSON.stringify({ mode: report.mode, status: report.status, attemptedRequests: report.attemptedRequests, unexecutedRequests: report.unexecutedRequests, passed: report.runs.filter(run => run.status === 'passed').length, stopReason: report.stopReason ?? null }))
     if (report.status !== 'complete' || report.runs.some(run => run.status !== 'passed')) process.exitCode = 1
   }

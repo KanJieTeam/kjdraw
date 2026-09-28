@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-export const manufacturingTaskSuiteVersion = '1.0.0'
+export const manufacturingTaskSuiteVersion = '1.0.1'
 
 const layers = [
   { name: 'OUTLINE', pattern: [], lineweight: 35 },
@@ -117,7 +117,7 @@ function requirementsFromInput(input, sheetName) {
 function promptFrom(input, sheetName) {
   const [working, mounting] = input.holePatterns
   const slots = input.slots.map((slot, index) => `S${index + 1} center (${fmt(slot.center[0])},${fmt(slot.center[1])}), ${fmt(slot.length)} x ${fmt(slot.width)}, orientation ${slot.orientationDegrees} degrees`).join('; ')
-  return `Create drawing ${input.drawingId} revision ${input.revision}: ${input.title}; quantity ${input.quantity}; material ${input.material}. Use millimeters on an ISO ${sheetName} landscape sheet ${input.sheet.size[0]} x ${input.sheet.size[1]} at 1:1. Plate ${input.length} x ${input.width} x ${input.thickness}. Working holes: ${working.rows} rows x ${working.columns} columns, origin (${working.origin.join(',')}), spacing (${working.spacing.join(',')}), diameter ${working.throughDiameter} through. Mounting holes: 2 x 2, origin (${mounting.origin.join(',')}), spacing (${mounting.spacing.join(',')}), diameter ${mounting.throughDiameter} through with diameter ${mounting.counterboreDiameter} counterbore depth ${mounting.counterboreDepth}. Slots: ${slots}. Include top and front views, center and hidden lines, native dimensions, title block, feature callouts, and machining notes. Use OUTLINE, HIDDEN, CENTER, DIMENSIONS, NOTES and SHEET layers with by-layer standard styles; keep all geometry editable.`
+  return `Create drawing ${input.drawingId} revision ${input.revision}: ${input.title}; quantity ${input.quantity}; material ${input.material}. Use millimeters on an ISO ${sheetName} landscape sheet ${input.sheet.size[0]} x ${input.sheet.size[1]} at 1:1, with ${input.textHeight} mm annotation and dimension text. Plate ${input.length} x ${input.width} x ${input.thickness}. Working holes: ${working.rows} rows x ${working.columns} columns, origin (${working.origin.join(',')}), spacing (${working.spacing.join(',')}), diameter ${working.throughDiameter} through. Mounting holes: 2 x 2, origin (${mounting.origin.join(',')}), spacing (${mounting.spacing.join(',')}), diameter ${mounting.throughDiameter} through with diameter ${mounting.counterboreDiameter} counterbore depth ${mounting.counterboreDepth}. Slots: ${slots}. Include top and front views, center and hidden lines, native dimensions, title block, feature callouts, and machining notes. Use OUTLINE, HIDDEN, CENTER, DIMENSIONS, NOTES and SHEET layers with by-layer standard styles; keep all geometry editable.`
 }
 
 export const manufacturingTaskSuite = cases.map((row, index) => {

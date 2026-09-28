@@ -3,6 +3,7 @@ import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/sdk.js'
 import { KJAgentToolSession } from '../../packages/kjdraw-sdk/src/agent-tools.js'
 import { createKJModelAdapter } from '../../packages/kjdraw-sdk/src/model-adapters.js'
 import { mountingProfile } from '../../packages/kjdraw-sdk/examples/fixtures/mounting-profile.mjs'
+import { createInterface } from 'node:readline'
 
 const empty = () => ({ expectedRevision: 0, units: 'millimeter', lines: [], circles: [], arcs: [], polylines: [] })
 export const pilotTasks = [
@@ -11,7 +12,34 @@ export const pilotTasks = [
   { id: 'stepped-profile', prompt: 'Draw one closed six-vertex outline in this order: (0,0), (90,0), (90,25), (40,25), (40,70), (0,70). Add radius-4 holes centered at (15,15), (75,12), and (20,55). No other geometry.', expected: { ...empty(), circles: [[15,15],[75,12],[20,55]].map(([x,y]) => ({ center: { x,y }, radius: 4 })), polylines: [{ vertices: [[0,0],[90,0],[90,25],[40,25],[40,70],[0,70]].map(([x,y]) => ({ x,y })), closed: true }] } },
 ]
 
-if (process.argv[2] === 'prepare' || process.argv[2] === 'prepare-compact') {
+async function materializeCompactJson(response) {
+  try {
+    const value = JSON.parse(response.choices[0].message.content)
+    if (!value || Array.isArray(value) || typeof value !== 'object' || Object.keys(value).some(key => !['lines', 'circles', 'arcs', 'polylines'].includes(key))) throw new Error('Unexpected compact JSON fields')
+    const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ units: 'millimeter' })
+    const session = new KJAgentToolSession(sdk, drawing)
+    // The trusted host expands omitted groups and supplies the current revision/units.
+    const args = { expectedRevision: 0, units: 'millimeter', lines: [], circles: [], arcs: [], polylines: [], ...value }
+    const proposal = await session.call('cad_propose_drawing_compact', args)
+    if (!proposal.ok) throw new Error('Compact proposal rejected')
+    const approved = await session.approve(proposal.value.planId, 'synthetic-benchmark-reviewer')
+    if (!approved.ok) throw new Error('Synthetic approval rejected')
+    const raw = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
+    return { ok: true, dxf: typeof raw === 'string' ? raw : new TextDecoder().decode(raw), entities: drawing.listEntities().length }
+  } catch (error) { return { ok: false, error: String(error.message).slice(0, 150) } }
+}
+
+if (process.argv[2] === 'serve-json') {
+  // A long-lived host models an MCP process; every line still gets a fresh drawing.
+  for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
+    let result
+    try {
+      if (line.length > 2_097_152) throw new Error('Input exceeds pilot limit')
+      result = await materializeCompactJson(JSON.parse(line).response)
+    } catch (error) { result = { ok: false, error: String(error.message).slice(0, 150) } }
+    process.stdout.write(`${JSON.stringify(result)}\n`)
+  }
+} else if (process.argv[2] === 'prepare' || process.argv[2] === 'prepare-compact') {
   const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ units: 'millimeter' })
   const selectedName = process.argv[2] === 'prepare-compact' ? 'cad_propose_drawing_compact' : 'cad_propose_drawing'
   const definition = new KJAgentToolSession(sdk, drawing).definitions.find(tool => tool.name === selectedName)
@@ -20,23 +48,12 @@ if (process.argv[2] === 'prepare' || process.argv[2] === 'prepare-compact') {
   let input = ''
   for await (const chunk of process.stdin) { input += chunk; if (input.length > 2097152) throw new Error('Input exceeds pilot limit') }
   const { response } = JSON.parse(input)
-  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ units: 'millimeter' })
-  const session = new KJAgentToolSession(sdk, drawing)
   if (process.argv[2] === 'materialize-json') {
-    try {
-      const value = JSON.parse(response.choices[0].message.content)
-      if (!value || Array.isArray(value) || typeof value !== 'object' || Object.keys(value).some(key => !['lines', 'circles', 'arcs', 'polylines'].includes(key))) throw new Error('Unexpected compact JSON fields')
-      // The model may omit unused groups; the host expands them to the SDK's required empty arrays.
-      const args = { expectedRevision: 0, units: 'millimeter', lines: [], circles: [], arcs: [], polylines: [], ...value }
-      const proposal = await session.call('cad_propose_drawing_compact', args)
-      if (!proposal.ok) throw new Error('Compact proposal rejected')
-      const approved = await session.approve(proposal.value.planId, 'synthetic-benchmark-reviewer')
-      if (!approved.ok) throw new Error('Synthetic approval rejected')
-      const raw = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
-      console.log(JSON.stringify({ ok: true, dxf: typeof raw === 'string' ? raw : new TextDecoder().decode(raw), entities: drawing.listEntities().length }))
-    } catch (error) { console.log(JSON.stringify({ ok: false, error: String(error.message).slice(0, 150) })) }
+    console.log(JSON.stringify(await materializeCompactJson(response)))
     process.exit(0)
   }
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ units: 'millimeter' })
+  const session = new KJAgentToolSession(sdk, drawing)
   const model = createKJModelAdapter({ protocol: 'chat-completions', model: response.model, request: async () => response })
   const conversation = model.createConversation({ instructions: 'Materialize the captured benchmark response.', tools: session.definitions })
   try {

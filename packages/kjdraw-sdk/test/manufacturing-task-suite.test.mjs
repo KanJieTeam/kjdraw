@@ -8,7 +8,7 @@ import { hashManufacturingSuiteInput, manufacturingTaskSuite, manufacturingTaskS
 const python = process.env.KJDRAW_PYTHON ?? 'python'
 
 test('manufacturing-30 manifest contains thirty distinct versioned semantic contracts', () => {
-  assert.equal(manufacturingTaskSuiteVersion, '1.0.0')
+  assert.equal(manufacturingTaskSuiteVersion, '1.0.1')
   assert.equal(manufacturingTaskSuite.length, 30)
   assert.equal(new Set(manufacturingTaskSuite.map(task => task.id)).size, 30)
   assert.equal(new Set(manufacturingTaskSuite.map(task => task.prompt)).size, 30)
@@ -27,6 +27,7 @@ test('manufacturing-30 manifest contains thirty distinct versioned semantic cont
     assert.ok(task.input.holePatterns.reduce((total, pattern) => total + pattern.rows * pattern.columns, 0) >= 58)
     assert.ok(task.prompt.includes(task.input.drawingId))
     assert.ok(task.prompt.includes(`${task.input.length} x ${task.input.width} x ${task.input.thickness}`))
+    assert.ok(task.prompt.includes(`${task.input.textHeight} mm annotation and dimension text`))
   }
 
   const fullPlan = pairedModelPlan({ taskSuite: 'manufacturing-30', repetitions: 5, maxRequests: 300, maxOutputTokens: 8192 })

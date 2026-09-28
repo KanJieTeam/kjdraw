@@ -1,9 +1,14 @@
 """Five-repeat, three-task paired generation study; key from stdin only, no hidden retries."""
 import argparse
+import hashlib
 import importlib.util
 import json
+import queue
+import subprocess
 import sys
+import threading
 import time
+from contextlib import ExitStack
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -11,6 +16,38 @@ PILOT = ROOT/'scripts/benchmarks/deepseek-drawing-pilot.py'
 spec = importlib.util.spec_from_file_location('paired_pilot', PILOT)
 pilot = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pilot)
+
+class PersistentKJDrawHost:
+    """One Node process, but a fresh SDK document and proposal per response."""
+    def __enter__(self):
+        self.process = subprocess.Popen([pilot.NODE, str(pilot.HELPER), 'serve-json'], cwd=ROOT,
+                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                        stderr=subprocess.DEVNULL, text=True, encoding='utf-8', bufsize=1)
+        self.lines = queue.Queue(maxsize=1)
+        def read_lines():
+            for line in self.process.stdout: self.lines.put(line)
+            self.lines.put(None)
+        threading.Thread(target=read_lines, daemon=True).start()
+        return self
+
+    def call(self, response):
+        if self.process.poll() is not None: raise RuntimeError('KJDraw host stopped unexpectedly')
+        request = json.dumps({'response':response},ensure_ascii=False)
+        if len(request)>2_097_152: raise RuntimeError('KJDraw host request exceeds limit')
+        self.process.stdin.write(request+'\n')
+        self.process.stdin.flush()
+        try: line=self.lines.get(timeout=30)
+        except queue.Empty: raise RuntimeError('KJDraw host did not respond within 30 seconds') from None
+        if line is None: raise RuntimeError('KJDraw host exited without a response')
+        return json.loads(line)
+
+    def __exit__(self, *_):
+        if self.process.poll() is None:
+            self.process.stdin.close()
+            try: self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=5)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -33,8 +70,10 @@ def main():
     output = Path(args.output).resolve()/time.strftime('%Y%m%d-%H%M%S')
     output.mkdir(parents=True,exist_ok=False)
     report = {'kind':'paired synthetic one-shot study','model':args.model,'temperature':0,'thinking':'disabled',
-              'drawingTool':prepared['tool']['function']['name'],'modelInterface':('compact JSON without tool schema; host injects revision and units' if args.drawing_tool=='json' else 'function calling'),
+              'sourceSha256':{'study':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'pilot':hashlib.sha256(PILOT.read_bytes()).hexdigest(),'host':hashlib.sha256(pilot.HELPER.read_bytes()).hexdigest()},
+              'drawingTool':prepared['tool']['function']['name'],'modelInterface':('compact JSON without tool schema; persistent KJDraw host injects revision and units, with a fresh document per request' if args.drawing_tool=='json' else 'function calling'),
               'repetitions':args.repetitions,'maxRequests':len(tasks)*2*args.repetitions,
+              'timingDefinition':'modelSeconds measures the provider request. totalSeconds starts before that request and ends after CAD materialization, DXF writing and independent validation for either arm; it excludes setup and report writing.',
               'tasks':[{'id':task['id'],'prompt':task['prompt']} for task in tasks],
               'baseline':'Direct full ASCII DXF without a CAD library',
               'validator':'independent ezdxf, exact geometry plus units/audit',
@@ -42,7 +81,9 @@ def main():
               'usage':{kj_arm:{'prompt_tokens':0,'completion_tokens':0},'direct-dxf':{'prompt_tokens':0,'completion_tokens':0}}}
     (output/'expected.json').write_text(json.dumps([{'id':task['id'],'expected':task['expected']} for task in tasks],indent=2),encoding='utf-8')
     stopped = False
-    with httpx.Client(proxy=args.proxy,timeout=httpx.Timeout(120,connect=25),follow_redirects=False) as client:
+    with ExitStack() as stack:
+        host = stack.enter_context(PersistentKJDrawHost()) if args.drawing_tool=='json' else None
+        client = stack.enter_context(httpx.Client(proxy=args.proxy,timeout=httpx.Timeout(120,connect=25),follow_redirects=False))
         for repeat in range(1,args.repetitions+1):
             for task in tasks:
                 order = (kj_arm,'direct-dxf') if (repeat+tasks.index(task))%2 else ('direct-dxf',kj_arm)
@@ -74,7 +115,7 @@ def main():
                               'message':{field:message.get(field) for field in ('content','tool_calls')}}
                         (output/(stem+'-response.json')).write_text(json.dumps(safe,ensure_ascii=False,indent=2),encoding='utf-8')
                         if arm==kj_arm:
-                            result=pilot.node('materialize-json' if args.drawing_tool=='json' else 'materialize',{'response':data})
+                            result=host.call(data) if host else pilot.node('materialize',{'response':data})
                             if not result['ok']: raise RuntimeError('KJDraw proposal rejected')
                             dxf=result['dxf']
                         else:
@@ -88,6 +129,8 @@ def main():
                         if isinstance(error,(httpx.HTTPStatusError,httpx.RequestError)):
                             stopped=True
                             report['stopped']='Transport/authentication failure; no retry or further spending'
+                    finally:
+                        run['totalSeconds']=round(time.perf_counter()-start,3)
                     report['results'].append(run)
                     (output/'report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
                     print(json.dumps({'repeat':repeat,'task':task['id'],'arm':arm,

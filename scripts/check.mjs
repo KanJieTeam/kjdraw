@@ -1,14 +1,16 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
-import { resolve, relative, extname } from 'node:path'
+import { resolve, relative, extname, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const failures = []
-const publicBenchmarkReport = 'docs/benchmarks/deepseek-2026-09-28.md'
-const publicBenchmarkIndex = 'docs/benchmarks/evidence/2026-09-28-deepseek-flash/README.md'
-const publicBenchmarkFolder = 'docs/benchmarks/evidence/2026-09-28-deepseek-flash/'
-const benchmarkIndex = await readFile(resolve(root, publicBenchmarkIndex), 'utf8')
-const benchmarkHashes = new Map([...benchmarkIndex.matchAll(/^\| `([^`/\\]+\.zip)` \|[^\r\n]*\| `([0-9a-f]{64})` \|$/gm)].map(([, name, digest]) => [publicBenchmarkFolder + name, digest]))
+const publicBenchmarkReports = new Set(['docs/benchmarks/deepseek-2026-09-28.md', 'docs/benchmarks/deepseek-2026-09-29.md'])
+const publicBenchmarkIndices = new Set(['docs/benchmarks/evidence/2026-09-28-deepseek-flash/README.md', 'docs/benchmarks/evidence/2026-09-29-deepseek-flash/README.md'])
+const benchmarkHashes = new Map()
+for (const index of publicBenchmarkIndices) {
+  const content = await readFile(resolve(root, index), 'utf8')
+  for (const [, name, digest] of content.matchAll(/^\| `([^`/\\]+\.zip)` \|[^\r\n]*\| `([0-9a-f]{64})` \|$/gm)) benchmarkHashes.set(`${dirname(index).replaceAll('\\', '/')}/${name}`, digest)
+}
 async function walk(dir = '') {
   const paths=[]
   for(const e of await readdir(resolve(root,dir),{withFileTypes:true})){
@@ -21,7 +23,7 @@ async function walk(dir = '') {
 const files=await walk()
 for(const required of ['LICENSE','NOTICE','README.md','README.en.md','CONTRIBUTING.md','SECURITY.md','SECURITY_ARCHITECTURE.md','docs/assets/hero.svg','docs/assets/mark.svg','docs/capability-matrix.md','docs/deployment.md','docs/open-source-boundary.md','web/public/kjcore/kjcore.wasm'])if(!files.includes(required))failures.push(`Missing ${required}`)
 for(const p of files){
-  if(/^docs\/product(?:\/|$)|^docs\/audits\/.*\d{4}-\d{2}-\d{2}/.test(p) || p.startsWith('docs/benchmarks/') && p!==publicBenchmarkReport && p!==publicBenchmarkIndex && !benchmarkHashes.has(p))failures.push(`Internal development material must remain outside the public repository: ${p}`)
+  if(/^docs\/product(?:\/|$)|^docs\/audits\/.*\d{4}-\d{2}-\d{2}/.test(p) || p.startsWith('docs/benchmarks/') && !publicBenchmarkReports.has(p) && !publicBenchmarkIndices.has(p) && !benchmarkHashes.has(p))failures.push(`Internal development material must remain outside the public repository: ${p}`)
   if(benchmarkHashes.has(p)){
     const bytes=await readFile(resolve(root,p))
     if(bytes.length>5_000_000 || createHash('sha256').update(bytes).digest('hex')!==benchmarkHashes.get(p))failures.push(`Public benchmark archive size or SHA-256 mismatch: ${p}`)
