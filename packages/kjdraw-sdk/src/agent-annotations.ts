@@ -184,7 +184,7 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
     if (typeof item.text !== 'string' || !item.text.trim() || item.text.length > 2048 || /[\u0000-\u001f\u007f]/.test(item.text)) fail('TEXT annotation must be nonempty single-line text of at most 2048 characters')
     append('TEXT', { text: item.text, position: xy(item.position), height: number(item.height, 'Text height', 1e-6, 1e6), rotation: number(item.rotationDegrees, 'Text angle', 0, 360) * Math.PI / 180 })
   }
-  for (const value of source.dimensions as unknown[]) {
+  for (const [dimensionIndex, value] of (source.dimensions as unknown[]).entries()) {
     const item = record(value, ['type', 'from', 'to', 'source', 'position', 'height', 'rotationDegrees', 'directionDegrees', 'center', 'first', 'second'], ['type', 'position', 'height'])
     const type = item.type
     if (!['ALIGNED', 'ROTATED', 'RADIUS', 'DIAMETER', 'ANGULAR_3_POINT'].includes(type as string)) fail('Unsupported native dimension type')
@@ -217,7 +217,7 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
     }
     const payload: KJObjectPayload = { dimensionType: type, definitionPoints, dimensionAssociations, ...((type === 'RADIUS' || type === 'DIAMETER') ? { textPosition: position } : {}), textHeight: height, rotation, precision: 8 }
     const projection = projectDimension(payload)
-    if (!projection || !Number.isFinite(projection.measurement) || projection.measurement < 1e-8 || projection.measurement > 1e12) return fail('Dimension references produce degenerate or out-of-budget measurements')
+    if (!projection || !Number.isFinite(projection.measurement) || projection.measurement < 1e-8 || projection.measurement > 1e12) return fail(`Dimension ${dimensionIndex} (${type}) references produce degenerate or out-of-budget measurements`)
     if (type === 'ANGULAR_3_POINT') {
       for (const point of [...projection.lines.flat(), ...projection.arrows.flat(), projection.label.position]) {
         for (const coordinate of point) number(coordinate, 'Angular projection coordinate')

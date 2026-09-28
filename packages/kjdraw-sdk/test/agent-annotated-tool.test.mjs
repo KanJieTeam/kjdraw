@@ -23,6 +23,48 @@ test('model-facing annotated references explain zero-based indexes and reject an
  assert.equal(document.serialize(),before)
 })
 
+test('empty conventional NOTES and DIMENSIONS styles cover unassigned annotations without changing the source',async()=>{
+ const {document,session}=fixture(),input=drawing(),before=document.serialize()
+ input.styles=[
+  {name:'NOTES',sources:[],pattern:[],color:7,lineweight:18},
+  {name:'DIMENSIONS',sources:[],pattern:[],color:7,lineweight:18},
+ ]
+ const plan=value(await session.call(tool,input))
+ const layers=Object.fromEntries(plan.preview.resources.filter(item=>item.type==='LAYER').map(item=>[item.name,item.id]))
+ assert.ok(layers.NOTES && layers.DIMENSIONS)
+ assert.equal(plan.preview.after.find(item=>item.type==='TEXT').payload.layerId,layers.NOTES)
+ assert.ok(plan.preview.after.filter(item=>item.type==='DIMENSION').every(item=>item.payload.layerId===layers.DIMENSIONS))
+ assert.equal(document.serialize(),before)
+})
+
+test('whole-group style references stay bounded and explicit sources override conventional defaults',async()=>{
+ const {document,session}=fixture(),input=drawing(),before=document.serialize()
+ input.styles=[
+  {name:'NOTES',sources:[],pattern:[],color:7,lineweight:18},
+  {name:'DIMENSIONS',sources:['rotatedDimensions:*','diameterDimensions:*'],pattern:[],color:7,lineweight:18},
+  {name:'CUSTOM',sources:['texts:*'],pattern:[],color:7,lineweight:18},
+ ]
+ const plan=value(await session.call(tool,input))
+ const layers=Object.fromEntries(plan.preview.resources.filter(item=>item.type==='LAYER').map(item=>[item.name,item.id]))
+ assert.equal(plan.preview.after.find(item=>item.type==='TEXT').payload.layerId,layers.CUSTOM)
+ assert.ok(plan.preview.after.filter(item=>item.type==='DIMENSION').every(item=>item.payload.layerId===layers.DIMENSIONS))
+ for(const sources of [['texts:*','texts:0'],['texts:*','texts:*'],['leaders:*']]){
+  const invalid={...input,styles:[{name:'BAD',sources,pattern:[],color:7,lineweight:18}]}
+  const result=await session.call(tool,invalid)
+  assert.equal(result.ok,false)
+  assert.equal(document.serialize(),before)
+ }
+})
+
+test('degenerate native dimension feedback identifies the offending dimension without editing',async()=>{
+ const {document,session}=fixture(),input=drawing(),before=document.serialize()
+ input.rotatedDimensions[0].to=structuredClone(input.rotatedDimensions[0].from)
+ const result=await session.call(tool,input)
+ assert.equal(result.ok,false)
+ assert.match(result.error.message,/Dimension 0 \(ROTATED\) references produce degenerate/)
+ assert.equal(document.serialize(),before)
+})
+
 test('annotated drawing previews kernel-measured native dimensions and commits as one editable undoable batch',async()=>{
  const {sdk,document,session}=fixture(),before=document.serialize(),input=drawing()
  const plan=value(await session.call(tool,input))

@@ -301,7 +301,7 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
             rotation: number(item.rotationDegrees, 'Text angle', 0, 360) * Math.PI / 180
         });
     }
-    for (const value of source.dimensions){
+    for (const [dimensionIndex, value] of source.dimensions.entries()){
         const item = record(value, [
             'type',
             'from',
@@ -454,7 +454,7 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
             precision: 8
         };
         const projection = projectDimension(payload);
-        if (!projection || !Number.isFinite(projection.measurement) || projection.measurement < 1e-8 || projection.measurement > 1e12) return fail('Dimension references produce degenerate or out-of-budget measurements');
+        if (!projection || !Number.isFinite(projection.measurement) || projection.measurement < 1e-8 || projection.measurement > 1e12) return fail(`Dimension ${dimensionIndex} (${type}) references produce degenerate or out-of-budget measurements`);
         if (type === 'ANGULAR_3_POINT') {
             for (const point of [
                 ...projection.lines.flat(),

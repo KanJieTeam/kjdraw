@@ -31,3 +31,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/kjdraw-benchmark-replay"
           unzip -q docs/benchmarks/evidence/2026-09-28-deepseek-flash/oneshot-json-corrected.zip -d "$RUNNER_TEMP/kjdraw-benchmark-replay"
           python scripts/benchmarks/replay-oneshot-study.py "$RUNNER_TEMP/kjdraw-benchmark-replay" --assert-original
+          mkdir -p "$RUNNER_TEMP/kjdraw-engineering-replay"
+          unzip -q docs/benchmarks/evidence/2026-09-28-deepseek-flash/engineering-zerobased-rerun.zip -d "$RUNNER_TEMP/kjdraw-engineering-replay"
+          node scripts/benchmarks/replay-annotated-engineering.mjs "$RUNNER_TEMP/kjdraw-engineering-replay" --assert-original
+          mkdir -p "$RUNNER_TEMP/kjdraw-engineering-layer-replay"
+          unzip -q docs/benchmarks/evidence/2026-09-28-deepseek-flash/engineering-layer-default-rerun.zip -d "$RUNNER_TEMP/kjdraw-engineering-layer-replay"
+          node scripts/benchmarks/replay-annotated-engineering.mjs "$RUNNER_TEMP/kjdraw-engineering-layer-replay" --assert-original

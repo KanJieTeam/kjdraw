@@ -695,7 +695,8 @@ const annotatedDrawingSchemaBase = objectWithOptional({
             sources: {
                 ...collection(text),
                 minItems: 0,
-                maxItems: 512
+                maxItems: 512,
+                description: 'Zero-based group refs such as circles:0. Use texts:* or alignedDimensions:* for a whole nonempty group. Empty NOTES and DIMENSIONS styles cover unassigned annotations of their kind; other empty styles reserve an unused layer.'
             },
             pattern: {
                 type: 'array',
@@ -3549,7 +3550,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_drawing_annotated',
         effect: 'propose',
-        description: 'Compose editable engineering geometry, open native NURBS, polygonal native HATCH, TEXT/MTEXT leader notes and measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. ALL proposal group references and polyline vertexIndex values are zero-based: polyline:0 is the first polyline, circle:0 the first circle, vertexIndex:0 its first vertex. A reference to polyline:1 means the second polyline. Preserve requested native primitives: use circles for circular features, arcs for curved segments and lines or straight polylines for straight edges. Leaders create a native LEADER plus its owned editable MTEXT. Hatch loop 0 is the outer boundary and later loops are islands; built-in SOLID/ANSI31/ANSI37/CROSS patterns remain editable. Arrays use group-local curve seed refs. Styles apply named editable layers to geometry, annotations and array copies; sources may be empty when the drawing requires an unused layer. A continuous style uses pattern=[]; every nonempty dash pattern strictly alternates positive dash and negative gap values. No edit occurs before host approval; approval creates one undoable transaction.',
+        description: 'Compose editable engineering geometry, open native NURBS, polygonal native HATCH, TEXT/MTEXT leader notes and measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. ALL proposal group references and polyline vertexIndex values are zero-based: polyline:0 is the first polyline, circle:0 the first circle, vertexIndex:0 its first vertex. A reference to polyline:1 means the second polyline. Preserve requested native primitives: use circles for circular features, arcs for curved segments and lines or straight polylines for straight edges. Leaders create a native LEADER plus its owned editable MTEXT. Hatch loop 0 is the outer boundary and later loops are islands; built-in SOLID/ANSI31/ANSI37/CROSS patterns remain editable. Arrays use group-local curve seed refs. Styles apply named editable layers to geometry, annotations and array copies; sources accept whole-group refs such as texts:* and alignedDimensions:*. Empty NOTES and DIMENSIONS styles cover otherwise unassigned annotations of their kind; explicit sources take priority. Other empty styles reserve unused layers. A continuous style uses pattern=[]; every nonempty dash pattern strictly alternates positive dash and negative gap values. No edit occurs before host approval; approval creates one undoable transaction.',
         inputSchema: annotatedDrawingSchema
     },
     {
@@ -4205,6 +4206,7 @@ function styleAnnotatedDrawing(document, input, source) {
         layers: []
     };
     const used = new Set(), names = new Set();
+    const conventionalAnnotationLayers = [];
     const allowedWeights = [
         0,
         5,
@@ -4267,9 +4269,41 @@ function styleAnnotatedDrawing(document, input, source) {
                 lineweight: style.lineweight
             });
         }
+        if (!style.sources.length && [
+            'NOTES',
+            'DIMENSIONS'
+        ].includes(style.name.toUpperCase())) conventionalAnnotationLayers.push({
+            name: style.name.toUpperCase(),
+            layerId
+        });
         for (const suppliedKey of style.sources){
             const key = canonicalAgentGroupReference(suppliedKey);
-            if (!keys.includes(key) || used.has(key)) throw new KJValidationError('Style sources must exist and cannot be assigned twice');
+            const matches = key.endsWith(':*') ? [
+                ...new Set(keys.filter((sourceKey)=>sourceKey.startsWith(key.slice(0, -1))))
+            ] : [
+                key
+            ];
+            if (!matches.length || matches.some((match)=>!keys.includes(match) || used.has(match))) throw new KJValidationError('Style sources must exist and cannot be assigned twice');
+            for (const match of matches){
+                used.add(match);
+                keys.forEach((sourceKey, index)=>{
+                    if (sourceKey === match) entities[index].payload.layerId = layerId;
+                });
+            }
+        }
+    }
+    for (const { name, layerId } of conventionalAnnotationLayers){
+        const groups = name === 'NOTES' ? [
+            'texts:',
+            'leaders:'
+        ] : [
+            'alignedDimensions:',
+            'rotatedDimensions:',
+            'radiusDimensions:',
+            'diameterDimensions:',
+            'angularDimensions:'
+        ];
+        for (const key of new Set(keys.filter((sourceKey)=>groups.some((group)=>sourceKey.startsWith(group)) && !used.has(sourceKey)))){
             used.add(key);
             keys.forEach((sourceKey, index)=>{
                 if (sourceKey === key) entities[index].payload.layerId = layerId;

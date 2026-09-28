@@ -12,6 +12,7 @@ These ZIP files preserve request bodies, sanitized provider responses, generated
 | `multiturn-production.zip` | Unmodified SDK tool-definition 10-edit sequence | `7b9826bdc8d8181e4451a69a0c4b01c9c15f7bee3c92be1e67a5ce7c98266d3f` |
 | `engineering-annotated.zip` | Original generic annotated engineering run, 0/5 in both arms | `840246e564dcba62864e73cc3d3536df21354df27e0caf8ae62c3bca3edd79e5` |
 | `engineering-zerobased-rerun.zip` | Unchanged engineering task rerun after clarifying model-facing reference numbering; 0/5 in both arms | `08c54a46facbaadbfae2888afcfe4f2e5eb921ed6c9310e42d3632b038506fd3` |
+| `engineering-layer-default-rerun.zip` | Unchanged engineering task rerun after group-style and conventional-layer improvements; 0/5 in both arms | `5c25645c8c0292cd6a7fe9fca2f753e5bd8979627e2a7f51c8d6c595baefeabf` |
 | `manufacturing-sheet.zip` | Original 96-hole manufacturing paired run | `5c60b9dbdba14a8f3a24071dc60cddc57f107af9b3f406962b07644a59b45f79` |
 | `manufacturing-highcap.zip` | Separate single direct-DXF 131,072-output-token sensitivity request | `bc7452a22cc3c7de84a84ff24156d98d20e185b0d9248d48503d1145aa84ad6d` |
 | `local-strategy.zip` | Local deterministic, non-model drawing-strategy timings and checks | `e8c8ada4275c53da59fa04560115440b7134cd9e9a91769fb48c3d13d5cea867` |
