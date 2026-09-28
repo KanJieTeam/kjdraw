@@ -65,8 +65,12 @@ const isReleaseCandidate = /^1\.\d+\.\d+-rc\.\d+$/.test(sdkPackage.version)
 const findings = []
 const pendingCandidateVerification = []
 const verifiedCandidateGates = []
+// An RC is the artifact used to collect independent user, model and real-corpus
+// evidence. Keep those gaps visible, but do not make their absence prevent the
+// public test artifact from existing. Stable 1.0 still requires every gate.
+const independentEvidence = finding => (isReleaseCandidate ? pendingCandidateVerification : findings).push(finding)
 const hostedCandidateGates = new Set(['public.workbench', 'public.documentation'])
-if ((isReleaseCandidate || isStableOne) && !externalEvidenceValid) findings.push({
+if ((isReleaseCandidate || isStableOne) && !externalEvidenceValid) independentEvidence({
   code: 'EXTERNAL_ACCEPTANCE_EVIDENCE_REQUIRED',
   evidence: externalEvidencePath,
   commit: headCommit,
@@ -74,7 +78,7 @@ if ((isReleaseCandidate || isStableOne) && !externalEvidenceValid) findings.push
   package: sdkPackage.name,
   version: sdkPackage.version,
 })
-if ((isReleaseCandidate || isStableOne) && !modelEvidenceValid) findings.push({
+if ((isReleaseCandidate || isStableOne) && !modelEvidenceValid) independentEvidence({
   code: 'THREE_MODEL_HOLDOUT_EVIDENCE_REQUIRED',
   evidence: modelEvidencePath,
   commit: headCommit,
@@ -82,7 +86,7 @@ if ((isReleaseCandidate || isStableOne) && !modelEvidenceValid) findings.push({
   package: sdkPackage.name,
   version: sdkPackage.version,
 })
-if ((isReleaseCandidate || isStableOne) && !packageInstallEvidenceValid) findings.push({
+if ((isReleaseCandidate || isStableOne) && !packageInstallEvidenceValid) independentEvidence({
   code: 'PACKAGE_INSTALL_CANDIDATE_EVIDENCE_REQUIRED',
   evidence: packageInstallEvidencePath,
   commit: headCommit,
@@ -137,6 +141,8 @@ for (const gate of matrix.gates ?? []) {
         commit: headCommit,
       })
     } else if (isReleaseCandidate && gate.verifyOnCandidate === true && gate.status === 'partial') {
+      pendingCandidateVerification.push(finding)
+    } else if (isReleaseCandidate && gate.status === 'blocked') {
       pendingCandidateVerification.push(finding)
     } else {
       findings.push(finding)

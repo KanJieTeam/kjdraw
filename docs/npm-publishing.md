@@ -4,6 +4,8 @@ The distributable SDK package is `@kanjieteam/kjdraw`. The source-tree candidate
 
 Candidates in the 1.0 release line use the `next` dist-tag; stable promotion will use `latest` only after the release gates pass.
 
+An RC is a public test artifact, not a production-readiness claim. Its release gate still requires exact-main CI and Pages, a clean source build, full automated tests, packed-package consumer checks, three-industry browser candidate evidence, hosted-site checks and provenance checks. Independent-user acceptance, three-model holdout, manually collected package-install evidence and 100% real-drawing corpus regression remain reported as pending and are hard requirements for stable 1.0. Do not describe an RC as having passed those pending gates.
+
 Run `npm run audit:distribution` for a read-only source/registry version comparison. `npm run audit:distribution -- --require-current` exits with 1 for a confirmed version/channel mismatch and 2 for an unavailable or malformed response. Run it after publishing, not as a pre-publication CI gate: a new version is necessarily absent before it is published. It never changes tags and does not replace provenance or artifact verification.
 
 ## Install the published candidate now

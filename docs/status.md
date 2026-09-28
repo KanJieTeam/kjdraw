@@ -2,6 +2,8 @@
 
 This page separates what exists in the repository from what has been verified on an immutable public release. The current source-tree candidate is `1.0.0-rc.3`; the target contract is `1.0.0`.
 
+Release candidates are public test artifacts. They require automated CI, Pages, packed-package, hosted candidate and provenance checks, but independent-user, three-model and real-drawing corpus acceptance remains pending until separately verified. Stable 1.0 cannot be published with those gaps.
+
 The checkout version does not establish npm publication. Source-tree improvements below must not be mistaken for capabilities already shipped in a registry package. Query the current tags and the exact checkout version before choosing an artifact:
 
 ```sh

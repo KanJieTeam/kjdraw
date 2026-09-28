@@ -115,6 +115,6 @@ test('release readiness requires exact package install candidate evidence', () =
   })
   assert.equal(result.status, 1)
   const report = JSON.parse(result.stdout)
-  assert.equal(report.findings.some(finding => finding.code === 'PACKAGE_INSTALL_CANDIDATE_EVIDENCE_REQUIRED'), true)
+  assert.equal(report.pendingCandidateVerification.some(finding => finding.code === 'PACKAGE_INSTALL_CANDIDATE_EVIDENCE_REQUIRED'), true)
   assert.equal(report.packageInstallCandidate.valid, false)
 })
