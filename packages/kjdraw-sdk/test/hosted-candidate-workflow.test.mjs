@@ -16,7 +16,8 @@ test('CI exposes each browser engine as an independently auditable job and relea
   assert.match(ci, /npm run test:browser -- --project=\$\{\{ matrix\.engine \}\}/)
   for (const workflow of [release, npm]) {
     const hosted = workflow.indexOf('node scripts/audits/verify-hosted-candidate.mjs')
+    const provenance = workflow.indexOf('node scripts/audits/verify-provenance-candidate.mjs')
     const readiness = workflow.indexOf('node scripts/audits/release-readiness.mjs --require-ready')
-    assert.ok(hosted >= 0 && readiness > hosted)
+    assert.ok(hosted >= 0 && provenance > hosted && readiness > provenance)
   }
 })

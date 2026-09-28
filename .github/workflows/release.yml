@@ -46,11 +46,13 @@ jobs:
 
           ci_conclusion=""
           pages_conclusion=""
+          provenance_conclusion=""
           for attempt in $(seq 1 50); do
             ci_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
             pages_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pages.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
-            if [[ "$ci_conclusion" == "success" && "$pages_conclusion" == "success" ]]; then break; fi
-            for result in "CI:$ci_conclusion" "Pages:$pages_conclusion"; do
+            provenance_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/release-provenance.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
+            if [[ "$ci_conclusion" == "success" && "$pages_conclusion" == "success" && "$provenance_conclusion" == "success" ]]; then break; fi
+            for result in "CI:$ci_conclusion" "Pages:$pages_conclusion" "Provenance:$provenance_conclusion"; do
               workflow="${result%%:*}"
               conclusion="${result#*:}"
               if [[ -n "$conclusion" && "$conclusion" != "success" ]]; then
@@ -60,8 +62,8 @@ jobs:
             done
             sleep 30
           done
-          if [[ "$ci_conclusion" != "success" || "$pages_conclusion" != "success" ]]; then
-            echo "Exact main checks did not complete successfully for $sha (CI=$ci_conclusion, Pages=$pages_conclusion)."
+          if [[ "$ci_conclusion" != "success" || "$pages_conclusion" != "success" || "$provenance_conclusion" != "success" ]]; then
+            echo "Exact main checks did not complete successfully for $sha (CI=$ci_conclusion, Pages=$pages_conclusion, Provenance=$provenance_conclusion)."
             exit 1
           fi
       - name: Verify and package the exact tagged SDK
@@ -78,6 +80,7 @@ jobs:
           node scripts/check.mjs
           node scripts/audits/verify-three-industry-candidate.mjs
           node scripts/audits/verify-hosted-candidate.mjs
+          node scripts/audits/verify-provenance-candidate.mjs
           node scripts/audits/release-readiness.mjs --require-ready
           mkdir -p dist/release
           asset="$(npm pack --workspace packages/kjdraw-sdk --pack-destination dist/release --silent | tail -n 1)"
