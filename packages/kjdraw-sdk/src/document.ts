@@ -144,6 +144,13 @@ function createTransactionState(state: KJDocumentState): KJDocumentState {
   }
 }
 
+/** Undo/redo restore geometry from this snapshot but always take the revision
+ * trail from the current document. Keeping that trail in every history entry
+ * retains hundreds of growing copies during long editing sessions. */
+function historyState(state: KJDocumentState): KJDocumentState {
+  return { ...state, revisions: [] }
+}
+
 export class KJDocument {
   #state: KJDocumentState
   #events = new KJEventBus<KJDocumentEvents>()
@@ -372,7 +379,7 @@ export class KJDocument {
       this.#events.emit(KJ_EVENT_NAMES.BEFORE_COMMIT, beforeCommit)
       const acceptedFingerprint = accepted.revisions.at(-1)?.fingerprint
       this.#adoptState(accepted, typeof acceptedFingerprint === 'string' ? acceptedFingerprint : null)
-      this.#undo.push({ label: String(label), before, after: accepted, revision })
+      this.#undo.push({ label: String(label), before: historyState(before), after: historyState(accepted), revision })
       if (this.#undo.length > this.#historyLimit) this.#undo.shift()
       this.#redo = []
       this.#emitChange(KJ_EVENT_NAMES.AFTER_COMMIT, record)
@@ -398,7 +405,7 @@ export class KJDocument {
       const accepted = await this.#acceptAuthoritativeCommit(restored, current.revision)
       this.#undo.pop()
       this.#adoptState(accepted, restored.revisions.at(-1)?.fingerprint as string | undefined ?? null)
-      this.#redo.push({ ...entry, after: current })
+      this.#redo.push({ ...entry, after: historyState(current) })
       this.#emitChange(KJ_EVENT_NAMES.UNDO, this.#state.revisions.at(-1))
       return true
     })
@@ -418,7 +425,7 @@ export class KJDocument {
       const accepted = await this.#acceptAuthoritativeCommit(restored, before.revision)
       this.#redo.pop()
       this.#adoptState(accepted, restored.revisions.at(-1)?.fingerprint as string | undefined ?? null)
-      this.#undo.push({ ...entry, before, after: accepted })
+      this.#undo.push({ ...entry, before: historyState(before), after: historyState(accepted) })
       this.#emitChange(KJ_EVENT_NAMES.REDO, this.#state.revisions.at(-1))
       return true
     })
@@ -428,7 +435,10 @@ export class KJDocument {
     const restored = createTransactionState(source)
     const revision = this.#state.revision + 1
     restored.revision = revision
-    restored.revisions = clone(this.#state.revisions)
+    // Revision records are immutable between commits. The transaction shell
+    // already uses a shallow copy; deep-cloning the entire audit trail on
+    // every undo/redo made long sessions quadratic in allocations.
+    restored.revisions = [...this.#state.revisions]
     restored.metadata.modifiedAt = options.at ?? nowIso()
     const record: KJRevisionRecord = {
       revision,

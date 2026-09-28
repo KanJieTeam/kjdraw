@@ -69,6 +69,12 @@ function createTransactionState(state) {
         }
     };
 }
+function historyState(state) {
+    return {
+        ...state,
+        revisions: []
+    };
+}
 export class KJDocument {
     #state;
     #events = new KJEventBus();
@@ -334,8 +340,8 @@ export class KJDocument {
             this.#adoptState(accepted, typeof acceptedFingerprint === 'string' ? acceptedFingerprint : null);
             this.#undo.push({
                 label: String(label),
-                before,
-                after: accepted,
+                before: historyState(before),
+                after: historyState(accepted),
                 revision
             });
             if (this.#undo.length > this.#historyLimit) this.#undo.shift();
@@ -371,7 +377,7 @@ export class KJDocument {
             this.#adoptState(accepted, restored.revisions.at(-1)?.fingerprint ?? null);
             this.#redo.push({
                 ...entry,
-                after: current
+                after: historyState(current)
             });
             this.#emitChange(KJ_EVENT_NAMES.UNDO, this.#state.revisions.at(-1));
             return true;
@@ -398,8 +404,8 @@ export class KJDocument {
             this.#adoptState(accepted, restored.revisions.at(-1)?.fingerprint ?? null);
             this.#undo.push({
                 ...entry,
-                before,
-                after: accepted
+                before: historyState(before),
+                after: historyState(accepted)
             });
             this.#emitChange(KJ_EVENT_NAMES.REDO, this.#state.revisions.at(-1));
             return true;
@@ -409,7 +415,9 @@ export class KJDocument {
         const restored = createTransactionState(source);
         const revision = this.#state.revision + 1;
         restored.revision = revision;
-        restored.revisions = clone(this.#state.revisions);
+        restored.revisions = [
+            ...this.#state.revisions
+        ];
         restored.metadata.modifiedAt = options.at ?? nowIso();
         const record = {
             revision,

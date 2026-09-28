@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const failures = []
-const publicBenchmarkReports = new Set(['docs/benchmarks/deepseek-2026-09-28.md', 'docs/benchmarks/deepseek-2026-09-29.md'])
+const publicBenchmarkReports = new Set(['docs/benchmarks/deepseek-2026-09-28.md', 'docs/benchmarks/deepseek-2026-09-29.md', 'docs/benchmarks/multi-round-editor-soak.md'])
 const publicBenchmarkIndices = new Set(['docs/benchmarks/evidence/2026-09-28-deepseek-flash/README.md', 'docs/benchmarks/evidence/2026-09-29-deepseek-flash/README.md'])
 const benchmarkHashes = new Map()
 for (const index of publicBenchmarkIndices) {
