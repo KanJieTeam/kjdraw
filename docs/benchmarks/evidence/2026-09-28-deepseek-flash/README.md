@@ -1,15 +1,15 @@
 # Raw evidence index
 
-These ZIP files preserve request bodies, sanitized provider responses, generated DXF files where available, and the original reports. They contain no Authorization header or API key. A failure is retained as a failure; archives are not a curated success gallery. The matching source and methodology are in [the study](../../deepseek-2026-09-28.md). SHA-256 digests below apply to the ZIP bytes in this directory.
+These ZIP files preserve request bodies, sanitized provider responses, generated DXF files where available, and the original reports. They contain no Authorization header or API key. A failure is retained as a failure; archives are not a curated success gallery. The matching source and methodology are in [the study](../../deepseek-2026-09-28.md). SHA-256 digests below apply to the ZIP bytes in this directory. Nine historical ZIPs were repaired after discovery of a Windows CR-CR-LF text-write defect: only affected `.dxf` newline bytes were normalized to CR-LF; requests, responses, reports and unrelated entries were unchanged. The [repair script](../../../../scripts/benchmarks/repair-windows-dxf-evidence.py) names every affected archive and backs up originals before replacement; the original archive hashes remain in the preceding Git revision.
 
 | Archive | Purpose | SHA-256 |
 | --- | --- | --- |
-| `oneshot-standard.zip` | Production full-schema one-shot paired run | `cd37f65943d7a80b821c66b1e0d7210e593ffb16c59c7ca60d389a442350f86f` |
-| `oneshot-compact-tool.zip` | Production compact-tool one-shot paired run | `6ac1fe559c25358e6a50edb9d5b2f29802107547600338622f486043da204a77` |
-| `oneshot-json-harness-failure.zip` | Initial compact-JSON harness failure, not part of the corrected result | `c940aecd2b275ef0ddcb01b0f5369c63d52534046046662dbc430e9ee94c7f2f` |
-| `oneshot-json-corrected.zip` | Fresh paired run after host adapter fix | `3ea1b5c342671a4b06177d452c7a8a0973dcb42852f5dddecf0a9a2682aadd1a` |
-| `multiturn-compact.zip` | Experimental selected-tool 10-edit sequence | `4d44158c3970172f45c345c296458acf985302bdec8671312012f0a9388a8ab0` |
-| `multiturn-production.zip` | Unmodified SDK tool-definition 10-edit sequence | `7b9826bdc8d8181e4451a69a0c4b01c9c15f7bee3c92be1e67a5ce7c98266d3f` |
+| `oneshot-standard.zip` | Production full-schema one-shot paired run | `b175b2a132092f5c7f7d50a6291d1c6292861636bf3aae178b01673ef42734e2` |
+| `oneshot-compact-tool.zip` | Production compact-tool one-shot paired run | `dd5a3d3c5a757b2ea193af4bccf4c8a79b33bf8768824199c389ae147373159c` |
+| `oneshot-json-harness-failure.zip` | Initial compact-JSON harness failure, not part of the corrected result | `b7f42b71be73c8cf901bee4c91ce2adc1d80a6c77fd7a9b83982c9b553fb6978` |
+| `oneshot-json-corrected.zip` | Fresh paired run after host adapter fix | `5a0bb4e418de829f6ff0927d1040c8d910dbff16e779d4a1901aca2aa052eae4` |
+| `multiturn-compact.zip` | Experimental selected-tool 10-edit sequence | `b616d741cd75e94bbf7e4a849bdeee6ceceabb62c5db1481956c479d5ffd8a9d` |
+| `multiturn-production.zip` | Unmodified SDK tool-definition 10-edit sequence | `c7d8f5cf189c4523e57ba6b946dfc959887d9acbb6915bec11b2506ae907b019` |
 | `engineering-annotated.zip` | Original generic annotated engineering run, 0/5 in both arms | `840246e564dcba62864e73cc3d3536df21354df27e0caf8ae62c3bca3edd79e5` |
 | `engineering-zerobased-rerun.zip` | Unchanged engineering task rerun after clarifying model-facing reference numbering; 0/5 in both arms | `08c54a46facbaadbfae2888afcfe4f2e5eb921ed6c9310e42d3632b038506fd3` |
 | `engineering-layer-default-rerun.zip` | Unchanged engineering task rerun after group-style and conventional-layer improvements; 0/5 in both arms | `5c25645c8c0292cd6a7fe9fca2f753e5bd8979627e2a7f51c8d6c595baefeabf` |

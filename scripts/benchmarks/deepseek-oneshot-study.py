@@ -121,7 +121,7 @@ def main():
                         else:
                             dxf=message.get('content') or ''
                             if run['finishReason']!='stop' or '```' in dxf: raise RuntimeError('Incomplete or wrapped DXF')
-                        (output/(stem+'.dxf')).write_text(dxf,encoding='utf-8')
+                        (output/(stem+'.dxf')).write_bytes(dxf.encode('utf-8'))
                         run['validation']=pilot.validate(dxf,task['expected'])
                     except Exception as error:
                         run['error']=type(error).__name__

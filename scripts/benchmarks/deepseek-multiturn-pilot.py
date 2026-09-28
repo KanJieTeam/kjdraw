@@ -152,7 +152,7 @@ def main():
               'approval':'synthetic harness approval, not human review','seedRevision':seed['revision'],
               'seedValidation':validator.validate(seed['dxf'],as_validator_data(expected)),
               'results':[], 'usage':{'kjdraw':{'prompt_tokens':0,'completion_tokens':0},'direct-dxf':{'prompt_tokens':0,'completion_tokens':0}}}
-    (output/'seed.dxf').write_text(seed['dxf'],encoding='utf-8')
+    (output/'seed.dxf').write_bytes(seed['dxf'].encode('utf-8'))
     states = {'kjdraw':seed, 'direct-dxf':seed['dxf']}
     stopped = False
     with httpx.Client(proxy=args.proxy,timeout=httpx.Timeout(120,connect=25),follow_redirects=False) as client:
@@ -194,7 +194,7 @@ def main():
                         import ezdxf, io
                         ezdxf.read(io.StringIO(dxf,newline=None))
                         states['direct-dxf'] = dxf
-                    (output/f'{round_no:02d}-{arm}.dxf').write_text(dxf,encoding='utf-8')
+                    (output/f'{round_no:02d}-{arm}.dxf').write_bytes(dxf.encode('utf-8'))
                     run['producedArtifact'] = True
                 except Exception as error:
                     run['error'] = type(error).__name__

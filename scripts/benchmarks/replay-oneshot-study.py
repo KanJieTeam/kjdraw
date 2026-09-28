@@ -27,14 +27,19 @@ def main():
     for row in original['results']:
         stem=f'{row["repeat"]:02d}-{row["task"]}-{row["arm"]}'
         response_path=directory/(stem+'-response.json')
+        dxf_path=directory/(stem+'.dxf')
         item={'repeat':row['repeat'],'task':row['task'],'arm':row['arm'],'originalPassed':row['validation']['passed']}
+        if dxf_path.exists():
+            item['savedDxfSha256']=sha256(dxf_path)
+            item['savedDxfValidation']=pilot.validate(dxf_path.read_text(encoding='utf-8'),expected[row['task']])
         if response_path.exists():
             response=json.loads(response_path.read_text(encoding='utf-8'))
             item['responseSha256']=sha256(response_path)
             if row['arm']=='kjdraw-json':
                 result=pilot.node('materialize-json',{'response':{'choices':[{'message':response['message']}]}})
             elif row['arm'] in ('kjdraw','kjdraw-compact'):
-                result=pilot.node('materialize',{'response':{'model':response['model'],'choices':[{'finish_reason':response['finish_reason'],'message':response['message']}]}})
+                message={'role':'assistant',**response['message']}
+                result=pilot.node('materialize',{'response':{'model':response['model'],'choices':[{'finish_reason':response['finish_reason'],'message':message}]}})
             else:
                 content=response['message'].get('content') or ''
                 # Match the live runner: a truncated or markdown-wrapped DXF is
@@ -52,7 +57,12 @@ def main():
     summary={arm:{'passed':sum(item['replay']['passed'] for item in results if item['arm']==arm),
                   'count':sum(item['arm']==arm for item in results)} for arm in sorted({item['arm'] for item in results})}
     print(json.dumps({'audit':str(path),'summary':summary}),flush=True)
-    if args.assert_original and any(item['originalPassed'] != item['replay']['passed'] for item in results):
+    if args.assert_original and any(
+        item['originalPassed'] != item['replay']['passed']
+        or (item['originalPassed'] and not item.get('savedDxfValidation',{}).get('passed',False))
+        or (item.get('savedDxfValidation',{}).get('passed',False) != item['replay']['passed'] and 'savedDxfValidation' in item)
+        for item in results
+    ):
         print('Offline replay changed one or more original pass/fail decisions',file=sys.stderr)
         raise SystemExit(1)
 

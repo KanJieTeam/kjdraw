@@ -107,7 +107,7 @@ def main():
                     else:
                         dxf=message.get('content') or ''
                         if run['finishReason']!='stop' or '```' in dxf: raise RuntimeError('Incomplete or wrapped DXF output')
-                    (output/(task['id']+'-'+arm+'.dxf')).write_text(dxf,encoding='utf-8')
+                    (output/(task['id']+'-'+arm+'.dxf')).write_bytes(dxf.encode('utf-8'))
                     run['validation']=validate(dxf,task['expected'])
                     run['totalSeconds']=round(time.perf_counter()-start,3)
                 except Exception as error:

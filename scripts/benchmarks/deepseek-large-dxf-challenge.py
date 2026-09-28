@@ -56,7 +56,7 @@ def main():
         (output/'response.json').write_text(json.dumps({'model':data.get('model'),'usage':report['usage'],
             'finish_reason':report['finishReason'],'message':{'content':message.get('content')}},ensure_ascii=False,indent=2),encoding='utf-8')
         dxf=message.get('content') or ''
-        (output/'drawing.dxf').write_text(dxf,encoding='utf-8')
+        (output/'drawing.dxf').write_bytes(dxf.encode('utf-8'))
         report['validation']=validator.validate(dxf,original['tasks'][0]['expected'])
     except Exception as error:
         report['seconds']=round(time.perf_counter()-start,2)
