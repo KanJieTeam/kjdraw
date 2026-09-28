@@ -15,6 +15,9 @@ test('CI exposes each browser engine as an independently auditable job and relea
   assert.match(ci, /name: Run \$\{\{ matrix\.engine \}\} acceptance/)
   assert.match(ci, /npm run test:browser -- --project=\$\{\{ matrix\.engine \}\}/)
   for (const workflow of [release, npm]) {
+    assert.match(workflow, /python -m pip install -r scripts\/audits\/requirements-dxf\.txt/)
+    assert.match(workflow, /KJDRAW_PYTHON: \$\{\{ steps\.setup-python\.outputs\.python-path \}\}/)
+    assert.match(workflow, /npx playwright install --with-deps chromium/)
     const hosted = workflow.indexOf('node scripts/audits/verify-hosted-candidate.mjs')
     const provenance = workflow.indexOf('node scripts/audits/verify-provenance-candidate.mjs')
     const readiness = workflow.indexOf('node scripts/audits/release-readiness.mjs --require-ready')
