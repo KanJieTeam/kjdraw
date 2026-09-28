@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto'
-import { lstat, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,6 +10,8 @@ import {
   createKjpPackage,
   openKjpPackage,
 } from '../src/index.js'
+import { KJAgentToolSession } from '../src/agent-tools.js'
+import { portableMcpInputSchema } from '../src/mcp-schema-compat.js'
 
 const HELP = `KJDraw ${KJDRAW_VERSION}
 
@@ -21,22 +23,32 @@ Usage:
   kjdraw inspect <drawing.kjd|drawing.dxf|project.kjp>
   kjdraw validate <drawing.kjd|drawing.dxf|project.kjp>
   kjdraw convert <input> <output.kjd|output.dxf|output.kjp> [--dxf-version 2018]
+  kjdraw agent tools [tool-name] [--units millimeter|meter]  List tools or inspect one input schema
+  kjdraw agent call <tool-name> --input <drawing.kjd|drawing.dxf> [--args-file <request.json>] [--workspace <directory>]
+  kjdraw agent call <tool-name> --blank <new-drawing.kjd> --units <millimeter|meter> [--args-file <request.json>] [--workspace <directory>]
   kjdraw --version
 
-All commands run locally. No drawing data is uploaded.`
+Agent calls run locally and only create review proposals. Approve a proposal separately with kjdraw-review in an interactive terminal.
+No drawing data is uploaded by the CLI.`
 
 const SOURCE_LIMITS = Object.freeze({ '.kjd': 64 * 1024 ** 2, '.dxf': 64 * 1024 ** 2, '.kjp': 512 * 1024 ** 2 })
 const CONFIG_LIMIT = 1024 * 1024
+const AGENT_ARGUMENT_LIMIT = 4 * 1024 * 1024
 const MCP_SCRIPT = fileURLToPath(new URL('./kjdraw-mcp.mjs', import.meta.url))
 const CONFIGS = Object.freeze([
   { client: 'Kimi Code', path: '.kimi-code/mcp.json', keys: ['mcpServers'] },
   { client: 'WorkBuddy', path: '.workbuddy/mcp.json', keys: ['mcpServers'] },
   { client: 'ZCode', path: '.zcode/cli/config.json', keys: ['mcp', 'servers'] },
+  { client: 'Claude Code', path: '.claude.json', keys: ['mcpServers'] },
+  { client: 'Cursor', path: '.cursor/mcp.json', keys: ['mcpServers'] },
 ])
 const SKILLS = Object.freeze([
   { client: 'Kimi Code CLI', path: '.kimi-code/skills/kjdraw-cad' },
   { client: 'ZCode', path: '.zcode/skills/kjdraw-cad' },
   { client: 'TraeCode', path: '.trae/skills/kjdraw-cad' },
+  { client: 'Codex', path: '.codex/skills/kjdraw-cad' },
+  { client: 'Claude Code', path: '.claude/skills/kjdraw-cad' },
+  { client: 'Cursor', path: '.cursor/skills/kjdraw-cad' },
 ])
 const SKILL_FILES = Object.freeze(['SKILL.md', 'references/routes.json', 'references/acceptance.md'])
 
@@ -103,7 +115,7 @@ async function onboard(args) {
       userConfigurationInstalled: true,
       guiVerified: false,
       realModelVerified: false,
-      next: 'Restart Kimi Code, WorkBuddy, or ZCode. Confirm the returned official TraeCode import link once, then verify kjdraw in a new session.',
+      next: 'Restart Kimi Code, WorkBuddy, ZCode, Claude Code, or Cursor. Confirm the TraeCode import link. Configure Codex MCP with its official CLI, then verify kjdraw in a new session.',
     },
   }
 }
@@ -329,6 +341,83 @@ async function convert(input, output, args) {
   return { ...summary(opened), output: outputPath, outputFormat: suffix.slice(1).toUpperCase() }
 }
 
+function agentOptions(args) {
+  const values = {}
+  for (let index = 0; index < args.length; index += 2) {
+    const key = args[index], value = args[index + 1]
+    if (!['--workspace', '--input', '--blank', '--units', '--args-file'].includes(key) || !value || value.startsWith('--') || Object.hasOwn(values, key.slice(2))) {
+      throw new Error(`Unknown, duplicate or incomplete agent option: ${key ?? ''}`)
+    }
+    values[key.slice(2)] = value
+  }
+  if (Boolean(values.input) === Boolean(values.blank)) throw new Error('agent call requires exactly one of --input or --blank')
+  if (values.blank && !['millimeter', 'meter'].includes(values.units)) throw new Error('--blank requires --units millimeter or meter')
+  if (values.input && values.units) throw new Error('--units is only allowed with --blank')
+  return values
+}
+
+async function ensureAgentProposalDir(workspace) {
+  const rootInfo = await item(workspace)
+  if (!rootInfo?.isDirectory() || rootInfo.isSymbolicLink()) throw new Error('Agent workspace must be a real directory')
+  const root = await realpath(workspace)
+  let current = root
+  for (const part of ['.kjdraw', 'proposals']) {
+    current = join(current, part)
+    const info = await item(current)
+    if (info && (!info.isDirectory() || info.isSymbolicLink())) throw new Error('Agent proposal directory must not traverse a symbolic link or file')
+    if (!info) await mkdir(current, { mode: 0o700 })
+  }
+  return '.kjdraw/proposals'
+}
+
+async function agentArguments(workspace, relativePath) {
+  if (!relativePath) return {}
+  if (isAbsolute(relativePath) || /^[A-Za-z]:/u.test(relativePath) || relativePath.split(/[\\/]+/u).some(part => !part || part === '.' || part === '..')) {
+    throw new Error('--args-file must be an unambiguous path inside the workspace')
+  }
+  const checked = await projectPath(workspace, relativePath.split('\\').join('/'))
+  if (!checked.safe) throw new Error('--args-file must not traverse a symbolic link')
+  const info = await item(checked.path)
+  if (!info?.isFile() || info.isSymbolicLink() || info.size > AGENT_ARGUMENT_LIMIT) throw new Error('--args-file must be a regular JSON file no larger than 4 MiB')
+  const value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readFile(checked.path)))
+  if (!plainObject(value)) throw new Error('--args-file must contain one JSON object')
+  return value
+}
+
+async function agent(args) {
+  const [action, tool, ...rest] = args
+  if (action === 'tools') {
+    const hasName = tool && !tool.startsWith('--')
+    const options = hasName ? rest : args.slice(1)
+    if (options.length && (options.length !== 2 || options[0] !== '--units' || !['millimeter', 'meter'].includes(options[1]))) {
+      throw new Error('agent tools accepts only an optional tool name and --units millimeter|meter')
+    }
+    const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: options[1] ?? 'millimeter' })
+    const definitions = new KJAgentToolSession(sdk, document).definitions
+    if (!hasName) return { command: 'agent tools', units: options[1] ?? 'millimeter', tools: definitions.map(({ name, description }) => ({ name, description })) }
+    const match = definitions.find(item => item.name === tool)
+    if (!match) throw new Error(`Unknown KJDraw agent tool: ${tool}`)
+    return { command: 'agent tools', units: options[1] ?? 'millimeter', tool: { name: match.name, description: match.description, inputSchema: portableMcpInputSchema(match.inputSchema) } }
+  }
+  if (action !== 'call' || !tool?.startsWith('cad_')) throw new Error('Use agent tools [name] or agent call <cad-tool-name>')
+  const options = agentOptions(rest)
+  const toolSdk = createKJDrawSDK(), toolDocument = toolSdk.createDocument({ units: options.units ?? 'millimeter' })
+  if (!new KJAgentToolSession(toolSdk, toolDocument).definitions.some(definition => definition.name === tool)) throw new Error(`Unknown KJDraw agent tool: ${tool}`)
+  const requestedWorkspace = resolve(options.workspace ?? process.cwd())
+  const workspaceInfo = await item(requestedWorkspace)
+  if (!workspaceInfo?.isDirectory() || workspaceInfo.isSymbolicLink()) throw new Error('Agent workspace must be a real directory')
+  const workspace = await realpath(requestedWorkspace)
+  const input = await agentArguments(workspace, options['args-file'])
+  const proposalDir = await ensureAgentProposalDir(workspace)
+  const { openAgentHost, callAgentHost } = await import('./kjdraw-mcp.mjs')
+  const host = await openAgentHost({ workspace, 'proposal-dir': proposalDir, 'tool-profile': 'full',
+    ...(options.input ? { input: options.input } : { blank: options.blank, units: options.units }) })
+  const response = await callAgentHost(host, tool, input)
+  const output = { command: 'agent call', tool, ledger: host.ledger.session.ledgerPath, ...response.output }
+  if (response.isError) process.exitCode = 1
+  return output
+}
+
 async function main() {
   const args = process.argv.slice(2)
   if (!args.length || args.includes('--help') || args.includes('-h')) {
@@ -348,6 +437,10 @@ async function main() {
     const result = await doctor(args.slice(1))
     console.log(JSON.stringify(result, null, 2))
     if (!result.ok) process.exitCode = 1
+    return
+  }
+  if (command === 'agent') {
+    console.log(JSON.stringify(await agent(args.slice(1)), null, 2))
     return
   }
   if (command === 'inspect' || command === 'validate') {

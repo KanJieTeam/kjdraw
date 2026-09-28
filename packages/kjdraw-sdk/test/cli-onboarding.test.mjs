@@ -9,8 +9,8 @@ import test from 'node:test'
 
 const cli = fileURLToPath(new URL('../bin/kjdraw.mjs', import.meta.url))
 const packageFile = fileURLToPath(new URL('../package.json', import.meta.url))
-const configs = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/cli/config.json']
-const skills = ['.kimi-code/skills/kjdraw-cad/SKILL.md', '.zcode/skills/kjdraw-cad/SKILL.md', '.trae/skills/kjdraw-cad/SKILL.md']
+const configs = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/cli/config.json', '.claude.json', '.cursor/mcp.json']
+const skills = ['.kimi-code/skills/kjdraw-cad/SKILL.md', '.zcode/skills/kjdraw-cad/SKILL.md', '.trae/skills/kjdraw-cad/SKILL.md', '.codex/skills/kjdraw-cad/SKILL.md', '.claude/skills/kjdraw-cad/SKILL.md', '.cursor/skills/kjdraw-cad/SKILL.md']
 
 function run(cwd, args) {
   return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, env: { ...process.env, KJDRAW_USER_HOME: cwd } })
@@ -70,7 +70,7 @@ test('kjdraw onboard connects the current user home, is idempotent, and doctor v
   assert.equal(receipt.command, 'onboard')
   assert.equal(receipt.applied, true)
   assert.equal(receipt.drawing, 'created blank')
-  assert.equal(receipt.clients.length, 4)
+  assert.equal(receipt.clients.length, 6)
   assert.equal(receipt.verification.userConfigurationInstalled, true)
   assert.equal(receipt.verification.guiVerified, false)
   assert.equal(receipt.verification.realModelVerified, false)

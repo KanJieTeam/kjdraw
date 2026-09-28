@@ -7,6 +7,7 @@ import { createInterface } from 'node:readline/promises'
 import { pathToFileURL } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
 import { createKJDrawSDK } from '../src/sdk.js'
+import { KJAgentToolSession } from '../src/agent-tools.js'
 import { agentPreviewMatchesDocument, createAgentGeometryPreview } from '../src/agent-preview.js'
 
 const MAX_LEDGER_BYTES = 16 * 1024 * 1024
@@ -49,7 +50,15 @@ async function sourceState(path, expected) {
 }
 function counts(document) {
   const values = {}
-  for (const entity of document.listEntities()) values[entity.type] = (values[entity.type] ?? 0) + 1
+  const spaces = new Set([
+    document.snapshot().spaces.modelSpaceId,
+    ...document.listObjects({ kind: 'layout' }).map(layout => layout.payload.blockRecordId),
+  ])
+  // DXF can add anonymous dimension-rendering blocks on import. Compare the
+  // editable model/paper-space entities, not those derived block internals.
+  for (const entity of document.listEntities()) {
+    if (spaces.has(entity.ownerId)) values[entity.type] = (values[entity.type] ?? 0) + 1
+  }
   return Object.fromEntries(Object.entries(values).sort(([a], [b]) => a.localeCompare(b)))
 }
 function fingerprint(document) { return sha(JSON.stringify(document.serialize())) }
@@ -63,7 +72,7 @@ function exactProposal(ledger, sequence) {
   const value = item.result
   if (!value || value.command !== 'CREATEBATCH' || value.status !== 'awaiting-host-approval' || value.documentId !== source.documentId || value.expectedRevision !== source.revision || value.units !== source.units || typeof value.planId !== 'string' || !value.planId || !value.arguments || !Array.isArray(value.arguments.entities) || !value.preview) fail('Selected proposal is not an exact CREATEBATCH preview')
   if (value.preview.documentId !== source.documentId || value.preview.revision !== source.revision || value.preview.command !== 'CREATEBATCH') fail('Reviewed preview belongs to another drawing or command')
-  if (Object.keys(value.arguments).some(key => !['entities', 'resources'].includes(key))) fail('CREATEBATCH has unexpected native arguments')
+  if (Object.keys(value.arguments).some(key => !['entities', 'resources', 'layout'].includes(key))) fail('CREATEBATCH has unexpected native arguments')
   return { source, item, value }
 }
 async function stagedLink(path, bytes, created, stages) {
@@ -130,8 +139,20 @@ export async function reviewLedger(options, confirm) {
   const document = await sdk.readDocument(new TextDecoder('utf-8', { fatal: true }).decode(sourceBytes), { format: source.format })
   if (!document.validate().valid || document.id !== source.documentId || document.revision !== source.revision || document.snapshot().header.units !== source.units || fingerprint(document) !== source.fingerprint) fail('Ledger document identity or fingerprint disagrees with independently reopened source')
   const nativeArgs = value.arguments
+  if (nativeArgs.layout !== undefined) {
+    if (!['cad_propose_mechanical_flange', 'cad_propose_geology_plan', 'cad_propose_geology_plan_example'].includes(item.tool)
+      || !item.input || typeof item.input !== 'object' || Array.isArray(item.input)) fail('Layout proposal requires its original compiler input')
+    const replay = await new KJAgentToolSession(sdk, document).call(item.tool, item.input)
+    if (!replay.ok || replay.value.command !== 'CREATEBATCH'
+      || !isDeepStrictEqual(JSON.parse(JSON.stringify(replay.value.arguments)), nativeArgs)
+      || document.revision !== source.revision || fingerprint(document) !== source.fingerprint) {
+      fail('Native layout arguments disagree with the original compiler input')
+    }
+  }
   const recomputed = await createAgentGeometryPreview(document, 'CREATEBATCH', nativeArgs, { maxCreatedEntities: 512 })
-  if (!isDeepStrictEqual(recomputed, value.preview)) fail('Native preview disagrees with the ledger; arguments or preview may be forged')
+  // The ledger is JSON. Native preview objects can contain optional undefined
+  // fields that JSON omits, so compare the same serialized representation.
+  if (!isDeepStrictEqual(JSON.parse(JSON.stringify(recomputed)), value.preview)) fail('Native preview disagrees with the ledger; arguments or preview may be forged')
   const previewSha = sha(JSON.stringify(recomputed))
   const proposalSha = sha(JSON.stringify(item))
   return withExclusiveClaim(ledgerPath, options.sequence, value.planId, proposalSha, sha(ledgerBytes), source.sha256, relative(root, candidatePath), async claim => {
@@ -157,7 +178,7 @@ export async function reviewLedger(options, confirm) {
   const kjd = await createKJDrawSDK().readDocument(kjdBytes, { format: 'KJD' })
   const dxf = await createKJDrawSDK().readDocument(dxfBytes, { format: 'DXF' })
   if (!kjd.validate().valid || kjd.id !== document.id || kjd.revision !== document.revision || fingerprint(kjd) !== fingerprint(document) || !agentPreviewMatchesDocument(kjd, recomputed)) fail('Candidate KJD did not independently reopen with exact document state')
-  if (!dxf.validate().valid || !isDeepStrictEqual(counts(dxf), counts(document))) fail('Candidate DXF did not independently reopen with the same editable native entity types')
+  if (!dxf.validate().valid || !isDeepStrictEqual(counts(dxf), counts(document))) fail(`Candidate DXF did not independently reopen with the same editable native entity types: ${JSON.stringify(counts(document))} -> ${JSON.stringify(counts(dxf))}`)
   await document.undo()
   if (!document.validate().valid || document.listEntities().length !== kjd.listEntities().length - recomputed.after.length) fail('Live approved transaction undo did not remove exactly the reviewed creation batch')
   await document.redo()

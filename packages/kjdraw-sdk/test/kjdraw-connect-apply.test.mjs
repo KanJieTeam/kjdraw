@@ -12,8 +12,8 @@ import { createKJDrawSDK } from '../src/sdk.js'
 const script = fileURLToPath(new URL('../bin/kjdraw-connect-apply.mjs', import.meta.url))
 const publicBin = fileURLToPath(new URL('../bin/kjdraw-connect.mjs', import.meta.url))
 const configPaths = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/config.json', '.trae/mcp.json']
-const userConfigPaths = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/cli/config.json']
-const skillTargets = ['.kimi-code/skills/kjdraw-cad', '.zcode/skills/kjdraw-cad', '.trae/skills/kjdraw-cad']
+const userConfigPaths = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/cli/config.json', '.claude.json', '.cursor/mcp.json']
+const skillTargets = ['.kimi-code/skills/kjdraw-cad', '.zcode/skills/kjdraw-cad', '.trae/skills/kjdraw-cad', '.codex/skills/kjdraw-cad', '.claude/skills/kjdraw-cad', '.cursor/skills/kjdraw-cad']
 const skillFiles = ['SKILL.md', 'references/routes.json', 'references/acceptance.md']
 const options = root => ({ all: true, workspace: root, blank: '.kjdraw/active.kjd', units: 'millimeter', proposalDir: '.kjdraw/proposals', candidateDir: '.kjdraw/results', apply: true })
 const hash = value => createHash('sha256').update(value).digest('hex')
@@ -93,10 +93,10 @@ test('user scope writes only verified global config paths and returns TraeCode o
   const root = await fixture(t)
   const result = await connectWorkspace({ ...options(root), scope: 'user' })
   assert.equal(result.configurationEvidence.scope, 'user')
-  assert.equal(result.clients.length, 4)
+  assert.equal(result.clients.length, 6)
   assert.deepEqual(result.clients.slice(0, 3).map(client => client.client), ['Kimi Code', 'WorkBuddy', 'ZCode'])
   assert.ok(result.clients.slice(0, 3).every(client => client.status === 'user-config-candidate-not-GUI-verified'))
-  const trae = result.clients[3]
+  const trae = result.clients[5]
   assert.equal(trae.client, 'TraeCode')
   assert.equal(trae.status, 'user-import-confirmation-required')
   assert.match(trae.installUrl, /^trae-cn:\/\/trae\.ai-ide\/mcp-import\?type=stdio&name=kjdraw&config=/)

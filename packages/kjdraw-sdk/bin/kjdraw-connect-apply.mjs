@@ -22,6 +22,8 @@ const USER_CLIENTS = Object.freeze([
   { name: 'Kimi Code', path: '.kimi-code/mcp.json', keys: ['mcpServers'] },
   { name: 'WorkBuddy', path: '.workbuddy/mcp.json', keys: ['mcpServers'], guide: 'https://www.workbuddy.ai/docs/zh/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/MCP-Guide' },
   { name: 'ZCode', path: '.zcode/cli/config.json', keys: ['mcp', 'servers'] },
+  { name: 'Claude Code', path: '.claude.json', keys: ['mcpServers'] },
+  { name: 'Cursor', path: '.cursor/mcp.json', keys: ['mcpServers'] },
 ])
 const MAX_CONFIG_BYTES = 1024 * 1024
 const MAX_DRAWING_BYTES = 64 * 1024 * 1024
@@ -32,6 +34,9 @@ const SKILL_TARGETS = Object.freeze([
   { path: '.kimi-code/skills/kjdraw-cad', clients: ['Kimi Code CLI'], activation: 'Start a new Kimi Code CLI session and invoke /skill:kjdraw-cad.' },
   { path: '.zcode/skills/kjdraw-cad', clients: ['ZCode'], activation: 'Open Settings > Skills, refresh, and confirm kjdraw-cad is enabled.' },
   { path: '.trae/skills/kjdraw-cad', clients: ['TraeCode'], activation: 'Restart TraeCode after installation.' },
+  { path: '.codex/skills/kjdraw-cad', clients: ['Codex'], activation: 'Start a new Codex session and confirm the kjdraw-cad skill is available. Add the MCP server separately.' },
+  { path: '.claude/skills/kjdraw-cad', clients: ['Claude Code'], activation: 'Start a new Claude Code session and confirm kjdraw-cad and the kjdraw MCP server are available.' },
+  { path: '.cursor/skills/kjdraw-cad', clients: ['Cursor'], activation: 'Restart Cursor and confirm kjdraw-cad and the kjdraw MCP server are available.' },
 ])
 
 function usage() {

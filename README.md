@@ -39,7 +39,9 @@ KJDraw gives any model or agent the same CAD execution layer: **the model decide
 
 ## 🚀 Quick start
 
-**Use KJDraw from an AI agent.** Run the installer once from any directory. It connects KJDraw to **Kimi Code, WorkBuddy and ZCode** for the current user, in every workspace; **TraeCode** opens its official one-time import confirmation. Your model API key stays in your AI client.
+**Use KJDraw from an AI agent.** The `kjdraw-cad` Skill can be installed in Codex, Claude Code, Cursor and other terminal-capable agents. The new `kjdraw agent` CLI lets that Skill inspect drawings and create review proposals locally; **MCP registration is optional**. The CLI-bearing npm release is pending, so use the [source-checkout instructions](docs/try-in-ai.md#skill-first-local-cli) to test this path today.
+
+The current one-line installer is the existing MCP route and uses a pinned release channel that can lag the source candidate. The source candidate configures **Kimi Code, WorkBuddy, ZCode, Claude Code and Cursor**; **TraeCode** uses an import confirmation. These source-candidate additions have not yet been promoted to the public installer. Your model API key stays in your AI client.
 
 **Windows PowerShell**
 
@@ -53,19 +55,17 @@ irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.
 curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
 ```
 
-<!-- Suggestion: add a <details> block with a manual MCP config snippet for developers who won't pipe to a shell,
-     and instructions for Claude Code / Cursor / VS Code if they work — these matter most for an international audience. -->
+The portable Skill can be distributed with `npx skills add`, but **installing instructions alone does not install the CAD engine**. See [Skill-first setup and optional MCP](docs/try-in-ai.md).
 
 Then ask your AI client:
 
-<!-- TODO: add a simpler first prompt that needs no extra data and always succeeds -->
 ```text
-Use KJDraw to draw an engineering borehole log from this data, with strata, lithology hatches, elevations and notes.
+Use KJDraw to draw a circle with a radius of 5 mm.
 ```
 
-New drawings are written as independently verified KJD, DXF and SVG files and never overwrite the source; in-place and destructive changes still require review. [Installation details and security model](docs/try-in-ai.md)
+The existing MCP installer can produce independently verified KJD/DXF candidates and SVG previews without overwriting the source. The new local CLI returns a proposal first; a human reviews it before KJD/DXF candidates are written. [Installation details and security model](docs/try-in-ai.md)
 
-> **1.0 release candidate:** command-line setup and real-engine smoke tests pass; independent GUI and live-model acceptance for all four clients is still in progress.
+> **1.0 release candidate:** command-line setup and real-engine smoke tests pass; independent GUI and live-model acceptance for each client is still in progress.
 
 ## What you can build
 

@@ -131,17 +131,27 @@ test('generated documentation portal has no source or navigation drift', () => {
 
 test('published onboarding examples match executable package entry points and tool schema', async () => {
   const packageJson = await json('packages/kjdraw-sdk/package.json')
+  assert.equal(packageJson.bin.kjdraw, './bin/kjdraw.mjs')
   assert.equal(packageJson.bin['kjdraw-mcp'], './bin/kjdraw-mcp.mjs')
-  for (const path of ['README.md', 'README.zh-CN.md', 'docs/site/pages/models.md']) {
+  assert.equal(packageJson.bin['kjdraw-review'], './bin/kjdraw-review.mjs')
+  for (const path of ['README.md', 'README.zh-CN.md']) {
     const source = await readFile(new URL(path, repositoryRoot), 'utf8')
     assert.doesNotMatch(source, /"@kanjieteam\/kjdraw",\s*"mcp"/)
-    assert.match(source, /bin\/kjdraw-mcp\.mjs/)
-    assert.match(source, /--workspace/)
-    assert.match(source, /--proposal-dir/)
+    assert.match(source, /kjdraw agent/)
+    assert.match(source, /docs\/try-in-ai/)
   }
-  const english = await readFile(new URL('README.md', repositoryRoot), 'utf8')
-  assert.match(english, /"tool": "cad_propose_move"[\s\S]*?"expectedRevision": 0,[\s\S]*?"units": "millimeter",[\s\S]*?"ids": \[/)
-  assert.doesNotMatch(english, /"objectIds":/)
+  for (const path of ['docs/try-in-ai.md', 'docs/try-in-ai.zh-CN.md']) {
+    const source = await readFile(new URL(path, repositoryRoot), 'utf8')
+    assert.match(source, /agent tools cad_propose_circles/)
+    assert.match(source, /agent call cad_propose_circles --blank demo\.kjd --units millimeter --args-file circle\.json/)
+    assert.match(source, /bin\/kjdraw-review\.mjs/)
+    assert.match(source, /--workspace/)
+    assert.match(source, /--ledger/)
+  }
+  const models = await readFile(new URL('docs/site/pages/models.md', repositoryRoot), 'utf8')
+  assert.match(models, /bin\/kjdraw-mcp\.mjs/)
+  assert.match(models, /--workspace/)
+  assert.match(models, /--proposal-dir/)
   const reference = await readFile(new URL('docs/site/pages/reference.md', repositoryRoot), 'utf8')
   assert.doesNotMatch(reference, /createAgentSession/)
   assert.match(reference, /import \{ KJAgentToolSession \} from '@kanjieteam\/kjdraw\/agent-tools'/)

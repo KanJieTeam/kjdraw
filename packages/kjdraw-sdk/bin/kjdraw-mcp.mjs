@@ -596,6 +596,40 @@ async function openHost(options) {
   return { workspace, sdk, document, session, sourceFingerprint, proposals, ledger, sessionReceipt, candidateDir, toolProfile: options['tool-profile'], resources: new Map() }
 }
 
+// The local CLI shares the same bounded host and proposal ledger as the stdio
+// transport. No client-side MCP registration is required for this path.
+export async function openAgentHost(options) { return openHost(options) }
+
+export async function callAgentHost(host, name, input = {}) {
+  const definition = profileDefinitions(host.session.definitions, host.toolProfile).find(tool => tool.name === name)
+  if (!definition) throw new Error('Unknown tool; inspect the available KJDraw agent tools first')
+  if (!input || Array.isArray(input) || typeof input !== 'object') throw new Error('Tool arguments must be an object')
+  const beforeRevision = host.document.revision, beforeFingerprint = fingerprint(host.document)
+  const result = await host.session.call(name, input)
+  if (host.document.revision !== beforeRevision || fingerprint(host.document) !== beforeFingerprint || beforeFingerprint !== host.sourceFingerprint) {
+    throw new Error('A tool call changed the host drawing; the result was rejected')
+  }
+  if (result.ok && definition.effect === 'propose') {
+    const proposal = {
+      sequence: host.ledger.proposals.length + 1,
+      tool: name,
+      input: structuredClone(input),
+      sourceRevision: beforeRevision,
+      sourceFingerprint: beforeFingerprint,
+      result: result.value
+    }
+    host.ledger.proposals.push(proposal)
+    await atomicJsonWrite(host.proposals, host.ledger)
+    const delivery = host.candidateDir ? await deliverCandidate(host, proposal) : null
+    if (delivery) {
+      proposal.delivery = delivery
+      await atomicJsonWrite(host.proposals, host.ledger)
+    }
+    return { output: modelVisibleProposal(name, result, host, delivery), isError: false }
+  }
+  return { output: modelVisibleProposal(name, result, host), isError: !result.ok }
+}
+
 async function main() {
   let args
   try { args = parseArgs(process.argv.slice(2)) } catch (error) {
@@ -689,30 +723,8 @@ async function main() {
         const definition = profileDefinitions(host.session.definitions, host.toolProfile).find(tool => tool.name === name)
         if (!definition) { rpcError(request.id, -32602, 'Unknown tool; use a name returned by tools/list'); continue }
         if (!input || Array.isArray(input) || typeof input !== 'object') { rpcError(request.id, -32602, 'Tool arguments must be an object'); continue }
-        const beforeRevision = host.document.revision, beforeFingerprint = fingerprint(host.document)
-        const result = await host.session.call(name, input)
-        if (host.document.revision !== beforeRevision || fingerprint(host.document) !== beforeFingerprint || beforeFingerprint !== host.sourceFingerprint) {
-          throw new Error('A tool call changed the host drawing; the result was rejected')
-        }
-        if (result.ok && definition.effect === 'propose') {
-          const proposal = {
-            sequence: host.ledger.proposals.length + 1,
-            tool: name,
-            sourceRevision: beforeRevision,
-            sourceFingerprint: beforeFingerprint,
-            result: result.value
-          }
-          host.ledger.proposals.push(proposal)
-          await atomicJsonWrite(host.proposals, host.ledger)
-          const delivery = host.candidateDir ? await deliverCandidate(host, proposal) : null
-          if (delivery) {
-            proposal.delivery = delivery
-            await atomicJsonWrite(host.proposals, host.ledger)
-            await toolResponse(request.id, modelVisibleProposal(name, result, host, delivery), false, host)
-            continue
-          }
-        }
-        await toolResponse(request.id, modelVisibleProposal(name, result, host), !result.ok)
+        const response = await callAgentHost(host, name, input)
+        await toolResponse(request.id, response.output, response.isError, host)
         continue
       }
       if (!notification) rpcError(request.id, -32601, 'Method not found')
@@ -722,4 +734,4 @@ async function main() {
   }
 }
 
-await main()
+if (import.meta.url === pathToFileURL(resolve(process.argv[1] ?? '')).href) await main()
