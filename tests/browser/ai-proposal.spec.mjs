@@ -109,7 +109,7 @@ test('switching model providers never silently reuses the previous provider key'
   await page.getByTestId('settings-open').click()
   await expect(page.getByTestId('settings-key')).toHaveValue('')
   await page.getByTestId('settings-provider').selectOption('deepseek')
-  await expect(page.getByTestId('settings-key')).toHaveAttribute('placeholder', 'sk-…')
+  await expect(page.getByTestId('settings-key')).toHaveAttribute('placeholder', 'Enter provider API key')
   await page.getByTestId('settings-save').click()
   await expect(page.locator('#settings-error')).toBeVisible()
   await expect(page.locator('#settings-error')).toContainText('API key')

@@ -10,7 +10,7 @@ const copy = {
     promptLabel:'描述你想绘制或修改的图纸',promptPlaceholder:'描述你想绘制或修改的图纸…',
     composerHint:'Enter 发送 · Shift + Enter 换行',send:'发送',stop:'停止生成',stopped:'已停止，图纸未修改。',working:'正在处理图纸需求…',
     disclaimer:'对话及所需图纸上下文会发送给你选择的模型服务商；密钥仅保留在当前页面内存中。工程图须由你审核。',
-    connectionSettings:'模型连接',connectModel:'连接你的模型',settingsIntro:'选择常用模型，或填写自己的接口。密钥、对话和绘图上下文会发给所选服务商；密钥不保存在浏览器中。',
+    connectionSettings:'模型连接',connectModel:'连接你的模型',settingsIntro:'选择常用模型或自定义接口。请求直接发给所选服务商；密钥仅留在本页内存。请使用测试密钥，勿填生产密钥。',
     provider:'服务商',commonModel:'常用模型',customModel:'自定义模型…',connectionDetails:'连接详情与自定义',protocol:'接口协议',
     endpoint:'API 地址',model:'模型名称',apiKey:'API 密钥',cancel:'取消',saveConnection:'连接并继续',
     invalidSettings:'请填写完整的 API 地址和模型名称。',invalidEndpoint:'请输入完整的 http(s) API 地址。',keyRequired:'请填写该服务商的 API 密钥。',you:'你',assistant:'KJDraw AI',
@@ -28,7 +28,7 @@ const copy = {
     promptLabel:'Describe the drawing you want to create or change',promptPlaceholder:'Describe the drawing you want to create or change…',
     composerHint:'Enter to send · Shift + Enter for a new line',send:'Send',stop:'Stop',stopped:'Stopped. The drawing was not changed.',working:'Working on your drawing…',
     disclaimer:'Your conversation and needed drawing context go to your chosen model provider. Your key stays in this page’s memory; review drawings before use.',
-    connectionSettings:'Model connection',connectModel:'Connect your model',settingsIntro:'Choose a common model or enter your own endpoint. Your key, conversation and drawing context go to that provider; the key is not stored in the browser.',
+    connectionSettings:'Model connection',connectModel:'Connect your model',settingsIntro:'Choose a common model or custom endpoint. Requests go directly to that provider; the key stays only in this page’s memory. Use a test key, not a production key.',
     provider:'Provider',commonModel:'Common model',customModel:'Custom model…',connectionDetails:'Connection details & custom setup',protocol:'API protocol',
     endpoint:'API endpoint',model:'Model name',apiKey:'API key',cancel:'Cancel',saveConnection:'Connect and continue',
     invalidSettings:'Enter an API endpoint and model name.',invalidEndpoint:'Enter a complete http(s) API endpoint.',keyRequired:'Enter an API key for this provider.',you:'You',assistant:'KJDraw AI',
@@ -275,7 +275,8 @@ function canReuseKey(endpoint = ui.endpoint.value.trim(), provider = ui.provider
   return Boolean(settings?.apiKey && settings.endpoint === endpoint && settings.provider === provider && settings.protocol === protocol)
 }
 function refreshKeyPlaceholder() {
-  ui.key.placeholder = canReuseKey() ? (language === 'zh' ? '已设置，留空沿用' : 'Set; leave blank to keep') : 'sk-…'
+  ui.key.placeholder = canReuseKey() ? (language === 'zh' ? '已设置，留空沿用' : 'Set; leave blank to keep')
+    : (language === 'zh' ? '输入服务商 API 密钥' : 'Enter provider API key')
 }
 async function submitPrompt() {
   const prompt = ui.input.value.trim()

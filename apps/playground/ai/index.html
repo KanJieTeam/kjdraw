@@ -80,13 +80,13 @@
         <div><div class="dialog-eyebrow" data-text="connectionSettings">模型连接</div><h2 id="settings-title" data-text="connectModel">连接你的模型</h2></div>
         <button class="icon-button" id="settings-close" type="button" aria-label="关闭设置">×</button>
       </div>
-      <p class="dialog-intro" data-text="settingsIntro">选择常用模型，或填写自己的接口。密钥、对话和绘图上下文会发给所选服务商；密钥不保存在浏览器中。</p>
+      <p class="dialog-intro" data-text="settingsIntro">选择常用模型或自定义接口。请求直接发给所选服务商；密钥仅留在本页内存。请使用测试密钥，勿填生产密钥。</p>
       <div class="settings-pair">
         <div><label for="settings-provider" data-text="provider">服务商</label><select id="settings-provider" data-testid="settings-provider"></select></div>
         <div><label for="settings-common-model" data-text="commonModel">常用模型</label><select id="settings-common-model" data-testid="settings-common-model"></select></div>
       </div>
       <label for="settings-key" data-text="apiKey">API 密钥</label>
-      <input id="settings-key" data-testid="settings-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…">
+      <input id="settings-key" data-testid="settings-key" type="password" autocomplete="off" spellcheck="false" placeholder="输入服务商 API 密钥">
       <details class="connection-details" id="settings-details" open>
         <summary data-text="connectionDetails">连接详情与自定义</summary>
         <label for="settings-endpoint" data-text="endpoint">API 地址</label>
