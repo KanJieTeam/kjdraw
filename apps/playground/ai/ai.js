@@ -8,7 +8,7 @@ const copy = {
     heroTitle:'今天想画什么图？',heroDescription:'描述需求，检查提案，然后再应用到可编辑图纸。',
     suggestLine:'画一条 100 mm 水平线',suggestCircle:'画一个半径 25 mm 的圆',suggestOutline:'画一个 120 × 80 mm 矩形',
     promptLabel:'描述你想绘制或修改的图纸',promptPlaceholder:'描述你想绘制或修改的图纸…',
-    composerHint:'Enter 发送 · Shift + Enter 换行',send:'发送',working:'正在处理图纸需求…',
+    composerHint:'Enter 发送 · Shift + Enter 换行',send:'发送',stop:'停止生成',stopped:'已停止，图纸未修改。',working:'正在处理图纸需求…',
     disclaimer:'对话及所需图纸上下文会发送给你选择的模型服务商；密钥仅保留在当前页面内存中。工程图须由你审核。',
     connectionSettings:'模型连接',connectModel:'连接你的模型',settingsIntro:'选择常用模型，或填写自己的接口。密钥、对话和绘图上下文会发给所选服务商；密钥不保存在浏览器中。',
     provider:'服务商',commonModel:'常用模型',customModel:'自定义模型…',connectionDetails:'连接详情与自定义',protocol:'接口协议',
@@ -26,7 +26,7 @@ const copy = {
     heroTitle:'What would you like to draw?',heroDescription:'Describe the drawing, review the proposal, then apply it to an editable file.',
     suggestLine:'Draw a 100 mm horizontal line',suggestCircle:'Draw a circle with a 25 mm radius',suggestOutline:'Draw a 120 × 80 mm rectangle',
     promptLabel:'Describe the drawing you want to create or change',promptPlaceholder:'Describe the drawing you want to create or change…',
-    composerHint:'Enter to send · Shift + Enter for a new line',send:'Send',working:'Working on your drawing…',
+    composerHint:'Enter to send · Shift + Enter for a new line',send:'Send',stop:'Stop',stopped:'Stopped. The drawing was not changed.',working:'Working on your drawing…',
     disclaimer:'Your conversation and needed drawing context go to your chosen model provider. Your key stays in this page’s memory; review drawings before use.',
     connectionSettings:'Model connection',connectModel:'Connect your model',settingsIntro:'Choose a common model or enter your own endpoint. Your key, conversation and drawing context go to that provider; the key is not stored in the browser.',
     provider:'Provider',commonModel:'Common model',customModel:'Custom model…',connectionDetails:'Connection details & custom setup',protocol:'API protocol',
@@ -55,7 +55,7 @@ const examples = {
 const byId = id => document.getElementById(id)
 const ui = {
   conversation:byId('conversation'), empty:byId('empty-state'), messages:byId('messages'),
-  list:byId('conversation-list'), count:byId('history-count'), input:byId('chat-input'), send:byId('chat-send'),
+  list:byId('conversation-list'), count:byId('history-count'), input:byId('chat-input'), send:byId('chat-send'), stop:byId('chat-stop'),
   form:byId('chat-form'), dialog:byId('settings-dialog'), settingsForm:byId('settings-form'),
   endpoint:byId('settings-endpoint'), model:byId('settings-model'), key:byId('settings-key'),
   provider:byId('settings-provider'), commonModel:byId('settings-common-model'),
@@ -69,6 +69,7 @@ let sessions = []
 let active = null
 let pendingSend = false
 let busy = false
+let activeRequest = null
 const t = key => copy[language][key] ?? key
 for (const preset of CHAT_MODEL_PROVIDER_PRESETS) {
   const option = document.createElement('option')
@@ -288,15 +289,21 @@ async function submitPrompt() {
   const waiting = {role:'assistant',status:'pending',text:''}
   session.messages.push(waiting)
   busy = true
-  ui.send.disabled = true
+  activeRequest = new AbortController()
+  ui.send.hidden = true
+  ui.stop.hidden = false
   ui.input.value = ''
   render()
   try {
-    const result = await session.runtime.send(prompt)
+    const result = await session.runtime.send(prompt,{signal:activeRequest.signal})
     const index = session.messages.indexOf(waiting)
     if (index >= 0) session.messages.splice(index,1)
     if (result.status === 'proposal') session.messages.push({role:'assistant',text:result.text,proposals:(result.proposals?.length ? result.proposals : [result.proposal]).map(proposal => ({...proposal, uiState:'pending'}))})
     else if (result.status === 'message') session.messages.push({role:'assistant',text:result.text})
+    else if (result.status === 'cancelled') {
+      session.messages.push({role:'assistant',text:t('stopped')})
+      if (!ui.input.value) ui.input.value = prompt
+    }
     else {
       session.messages.push({role:'assistant',status:'error',text:result.error?.message ?? result.text ?? t('retry')})
       if (!ui.input.value) ui.input.value = prompt
@@ -308,12 +315,15 @@ async function submitPrompt() {
     if (!ui.input.value) ui.input.value = prompt
   } finally {
     busy = false
-    ui.send.disabled = false
+    activeRequest = null
+    ui.stop.hidden = true
+    ui.send.hidden = false
     if (active === session) render()
     ui.input.focus()
   }
 }
 function closeSidebar(){ui.sidebar.classList.remove('open');ui.scrim.hidden=true;ui.menu.setAttribute('aria-expanded','false')}
+ui.stop.addEventListener('click',()=>{activeRequest?.abort()})
 ui.form.addEventListener('submit',event=>{event.preventDefault();submitPrompt()})
 ui.input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();submitPrompt()}})
 ui.provider.addEventListener('change',()=>{
