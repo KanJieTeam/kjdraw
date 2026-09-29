@@ -312,6 +312,27 @@ const compactDrawingSchema = objectWithOptional(compactDrawingProperties, [
     'splines',
     'hatches'
 ]);
+const basicDrawingSchema = objectWithOptional({
+    expectedRevision: revision,
+    units: text,
+    lines: drawingGroup(numericTuple(4)),
+    circles: drawingGroup(numericTuple(3)),
+    arcs: drawingGroup(numericTuple(5)),
+    polylines: drawingGroup(object({
+        points: {
+            ...collection(numericTuple(2)),
+            minItems: 2
+        },
+        closed: {
+            type: 'boolean'
+        }
+    }))
+}, [
+    'lines',
+    'circles',
+    'arcs',
+    'polylines'
+]);
 const patternCount = {
     type: 'integer',
     minimum: 1,
@@ -3820,6 +3841,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         inputSchema: compactDrawingSchema
     },
     {
+        name: 'cad_propose_drawing_basic',
+        effect: 'propose',
+        description: 'Propose 1–64 native lines, circles, arcs or straight polylines in model XY using compact numeric tuples. Include only nonempty geometry groups. No text, dimensions, hatches or construction geometry. Returns a reviewable proposal; host approval applies one undoable edit.',
+        inputSchema: basicDrawingSchema
+    },
+    {
         name: 'cad_propose_drawing_pattern',
         effect: 'propose',
         description: 'Propose 1–64 base entities and up to 16 total rectangular or polar curve arrays, at most 512 total native entities. Polar count includes the source; ±360° distributes unique copies around the full circle, while partial angles include both endpoints. Optional open NURBS and polygonal hatches remain native; array sources are group-local zero-based curve references such as circles:0, ellipses:0 or splines:0. Hatches can coexist but are not array seeds. Full preview, no edit before host approval, one undoable edit.',
@@ -4964,8 +4991,15 @@ export class KJAgentToolSession {
                                 ...entities,
                                 ...annotations
                             ]);
-                        } else if (name === 'cad_propose_drawing' || name === 'cad_propose_drawing_compact' || name === 'cad_propose_drawing_pattern') {
-                            const drawing = name === 'cad_propose_drawing' ? args : decodeAgentCompactDrawing(args);
+                        } else if (name === 'cad_propose_drawing' || name === 'cad_propose_drawing_compact' || name === 'cad_propose_drawing_basic' || name === 'cad_propose_drawing_pattern') {
+                            const compact = name === 'cad_propose_drawing_basic' ? {
+                                lines: [],
+                                circles: [],
+                                arcs: [],
+                                polylines: [],
+                                ...args
+                            } : args;
+                            const drawing = name === 'cad_propose_drawing' ? args : decodeAgentCompactDrawing(compact);
                             if (name !== 'cad_propose_drawing') validate(drawingInputSchema, drawing);
                             const ownerId = document.spaces.modelSpaceId;
                             commandArgs = {

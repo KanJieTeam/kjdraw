@@ -29,6 +29,32 @@ test('Skill-facing CLI lists tool schemas without MCP client registration or wor
   assert.deepEqual(await readdir(root), [])
 })
 
+test('Skill-facing basic drawing uses one small schema and produces reviewed KJD and DXF', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'kjdraw-agent-basic-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const listed = run(root, ['agent', 'tools', 'cad_propose_drawing_basic'])
+  assert.equal(listed.status, 0, listed.stderr)
+  assert.deepEqual(JSON.parse(listed.stdout).tool.inputSchema.required, ['expectedRevision', 'units'])
+  await writeFile(join(root, 'basic.json'), JSON.stringify({
+    expectedRevision: 0, units: 'millimeter',
+    lines: [[0, 0, 40, 0]], circles: [[20, 10, 4]],
+  }))
+  const proposed = run(root, ['agent', 'call', 'cad_propose_drawing_basic', '--blank', 'source.kjd', '--units', 'millimeter', '--args-file', 'basic.json'])
+  assert.equal(proposed.status, 0, proposed.stderr)
+  const response = JSON.parse(proposed.stdout)
+  assert.equal(response.ok, true, JSON.stringify(response))
+  assert.equal(response.value.status, 'awaiting-host-approval')
+  const original = await readFile(join(root, 'source.kjd'))
+  const receipt = await reviewLedger({ workspace: root, ledger: response.ledger, sequence: 1, candidate: 'basic-candidate.kjd', reviewer: 'automated-test-fixture' }, async () => true)
+  assert.equal(receipt.execution.liveUndoRedoVerified, true)
+  assert.deepEqual(await readFile(join(root, 'source.kjd')), original)
+  const sdk = createKJDrawSDK()
+  for (const [filename, format] of [['basic-candidate.kjd', 'KJD'], ['basic-candidate.dxf', 'DXF']]) {
+    const drawing = await sdk.readDocument(await readFile(join(root, filename)), { format })
+    assert.deepEqual(drawing.listEntities().map(entity => entity.type).sort(), ['CIRCLE', 'LINE'])
+  }
+})
+
 test('Skill-facing CLI creates only a review proposal; host review produces new CAD candidates', async t => {
   const root = await mkdtemp(join(tmpdir(), 'kjdraw-agent-call-'))
   t.after(() => rm(root, { recursive: true, force: true }))

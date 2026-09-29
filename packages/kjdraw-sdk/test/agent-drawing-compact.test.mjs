@@ -19,6 +19,31 @@ function fixture() {
 function value(result) { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 function geometry(entities) { return entities.map(({ type, payload }) => ({ type, payload })).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))) }
 
+test('basic drawing omits unused geometry groups without bypassing review or validation', async () => {
+  const { sdk, document, session } = fixture()
+  const basic = session.definitions.find(item => item.name === 'cad_propose_drawing_basic')
+  const compact = session.definitions.find(item => item.name === tool)
+  assert.deepEqual(basic.inputSchema.required, ['expectedRevision', 'units'])
+  assert.ok(JSON.stringify(basic).length < JSON.stringify(compact).length)
+  const input = { expectedRevision: 0, units: 'millimeter', lines: [[0, 0, 40, 0]], circles: [[20, 10, 4]] }
+  const before = document.serialize()
+  assert.equal((await session.call('cad_propose_drawing_basic', { ...input, ellipses: [[0, 0, 5, 0, .5, 0, 180]] })).ok, false)
+  assert.equal((await session.call('cad_propose_drawing_basic', { expectedRevision: 0, units: 'millimeter' })).ok, false)
+  assert.equal(document.serialize(), before)
+  const proposal = value(await session.call('cad_propose_drawing_basic', input))
+  assert.equal(proposal.status, 'awaiting-host-approval')
+  assert.equal(proposal.preview.after.length, 2)
+  assert.equal(document.serialize(), before)
+  value(await session.approve(proposal.planId, 'reviewer'))
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const reopened = await createKJDrawSDK().readDocument(dxf, { format: 'DXF' })
+  assert.deepEqual(reopened.listEntities().map(entity => entity.type).sort(), ['CIRCLE', 'LINE'])
+  assert.equal((await session.call('cad_propose_drawing_basic', input)).ok, false)
+  await sdk.executeCommand('UNDO')
+  assert.equal(document.listEntities().length, 0)
+  assert.equal(document.revision, 2)
+})
+
 test('compact native drawing matches the original tool, previews without mutation and saves as one undoable edit', async () => {
   const { sdk, document, session } = fixture(), reference = fixture()
   await sdk.executeCommand('CREATE', { type: 'POINT', payload: { position: [777, 888, 0] } })

@@ -15,7 +15,7 @@ const circleArgs = (revision = 0) => ({ expectedRevision: revision, units: 'mill
 function value(result) { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 
 test('tool definitions are frozen serializable schemas with no approval or arbitrary execution tool', () => {
-  assert.equal(KJDRAW_AGENT_TOOLS.length, 44)
+  assert.equal(KJDRAW_AGENT_TOOLS.length, 45)
   assert.ok(KJDRAW_AGENT_TOOLS.every(tool => ['read', 'propose'].includes(tool.effect)))
   assert.deepEqual(JSON.parse(JSON.stringify(KJDRAW_AGENT_TOOLS)), KJDRAW_AGENT_TOOLS)
   for (const tool of KJDRAW_AGENT_TOOLS) {
@@ -24,6 +24,8 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
       ? ['ellipses', 'splines', 'hatches', 'leaders', 'angularDimensions', 'polarArrays']
       : tool.name === 'cad_propose_drawing_pattern'
         ? ['ellipses', 'splines', 'hatches', 'polarArrays']
+      : tool.name === 'cad_propose_drawing_basic'
+        ? ['lines', 'circles', 'arcs', 'polylines']
       : ['cad_propose_drawing', 'cad_propose_drawing_compact'].includes(tool.name)
         ? ['ellipses', 'splines', 'hatches']
       : tool.name === 'cad_read_components'

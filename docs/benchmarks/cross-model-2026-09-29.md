@@ -26,6 +26,17 @@ The other providers did **not** complete the 30-task suite:
 
 The Qwen first paired task used 2,999 provider-reported tokens for the valid KJDraw result and 7,968 for the invalid direct result; the later timed-out request has no token-usage response. GLM's rejected tool call used 2,403 tokens. These are **partial observations**, not comparable suite totals. Qwen used `enable_thinking=false` and Zhipu used `thinking.type=disabled`; both used the 32,768 output-token cap for their manufacturing probes, forced tool choice, non-streaming responses and 120 s timeout. Model and endpoint choices were checked against [Qwen's official model and compatible API documentation](https://help.aliyun.com/zh/model-studio/qwen3-8-flash) and [Zhipu's official model announcement](https://www.zhipuai.cn/zh/news/148). Provider behavior, quotas and model versions can change.
 
+## Narrow basic-tool follow-up: better validity, still more tokens
+
+We then added a source-candidate `cad_propose_drawing_basic` tool for lines, circles, arcs and straight polylines. Its serialized function definition is 1,512 bytes versus 5,434 bytes for `cad_propose_drawing`; **schema bytes are not model tokens**. It keeps revision and unit checks, rejects unknown fields, creates a pending proposal and still requires host approval. The same three `pilot` task prompts, providers, temperature 0, non-thinking settings, forced tool choice and 4,096-output-token cap were used, with one fresh request per task per arm and no retry. These complete six-request runs were independently audited from saved DXFs.
+
+| Model | Basic tool valid | Direct DXF valid | Basic total tokens | Direct total tokens | Tasks where basic used fewer tokens | Basic summed end-to-end | Direct summed end-to-end |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| DeepSeek `deepseek-flash` | 3/3 | 1/3 | **3,330** | **1,533** | **0/3** | 6.193 s | 6.735 s |
+| Qwen `qwen3.8-flash` | 3/3 | 0/3 | **3,736** | **1,933** | **0/3** | 17.280 s | 21.688 s |
+
+Thus the smaller tool definition did **not** make these simple one-shot tasks cheaper in total provider-reported tokens. The tool arm was more often valid; that is a different claim. The direct arm's invalid results must not be converted into an invented cost-per-success number. Differences from the earlier full-schema pilot also include fresh nondeterministic model responses, so they are not a controlled causal estimate of the schema reduction alone. This candidate is in source and Skill routing, not evidence that a currently published npm package or a real client already uses it. See the [new raw archives](evidence/2026-09-29-cross-model/README.md). A representative, prespecified 100-task corpus and a library-assisted valid-output baseline are still needed before claiming that 99% of tasks use fewer tokens.
+
 ## Reproduce and challenge
 
 The [paired runner](../../scripts/benchmarks/paired-model-benchmark.mjs), [versioned tasks](../../scripts/benchmarks/manufacturing-task-suite.mjs), [generic validator](../../scripts/benchmarks/paired-model-validator.py) and [manufacturing validator](../../scripts/benchmarks/manufacturing-model-validator.py) are public. A dry-run plan makes no model calls:

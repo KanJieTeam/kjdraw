@@ -382,7 +382,7 @@ test('provider-compatible required tool choice can omit temperature and use max 
 test('explicit drawing variants and parametric output budgets reject unknown or incomplete configuration before effects', async t => {
   const env = { KJDRAW_BENCH_PROTOCOL: 'chat-completions', KJDRAW_BENCH_MODEL: 'fixture-model', KJDRAW_BENCH_ENDPOINT: 'https://provider.example/chat', KJDRAW_BENCH_API_KEY: fixtureKey }
   assert.equal(liveModelConfiguration(env).drawingTool, 'cad_propose_drawing')
-  for (const drawingTool of ['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_pattern']) assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_DRAWING_TOOL: drawingTool }).drawingTool, drawingTool)
+  for (const drawingTool of ['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_basic', 'cad_propose_drawing_pattern']) assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_DRAWING_TOOL: drawingTool }).drawingTool, drawingTool)
   assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_DRAWING_TOOL: 'cad_execute_code' }))
   const plan = pairedModelPlan({ taskSuite: 'parametric', maxOutputTokens: 16384 })
   assert.equal(plan.actualRequests, 0); assert.equal(plan.plannedRequests, 30)

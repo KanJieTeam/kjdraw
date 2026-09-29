@@ -58,7 +58,7 @@ export async function renderPairedModelComparison({ input, output } = {}) {
   const toolChoiceMode = report.toolChoiceMode === undefined ? 'forced' : report.toolChoiceMode
   if (!['auto', 'forced', 'required'].includes(toolChoiceMode)) reject('INVALID_TOOL_CHOICE_MODE')
   const drawingTool = report.drawingTool === undefined ? 'cad_propose_drawing' : report.drawingTool
-  if (!['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_pattern'].includes(drawingTool)) reject('INVALID_DRAWING_TOOL')
+  if (!['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_basic', 'cad_propose_drawing_pattern'].includes(drawingTool)) reject('INVALID_DRAWING_TOOL')
   const taskSuite = report.taskSuite === undefined ? 'pilot' : report.taskSuite
   if (!['pilot', 'parametric'].includes(taskSuite)) reject('INVALID_TASK_SUITE')
   if (taskSuite === 'parametric' && !hashPattern.test(report.source?.['parametric-drawing-tasks.mjs'] ?? '')) reject('PARAMETRIC_SOURCE_HASH_MISSING')
