@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const failures = []
-const publicBenchmarkReports = new Set(['docs/benchmarks/deepseek-2026-09-28.md', 'docs/benchmarks/deepseek-2026-09-29.md', 'docs/benchmarks/cross-model-2026-09-29.md', 'docs/benchmarks/multi-round-editor-soak.md', 'docs/benchmarks/token-efficiency-protocol.md', 'docs/benchmarks/token-efficiency-pilot-2026-09-29.md'])
+const publicBenchmarkReports = new Set(['docs/benchmarks/deepseek-2026-09-28.md', 'docs/benchmarks/deepseek-2026-09-29.md', 'docs/benchmarks/cross-model-2026-09-29.md', 'docs/benchmarks/multi-round-editor-soak.md', 'docs/benchmarks/token-efficiency-protocol.md', 'docs/benchmarks/token-efficiency-pilot-2026-09-29.md', 'docs/benchmarks/multiround-correctness-protocol.md'])
 const publicBenchmarkIndices = new Set(['docs/benchmarks/evidence/2026-09-28-deepseek-flash/README.md', 'docs/benchmarks/evidence/2026-09-29-deepseek-flash/README.md', 'docs/benchmarks/evidence/2026-09-29-cross-model/README.md', 'docs/benchmarks/evidence/2026-09-29-token-efficiency/README.md'])
 const benchmarkHashes = new Map()
 for (const index of publicBenchmarkIndices) {

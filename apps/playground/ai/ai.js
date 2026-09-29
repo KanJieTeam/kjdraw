@@ -8,8 +8,8 @@ const copy = {
     suggestLine:'画一条 100 mm 水平线',suggestCircle:'画一个半径 25 mm 的圆',suggestOutline:'画一个 120 × 80 mm 矩形',
     promptLabel:'描述你想绘制或修改的图纸',promptPlaceholder:'描述你想绘制或修改的图纸…',
     composerHint:'Enter 发送 · Shift + Enter 换行',send:'发送',working:'正在处理图纸需求…',
-    disclaimer:'AI 生成的工程图需由你审核。模型连接由你配置；密钥仅保留在当前页面内存中。',
-    connectionSettings:'模型连接',connectModel:'连接你的模型',settingsIntro:'使用支持浏览器跨域请求的 OpenAI 兼容接口。API 密钥只保留在当前页面内存中。',
+    disclaimer:'对话及所需图纸上下文会发送给你选择的模型服务商；密钥仅保留在当前页面内存中。工程图须由你审核。',
+    connectionSettings:'模型连接',connectModel:'连接你的模型',settingsIntro:'使用支持浏览器跨域请求的 OpenAI 兼容接口。你的密钥、对话及绘图上下文会发送到所填接口；密钥不写入浏览器持久存储。',
     endpoint:'API 地址',model:'模型名称',apiKey:'API 密钥',cancel:'取消',saveConnection:'连接并继续',
     invalidSettings:'请填写完整的 API 地址和模型名称。',invalidEndpoint:'请输入完整的 http(s) API 地址。',you:'你',assistant:'KJDraw AI',
     proposal:'CAD 修改提案',proposalPending:'待审核',proposalApproved:'已应用',proposalRejected:'已放弃',proposalExpired:'已失效',
@@ -25,8 +25,8 @@ const copy = {
     suggestLine:'Draw a 100 mm horizontal line',suggestCircle:'Draw a circle with a 25 mm radius',suggestOutline:'Draw a 120 × 80 mm rectangle',
     promptLabel:'Describe the drawing you want to create or change',promptPlaceholder:'Describe the drawing you want to create or change…',
     composerHint:'Enter to send · Shift + Enter for a new line',send:'Send',working:'Working on your drawing…',
-    disclaimer:'Review AI-generated engineering drawings before use. You choose the model; your key stays in this page’s memory.',
-    connectionSettings:'MODEL CONNECTION',connectModel:'Connect your model',settingsIntro:'Use an OpenAI-compatible endpoint that permits browser CORS requests. Your API key stays in this page’s memory.',
+    disclaimer:'Your conversation and needed drawing context go to your chosen model provider. Your key stays in this page’s memory; review drawings before use.',
+    connectionSettings:'MODEL CONNECTION',connectModel:'Connect your model',settingsIntro:'Use an OpenAI-compatible endpoint that permits browser CORS requests. Your key, conversation and drawing context go to that endpoint; the key is not stored persistently.',
     endpoint:'API endpoint',model:'Model name',apiKey:'API key',cancel:'Cancel',saveConnection:'Connect and continue',
     invalidSettings:'Enter an API endpoint and model name.',invalidEndpoint:'Enter a complete http(s) API endpoint.',you:'You',assistant:'KJDraw AI',
     proposal:'CAD change proposal',proposalPending:'Awaiting review',proposalApproved:'Applied',proposalRejected:'Discarded',proposalExpired:'Expired',
@@ -294,5 +294,6 @@ document.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListen
 ui.menu.addEventListener('click',()=>{ui.sidebar.classList.add('open');ui.scrim.hidden=false;ui.menu.setAttribute('aria-expanded','true')})
 byId('sidebar-close').addEventListener('click',closeSidebar)
 ui.scrim.addEventListener('click',closeSidebar)
-window.addEventListener('pagehide',()=>{for(const session of sessions) session.runtime.destroy()})
+window.addEventListener('pagehide',()=>{settings=null;ui.key.value='';for(const session of sessions) session.runtime.destroy()})
+window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()})
 setLanguage(language)

@@ -1,5 +1,7 @@
 # Token-efficiency claim protocol (draft, frozen before live evaluation)
 
+Ten-round correctness and unchanged-object preservation have a separate [preregistration draft](multiround-correctness-protocol.md). The current token corpus and v1–v3 pilots are development evidence, not an unseen holdout for that study.
+
 KJDraw may claim **“fewer total model tokens on at least 99% of tasks”** only after a public, prespecified evaluation meets the rules below. Shorter CLI output, smaller tool schemas, lower cost on one category, or a faster but invalid drawing do not satisfy this claim. The task manifest, scorer and arm implementations must be committed before running the scored models; changes after seeing results create a new version and restart the evaluation.
 
 ## Tasks and arms

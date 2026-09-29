@@ -25,6 +25,10 @@ test('real CAD proposal stays pending until approval and exports a reopenable KJ
   await page.getByTestId('settings-model').fill('browser-fixture')
   await page.getByTestId('settings-key').fill('browser-test-key')
   await page.getByTestId('settings-save').click()
+  await expect(page.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveAttribute('content', /script-src 'self'/)
+  await expect(page.locator('meta[name="referrer"]')).toHaveAttribute('content', 'no-referrer')
+  expect(await page.evaluate(() => JSON.stringify({local: {...localStorage}, session: {...sessionStorage}}).includes('browser-test-key'))).toBe(false)
+  await expect(page.getByTestId('settings-key')).toHaveValue('')
 
   const card = page.getByTestId('drawing-result')
   await expect(card).toBeVisible()

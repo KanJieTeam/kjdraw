@@ -25,6 +25,12 @@ kjdraw-review --workspace <absolute-workspace-path> --ledger <returned-ledger-pa
 
 The reviewer writes independently checked KJD/DXF candidates without overwriting the source. `kjdraw agent tools <name>` provides the live argument schema; the Skill should use a high-level drawing tool rather than emit hundreds of primitives.
 
+## Browser chat: data flow and limits
+
+The separate [KJDraw AI chat](https://kanjieteam.github.io/kjdraw/ai/) is an optional, bring-your-own-key preview. Its static GitHub Pages frontend sends the API key in an authorization header **directly to the HTTPS endpoint you enter**; it also sends your prompt, recent conversation and the drawing context needed for that request. KJDraw does not host a model proxy. Do not enter a key or customer drawing unless you trust that endpoint and are allowed to share the data with it.
+
+The key is kept in the page's memory, not local or session storage, and is cleared when the page closes. Requests omit browser credentials, reject redirects and require CORS permission from the chosen provider; many provider APIs therefore cannot be used directly from a browser. A self-only script policy and no third-party scripts reduce exposure, but the static site's CSP meta tag is **not** equivalent to server response headers or a security certification. On a shared computer, close the tab after use. Browser tests currently exercise mocked model responses, not independent live-provider compatibility. Every CAD change remains a proposal until approved.
+
 ## Existing optional MCP installer
 
 Run one command from any directory. KJDraw installs for the current operating-system user and does not receive your model API key.

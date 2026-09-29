@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="theme-color" content="#f7f8f5">
   <meta name="description" content="KJDraw AI：用自然语言创建和修改可审阅的工程图纸。">
   <title>KJDraw AI — 对话式工程绘图</title>
@@ -68,7 +70,7 @@
             <button class="send-button" id="chat-send" data-testid="chat-send" type="submit" aria-label="发送消息"><span data-text="send">发送</span><span aria-hidden="true">↗</span></button>
           </div>
         </form>
-        <p class="disclaimer" data-text="disclaimer">AI 生成的工程图需由你审核。模型连接由你配置；密钥仅保留在当前页面内存中。</p>
+        <p class="disclaimer" data-text="disclaimer">对话及所需图纸上下文会发送给你选择的模型服务商；密钥仅保留在当前页面内存中。工程图须由你审核。</p>
       </div>
     </main>
   </div>
@@ -79,7 +81,7 @@
         <div><div class="dialog-eyebrow" data-text="connectionSettings">模型连接</div><h2 id="settings-title" data-text="connectModel">连接你的模型</h2></div>
         <button class="icon-button" id="settings-close" type="button" aria-label="关闭设置">×</button>
       </div>
-      <p class="dialog-intro" data-text="settingsIntro">使用支持浏览器跨域请求的 OpenAI 兼容接口。API 密钥只保留在当前页面内存中。</p>
+      <p class="dialog-intro" data-text="settingsIntro">使用支持浏览器跨域请求的 OpenAI 兼容接口。你的密钥、对话及绘图上下文会发送到所填接口；密钥不写入浏览器持久存储。</p>
       <label for="settings-endpoint" data-text="endpoint">API 地址</label>
       <input id="settings-endpoint" data-testid="settings-endpoint" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://api.example.com/v1">
       <label for="settings-model" data-text="model">模型名称</label>
