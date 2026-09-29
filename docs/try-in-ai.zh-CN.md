@@ -6,10 +6,10 @@
 
 ```sh
 npm install -g @kanjieteam/kjdraw@next
-npx skills add KanJieTeam/kjdraw --skill kjdraw-cad -g -a codex -a claude-code -a cursor -y
+npx skills add KanJieTeam/kjdraw -g
 ```
 
-只使用其中一个智能体，就只保留对应的 `-a` 参数。`npx skills add` 只安装指令，**不会安装 CAD 引擎**；前一行 npm 命令负责安装引擎。用 `kjdraw agent tools cad_propose_circles` 验证安装。只想临时查看工具时也能运行 `npx --yes --package=@kanjieteam/kjdraw@1.0.0-rc.3 kjdraw agent tools cad_propose_circles`，但日常使用 Skill 仍需要持久可用的 `kjdraw` 命令。
+Skills CLI 会找到仓库中唯一的 `kjdraw-cad` Skill，并检测本机已安装的智能体；如有提示，选择目标即可。它只安装指令，**不会安装 CAD 引擎**；前一行 npm 命令负责安装引擎。用 `kjdraw agent tools cad_propose_circles` 验证安装。只想临时查看工具时也能运行 `npx --yes --package=@kanjieteam/kjdraw@1.0.0-rc.3 kjdraw agent tools cad_propose_circles`，但日常使用 Skill 仍需要持久可用的 `kjdraw` 命令。
 
 本地冒烟测试：在测试工作区新建 `circle.json`，内容为 `{"expectedRevision":0,"units":"millimeter","circles":[{"center":{"x":0,"y":0},"radius":5}]}`，然后在该目录运行：
 

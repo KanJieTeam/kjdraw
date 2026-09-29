@@ -35,20 +35,20 @@ KJDraw gives any model or agent the same CAD execution layer: **the model decide
 
 ## 🚀 Quick start
 
-For Codex, Claude Code or Cursor, install the CAD runtime and the `kjdraw-cad` Skill (Node.js 22+):
+To use KJDraw in an AI agent (Node.js 22+), install the runtime, then add the Skill:
 
 ```sh
 npm install -g @kanjieteam/kjdraw@next
-npx skills add KanJieTeam/kjdraw --skill kjdraw-cad -g -a codex -a claude-code -a cursor -y
+npx skills add KanJieTeam/kjdraw -g
 ```
 
-Install only for the agents you use by removing the other `-a` options. Restart your agent, then ask:
+The second command finds the single `kjdraw-cad` Skill and lets you choose your AI client (including Codex, Claude Code and Cursor). Restart that client, then ask:
 
 ```text
 Use KJDraw to draw a circle with a radius of 5 mm.
 ```
 
-The Skill calls `kjdraw agent` locally; **no MCP registration or model API key is needed by KJDraw**. `npx skills add` installs the Skill instructions, while `npm install -g` installs the CAD engine. Edits remain proposals until a human approves them. [Other agents, verification and optional MCP setup](docs/try-in-ai.md).
+The Skill calls `kjdraw agent` locally; **no MCP registration or model API key is needed by KJDraw**. These are two different installs: npm provides the CAD engine, while the Skills CLI adds its instructions to your chosen agent. Edits remain proposals until a human approves them. [Other agents, non-interactive installation and optional MCP setup](docs/try-in-ai.md).
 
 ## What you can build
 
@@ -71,7 +71,9 @@ The Skill calls `kjdraw agent` locally; **no MCP registration or model API key i
 
 KJDraw is a CAD engine and execution layer. It is not trying to replace desktop CAD.
 
-## 📦 Add CAD to your app
+## 📦 Embed CAD in your app
+
+Building a JavaScript or TypeScript app? Install the SDK in your project instead. You can skip this section if you only use the AI-agent Skill above.
 
 ```bash
 npm install @kanjieteam/kjdraw@next

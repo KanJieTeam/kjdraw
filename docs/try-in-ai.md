@@ -6,10 +6,10 @@ For a terminal-capable agent, install Node.js 22+, the published CAD runtime, an
 
 ```sh
 npm install -g @kanjieteam/kjdraw@next
-npx skills add KanJieTeam/kjdraw --skill kjdraw-cad -g -a codex -a claude-code -a cursor -y
+npx skills add KanJieTeam/kjdraw -g
 ```
 
-Keep only the `-a` options for agents you use. `npx skills add` installs instructions, **not** the CAD engine; the global npm command installs the engine. Verify the installed CLI with `kjdraw agent tools cad_propose_circles`. If you only want to inspect a tool without installing globally, `npx --yes --package=@kanjieteam/kjdraw@1.0.0-rc.3 kjdraw agent tools cad_propose_circles` also works, but the Skill needs a persistent `kjdraw` command for normal use.
+The Skills CLI finds the repository's single `kjdraw-cad` Skill and detects installed agents; choose a target when prompted. It installs instructions, **not** the CAD engine; the global npm command installs the engine. Verify the installed CLI with `kjdraw agent tools cad_propose_circles`. If you only want to inspect a tool without installing globally, `npx --yes --package=@kanjieteam/kjdraw@1.0.0-rc.3 kjdraw agent tools cad_propose_circles` also works, but the Skill needs a persistent `kjdraw` command for normal use.
 
 For a local smoke test, create `circle.json` in a test workspace containing `{"expectedRevision":0,"units":"millimeter","circles":[{"center":{"x":0,"y":0},"radius":5}]}`, then run there:
 

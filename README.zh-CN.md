@@ -35,20 +35,20 @@ KJDraw 给不同的模型和智能体提供同一套 CAD 执行层：**模型负
 
 ## 🚀 快速开始
 
-在 Codex、Claude Code 或 Cursor 中，先安装 CAD 运行时和 `kjdraw-cad` Skill（需要 Node.js 22+）：
+在 AI 智能体中使用（需要 Node.js 22+），先安装引擎，再添加 Skill：
 
 ```sh
 npm install -g @kanjieteam/kjdraw@next
-npx skills add KanJieTeam/kjdraw --skill kjdraw-cad -g -a codex -a claude-code -a cursor -y
+npx skills add KanJieTeam/kjdraw -g
 ```
 
-只用其中一个智能体，就保留对应的 `-a` 参数。重启智能体后，直接说：
+第二条命令会找到仓库中唯一的 `kjdraw-cad` Skill，并让你选择使用的智能体（包括 Codex、Claude Code、Cursor）。重启智能体后，直接说：
 
 ```text
 用 KJDraw 画一个半径 5 毫米的圆。
 ```
 
-Skill 在本地调用 `kjdraw agent`，**不用注册 MCP，也不用把模型 API Key 给 KJDraw**。`npx skills add` 安装使用说明，`npm install -g` 安装 CAD 引擎。修改会先生成待审提案，须由真人批准。[其他智能体、验证方法与可选 MCP 接入](docs/try-in-ai.zh-CN.md)。
+Skill 在本地调用 `kjdraw agent`，**不用注册 MCP，也不用把模型 API Key 给 KJDraw**。这里的两次安装各有用途：npm 安装 CAD 引擎，Skills CLI 把使用说明放进你选择的智能体。修改会先生成待审提案，须由真人批准。[其他智能体、免交互安装与可选 MCP 接入](docs/try-in-ai.zh-CN.md)。
 
 ## 核心能力
 
@@ -71,7 +71,9 @@ Skill 在本地调用 `kjdraw agent`，**不用注册 MCP，也不用把模型 A
 
 KJDraw 是 CAD 引擎和执行层，不打算取代桌面 CAD。
 
-## 📦 接入你的应用
+## 📦 在应用中嵌入 CAD
+
+如果你开发 JavaScript 或 TypeScript 应用，在项目中安装 SDK；只用上面的智能体 Skill，无需执行这一步。
 
 ```bash
 npm install @kanjieteam/kjdraw@next
