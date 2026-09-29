@@ -19,7 +19,7 @@ description: Use KJDraw to inspect, measure, create, or precisely edit reviewabl
 
 - 现有图纸：先调用 `cad_read_drawing` 并保留其 revision。窄范围分页或查询，不得假定被省略的内容。
 - 新建图纸：优先选择与需求完全匹配的单个高层编译器。只有没有专用编译器时，才使用通用标注、阵列、紧凑或基础图元提案。
-- 只有线、圆、圆弧或直边折线的简单图形，且无需重复阵列和标注时，使用 `cad_propose_drawing_basic`；只传非空几何组。不要为简单图形加载完整通用绘图 schema。
+- 只有线、圆、圆弧或直边折线的简单图形，且无需重复阵列和标注时，先查询 `cad_propose_drawing_basic` 是否可用；可用才调用它，并只传非空几何组。已发布运行时若尚无此工具，改用同样受审批约束的 `cad_propose_drawing_compact`，按其 schema 传完整必填组；不要猜测未安装的工具，也不要为简单图形加载完整通用绘图 schema。
 - 用户明确要求黄土地区示例剖面、给出孔数/深度但没有实测分层表时，直接调用 `cad_propose_geology_section_example` 一次；只传用户给出的孔数、深度和孔距，不要手工编造钻孔、地层或连线。工具会把结果永久标明为示意数据、非实测。
 - 用户要求勘探点平面图但没有实测坐标时，调用 `cad_propose_geology_plan_example` 一次，沿用用户明确给出的孔数和深度；不得退化为 `cad_propose_drawing_annotated`，也不得把草图拼在剖面图右侧。已有示意剖面时，专用工具会增加独立 A3 布局。
 - 用户提供实测坐标、场地边界和剖面线关系时，调用 `cad_propose_geology_plan`；工程坐标事实始终以米输入，即使宿主图纸单位是毫米。

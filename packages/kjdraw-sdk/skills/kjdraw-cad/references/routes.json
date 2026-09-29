@@ -42,7 +42,7 @@
         "cad_propose_lines",
         "cad_propose_circles"
       ],
-      "rule": "只调用一次与需求匹配的高层编译器。仅需直线、圆、圆弧和直边折线且无重复阵列或标注时，优先使用 cad_propose_drawing_basic；复杂曲线、填充再用 compact，标注用 annotated，重复图形用 pattern。不得把已支持的工程对象拆成大量重复基础图元调用。"
+      "rule": "只调用一次与需求匹配的高层编译器。仅需直线、圆、圆弧和直边折线且无重复阵列或标注时，先查询 cad_propose_drawing_basic 是否可用；已发布运行时若没有此工具，改用现有 cad_propose_drawing_compact 并遵守其完整 schema。复杂曲线、填充用 compact，标注用 annotated，重复图形用 pattern。不得把已支持的工程对象拆成大量重复基础图元调用。"
     },
     {
       "id": "modify",

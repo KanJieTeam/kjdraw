@@ -20,6 +20,7 @@ test('published package carries one canonical KJDraw agent skill with no scaffol
   assert.match(source, /仅生成待审核提案/)
   assert.match(source, /references\/routes\.json/)
   assert.match(source, /references\/acceptance\.md/)
+  assert.match(source, /cad_propose_drawing_basic.*cad_propose_drawing_compact/s)
 })
 
 test('skill routes reference only real MCP tools and prefer every production drawing compiler', async () => {
@@ -35,6 +36,8 @@ test('skill routes reference only real MCP tools and prefer every production dra
   for (const name of referenced) assert.equal(available.has(name), true, `unknown routed tool ${name}`)
   assert.deepEqual(manifest.routes[2].relationshipChecks, ['cad_query_topology'])
   assert.deepEqual(manifest.routes[2].eraseImpactCheck, ['cad_query_impact'])
+  assert.ok(manifest.routes[1].boundedFallbacks.indexOf('cad_propose_drawing_basic') < manifest.routes[1].boundedFallbacks.indexOf('cad_propose_drawing_compact'))
+  assert.match(manifest.routes[1].rule, /没有此工具.*cad_propose_drawing_compact/)
   assert.deepEqual(manifest.routes[1].preferredCompilers, [
     'cad_propose_geology_column',
     'cad_propose_geology_section_example',
