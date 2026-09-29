@@ -106,15 +106,18 @@ test('package candidate CLI writes reviewable evidence for the checked-out candi
   assert.deepEqual(await readFile(outputPath), before)
 })
 
-test('release readiness requires exact package install candidate evidence', () => {
+test('release readiness reports missing exact package install evidence at the correct gate', () => {
   const missing = join(tmpdir(), `kjdraw-missing-package-install-${process.pid}.json`)
   const result = spawnSync(process.execPath, ['scripts/audits/release-readiness.mjs', '--require-ready'], {
     cwd: root,
     encoding: 'utf8',
     env: { ...process.env, KJDRAW_PACKAGE_INSTALL_CANDIDATE_EVIDENCE: missing },
   })
-  assert.equal(result.status, 1)
   const report = JSON.parse(result.stdout)
+  // An RC may publish with CI's packed-package check while this stronger
+  // exact-artifact evidence is pending; stable 1.0 cannot.
+  assert.equal(result.status, report.releaseCandidate ? 0 : 1)
+  assert.equal(report.ready, false)
   assert.equal(report.pendingCandidateVerification.some(finding => finding.code === 'PACKAGE_INSTALL_CANDIDATE_EVIDENCE_REQUIRED'), true)
   assert.equal(report.packageInstallCandidate.valid, false)
 })
