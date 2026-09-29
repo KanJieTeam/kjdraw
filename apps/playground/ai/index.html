@@ -18,7 +18,7 @@
       <div class="sidebar-top">
         <a class="brand" href="../ai/" aria-label="KJDraw AI 首页">
           <img src="../docs/assets/mark.svg" width="28" height="28" alt="">
-          <span>KJDraw <em>AI</em></span>
+          <span>KJDraw</span>
         </a>
         <button class="icon-button sidebar-close" id="sidebar-close" type="button" aria-label="关闭侧栏">×</button>
       </div>
@@ -41,17 +41,15 @@
         </div>
         <div class="topbar-actions">
           <span class="connection-pill" id="connection-pill"><span class="connection-dot"></span><span data-text="notConnected">未连接模型</span></span>
-          <button class="topbar-button" id="settings-open" type="button" aria-haspopup="dialog" data-testid="settings-open"><span aria-hidden="true">⚙</span><span data-text="connect">连接模型</span></button>
+          <button class="topbar-button" id="settings-open" type="button" aria-haspopup="dialog" data-testid="settings-open"><span data-text="connect">连接模型</span></button>
           <button class="lang-button" id="language-button" type="button" aria-label="Switch to English">EN</button>
         </div>
       </header>
 
       <section class="conversation" id="conversation" aria-label="聊天消息">
         <div class="empty-state" id="empty-state" data-testid="chat-empty">
-          <div class="hero-mark" aria-hidden="true"><span class="hero-grid"></span><span class="hero-line"></span><span class="hero-dot"></span></div>
-          <div class="hero-eyebrow">KJDRAW / AI</div>
-          <h1 data-text="heroTitle">一句话，开始画工程图。</h1>
-          <p data-text="heroDescription">描述你的图纸需求。每一步修改都能预览、检查，再决定是否应用。</p>
+          <h1 data-text="heroTitle">今天想画什么图？</h1>
+          <p data-text="heroDescription">描述需求，检查提案，然后再应用到可编辑图纸。</p>
           <div class="suggestions" aria-label="示例需求">
             <button type="button" data-prompt="line" data-text="suggestLine">画一条 100 mm 水平线</button>
             <button type="button" data-prompt="circle" data-text="suggestCircle">画一个半径 25 mm 的圆</button>
@@ -81,13 +79,27 @@
         <div><div class="dialog-eyebrow" data-text="connectionSettings">模型连接</div><h2 id="settings-title" data-text="connectModel">连接你的模型</h2></div>
         <button class="icon-button" id="settings-close" type="button" aria-label="关闭设置">×</button>
       </div>
-      <p class="dialog-intro" data-text="settingsIntro">使用支持浏览器跨域请求的 OpenAI 兼容接口。你的密钥、对话及绘图上下文会发送到所填接口；密钥不写入浏览器持久存储。</p>
-      <label for="settings-endpoint" data-text="endpoint">API 地址</label>
-      <input id="settings-endpoint" data-testid="settings-endpoint" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://api.example.com/v1">
-      <label for="settings-model" data-text="model">模型名称</label>
-      <input id="settings-model" data-testid="settings-model" type="text" autocomplete="off" spellcheck="false" placeholder="model-name">
+      <p class="dialog-intro" data-text="settingsIntro">选择常用模型，或填写自己的接口。密钥、对话和绘图上下文会发给所选服务商；密钥不保存在浏览器中。</p>
+      <div class="settings-pair">
+        <div><label for="settings-provider" data-text="provider">服务商</label><select id="settings-provider" data-testid="settings-provider"></select></div>
+        <div><label for="settings-common-model" data-text="commonModel">常用模型</label><select id="settings-common-model" data-testid="settings-common-model"></select></div>
+      </div>
       <label for="settings-key" data-text="apiKey">API 密钥</label>
       <input id="settings-key" data-testid="settings-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…">
+      <details class="connection-details" id="settings-details" open>
+        <summary data-text="connectionDetails">连接详情与自定义</summary>
+        <label for="settings-endpoint" data-text="endpoint">API 地址</label>
+        <input id="settings-endpoint" data-testid="settings-endpoint" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://api.example.com/v1">
+        <label for="settings-model" data-text="model">模型名称</label>
+        <input id="settings-model" data-testid="settings-model" type="text" autocomplete="off" spellcheck="false" placeholder="model-name">
+        <label for="settings-protocol" data-text="protocol">接口协议</label>
+        <select id="settings-protocol" data-testid="settings-protocol">
+          <option value="chat-completions">OpenAI Chat Completions</option>
+          <option value="responses">OpenAI Responses</option>
+          <option value="anthropic-messages">Anthropic Messages</option>
+          <option value="gemini-generate-content">Gemini</option>
+        </select>
+      </details>
       <p class="settings-error" id="settings-error" role="alert" hidden></p>
       <div class="dialog-actions">
         <button class="secondary-button" id="settings-cancel" type="button" data-text="cancel">取消</button>

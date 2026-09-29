@@ -10,7 +10,7 @@ Existing 100-task token pilots and their v1–v3 iterations are **development ev
 
 ## Dependency order
 
-1. Finish an entity/resource semantic diff and independent DXF comparator, including an explicit policy for DXF internal-ID regeneration. The initial [read-only entity diff helper](../../scripts/benchmarks/semantic-entity-diff.mjs) reports exact KJD ID changes, untouched entities and handle-associated ID churn; it is **not yet** a complete resource-aware, tolerance-aware scorer or a public SDK API.
+1. Finish the independent DXF comparator, including an explicit policy for DXF internal-ID regeneration. The [read-only document diff helper](../../scripts/benchmarks/semantic-entity-diff.mjs) now reports exact KJD entity, table-object and document-resource changes, untouched entities and handle-associated ID churn. It remains a benchmark primitive, **not** a tolerance-aware independent scorer or public SDK API.
 2. Decide the published tool surface and vertical planner package boundary, then freeze the exact npm package, Skill, CLI, schemas and source hash. Do not change tools midway through a scored batch. Formatting-only changes may proceed independently.
 3. Freeze this protocol's manifest and scorer; run offline fixtures and a small **development-only** smoke set. Resolve scorer disagreement before exposing holdout answers.
 4. Run the paid, paired three-arm study and publish every attempted, failed, timed-out and unexecuted unit.
@@ -48,4 +48,4 @@ Before a stable 1.0 claim, ask **12 first-time users** who did not build the pro
 
 Archive the frozen manifest/scorer/arm hashes, npm package integrity, Python/`ezdxf` versions, model request IDs and returned names, redacted requests/responses, proposal/review receipts, every intermediate KJD/DXF, validator reports, failure reasons and replay commands. Never archive API keys or customer drawings without explicit rights. A provider quota/auth error stops that provider's remaining work; unexecuted units stay in the denominator and report. Never manually patch a failed output or tune against the holdout, then present the rerun as the original preregistered score.
 
-This draft establishes the order and acceptance rules. The manifest, resource-aware scorer, isolated programming-Agent executor and independent holdout custody are **not yet implemented**, so no scored run is authorized by this document.
+This draft establishes the order and acceptance rules. The manifest, independent tolerance-aware DXF scorer, isolated programming-Agent executor and independent holdout custody are **not yet implemented**, so no scored run is authorized by this document.

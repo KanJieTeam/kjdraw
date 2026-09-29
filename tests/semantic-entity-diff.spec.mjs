@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { captureSemanticEntityState, diffSemanticEntityStates } from '../scripts/benchmarks/semantic-entity-diff.mjs'
+import { captureSemanticEntityState, diffSemanticEntityStates, captureSemanticDocumentState, diffSemanticDocumentStates } from '../scripts/benchmarks/semantic-entity-diff.mjs'
 import { createKJDrawSDK } from '../packages/kjdraw-sdk/src/sdk.js'
 import { KJAgentToolSession } from '../packages/kjdraw-sdk/src/agent-tools.js'
 
@@ -60,4 +60,42 @@ test('real approved CAD edit changes only its target; KJD reopen keeps the entit
   const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(drawing, { format: 'KJD' }), { format: 'KJD' })
   assert.deepEqual(diffSemanticEntityStates(after, captureSemanticEntityState(reopened)).added, [])
   assert.deepEqual(reopened.listEntities().map(item => item.id).sort(), drawing.listEntities().map(item => item.id).sort())
+})
+
+test('document diff includes table records and resource changes without blaming untouched entities', async () => {
+  const sdk = createKJDrawSDK()
+  const drawing = sdk.createDocument({ documentId: 'resource-diff-fixture', units: 'millimeter' })
+  await drawing.transact('Seed protected entity', tx => {
+    tx.createEntity('CIRCLE', { center: [0, 0, 0], radius: 5 }, { id: 'protected' })
+  })
+  const before = captureSemanticDocumentState(drawing)
+  await drawing.transact('Add a layer and hatch', tx => {
+    tx.upsertTableRecord('layers', { id: 'review-layer', name: 'REVIEW', type: 'LAYER', payload: { visible: true } })
+    tx.putResource('hatches', 'review-hatch', { id: 'review-hatch', name: 'REVIEW' })
+  })
+  const after = captureSemanticDocumentState(drawing)
+  const diff = diffSemanticDocumentStates(before, after)
+  assert.deepEqual(diff.entities.unchanged, ['protected'])
+  assert.deepEqual(diff.entities.unexpectedExistingChanges, [])
+  assert.deepEqual(diff.resourceObjects.added, ['review-layer'])
+  assert.ok(diff.documentPaths.includes('/resources/hatches/review-hatch'))
+  assert.ok(diff.documentPaths.includes('/tables/layers/recordIds'))
+  assert.ok(diff.unexpectedDocumentPaths.length > 0)
+  const allowed = diffSemanticDocumentStates(before, after, {
+    allowedChangedDocumentPaths: ['/resources/hatches/review-hatch', '/tables/layers/recordIds', '/header/handseed'],
+  })
+  assert.deepEqual(allowed.unexpectedDocumentPaths, [])
+  assert.equal(Object.isFrozen(after.resourceObjects[0]), true)
+})
+
+test('document diff reports changes to a pre-existing layer by its stable object ID', async () => {
+  const drawing = createKJDrawSDK().createDocument({ documentId: 'layer-diff-fixture' })
+  const layerId = drawing.snapshot().tables.layers.currentId
+  const before = captureSemanticDocumentState(drawing)
+  await drawing.transact('Change layer visibility', tx => {
+    tx.updateObject(layerId, { payload: { visible: false } })
+  })
+  const diff = diffSemanticDocumentStates(before, captureSemanticDocumentState(drawing))
+  assert.deepEqual(diff.resourceObjects.unexpectedExistingChanges, [layerId])
+  assert.ok(diff.resourceObjects.modified[0].fields.includes('/payload/visible'))
 })

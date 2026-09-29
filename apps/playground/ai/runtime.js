@@ -4,18 +4,21 @@ import { runKJAgentTask } from '../../../packages/kjdraw-sdk/src/agent-runner.js
 import { KJCanvasRenderer } from '../../../packages/kjdraw-sdk/src/canvas-renderer.js'
 import { displayedEntityBounds } from '../../../packages/kjdraw-sdk/src/selection-geometry.js'
 import { createChatModelAdapter, readChatModelResponse } from '../chat-model-settings.js'
+import { getChatModelAdapterOptions } from '../chat-model-presets.js'
 import { getKJDrawChatCapabilityForRequest, getKJDrawChatToolNamesForRequest } from '../agent-chat.js'
 
 const MAX_PROMPT_LENGTH = 16000
 const CONNECTION_ERROR = '模型连接失败。请检查地址、网络及服务商的浏览器 CORS 设置；图纸未修改。'
 
-function connectionSettings({ endpoint, model, apiKey } = {}) {
+const SUPPORTED_PROTOCOLS = new Set(['chat-completions', 'responses', 'anthropic-messages', 'gemini-generate-content'])
+
+function connectionSettings({ endpoint, model, apiKey, provider = 'custom', protocol = 'chat-completions' } = {}) {
   const name = typeof model === 'string' ? model.trim() : ''
   const key = typeof apiKey === 'string' ? apiKey.trim() : ''
   if (!endpoint && !name && !key) return null
   let url
   try { url = new URL(endpoint) } catch { throw new Error('请输入完整的模型 API 地址。') }
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash || !name) {
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash || !name || !SUPPORTED_PROTOCOLS.has(protocol)) {
     throw new Error('请输入有效的模型 API 地址和模型名称。')
   }
   if (url.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) {
@@ -24,7 +27,7 @@ function connectionSettings({ endpoint, model, apiKey } = {}) {
   if (key && url.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) {
     throw new Error('不能通过不安全连接发送 API Key。')
   }
-  return { url: url.href, model: name, apiKey: key }
+  return { url: url.href, model: name, apiKey: key, provider, protocol }
 }
 
 function errorResult(code, message) { return { status: 'error', text: '', error: { code, message } } }
@@ -92,13 +95,23 @@ export function createAiChatRuntime(options = {}) {
     try {
       const current = connection
       const model = createChatModelAdapter({
-        protocol: 'chat-completions', model: current.model, maxOutputTokens: 4096,
+        protocol: current.protocol, model: current.model, maxOutputTokens: 4096,
+        ...getChatModelAdapterOptions(current.provider, current.model),
         request: async ({ body, signal: requestSignal }) => {
           let response
           try {
+            const headers = { 'Content-Type': 'application/json' }
+            if (current.apiKey) {
+              if (current.protocol === 'anthropic-messages') {
+                headers['x-api-key'] = current.apiKey
+                headers['anthropic-version'] = '2023-06-01'
+                headers['anthropic-dangerous-direct-browser-access'] = 'true'
+              } else if (current.protocol === 'gemini-generate-content') headers['x-goog-api-key'] = current.apiKey
+              else headers.Authorization = `Bearer ${current.apiKey}`
+            }
             response = await fetchImpl(current.url, {
               method: 'POST', mode: 'cors', credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer',
-              headers: { 'Content-Type': 'application/json', ...(current.apiKey ? { Authorization: `Bearer ${current.apiKey}` } : {}) },
+              headers,
               body: JSON.stringify(body), signal: requestSignal,
             })
           } catch {

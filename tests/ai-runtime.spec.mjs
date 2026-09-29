@@ -51,6 +51,32 @@ test('browser transport failures surface as connection errors without a drawing 
   } finally { chat.destroy() }
 })
 
+test('Anthropic preset uses its own wire protocol and key header', async () => {
+  const calls = []
+  const chat = createAiChatRuntime({
+    endpoint: 'https://api.anthropic.com/v1/messages', model: 'claude-sonnet-5',
+    provider: 'anthropic', protocol: 'anthropic-messages', apiKey: 'test-memory-key',
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init })
+      return new Response(JSON.stringify({
+        id: 'msg_fixture', type: 'message', role: 'assistant', model: 'claude-sonnet-5',
+        content: [{ type: 'text', text: 'Please provide dimensions.' }], stop_reason: 'end_turn',
+        usage: { input_tokens: 40, output_tokens: 6 },
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    },
+  })
+  try {
+    const result = await chat.send('Can you draw a plan?')
+    assert.equal(result.status, 'message', JSON.stringify(result.error))
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].init.headers['x-api-key'], 'test-memory-key')
+    assert.equal(calls[0].init.headers.Authorization, undefined)
+    assert.equal(calls[0].init.headers['anthropic-dangerous-direct-browser-access'], 'true')
+    assert.equal(JSON.parse(calls[0].init.body).model, 'claude-sonnet-5')
+    assert.equal(chat.revision, 0)
+  } finally { chat.destroy() }
+})
+
 test('model text remains a message and never masquerades as a CAD proposal', async () => {
   const chat = createAiChatRuntime({
     endpoint: 'https://example.invalid/v1/chat/completions', model: 'mock-model',

@@ -23,7 +23,9 @@ function changedPaths(before, after, path = '') {
   const afterObject = after !== null && typeof after === 'object' && !afterArray
   if (beforeObject && afterObject) {
     return sorted(new Set([...Object.keys(before), ...Object.keys(after)]))
-      .flatMap(key => changedPaths(before[key], after[key], pointer(path, key)))
+      .flatMap(key => Object.hasOwn(before, key) !== Object.hasOwn(after, key)
+        ? [pointer(path, key)]
+        : changedPaths(before[key], after[key], pointer(path, key)))
   }
   return [path || '/']
 }
@@ -87,10 +89,80 @@ export function diffSemanticEntityStates(before, after, { allowedChangedIds = []
         fieldsWithoutId: changedPaths({ ...prior.get(matches[0]), id: null }, { ...next.get(id), id: null }) })
     }
   }
-  return Object.freeze({
+  return deepFreeze({
     schema: 'kjdraw-semantic-entity-diff@1',
     beforeRevision: before.revision, afterRevision: after.revision,
     added, removed, modified, unchanged, idChurnByHandle,
     unexpectedExistingChanges: sorted([...removed, ...modified.map(change => change.id)].filter(id => !allowed.has(id))),
+  })
+}
+
+/** Include erased records: a delete must not hide changes to the object graph. */
+export function captureSemanticDocumentState(document) {
+  if (!document || typeof document.snapshot !== 'function') throw new TypeError('A KJDraw document snapshot is required')
+  const state = document.snapshot()
+  if (!state || !state.objects || !state.tables || !state.resources) throw new TypeError('A complete KJD document state is required')
+  const records = Object.entries(state.objects)
+  if (records.some(([id, record]) => !id || record?.id !== id)) throw new Error('Document object keys and IDs must match')
+  const entities = [], resourceObjects = []
+  for (const [, record] of records) (record.kind === 'entity' ? entities : resourceObjects).push(structuredClone(record))
+  const order = (left, right) => left.id.localeCompare(right.id)
+  return deepFreeze({
+    documentId: state.documentId,
+    revision: state.revision,
+    entities: entities.sort(order),
+    resourceObjects: resourceObjects.sort(order),
+    header: structuredClone(state.header),
+    tables: structuredClone(state.tables),
+    spaces: structuredClone(state.spaces),
+    resources: structuredClone(state.resources),
+    opaquePayloads: structuredClone(state.opaquePayloads),
+    namedObjectsDictionaryId: state.namedObjectsDictionaryId,
+    metadata: { ...structuredClone(state.metadata), modifiedAt: null },
+  })
+}
+
+function changesOutsideAllowed(paths, allowedPaths) {
+  const allowed = [...allowedPaths].map(path => String(path).replace(/\/$/, ''))
+  return paths.filter(path => !allowed.some(prefix => path === prefix || path.startsWith(`${prefix}/`)))
+}
+
+/**
+ * Exact KJD object/resource diff for untouched-object scoring. Tolerances and
+ * DXF semantic matching belong in the independent benchmark validator.
+ */
+export function diffSemanticDocumentStates(before, after, {
+  allowedChangedEntityIds = [],
+  allowedChangedResourceObjectIds = [],
+  allowedChangedDocumentPaths = [],
+} = {}) {
+  if (!Array.isArray(before?.resourceObjects) || !Array.isArray(after?.resourceObjects)) {
+    throw new TypeError('Captured document states are required')
+  }
+  const entities = diffSemanticEntityStates(before, after, { allowedChangedIds: allowedChangedEntityIds })
+  const resourceObjects = diffSemanticEntityStates(
+    { revision: before.revision, entities: before.resourceObjects },
+    { revision: after.revision, entities: after.resourceObjects },
+    { allowedChangedIds: allowedChangedResourceObjectIds },
+  )
+  const context = state => ({
+    documentId: state.documentId,
+    header: state.header,
+    tables: state.tables,
+    spaces: state.spaces,
+    resources: state.resources,
+    opaquePayloads: state.opaquePayloads,
+    namedObjectsDictionaryId: state.namedObjectsDictionaryId,
+    metadata: state.metadata,
+  })
+  const documentPaths = changedPaths(context(before), context(after))
+  return deepFreeze({
+    schema: 'kjdraw-semantic-document-diff@1',
+    beforeRevision: before.revision,
+    afterRevision: after.revision,
+    entities,
+    resourceObjects,
+    documentPaths,
+    unexpectedDocumentPaths: changesOutsideAllowed(documentPaths, allowedChangedDocumentPaths),
   })
 }
