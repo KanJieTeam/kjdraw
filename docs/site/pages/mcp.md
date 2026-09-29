@@ -8,13 +8,13 @@ summary.zh: 通过 MCP 向智能体提供有界图纸读取与可审核提案，
 :::en
 ## Start a local stdio server {#start-server}
 
-The MCP executable is part of the **1.0.0-rc.4 source candidate**, not necessarily the package currently served by npm's `next` tag. Check whether that exact version is published before installing it:
+The MCP executable is included in the published **1.0.0-rc.4** package on npm's `next` channel. Verify the exact version before installing so later channel moves do not change your setup:
 
 ```sh
 npm view @kanjieteam/kjdraw@1.0.0-rc.4 version
 ```
 
-If the registry does not return `1.0.0-rc.4`, follow the [source-checkout installation](https://kanjieteam.github.io/kjdraw/docs/latest/installation/#en-installation-release-channels); do not install `@next` and assume it contains the rc.4 behavior. Once the exact version is published, install it in a host-owned Node.js 22+ project:
+If your registry mirror does not return `1.0.0-rc.4`, wait for it to synchronize or follow the [source-checkout installation](https://kanjieteam.github.io/kjdraw/docs/latest/installation/#en-installation-release-channels). Install the pinned version in a host-owned Node.js 22+ project:
 
 ```sh
 npm install @kanjieteam/kjdraw@1.0.0-rc.4
@@ -81,13 +81,13 @@ Run `node node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs --check-tool-schema
 :::zh
 ## 启动本地 stdio 服务 {#start-server}
 
-MCP 可执行文件属于 **1.0.0-rc.4 源码候选版**，npm `next` 标签当前不一定提供该版本的行为。安装前先查询这个确切版本是否已发布：
+MCP 可执行文件已包含在 npm `next` 渠道发布的 **1.0.0-rc.4** 包中。先核对确切版本，避免日后渠道移动改变安装结果：
 
 ```sh
 npm view @kanjieteam/kjdraw@1.0.0-rc.4 version
 ```
 
-如果仓库未返回 `1.0.0-rc.4`，请按[源码安装步骤](https://kanjieteam.github.io/kjdraw/docs/latest/installation/#zh-installation-release-channels)操作；不要安装 `@next` 后直接假定获得 rc.4 的行为。确切版本发布后，可在宿主管理的 Node.js 22+ 工程中安装并校验：
+如果你的镜像尚未返回 `1.0.0-rc.4`，请等待同步或按[源码安装步骤](https://kanjieteam.github.io/kjdraw/docs/latest/installation/#zh-installation-release-channels)操作。然后在宿主管理的 Node.js 22+ 工程中安装固定版本并校验：
 
 ```sh
 npm install @kanjieteam/kjdraw@1.0.0-rc.4

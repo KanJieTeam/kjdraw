@@ -1,6 +1,6 @@
 # KJDraw 1.0 readiness and capability boundaries
 
-This page separates what exists in the repository from what has been verified on an immutable public release. The current source-tree candidate is `1.0.0-rc.4`; the target contract is `1.0.0`. The published `next` channel may still serve rc.3 until the rc.4 release checks and publication finish.
+This page separates what exists in the repository from what has been verified on an immutable public release. The current public candidate is `1.0.0-rc.4` on npm's `next` channel; the stable target contract is `1.0.0`. The unqualified `latest` tag still points to an older preview.
 
 Release candidates are public test artifacts. They require automated CI, Pages, packed-package, hosted candidate and provenance checks, but independent-user, three-model and real-drawing corpus acceptance remains pending until separately verified. Stable 1.0 cannot be published with those gaps.
 

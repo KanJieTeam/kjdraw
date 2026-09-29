@@ -9,7 +9,7 @@ npm install -g @kanjieteam/kjdraw@next
 npx skills add KanJieTeam/kjdraw -g
 ```
 
-Skills CLI 会找到仓库中唯一的 `kjdraw-cad` Skill，并检测本机已安装的智能体；如有提示，选择目标即可。它只安装指令，**不会安装 CAD 引擎**；前一行 npm 命令负责安装引擎。用 `kjdraw agent tools cad_propose_circles` 验证安装。只想临时查看工具时也能运行 `npx --yes --package=@kanjieteam/kjdraw@1.0.0-rc.3 kjdraw agent tools cad_propose_circles`，但日常使用 Skill 仍需要持久可用的 `kjdraw` 命令。
+Skills CLI 会找到仓库中唯一的 `kjdraw-cad` Skill，并检测本机已安装的智能体；如有提示，选择目标即可。它只安装指令，**不会安装 CAD 引擎**；前一行 npm 命令负责安装引擎。用 `kjdraw agent tools cad_propose_circles` 验证安装。只想临时查看工具时也能运行 `npx --yes --package=@kanjieteam/kjdraw@1.0.0-rc.4 kjdraw agent tools cad_propose_circles`，但日常使用 Skill 仍需要持久可用的 `kjdraw` 命令。
 
 本地冒烟测试：在测试工作区新建 `circle.json`，内容为 `{"expectedRevision":0,"units":"millimeter","circles":[{"center":{"x":0,"y":0},"radius":5}]}`，然后在该目录运行：
 
@@ -32,7 +32,7 @@ kjdraw inspect reviewed.kjd
 kjdraw inspect reviewed.dxf
 ```
 
-两个命令都应报告 `valid: true` 和预期实体；只有待审提案不算完成图纸。要复验**实际发布的 npm 包**而非仓库源码，可将 `@kanjieteam/kjdraw@1.0.0-rc.3` 安装到隔离目录，在源码检出中运行 `node scripts/audits/verify-published-agent-first-use.mjs --package-root <隔离目录/node_modules/@kanjieteam/kjdraw>`。脚本中的批准是自动化冒烟测试夹具，不能算独立真人或真实模型验收。
+两个命令都应报告 `valid: true` 和预期实体；只有待审提案不算完成图纸。要复验**实际发布的 npm 包**而非仓库源码，可将 `@kanjieteam/kjdraw@1.0.0-rc.4` 安装到隔离目录，在源码检出中运行 `node scripts/audits/verify-published-agent-first-use.mjs --package-root <隔离目录/node_modules/@kanjieteam/kjdraw>`。脚本中的批准是自动化冒烟测试夹具，不能算独立真人或真实模型验收。
 
 ## 浏览器对话：数据流与边界
 
@@ -120,7 +120,7 @@ codex mcp list
 
 以后运行同一条一行命令即可切换到安装渠道已提升的精确源码提交；这是原位更新，不必先卸载，也不用逐个项目重新配置。更新后完全退出并重启客户端，再开一个新对话，让新的 MCP 进程载入运行时。渠道不是随 `main` 自动移动的分支头；维护者应在候选验证通过后显式提升，正在执行的智能体任务不会静默下载并执行新代码。
 
-地质知识随运行时一同提供。当前源码候选已**关闭远程地质知识更新**：仓库中的可变 JSON 清单只有 SHA-256，没有可独立验证发布者身份的签名；哈希不能替代签名。此改动**不会自动修复已经安装的 rc.3 包或旧安装渠道固定的启动器**；这些旧安装应在启动环境中设置 `KJDRAW_KNOWLEDGE_UPDATES=off`，直到修复后的运行时发布并安装。未来须在发布包内固定验证公钥，并为清单签名后，才能重新开放远程或缓存知识。升级运行时后重启客户端；只更新 Skill 不会更新 CAD 引擎。
+地质知识随运行时一同提供。已发布的 rc.4 **默认关闭远程地质知识更新**：仓库中的可变 JSON 清单只有 SHA-256，没有可独立验证发布者身份的签名；哈希不能替代签名。此改动**不会自动修复已经安装的 rc.3 包或旧安装渠道固定的启动器**；这些旧安装应在启动环境中设置 `KJDRAW_KNOWLEDGE_UPDATES=off`，直到升级运行时。未来须在发布包内固定验证公钥，并为清单签名后，才能重新开放远程或缓存知识。升级后重启客户端；只更新 Skill 不会更新 CAD 引擎。
 
 ## 验证是否真正调用 KJDraw
 
@@ -141,6 +141,6 @@ codex mcp list
 
 ## 版本与验收
 
-`1.0.0-rc.3` 已发布到 npm 的 `next` 渠道；`latest` 仍是旧预览版。上面的一行 MCP 安装器使用单独锁定的源码渠道，不等于 npm 安装。正式 1.0 仍需独立用户、跨模型和真实图纸验收。
+`1.0.0-rc.4` 已发布到 npm 的 `next` 渠道；`latest` 仍是旧预览版。上面的一行 MCP 安装器使用单独锁定的源码渠道，不等于 npm 安装。正式 1.0 仍需独立用户、跨模型和真实图纸验收。
 
 连接器与 CLI 已覆盖用户级路径、幂等安装、冲突拒绝、事务回滚、PowerShell 5.1、MCP 启动和只读诊断。各客户端的真实 GUI 与真实模型独立验收仍是正式 1.0 发布门槛，不能由自动化文件测试替代。
