@@ -60,12 +60,13 @@ function sharedPrompt(task, roundIndex) {
 
 function kjdrawMessages(state, task, roundIndex, history, prompt, interfaceMode) {
   const names = kjdrawToolNamesForTask(task, roundIndex)
+  const maxCalls = task.seed ? 8 : 1
   if (interfaceMode === 'skill-json') return { names, tools: [], messages: [
-    { role: 'system', content: buildCadSkillJsonContract({ definitions: state.session.definitions, names }) },
+    { role: 'system', content: buildCadSkillJsonContract({ definitions: state.session.definitions, names, maxCalls }) },
     ...history, { role: 'user', content: prompt },
-  ] }
+  ], maxCalls }
   const tools = projectCompactCadTools({ definitions: state.session.definitions, names, hostOwnsRevisionAndUnits: true })
-  return { names, messages: [{ role: 'system', content: kjdrawCompactSystemMessage }, ...history, { role: 'user', content: prompt }], tools }
+  return { names, messages: [{ role: 'system', content: `${kjdrawCompactSystemMessage} ${maxCalls === 1 ? 'Make exactly one CAD tool call for this new drawing.' : ''}` }, ...history, { role: 'user', content: prompt }], tools, maxCalls }
 }
 
 async function scoreKjdrawSeed(task, state, scoreSeed) {
@@ -84,19 +85,20 @@ async function runKjdrawRound({ task, repetition, roundIndex, state, history, mo
       arm: arms[0], taskId: task.id, repetition, roundIndex })
     record.usage = response.usage ?? null; record.transportLatencyMs = response.elapsedMs ?? null
     record.returnedModel = response.model ?? null
-    await saveArtifact(saveModelArtifacts, { taskId: task.id, arm: arms[0], repetition, roundIndex, interfaceMode }, response)
+    await saveArtifact(saveModelArtifacts, { taskId: task.id, arm: arms[0], repetition, roundIndex, interfaceMode,
+      request: { messages: request.messages, settings: interfaceMode === 'skill-json' ? settings : { ...settings, tools: request.tools, tool_choice: 'auto' } } }, response)
     if (response.finishReason === 'length') throw Object.assign(new Error('INCOMPLETE_MODEL_OUTPUT'), { code: 'INCOMPLETE_MODEL_OUTPUT' })
     let calls
     if (interfaceMode === 'skill-json') {
       if (Array.isArray(response.toolCalls) && response.toolCalls.length) throw Object.assign(new Error('UNEXPECTED_FUNCTION_TOOL_CALL'), { code: 'UNEXPECTED_FUNCTION_TOOL_CALL' })
-      try { calls = parseCadSkillJsonResponse({ content: response.content, names: request.names }) }
+      try { calls = parseCadSkillJsonResponse({ content: response.content, names: request.names, maxCalls: request.maxCalls }) }
       catch (error) {
         if (typeof response.content === 'string') record.argumentDiagnostic = { bytes: Buffer.byteLength(response.content), sha256: createHash('sha256').update(response.content).digest('hex') }
         throw error
       }
     } else {
       const rawCalls = response.toolCalls
-      if (!Array.isArray(rawCalls) || !rawCalls.length || rawCalls.length > 8) throw Object.assign(new Error('MODEL_TOOL_CALLS_REQUIRED'), { code: 'MODEL_TOOL_CALLS_REQUIRED' })
+      if (!Array.isArray(rawCalls) || !rawCalls.length || rawCalls.length > request.maxCalls) throw Object.assign(new Error('MODEL_TOOL_CALLS_REQUIRED'), { code: 'MODEL_TOOL_CALLS_REQUIRED' })
       calls = rawCalls.map(call => {
         if (call?.type !== 'function' || typeof call.id !== 'string' || !call.id || !request.names.includes(call.function?.name) || typeof call.function.arguments !== 'string') throw Object.assign(new Error('INVALID_TOOL_CALL'), { code: 'INVALID_TOOL_CALL' })
         let args
@@ -145,7 +147,8 @@ async function runBaselineRound({ task, repetition, roundIndex, previous, histor
       arm: arms[1], taskId: task.id, repetition, roundIndex })
     record.usage = response.usage ?? null; record.transportLatencyMs = response.elapsedMs ?? null
     record.returnedModel = response.model ?? null
-    await saveArtifact(saveModelArtifacts, { taskId: task.id, arm: arms[1], repetition, roundIndex }, response)
+    await saveArtifact(saveModelArtifacts, { taskId: task.id, arm: arms[1], repetition, roundIndex,
+      request: { messages: request.messages, settings } }, response)
     const compiled = await compileBaseline({ task, roundIndex, content: response.content, ...(previous ? { previous } : {}) })
     if (!compiled.passed) {
       record.compilerReason = fixedReason(compiled.reason)
@@ -231,7 +234,7 @@ export async function runTokenEfficiencyBenchmark({ tasks, provider, model, sett
   const returnedModels = [...new Set(runs.map(run => run.returnedModel).filter(Boolean))]
   const consistentReturnedModel = returnedModels.length === 1 && runs.filter(run => !run.unexecuted && run.returnedModel !== null).every(run => run.returnedModel === returnedModels[0])
   return { schema: 'com.kanjie.kjdraw.benchmark.token-efficiency-run@3',
-    kjdrawToolSurface: interfaceMode === 'skill-json' ? 'public-prompt-skill-json-v2' : 'public-prompt-compact-v2',
+    kjdrawToolSurface: interfaceMode === 'skill-json' ? 'public-prompt-skill-json-v3' : 'public-prompt-compact-v3',
     interfaceMode, mode, provider, requestedModel: model,
     returnedModels, consistentReturnedModel,
     claimBlockedReasons: [...(mode !== 'live' ? ['NOT_LIVE_EVIDENCE'] : []), ...(consistentReturnedModel ? [] : ['INCONSISTENT_RETURNED_MODEL']), ...(stopReason ? [stopReason] : [])],

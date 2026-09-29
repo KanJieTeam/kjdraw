@@ -10,7 +10,9 @@ import { buildCadSkillJsonContract, parseCadSkillJsonResponse } from '../src/age
 import { kjdrawCompactSystemMessage, kjdrawToolNamesForTask, runTokenEfficiencyBenchmark } from '../../../scripts/benchmarks/token-efficiency-runner.mjs'
 
 const simple = tokenEfficiencyTaskCorpus.find(task => task.category === 'simple-one-shot' && task.family === 'corner-hole-plate')
+const radial = tokenEfficiencyTaskCorpus.find(task => task.category === 'simple-one-shot' && task.family === 'radial-flange')
 const edit = tokenEfficiencyTaskCorpus.find(task => task.family === 'hole-move-x')
+const radiusEdit = tokenEfficiencyTaskCorpus.find(task => task.family === 'hole-diameter')
 const sheet = tokenEfficiencyTaskCorpus.find(task => task.category === 'complex-one-shot')
 const paired = tokenEfficiencyTaskCorpus.find(task => task.family === 'paired-hole-spacing')
 const slot = tokenEfficiencyTaskCorpus.find(task => task.family === 'slot-length')
@@ -168,14 +170,15 @@ test('live run without explicit review callback or fixture run without model moc
 
 test('public prompt routing covers every frozen round without reading family or scorer fields', () => {
   const expected = { 'hole-move-x': ['cad_propose_move'], 'hole-move-y': ['cad_propose_move'],
-    'paired-hole-spacing': ['cad_propose_move'], 'hole-diameter': ['cad_propose_scale'],
-    'hole-correction': ['cad_propose_scale'], 'boundary-width': ['cad_propose_stretch'],
+    'paired-hole-spacing': ['cad_propose_move'], 'hole-diameter': ['cad_propose_set_circle_radius'],
+    'hole-correction': ['cad_propose_set_circle_radius'], 'boundary-width': ['cad_propose_stretch'],
     'boundary-height': ['cad_propose_stretch'], 'slot-length': ['cad_propose_stretch', 'cad_propose_move'] }
   for (const task of tokenEfficiencyTaskCorpus) for (const [index, round] of task.rounds.entries()) {
     const publicTask = { seed: task.seed, rounds: [{ prompt: round.prompt }] }
     for (const field of ['family', 'category', 'expectedRounds']) Object.defineProperty(publicTask, field, { get() { throw new Error('SCORER_FIELD_READ') } })
     assert.deepEqual(kjdrawToolNamesForTask(publicTask), task.seed ? expected[task.family]
-      : task.category === 'complex-one-shot' ? ['cad_propose_manufacturing_sheet'] : ['cad_propose_drawing_basic'], `${task.id} round ${index + 1}`)
+      : task.category === 'complex-one-shot' ? ['cad_propose_manufacturing_sheet']
+        : task.family === 'radial-flange' ? ['cad_propose_drawing_pattern'] : ['cad_propose_drawing_basic'], `${task.id} round ${index + 1}`)
   }
   assert.throws(() => kjdrawToolNamesForTask({ seed: { features: [] }, rounds: [{ prompt: 'Invent an unknown edit' }] }), /UNSUPPORTED_CAD_EDIT_INTENT/)
 })
@@ -197,6 +200,72 @@ test('compact public SDK projection shrinks edit tool metadata without changing 
   assert.ok(Buffer.byteLength(JSON.stringify(projected)) < Buffer.byteLength(JSON.stringify(oldTools)) / 4)
   assert.ok(Buffer.byteLength(kjdrawCompactSystemMessage) < Buffer.byteLength(oldSystem))
   assert.equal(state.session.definitions.find(tool => tool.name === 'cad_propose_move').inputSchema.required.includes('expectedRevision'), true)
+})
+
+test('radial flange prompt exposes compact polar arrays and creates four native holes in one approved edit', async () => {
+  const state = await createTokenKjdrawArm({ mode: 'fixture' })
+  const names = kjdrawToolNamesForTask({ seed: null, rounds: [{ prompt: radial.rounds[0].prompt }] })
+  assert.deepEqual(names, ['cad_propose_drawing_pattern'])
+  const original = state.session.definitions.find(tool => tool.name === names[0]).inputSchema
+  const projected = projectCompactCadTools({ definitions: state.session.definitions, names, hostOwnsRevisionAndUnits: true })[0].function.parameters
+  for (const field of ['ellipses', 'splines', 'hatches', 'expectedRevision', 'units']) {
+    assert.equal(Object.hasOwn(projected.properties, field), false)
+  }
+  assert.equal(Object.hasOwn(original.properties, 'ellipses'), true)
+  assert.equal(Object.hasOwn(projected.properties, 'polarArrays'), true)
+  assert.equal(projected.required.includes('arrays'), true)
+  assert.ok(Buffer.byteLength(JSON.stringify(projected)) < Buffer.byteLength(JSON.stringify(original)))
+  const contract = buildCadSkillJsonContract({ definitions: state.session.definitions, names })
+  assert.match(contract, /circles:2/)
+  assert.match(contract, /count includes the seed/)
+  assert.match(contract, /do not add duplicate holes/)
+  const oneCallContract = buildCadSkillJsonContract({ definitions: state.session.definitions, names, maxCalls: 1 })
+  assert.match(oneCallContract, /Make exactly one call/)
+  const duplicateCalls = JSON.stringify({ calls: [
+    { tool: names[0], args: {} }, { tool: names[0], args: {} },
+  ] })
+  assert.throws(() => parseCadSkillJsonResponse({ content: duplicateCalls, names, maxCalls: 1 }), /INVALID_SKILL_JSON_RESPONSE/)
+
+  const round = await executeTokenKjdrawRound({ state, roundIndex: 1, toolName: names[0], syntheticFixture: true,
+    parameters: { lines: [], circles: [[0, 0, 44], [0, 0, 10], [30, 0, 2.5]], arcs: [], polylines: [], arrays: [],
+      polarArrays: [{ sources: ['circles:2'], center: { x: 0, y: 0 }, count: 4, angleDegrees: 360 }] } })
+  assert.equal(round.status, 'applied', JSON.stringify(round.failure))
+  assert.equal(round.approval.approved, true)
+  assert.equal(state.document.revision, 1)
+  const actual = state.document.listEntities()
+  assert.equal(actual.length, 6)
+  assert.equal(actual.every(entity => entity.type === 'CIRCLE'), true)
+  const holes = actual.filter(entity => entity.payload.radius === 2.5)
+  assert.equal(holes.length, 4)
+  for (const [x, y] of [[30, 0], [0, 30], [-30, 0], [0, -30]]) {
+    assert.ok(holes.some(entity => Math.abs(entity.payload.center[0] - x) < 1e-9 && Math.abs(entity.payload.center[1] - y) < 1e-9), `missing hole at ${x},${y}`)
+  }
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(round.artifacts[format.toLowerCase()], { format })
+    assert.equal(reopened.listEntities().length, 6)
+  }
+  await state.sdk.executeCommand('UNDO')
+  assert.equal(state.document.listEntities().length, 0)
+})
+
+test('diameter correction routes to an exact-radius proposal and preserves circle identity', async () => {
+  const state = await createTokenKjdrawArm({ seed: radiusEdit.seed, mode: 'fixture' })
+  const names = kjdrawToolNamesForTask(radiusEdit)
+  assert.deepEqual(names, ['cad_propose_set_circle_radius'])
+  const contract = buildCadSkillJsonContract({ definitions: state.session.definitions, names })
+  assert.match(contract, /divide by two/)
+  assert.match(contract, /id!:string,radius!:number/)
+  const id = state.featureIds['target-hole']
+  const before = state.document.getObject(id)
+  const target = radiusEdit.expectedRounds[0].expectedFeatures.find(feature => feature.id === 'target-hole').shape.radius
+  const round = await executeTokenKjdrawRound({ state, roundIndex: 1, toolName: names[0],
+    parameters: { id: 'target-hole', radius: target }, syntheticFixture: true })
+  assert.equal(round.status, 'applied', JSON.stringify(round.failure))
+  const after = state.document.getObject(id)
+  assert.equal(after.payload.radius, target)
+  assert.deepEqual(after.payload.center, before.payload.center)
+  assert.equal(after.id, before.id)
+  assert.equal(state.document.revision, 2)
 })
 
 test('pilot records fixed compiler reason and hashed malformed tool arguments without raw payload', async () => {
@@ -223,6 +292,7 @@ test('model artifact callback receives redacted response and persistence failure
   try {
     const artifacts = []
     const report = await runTokenEfficiencyBenchmark({ tasks: [simple], provider: 'qwen', model: 'fixture-model', repetitions: 1,
+      settings: { temperature: 0, max_tokens: 4096, metadata: 'fixture-secret-value' },
       mode: 'fixture', modelCall: input => ({ ...fixtureModel(input), content: 'fixture-secret-value' }),
       compileBaseline: compileFixture, scoreRound: () => ({ passed: true }),
       saveModelArtifacts: artifact => { artifacts.push(artifact); throw new Error('disk path and secret must stay private') } })
@@ -231,6 +301,9 @@ test('model artifact callback receives redacted response and persistence failure
     assert.equal(report.unexecutedRequests, 1)
     assert.equal(JSON.stringify(artifacts).includes('fixture-secret-value'), false)
     assert.equal(JSON.stringify(artifacts).includes('[REDACTED]'), true)
+    assert.ok(artifacts[0].request.messages.some(message => message.content?.includes(simple.rounds[0].prompt)))
+    assert.equal(artifacts[0].request.settings.metadata, '[REDACTED]')
+    assert.doesNotMatch(JSON.stringify(artifacts[0].request), /expectedRounds|expectedFeatures|validatorKind|acceptanceSha256/)
     assert.equal(JSON.stringify(report).includes('disk path'), false)
   } finally {
     if (prior === undefined) delete process.env.KJDRAW_QWEN_API_KEY
@@ -243,7 +316,7 @@ function skillJsonFixtureModel(input) {
   if (input.arm === 'declarative-ezdxf') return fixtureModel(input)
   assert.equal(Object.hasOwn(input.settings, 'tools'), false)
   assert.equal(Object.hasOwn(input.settings, 'tool_choice'), false)
-  assert.match(input.messages[0].content, /Return only valid JSON/)
+  assert.match(input.messages[0].content, /Return JSON only/)
   assert.doesNotMatch(JSON.stringify(input.messages), /expectedRounds|expectedFeatures|validatorKind|acceptanceSha256/)
   const toolResult = fixtureModel({ ...input, settings: { ...input.settings, tools: [fakeTool] } })
   const calls = toolResult.toolCalls.map(call => {
@@ -260,9 +333,12 @@ test('Skill JSON contract is SDK-derived, bounded, and does not expose host-owne
   const contract = buildCadSkillJsonContract({ definitions: state.session.definitions, names })
   assert.match(contract, /"calls":\[\{"tool"/)
   for (const field of ['drawingId!', 'holePatterns?', 'throughDiameter!', 'sheet!', 'size!', 'textHeight!']) assert.ok(contract.includes(field), field)
-  assert.match(contract, /Rectangular rows x columns .* belong in holePatterns/)
-  assert.match(contract, /boltCirclePatterns is only for holes explicitly arranged around a pitch circle/)
-  assert.match(contract, /Check matching brackets and include every requested feature/)
+  assert.match(contract, /Rectangular mounting grids use holePatterns/)
+  assert.match(contract, /radial bolt-circle holes use boltCirclePatterns/)
+  assert.match(contract, /Include every requested feature/)
+  for (const field of ['locale?', 'holePatterns?', 'boltCirclePatterns?', 'slots?', 'origin?', 'counterboreDiameter?', 'counterboreDepth?'])
+    assert.ok(contract.includes(field), field)
+  assert.ok(Buffer.byteLength(contract) < 1500)
   const basicContract = buildCadSkillJsonContract({ definitions: state.session.definitions, names: ['cad_propose_drawing_basic'] })
   assert.match(basicContract, /Represent each requested hole as a circle/)
   assert.match(basicContract, /a pitch circle or polygon is not a substitute for holes/)
@@ -282,7 +358,7 @@ test('Skill JSON mode executes simple drawing, ten edit rounds, multi-call edits
     modelCall: input => { observed.push(input); return skillJsonFixtureModel(input) },
     compileBaseline: compileFixture, scoreRound: () => ({ passed: true, reasons: [] }), scoreSeed: () => ({ passed: true, reasons: [] }) })
   assert.equal(report.interfaceMode, 'skill-json')
-  assert.equal(report.kjdrawToolSurface, 'public-prompt-skill-json-v2')
+  assert.equal(report.kjdrawToolSurface, 'public-prompt-skill-json-v3')
   assert.equal(report.runs.every(run => run.status === 'passed'), true, JSON.stringify(report.runs.filter(run => run.status !== 'passed').map(run => [run.taskId, run.failure])))
   assert.equal(report.runs.filter(run => run.arm === 'kjdraw-tool').every(run => run.review.kind === 'synthetic-fixture'), true)
   assert.equal(report.runs.filter(run => run.taskId === slot.id && run.arm === 'kjdraw-tool').every(run => run.toolCallCount === 2), true)

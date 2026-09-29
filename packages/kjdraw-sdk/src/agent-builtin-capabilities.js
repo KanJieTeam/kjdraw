@@ -96,6 +96,7 @@ const descriptors = [
             'cad_propose_copy',
             'cad_propose_rotate',
             'cad_propose_scale',
+            'cad_propose_set_circle_radius',
             'cad_propose_offset',
             'cad_propose_stretch',
             'cad_propose_lengthen',

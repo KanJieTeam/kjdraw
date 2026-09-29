@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:d5965f956a020790e440b80a5bee2954b1652b88b9fb687fc67dd78e31c85d80",
+  "sourceDigest": "sha256:a8208c123d8939d0063a2b524521a496a0d6a22e82f29f35c58672c9352ad52c",
   "entries": [
     {
       "name": "buildCadSkillJsonContract",
@@ -10,7 +10,7 @@
       "module": "@kanjieteam/kjdraw/agent-skill-json",
       "href": "./api/reference/#agent-skill-json-function-buildcadskilljsoncontract",
       "anchor": "agent-skill-json-function-buildcadskilljsoncontract",
-      "summary": "export declare function buildCadSkillJsonContract({ definitions, names, hostOwnsRevisionAndUnits }: { definitions: readonly CompactCadToolDefinition[]; names: readonly string[]; hostOwnsRevisionAndUnits?: boolean; }): st"
+      "summary": "export declare function buildCadSkillJsonContract({ definitions, names, hostOwnsRevisionAndUnits, maxCalls }: { definitions: readonly CompactCadToolDefinition[]; names: readonly string[]; hostOwnsRevisionAndUnits?: boole"
     },
     {
       "name": "parseCadSkillJsonResponse",

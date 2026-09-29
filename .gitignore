@@ -13,3 +13,4 @@ playwright-report/
 test-results/
 __pycache__/
 *.pyc
+storage-benchmark-private/

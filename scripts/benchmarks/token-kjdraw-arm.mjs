@@ -58,6 +58,7 @@ export async function createTokenKjdrawArm({ seed = null, outputDirectory = null
 function resolveIds(state, parameters) {
   const args = structuredClone(parameters)
   if (Array.isArray(args.ids)) args.ids = args.ids.map(id => state.featureIds[id] ?? id)
+  if (typeof args.id === 'string') args.id = state.featureIds[args.id] ?? args.id
   // Revision and units are host-owned. A single model response may contain
   // several proposals, each of which observes the preceding approved edit.
   args.expectedRevision = state.document.revision

@@ -186,7 +186,7 @@ test('relayer preview accepts arbitrary model-space HATCH and INSERT payloads bu
   const { document } = await fixture()
   const preview = await createAgentGeometryPreview(document, 'PROPERTIES', { ids: ['stratum-hatch', 'symbol'], patch: { payload: { layerId: 'geology-layer' } } })
   assert.deepEqual(preview.after.map(item => item.id), ['stratum-hatch', 'symbol'])
-  await assert.rejects(createAgentGeometryPreview(document, 'PROPERTIES', { ids: ['stratum-hatch'], patch: { payload: { layerId: 'geology-layer', color: 1 } } }), /exactly patch.payload.layerId/)
+  await assert.rejects(createAgentGeometryPreview(document, 'PROPERTIES', { ids: ['stratum-hatch'], patch: { payload: { layerId: 'geology-layer', color: 1 } } }), /exactly one payload field/)
   await assert.rejects(createAgentGeometryPreview(document, 'PROPERTIES', { ids: ['stratum-hatch'], patch: { payload: { layerId: 'GEOLOGY' } } }), /does not exist/)
   const paperOwner = document.getObject(document.spaces.layoutIds[1]).payload.blockRecordId
   await document.transact('Paper entity', tx => tx.createEntity('LINE', { start: [0, 0, 0], end: [1, 0, 0] }, { id: 'paper-line', ownerId: paperOwner }))

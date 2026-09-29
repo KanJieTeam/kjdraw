@@ -17,6 +17,7 @@ import { expandPolarDrawingPattern, expandRectangularDrawingPattern } from './ag
 import { validateDrawingGeometry } from './drawing-validation.js';
 import { commitAgentTaskComponentInsertApproval, commitAgentTaskCopyApproval, commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, commitAgentTaskMoveApproval, commitAgentTaskOffsetApproval, commitAgentTaskPolylineEditApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, commitAgentTaskStretchApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
 import { createAgentDesignContext } from './agent-design-relations.js';
+import { readDesignRelations } from './design-relations.js';
 import { createAgentTopologyContext } from './agent-topology-context.js';
 import { createEraseImpact } from './erase-impact.js';
 import { createCatalogComponentInsertIdentity, searchComponentCatalog } from './component-library.js';
@@ -3803,6 +3804,21 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         inputSchema: scaleSchema
     },
     {
+        name: 'cad_propose_set_circle_radius',
+        effect: 'propose',
+        description: 'Set the exact radius of one existing visible editable model-space CIRCLE by stable id. The target radius is in drawing units and must be positive; center, layer, style, handle and id are preserved. A design-bound circle and an unchanged radius are rejected. The complete before/after native geometry is returned for review. Only host approval commits one undoable PROPERTIES transaction. This tool is not available for persisted task approval.',
+        inputSchema: object({
+            expectedRevision: revision,
+            units: text,
+            id: text,
+            radius: {
+                type: 'number',
+                exclusiveMinimum: 0,
+                maximum: 1e12
+            }
+        })
+    },
+    {
         name: 'cad_propose_offset',
         effect: 'propose',
         description: 'Propose one exact parallel or concentric copy of a visible editable model-space LINE, RAY, XLINE, CIRCLE or ARC. Supply its exact ID, a positive distance in drawing units and sidePoint={x,y}; the point chooses left/right for linear geometry or inward/outward for circular geometry. The source remains unchanged and the result preserves its native type and editable properties. Degenerate, protected, hidden, paper-space, stale and out-of-range results are rejected. Returns exact source-derived geometry without editing; host approval creates one new entity in one undoable transaction.',
@@ -5165,6 +5181,29 @@ export class KJAgentToolSession {
                                 unchangedIds: [
                                     ...unchangedIds
                                 ]
+                            };
+                        } else if (name === 'cad_propose_set_circle_radius') {
+                            const id = String(args.id), context = createDrawingContext(document, {
+                                ids: [
+                                    id
+                                ],
+                                limit: 1,
+                                maxBytes: 262144
+                            });
+                            const entity = document.getObject(id);
+                            if (context.entities.length !== 1 || !context.entities[0].editable || !entity || entity.kind !== 'entity' || entity.type !== 'CIRCLE') throw new KJValidationError('Circle radius edit requires one visible editable model-space CIRCLE');
+                            if (readDesignRelations(document).some((design)=>design.entityIds.includes(id))) throw new KJValidationError('Circle radius is owned by a design relation; update its parameter instead');
+                            if (entity.payload.radius === args.radius) throw new KJValidationError('Circle already has the requested radius');
+                            command = 'PROPERTIES';
+                            commandArgs = {
+                                ids: [
+                                    id
+                                ],
+                                patch: {
+                                    payload: {
+                                        radius: args.radius
+                                    }
+                                }
                             };
                         } else if (name === 'cad_propose_lengthen') {
                             const dynamic = args.mode === 'DYNAMIC';

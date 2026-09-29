@@ -75,6 +75,17 @@ test('HTTP status failures expose only fixed codes and never provider body or cr
   }
 })
 
+test('GLM resource error 1113 is not mislabeled as request-rate limiting', async t => {
+  environment(t)
+  const privateBody = JSON.stringify({ error: { code: '1113', message: `private ${fixtureKey}` } })
+  process.env.KJDRAW_BENCH_FIXTURE_ENDPOINT = await server(t, (req, res) => {
+    req.resume(); res.writeHead(429, { 'Content-Type': 'application/json' }); res.end(privateBody)
+  })
+  await assert.rejects(callBenchmarkModel(input('glm')), error =>
+    error.code === 'PROVIDER_RESOURCE_UNAVAILABLE' && error.message === error.code &&
+    !error.message.includes(privateBody) && !error.message.includes(fixtureKey))
+})
+
 test('bounded request, response and elapsed timeout fail closed', async t => {
   environment(t)
   let kind = 'large'

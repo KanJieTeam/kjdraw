@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:d5965f956a020790e440b80a5bee2954b1652b88b9fb687fc67dd78e31c85d80",
+  "sourceDigest": "sha256:a8208c123d8939d0063a2b524521a496a0d6a22e82f29f35c58672c9352ad52c",
   "modules": [
     {
       "exportPath": "./agent-skill-json",
@@ -14,7 +14,7 @@
         {
           "name": "buildCadSkillJsonContract",
           "kind": "function",
-          "declaration": "export declare function buildCadSkillJsonContract({ definitions, names, hostOwnsRevisionAndUnits }: {\n    definitions: readonly CompactCadToolDefinition[];\n    names: readonly string[];\n    hostOwnsRevisionAndUnits?: boolean;\n}): string;",
+          "declaration": "export declare function buildCadSkillJsonContract({ definitions, names, hostOwnsRevisionAndUnits, maxCalls }: {\n    definitions: readonly CompactCadToolDefinition[];\n    names: readonly string[];\n    hostOwnsRevisionAndUnits?: boolean;\n    maxCalls?: number;\n}): string;",
           "source": "agent-skill-json.d.ts",
           "anchor": "agent-skill-json-function-buildcadskilljsoncontract"
         },

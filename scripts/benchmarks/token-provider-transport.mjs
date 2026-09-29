@@ -92,7 +92,12 @@ export async function callBenchmarkModel({ provider, model, messages, settings =
   try { response = await postJson(url, body, key, timeoutMs, proxy) }
   catch (error) { fail(['RESPONSE_TOO_LARGE', 'PROVIDER_TIMEOUT'].includes(error?.message) ? error.message : 'TRANSPORT_FAILURE') }
   if (response.status !== 200) {
-    if (response.status === 429) fail('PROVIDER_RATE_LIMIT')
+    if (response.status === 429) {
+      let providerCode = null
+      try { providerCode = JSON.parse(response.body)?.error?.code } catch { /* Non-JSON 429 remains a rate limit. */ }
+      if (provider === 'glm' && String(providerCode) === '1113') fail('PROVIDER_RESOURCE_UNAVAILABLE')
+      fail('PROVIDER_RATE_LIMIT')
+    }
     if (response.status === 401 || response.status === 403) fail('PROVIDER_AUTH_FAILURE')
     if (response.status === 402) fail('PROVIDER_PAYMENT_REQUIRED')
     if (response.status >= 500 && response.status <= 599) fail('PROVIDER_TRANSIENT_FAILURE')

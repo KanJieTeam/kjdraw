@@ -385,23 +385,29 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
       if (ids.some(id => !stretchable.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`STRETCH preview requires 1–64 ${stretchable.join('/')} entities`)
       for (const id of ids) validateStretchGeometry(document, document.getObject(String(id))!)
     } else if (command === 'PROPERTIES') {
-      if (Object.keys(args).some(key => !['ids', 'patch'].includes(key)) || ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length) throw new KJValidationError('Relayer preview requires only 1–64 unique entity IDs and one layer patch')
+      if (Object.keys(args).some(key => !['ids', 'patch'].includes(key)) || ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length) throw new KJValidationError('Properties preview requires only 1–64 unique entity IDs and one bounded patch')
       const patch = args.patch
-      if (!patch || typeof patch !== 'object' || Array.isArray(patch) || ![Object.prototype, null].includes(Object.getPrototypeOf(patch)) || Object.keys(patch).length !== 1 || !Object.hasOwn(patch, 'payload')) throw new KJValidationError('Relayer preview requires exactly patch.payload.layerId')
+      if (!patch || typeof patch !== 'object' || Array.isArray(patch) || ![Object.prototype, null].includes(Object.getPrototypeOf(patch)) || Object.keys(patch).length !== 1 || !Object.hasOwn(patch, 'payload')) throw new KJValidationError('Properties preview requires exactly one payload field')
       const payload = (patch as Readonly<Record<string, unknown>>).payload
-      if (!payload || typeof payload !== 'object' || Array.isArray(payload) || ![Object.prototype, null].includes(Object.getPrototypeOf(payload)) || Object.keys(payload).length !== 1 || !Object.hasOwn(payload, 'layerId') || typeof (payload as Readonly<Record<string, unknown>>).layerId !== 'string') throw new KJValidationError('Relayer preview requires exactly patch.payload.layerId')
-      const layerId = (payload as Readonly<Record<string, unknown>>).layerId as string
-      const targetLayer = document.getTable('layers')?.records.find(layer => !layer.erased && layer.id === layerId)
-      if (!targetLayer || targetLayer.kind !== 'table-record' || targetLayer.type !== 'LAYER') throw new KJValidationError(`Relayer target layer ID does not exist: ${layerId}`)
-      if (targetLayer.payload.visible === false || targetLayer.payload.frozen === true || targetLayer.payload.locked === true) throw new KJValidationError('Relayer target layer must be visible, thawed and unlocked')
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload) || ![Object.prototype, null].includes(Object.getPrototypeOf(payload)) || Object.keys(payload).length !== 1) throw new KJValidationError('Properties preview requires exactly one payload field')
+      const fields = payload as Readonly<Record<string, unknown>>
+      const isRadius = Object.hasOwn(fields, 'radius')
+      if (isRadius) {
+        if (ids.length !== 1 || typeof fields.radius !== 'number' || !Number.isFinite(fields.radius) || fields.radius <= 0 || fields.radius > 1e12) throw new KJValidationError('Circle radius preview requires one circle and a bounded positive radius')
+        if (readDesignRelations(document).some(design => design.entityIds.includes(String(ids[0])))) throw new KJValidationError('Circle radius is owned by a design relation')
+      } else if (!Object.hasOwn(fields, 'layerId') || typeof fields.layerId !== 'string') throw new KJValidationError('Relayer preview requires exactly patch.payload.layerId')
+      const targetLayer = isRadius ? null : document.getTable('layers')?.records.find(layer => !layer.erased && layer.id === fields.layerId)
+      if (!isRadius && (!targetLayer || targetLayer.kind !== 'table-record' || targetLayer.type !== 'LAYER')) throw new KJValidationError(`Relayer target layer ID does not exist: ${String(fields.layerId)}`)
+      if (targetLayer && (targetLayer.payload.visible === false || targetLayer.payload.frozen === true || targetLayer.payload.locked === true)) throw new KJValidationError('Relayer target layer must be visible, thawed and unlocked')
       for (const id of ids) {
         const entity = document.getObject(String(id))
-        if (!entity || entity.erased || entity.kind !== 'entity') throw new KJValidationError(`Relayer entity does not exist: ${String(id)}`)
+        if (!entity || entity.erased || entity.kind !== 'entity') throw new KJValidationError(`Properties entity does not exist: ${String(id)}`)
+        if (isRadius && (entity.type !== 'CIRCLE' || entity.payload.radius === fields.radius)) throw new KJValidationError('Circle radius preview requires one changed CIRCLE')
         const sourceLayerId = effectiveLayerId(document, entity)
         const sourceLayer = document.getTable('layers')?.records.find(layer => !layer.erased && layer.kind === 'table-record' && layer.type === 'LAYER' && layer.id === sourceLayerId)
-        if (!sourceLayer) throw new KJValidationError(`Relayer source layer does not exist: ${String(sourceLayerId)}`)
-        requireEditableAgentMember(document, entity, 'Relayer entity')
-        if (sourceLayer.id === layerId) throw new KJValidationError(`Relayer command contains an unchanged entity: ${entity.id}`)
+        if (!sourceLayer) throw new KJValidationError(`Properties source layer does not exist: ${String(sourceLayerId)}`)
+        requireEditableAgentMember(document, entity, 'Properties entity')
+        if (!isRadius && sourceLayer.id === targetLayer!.id) throw new KJValidationError(`Relayer command contains an unchanged entity: ${entity.id}`)
       }
     } else if (command !== 'LENGTHEN' && command !== 'OFFSET' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE' && command !== 'TEXTEDIT') {
       if (ids.some(id => !KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`)
@@ -442,6 +448,10 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
         const bounds = displayedEntityBounds(draft, entity)
         if (!bounds || bounds.some(value => !Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError(`${command} preview result exceeds the finite ±1e12 display budget`)
       }
+      if (command === 'PROPERTIES' && Object.hasOwn((args.patch as { payload?: Record<string, unknown> }).payload ?? {}, 'radius')) {
+        const bounds = displayedEntityBounds(draft, entity)
+        if (!bounds || bounds.some(value => !Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError('Circle radius preview exceeds the finite ±1e12 display budget')
+      }
       if (command === 'STRUCTURALEDIT' && !previous) {
         validateTransformGeometry(draft, entity)
         const bounds = displayedEntityBounds(draft, entity)
@@ -456,7 +466,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   if (command === 'STRETCH' && !after.length) throw new KJValidationError('STRETCH would leave the selected geometry unchanged')
   if (command === 'LENGTHEN' && !after.length) throw new KJValidationError('LENGTHEN would leave the selected geometry unchanged')
   if (command === 'PEDIT' && !after.length) throw new KJValidationError('Polyline edit would leave the selected geometry unchanged')
-  if (command === 'PROPERTIES' && (before.length !== ids.length || after.length !== ids.length)) throw new KJValidationError('Relayer preview must include complete before and after payloads for every changed entity')
+  if (command === 'PROPERTIES' && (before.length !== ids.length || after.length !== ids.length)) throw new KJValidationError('Properties preview must include complete before and after payloads for every changed entity')
   if (before.length > 64 || after.length > (command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? maxPreviewEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit')
   const draftState = draft.snapshot()
   const recordChanges = command === 'STRUCTURALEDIT' ? Object.values(source.objects).filter(record => record.kind === 'group' || record.type === 'SEQEND').flatMap(beforeRecord => {

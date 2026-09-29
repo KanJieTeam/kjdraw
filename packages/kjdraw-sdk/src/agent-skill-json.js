@@ -8,7 +8,9 @@ const fail = (code)=>{
 const plainObject = (value)=>value !== null && typeof value === 'object' && !Array.isArray(value);
 const fieldHints = Object.freeze({
     cad_propose_drawing_basic: 'Array order: lines=[x1,y1,x2,y2], circles=[cx,cy,r], arcs=[cx,cy,r,startDegrees,endDegrees], polyline points=[x,y]. Represent each requested hole as a circle; a pitch circle or polygon is not a substitute for holes.',
-    cad_propose_manufacturing_sheet: 'Point pairs are [x,y]; sheet.size=[width,height]. Rectangular rows x columns (including a 2 x 2 mounting grid) belong in holePatterns with origin and spacing; boltCirclePatterns is only for holes explicitly arranged around a pitch circle. The SDK generates editable views and native dimensions from these design parameters.'
+    cad_propose_drawing_pattern: 'Array order: circles=[cx,cy,r], lines=[x1,y1,x2,y2], arcs=[cx,cy,r,startDegrees,endDegrees]. For N equally spaced holes on a radius-R pitch circle centered [x,y], put one seed circle at [x+R,y,holeRadius] and polarArrays=[{sources:["circles:SEED_INDEX"],center:{x,y},count:N,angleDegrees:360}]. SEED_INDEX is zero-based within circles, so two prior circles make it circles:2. A full-circle count includes the seed; do not add duplicate holes, connecting geometry, or a pitch circle unless requested. arrays=[] when unused.',
+    cad_propose_manufacturing_sheet: 'Points=[x,y], sheet.size=[width,height]. Rectangular mounting grids use holePatterns; radial bolt-circle holes use boltCirclePatterns. SDK builds editable views and dimensions.',
+    cad_propose_set_circle_radius: 'id is the existing circle feature ID. radius is the requested final radius in millimeters; for a requested diameter, divide by two. Keep its center and identity.'
 });
 function shape(schema) {
     if (!plainObject(schema)) return fail('UNSUPPORTED_SKILL_JSON_SCHEMA');
@@ -32,7 +34,8 @@ function shape(schema) {
     if (node.type === 'string' || node.type === 'boolean') return node.type;
     return fail('UNSUPPORTED_SKILL_JSON_SCHEMA');
 }
-export function buildCadSkillJsonContract({ definitions, names, hostOwnsRevisionAndUnits = true }) {
+export function buildCadSkillJsonContract({ definitions, names, hostOwnsRevisionAndUnits = true, maxCalls = 8 }) {
+    if (!Number.isSafeInteger(maxCalls) || maxCalls < 1 || maxCalls > 8) fail('INVALID_SKILL_JSON_RESPONSE');
     const tools = projectCompactCadTools({
         definitions,
         names,
@@ -40,8 +43,8 @@ export function buildCadSkillJsonContract({ definitions, names, hostOwnsRevision
     });
     const operations = tools.map((tool)=>`${tool.function.name}: ${tool.function.description}${fieldHints[tool.function.name] ? ` ${fieldHints[tool.function.name]}` : ''}\nargs=${shape(tool.function.parameters)}`);
     return [
-        'Return only valid JSON: {"calls":[{"tool":"one listed name","args":{...}}]}. Make 1 to 8 calls in order; no prose or Markdown. Check matching brackets and include every requested feature.',
-        'In args, ! means required and ? optional; use no unlisted fields. Numeric coordinates are millimeters. The host fills current revision/units and maps stable feature IDs in ids to native entity IDs. Every call is validated by the SDK and requires approval before application.',
+        `Return JSON only: {"calls":[{"tool":"listed name","args":{...}}]}. Make ${maxCalls === 1 ? 'exactly one call' : `1 to ${maxCalls} calls in order`}. Include every requested feature.`,
+        '! required, ? optional; no unlisted fields. Coordinates are mm. Host supplies revision/units and resolves stable id/ids. SDK validates; host approval applies.',
         ...operations
     ].join('\n');
 }

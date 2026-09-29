@@ -7,7 +7,7 @@ This is a **diagnostic pilot**, not the frozen 100-task, three-repetition result
 | Qwen `qwen-plus`, simple corner-hole plate | Valid DXF; 794 input + 125 output = **919** total tokens | Valid DXF; 393 input + 220 output = **613** total tokens | KJDraw used **306 more** tokens. |
 | Qwen `qwen-plus`, A3 fixture plate | Tool-call arguments rejected; 2,393 input + 321 output = 2,714 consumed tokens | Valid DXF; 550 input + 245 output = **795** total tokens | No valid paired comparison. KJDraw tool schema/input is too large and the response needs diagnosis. |
 | Qwen `qwen-plus`, two-round hole move | Both KJDraw rounds validated; 3,509 and 3,662 total tokens | First baseline round did not compile; 687 reported tokens, second unexecuted | No valid paired comparison. Baseline failure needs diagnosis. |
-| GLM `glm-4.5`, simple corner-hole plate | Provider returned rate-limit response before usage | Unexecuted after provider stop | No paired comparison. No automatic retry. |
+| GLM `glm-4.5`, simple corner-hole plate | Provider returned HTTP 429 with business code `1113` before usage | Unexecuted after provider stop | No paired comparison. No automatic retry. |
 
 These runs used the initial broad model-visible tool descriptions. The next arm revision will shorten *accurate* tool schemas and load only the relevant tool; that change must be versioned and the pilot repeated. The failed and unfavorable observations stay visible. The full corpus has 100 tasks and 180 requested rounds; three repetitions, two arms and three models require 3,240 planned provider requests. The dry-run plan and frozen corpus are available in `scripts/benchmarks/token-efficiency-plan.mjs` and `scripts/benchmarks/token-efficiency-task-corpus.mjs`.
 
@@ -77,8 +77,32 @@ The v2 batch attempted **23/26** planned requests. **7/10** pairs were comparabl
 
 ### Cross-model check of the same v2 interface
 
-DeepSeek `deepseek-chat` first completed a two-task smoke run: the valid simple plate used **436** KJDraw versus **618** comparator tokens; the valid two-round hole move used **922** versus **1,248**. A separate matched ten-task, one-repetition DeepSeek pilot then attempted **25/26** requests: **9/10** task pairs were valid and **7/10** predefined tasks were strict token-saving wins. All five simple drawings passed and used fewer KJDraw tokens; both manufacturing sheets passed but used **177 more tokens each** with KJDraw (A2: 931 vs 754; A1: 942 vs 765). Hole move and boundary width passed both arms and favored KJDraw (922 vs 1,248; 1,107 vs 1,311). Rounded-slot extension failed the KJDraw SDK proposal while the comparator passed both rounds, so it counted as a non-win.
+DeepSeek was requested using the legacy `deepseek-chat` alias; the provider returned `deepseek-flash`, which is the [current model name in its official changelog](https://api-docs.deepseek.com/updates/). It first completed a two-task smoke run: the valid simple plate used **436** KJDraw versus **618** comparator tokens; the valid two-round hole move used **922** versus **1,248**. A separate matched ten-task, one-repetition DeepSeek pilot then attempted **25/26** requests: **9/10** task pairs were valid and **7/10** predefined tasks were strict token-saving wins. All five simple drawings passed and used fewer KJDraw tokens; both manufacturing sheets passed but used **177 more tokens each** with KJDraw (A2: 931 vs 754; A1: 942 vs 765). Hole move and boundary width passed both arms and favored KJDraw (922 vs 1,248; 1,107 vs 1,311). Rounded-slot extension failed the KJDraw SDK proposal while the comparator passed both rounds, so it counted as a non-win.
 
-GLM `glm-4.5` was retried on a simple plate and a two-round edit. It again returned `PROVIDER_RATE_LIMIT` before usage on the first request, and the other five planned requests were not made. No GLM accuracy or token result exists. Across the two reachable models, the samples show useful savings on basic and some edit tasks, a manufacturing prompt-overhead penalty, and unresolved task failures. They do **not** establish a three-model or 99%-of-tasks claim.
+GLM `glm-4.5` was retried on a simple plate and a two-round edit. It returned HTTP 429 with business code `1113` before usage on the first request, and the other five planned requests were not made. A later minimal check with a separate operator-supplied pay-as-you-go key returned the same code. This is recorded as `PROVIDER_RESOURCE_UNAVAILABLE`, not ordinary rate limiting; the exact account or resource cause is not established. Per the operator's direction, GLM testing stopped. No GLM accuracy or token result exists. Across the two reachable models, the samples show useful savings on basic and some edit tasks, a manufacturing prompt-overhead penalty, and unresolved task failures. They do **not** establish a 99%-of-tasks claim.
 
 The [hashed Qwen and DeepSeek v2 evidence archives](evidence/2026-09-29-token-efficiency/README.md) contain the redacted model responses, usage records, validation outcomes and generated DXF from the matched ten-task pilots.
+
+### Full 100-task diagnostic, first repetition (v2)
+
+The same v2 Skill JSON surface was then run once on **all 100 frozen tasks / 180 requested drawing rounds** for each reachable provider. Each task has two arms, so each model had 360 planned provider requests. This remains a *diagnostic*, not the protocol's three-repetition, independently reviewed result. Both arms used the same task wording and independent DXF scoring; KJDraw proposal approval was synthetic. Failed or unexecuted tasks stay in the 100-task denominator.
+
+| Returned model | Requests attempted / planned | Both arms correct and comparable | KJDraw cheaper among all 100 tasks | Simple drawings | Manufacturing sheets | Multi-round edits |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Qwen `qwen-plus` | 324 / 360 | 69 / 100 | **39 / 100** | 25 / 30 | 0 / 30 | 14 / 40 |
+| DeepSeek `deepseek-flash` | 348 / 360 | 92 / 100 | **60 / 100** | 28 / 30 | 3 / 30 | 29 / 40 |
+
+The manufacturing result is the clearest counterexample to a blanket token-efficiency claim: all 30 sheets were valid in both arms for both providers, yet KJDraw's model-facing manufacturing contract was longer and it saved total tokens on only 0 Qwen and 3 DeepSeek sheets. Radial bolt-hole drawings and exact-radius edits also exposed correctness weaknesses. These observations motivated a **new v3 tool surface** with an existing polar-array proposal routed for bolt patterns, a precise circle-radius edit tool, and a shorter but still SDK-validated contract. The v2 artifacts are not reclassified or repaired after this change. A v3 result requires fresh model calls and a distinct source/version label.
+
+The complete [v2 diagnostic evidence archives](evidence/2026-09-29-token-efficiency/README.md) include redacted model responses, all 360 per-round result records per model, and generated DXFs. Their one-repetition, synthetic-review status and the parameterized family structure of the 100 tasks must accompany any citation. **Neither model met 99%; no public 99% claim is justified.**
+
+### Targeted v3 check; not a replacement for the 100-task result
+
+After introducing a routed polar-array proposal, an exact target-radius edit tool, one-call new-drawing contract and a shorter manufacturing instruction, six *preselected diagnostic* tasks were rerun once per model. The trusted comparator and scoring rules were unchanged. Every KJDraw radius edit and radial-flange round passed independent validation, including the previously troublesome four/five-hole arrays. The known slot-length weakness remains visible.
+
+| Returned model | Requests attempted / planned | Comparable tasks | Strict cheaper tasks | Radial flange (KJDraw vs comparator) | A3 manufacturing sheet (KJDraw vs comparator) |
+| --- | ---: | ---: | ---: | --- | --- |
+| Qwen `qwen-plus` | 17 / 18 | 5 / 6 | 2 / 6 | Valid but **620 vs 540** and **622 vs 542** tokens | Valid, **900 vs 795** tokens |
+| DeepSeek `deepseek-flash` | 17 / 18 | 4 / 6 | 3 / 6 | Valid and cheaper: **956 vs 980** and **798 vs 975** tokens | Valid, **2,119 vs 2,040** tokens |
+
+Qwen failed the KJDraw slot-length proposal; DeepSeek's slot-length result failed KJDraw geometry validation, and its comparator failed the first round of one radius-correction task. These are non-wins. The v3 sample shows a correctness improvement for radial holes and exact-radius proposals, **not** a demonstrated overall token advantage. Generalization requires a fresh full-corpus, three-repetition run on this exact version. [Sanitized v3 spot archives](evidence/2026-09-29-token-efficiency/README.md) retain the failures and DXFs.
