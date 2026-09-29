@@ -25,30 +25,28 @@
   <sub>录制于内置工作台，图中 Agent 面板播放的是预设场景。在真实 AI 客户端中使用，请看下方快速开始。</sub>
 </p>
 
-## 为下一次修改而设计
+## 画出来，还能继续改
 
-生成一张“看起来像 CAD”的图已经不难。工程 CAD 真正的门槛是：在一张包含数百个关联对象的图纸里，让模型连续多轮都能找到同一个对象，保持尺寸、图层、块、填充和引用关系正确，并且在撤销、导出、保存、重开之后结果一致。
+KJDraw 生成的是可编辑的 CAD 对象，不是一次性图片。让智能体画一个零件后，还可以继续改孔径、移动对象或调整图层，无需整张重画。每次修改先预览、再确认；需要时可以撤销、保存并重新打开。
 
-让 LLM 每轮重写整份 DXF 可能更耗 token，也可能产生无效文件；但工具定义很大时，一次性小图反而可能更贵。[跨模型实测与失败样本](docs/benchmarks/cross-model-2026-09-29.md)和[百题基准协议及真实模型试跑](docs/benchmarks/token-efficiency-pilot-2026-09-29.md)同时公开有利和失败结果；**目前没有证据支持“99% 任务更省 token”**。[DeepSeek 耗时对照](docs/benchmarks/deepseek-2026-09-29.md)与不调用模型的 [10,000 轮本地编辑守卫](docs/benchmarks/multi-round-editor-soak.md)分别说明其他边界。
-
-KJDraw 给不同的模型和智能体提供同一套 CAD 执行层：**模型负责“画什么”，引擎负责“怎么正确地画”。** 几何、对象身份、图层、引用、事务、校验和文件输出，都由本地引擎确定性完成；缺少关键数据时直接拒绝，而不是猜。
+**模型决定画什么，KJDraw 负责执行 CAD 操作。**
 
 ## 🚀 快速开始
 
-在 AI 智能体中使用（需要 Node.js 22+），先安装引擎，再添加 Skill：
+在 Codex、Claude Code、Cursor 等支持终端的智能体中使用（需要 Node.js 22+），只需执行一次：
 
 ```sh
 npm install -g @kanjieteam/kjdraw@next
 npx skills add KanJieTeam/kjdraw -g
 ```
 
-第二条命令会找到仓库中唯一的 `kjdraw-cad` Skill，并让你选择使用的智能体（包括 Codex、Claude Code、Cursor）。重启智能体后，直接说：
+第一条安装 CAD 引擎；简短的第二条让你选择把 Skill 加到哪个智能体。重启智能体后，直接说：
 
 ```text
 用 KJDraw 画一个半径 5 毫米的圆。
 ```
 
-Skill 在本地调用 `kjdraw agent`，**不用注册 MCP，也不用把模型 API Key 给 KJDraw**。这里的两次安装各有用途：npm 安装 CAD 引擎，Skills CLI 把使用说明放进你选择的智能体。修改会先生成待审提案，须由真人批准。[其他智能体、免交互安装与可选 MCP 接入](docs/try-in-ai.zh-CN.md)。
+Skill 在本地调用 `kjdraw agent`，**不用注册 MCP，也不用把模型 API Key 给 KJDraw**。修改会先生成待审提案，须由真人批准。[其他智能体与可选 MCP 接入](docs/try-in-ai.zh-CN.md)。
 
 ## 核心能力
 
@@ -73,13 +71,7 @@ KJDraw 是 CAD 引擎和执行层，不打算取代桌面 CAD。
 
 ## 📦 在应用中嵌入 CAD
 
-如果你开发 JavaScript 或 TypeScript 应用，在项目中安装 SDK；只用上面的智能体 Skill，无需执行这一步。
-
-```bash
-npm install @kanjieteam/kjdraw@next
-```
-
-`next` 目前指向已公开发布的 `1.0.0-rc.3` 候选版；`latest` 仍是旧预览版。需要固定版本时请安装 `1.0.0-rc.3`。
+如果你开发 JavaScript 或 TypeScript 应用，请按单独的 [SDK 快速开始](https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/)在项目中安装；不需要执行上面的智能体安装命令。嵌入 API 如下：
 
 ```html
 <div id="cad" style="height: 720px"></div>

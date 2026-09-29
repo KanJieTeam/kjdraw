@@ -25,30 +25,28 @@ that stay editable, verifiable, undoable, and reopenable.
   <sub>Recorded in the built-in workbench; the Agent panel replays a preset scenario. To use KJDraw from a real AI client, see Quick start.</sub>
 </p>
 
-## Built for the next edit
+## Draw it. Then keep editing it.
 
-Generating something that looks like CAD is no longer hard. Engineering CAD means keeping hundreds of related objects correct across a long conversation: finding the same object again, preserving dimensions, layers, blocks, hatches and references, and getting a consistent result after Undo, export, save and reopen.
+KJDraw creates editable CAD objects, not a one-off picture. Ask your agent to draw a part, then change a hole diameter, move an object or revise a layer without starting over. Review each proposed change before applying it; undo, save and reopen the drawing when you need to.
 
-Re-emitting a whole DXF on every edit can use more tokens and produce invalid files. The interface matters: a large tool schema can cost **more** than direct DXF for a tiny one-shot drawing. Our [cross-model probes](docs/benchmarks/cross-model-2026-09-29.md) and [100-task benchmark protocol with live pilot results](docs/benchmarks/token-efficiency-pilot-2026-09-29.md) publish both favorable and failed cases; **99% token savings are not established**. The [DeepSeek timing study](docs/benchmarks/deepseek-2026-09-29.md) shows how process startup can reverse an apparent speed advantage. A separate [10,000-round local edit soak](docs/benchmarks/multi-round-editor-soak.md) checks history and file reopening without a model.
-
-KJDraw gives any model or agent the same CAD execution layer: **the model decides what to draw; the engine makes sure it is drawn correctly.** Geometry, object identity, layers, references, transactions, validation and file output are handled deterministically by a local engine — and when key data is missing, it refuses instead of guessing.
+**The model decides what to draw. KJDraw handles the CAD operations.**
 
 ## 🚀 Quick start
 
-To use KJDraw in an AI agent (Node.js 22+), install the runtime, then add the Skill:
+For Codex, Claude Code, Cursor and other terminal-enabled agents (Node.js 22+), run these once:
 
 ```sh
 npm install -g @kanjieteam/kjdraw@next
 npx skills add KanJieTeam/kjdraw -g
 ```
 
-The second command finds the single `kjdraw-cad` Skill and lets you choose your AI client (including Codex, Claude Code and Cursor). Restart that client, then ask:
+The first command installs the CAD engine; the short second command lets you choose where to add its Skill. Restart your agent, then ask:
 
 ```text
 Use KJDraw to draw a circle with a radius of 5 mm.
 ```
 
-The Skill calls `kjdraw agent` locally; **no MCP registration or model API key is needed by KJDraw**. These are two different installs: npm provides the CAD engine, while the Skills CLI adds its instructions to your chosen agent. Edits remain proposals until a human approves them. [Other agents, non-interactive installation and optional MCP setup](docs/try-in-ai.md).
+The Skill calls `kjdraw agent` locally; **no MCP registration or model API key is needed by KJDraw**. Edits remain proposals until a human approves them. [Other agents and optional MCP setup](docs/try-in-ai.md).
 
 ## What you can build
 
@@ -73,13 +71,7 @@ KJDraw is a CAD engine and execution layer. It is not trying to replace desktop 
 
 ## 📦 Embed CAD in your app
 
-Building a JavaScript or TypeScript app? Install the SDK in your project instead. You can skip this section if you only use the AI-agent Skill above.
-
-```bash
-npm install @kanjieteam/kjdraw@next
-```
-
-`next` currently points to the public `1.0.0-rc.3` release candidate; `latest` still points to an older preview. Pin `1.0.0-rc.3` if you need a reproducible installation.
+Building a JavaScript or TypeScript app? Use the separate [SDK quickstart](https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/) for project installation. You do not need the agent setup above. The embed API looks like this:
 
 ```html
 <div id="cad" style="height: 720px"></div>
