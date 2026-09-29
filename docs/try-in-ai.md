@@ -25,6 +25,15 @@ kjdraw-review --workspace <absolute-workspace-path> --ledger <returned-ledger-pa
 
 The reviewer writes independently checked KJD/DXF candidates without overwriting the source. `kjdraw agent tools <name>` provides the live argument schema; the Skill should use a high-level drawing tool rather than emit hundreds of primitives.
 
+After approval, verify both files from the same test workspace:
+
+```sh
+kjdraw inspect reviewed.kjd
+kjdraw inspect reviewed.dxf
+```
+
+Both commands must report `valid: true` and the expected entities. Do not count the proposal alone as a completed drawing. For a repeatable test against the **actual published npm package** rather than repository source, install `@kanjieteam/kjdraw@1.0.0-rc.3` into an isolated directory and run `node scripts/audits/verify-published-agent-first-use.mjs --package-root <isolated-node_modules/@kanjieteam/kjdraw>` from a source checkout. Its scripted approval is only a smoke-test fixture, not independent human or live-model acceptance.
+
 ## Browser chat: data flow and limits
 
 The separate [KJDraw AI chat](https://kanjieteam.github.io/kjdraw/ai/) is an optional, bring-your-own-key preview. Its static GitHub Pages frontend sends the API key in an authorization header **directly to the HTTPS endpoint you enter**; it also sends your prompt, recent conversation and the drawing context needed for that request. KJDraw does not host a model proxy. Do not enter a key or customer drawing unless you trust that endpoint and are allowed to share the data with it.
@@ -102,7 +111,7 @@ If `kjdraw` already exists in Codex, review that entry with `codex mcp list` bef
 
 Run the same one-line command again to move to the currently promoted source commit. This is an in-place update; uninstalling or reconfiguring each project is unnecessary. Restart the AI client and start a new task so its MCP process loads the new runtime. The install channel is promoted only by an explicit maintainer change after candidate verification; it is not the moving tip of `main`, and the installer never silently downloads new executable code while an agent task is running.
 
-After upgrading once to a runtime with knowledge delivery, the installed MCP launcher checks the official versioned geology JSON manifest when a new MCP process starts. Data-only geology pack updates can then arrive without reinstalling the runtime: the manifest and pack are fetched over HTTPS, checked against SHA-256 and schema limits, and cached for offline fallback. Restart the client and open a new task to load a newly published pack; an already running task will not change underfoot. Set `KJDRAW_KNOWLEDGE_UPDATES=off` to use bundled knowledge only. This does **not** remotely update executable code, other engineering domains, or old installations that have not yet upgraded to this launcher. Independent cross-version client acceptance remains pending. Installing a Skill alone does not update the CAD engine.
+Geology knowledge comes from the runtime package. In the current source candidate, remote geology updates are **disabled**: the repository's mutable JSON manifest has hashes but no independently verifiable publisher signature. Hashes alone do not authenticate a new version. This change does **not** retrofit an already installed rc.3 package or an older pinned one-line installer; on those installations set `KJDRAW_KNOWLEDGE_UPDATES=off` in the launcher environment until a fixed runtime is published and installed. A future release must ship a pinned verification key and signed manifest before it can re-enable remote or cached knowledge. Restart the client after upgrading the runtime; installing a Skill alone does not update the CAD engine.
 
 ## Verify the connection
 

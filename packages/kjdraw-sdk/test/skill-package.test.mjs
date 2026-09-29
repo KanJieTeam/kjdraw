@@ -40,6 +40,7 @@ test('skill routes reference only real MCP tools and prefer every production dra
   assert.ok(manifest.routes[1].boundedFallbacks.indexOf('cad_propose_drawing_basic') < manifest.routes[1].boundedFallbacks.indexOf('cad_propose_drawing_compact'))
   assert.match(manifest.routes[1].rule, /没有此工具.*cad_propose_drawing_compact/)
   assert.deepEqual(manifest.routes[1].preferredCompilers, [
+    'cad_propose_mechanical_flange',
     'cad_propose_geology_column',
     'cad_propose_geology_section_example',
     'cad_propose_geology_section',

@@ -1,4 +1,8 @@
-import type { KJCommandDefinition, KJDrawSDK, KJPluginManifest } from '../../../packages/kjdraw-sdk/src/index.js'
+import type {
+  KJCommandDefinition,
+  KJDrawSDK,
+  KJPluginManifest,
+} from '../../../packages/kjdraw-sdk/src/index.js'
 
 /** Minimal plugin entry: the host supplies the inspected manifest and grants. */
 export function activateCenterMarker(

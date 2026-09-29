@@ -14,6 +14,8 @@ KJDraw tests its public ASCII DXF adapter against a redistributable synthetic co
 
 The machine-readable audit records each fixture SHA-256, detected source version, output header, entity/layer counts and round-trip findings. The semantic comparison requires stable CAD handles, entity types, geometry/text payloads and named resource references while allowing generated internal object IDs to differ between imports:
 
+**Identity boundary:** KJDraw's internal entity UUID is stable while editing and reopening the native KJD/KJP document. DXF stores CAD handles, not that UUID; importing the exported DXF can assign new internal UUIDs even when geometry and handles survive. An agent must re-query the reopened DXF and resolve entities by the available handle/geometry before editing; it must not reuse an old KJD UUID across the DXF checkpoint. This is an explicit cross-format limitation, not a ten-round identity guarantee.
+
 ```sh
 node scripts/audit-dxf-corpus.mjs
 node scripts/audit-dxf-corpus.mjs --json

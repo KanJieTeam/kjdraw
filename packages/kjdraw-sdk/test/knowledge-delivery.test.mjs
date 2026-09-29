@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
-import { GEOLOGY_MANIFEST_URL, loadGeologyKnowledge } from '../bin/kjdraw-knowledge-delivery.mjs'
+import { GEOLOGY_MANIFEST_URL, loadGeologyKnowledge as loadKnowledge } from '../bin/kjdraw-knowledge-delivery.mjs'
 import { KJDRAW_GEOLOGY_KNOWLEDGE_PACK } from '../src/knowledge-packs/geology-core.js'
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
@@ -13,6 +13,30 @@ const packUrl = 'https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/knowle
 const packBytes = Buffer.from(JSON.stringify(KJDRAW_GEOLOGY_KNOWLEDGE_PACK))
 const row = { id: 'geology.core', version: '1.0.0', sha256: hash(packBytes), url: packUrl }
 const manifest = Buffer.from(JSON.stringify({ schema: 'kjdraw.knowledge-delivery.v1', packs: { column: row, section: row } }))
+// Exercise the transport/cache logic with a test-only verifier. The installed
+// runtime deliberately has no verifier until a signed release is published.
+const loadGeologyKnowledge = options => loadKnowledge({ ...options, verifyManifestSignature: async () => true })
+
+test('unsigned manifests and caches are never loaded or fetched by the installed runtime', async t => {
+  const cacheRoot = await mkdtemp(join(tmpdir(), 'kjdraw-knowledge-unsigned-'))
+  t.after(() => rm(cacheRoot, { recursive: true, force: true }))
+  let calls = 0
+  const fetcher = () => { calls++; throw new Error('must not fetch') }
+  const result = await loadKnowledge({ cacheRoot, enabled: true, fetcher })
+  assert.equal(result.source, 'bundled')
+  assert.deepEqual(result.packs, {})
+  assert.match(result.notice, /Unsigned/u)
+  assert.equal(calls, 0)
+})
+
+test('a rejected manifest signature cannot activate remote or cached knowledge', async t => {
+  const cacheRoot = await mkdtemp(join(tmpdir(), 'kjdraw-knowledge-badsig-'))
+  t.after(() => rm(cacheRoot, { recursive: true, force: true }))
+  const first = await loadKnowledge({ cacheRoot, enabled: true, fetcher: served().fetcher,
+    verifyManifestSignature: async () => false })
+  assert.equal(first.source, 'bundled')
+  assert.deepEqual(first.packs, {})
+})
 
 test('published geology manifest binds the public data bytes and supported rule identities', async () => {
   const directory = fileURLToPath(new URL('../../../knowledge/geology/', import.meta.url))
@@ -37,7 +61,7 @@ function served({ manifestBytes = manifest, knowledgeBytes = packBytes } = {}) {
   } }
 }
 
-test('installed-client knowledge updater verifies official manifest, exact pack bytes and both geology roles', async t => {
+test('signed-manifest test harness verifies exact pack bytes and both geology roles', async t => {
   const cacheRoot = await mkdtemp(join(tmpdir(), 'kjdraw-knowledge-delivery-'))
   t.after(() => rm(cacheRoot, { recursive: true, force: true }))
   const network = served()

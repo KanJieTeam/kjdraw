@@ -48,6 +48,8 @@ Use KJDraw to draw a circle with a radius of 5 mm.
 
 The Skill calls `kjdraw agent` locally; **no MCP registration or model API key is needed by KJDraw**. Edits remain proposals until a human approves them. [Other agents and optional MCP setup](docs/try-in-ai.md).
 
+For a more representative first drawing, ask: “Use KJDraw to draw a six-hole flange in millimeters: outer diameter 120, bore 40, thickness 20, bolt circle 90, holes diameter 10; title it Six-hole flange and use drawing ID DEMO-FLANGE.” The published rc.3 tool produces a review proposal, not an automatically approved drawing. [Review it and reopen the KJD/DXF candidates](docs/try-in-ai.md#skill-first-local-cli).
+
 Prefer the browser? [Try with AI](https://kanjieteam.github.io/kjdraw/ai/) is a separate chat page. Bring your own API key and a model endpoint that permits browser CORS requests; the key stays in page memory. CAD changes remain proposals until you approve them.
 
 ## What you can build

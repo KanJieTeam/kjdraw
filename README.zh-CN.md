@@ -48,6 +48,8 @@ npx skills add KanJieTeam/kjdraw -g
 
 Skill 在本地调用 `kjdraw agent`，**不用注册 MCP，也不用把模型 API Key 给 KJDraw**。修改会先生成待审提案，须由真人批准。[其他智能体与可选 MCP 接入](docs/try-in-ai.zh-CN.md)。
 
+想试一张更像工程图的图纸，可以说：“用 KJDraw 画一张毫米单位的六孔法兰图：外径 120、内孔 40、厚 20、螺栓孔中心圆直径 90、六个孔直径 10；标题为‘六孔法兰’，图号 DEMO-FLANGE。”已发布的 rc.3 工具会先生成待审提案，**不是自动批准的成品**。[审核并重开 KJD/DXF 候选文件](docs/try-in-ai.zh-CN.md#skill-优先的本地-cli)。
+
 想直接在浏览器里试？[AI 绘图](https://kanjieteam.github.io/kjdraw/ai/)是独立对话页面。填入自己的 API Key 和允许浏览器跨域请求的模型接口；密钥仅留在当前页面内存中，CAD 修改须由你确认才应用。
 
 ## 核心能力

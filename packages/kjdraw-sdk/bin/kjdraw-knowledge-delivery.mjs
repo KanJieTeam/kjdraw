@@ -110,8 +110,13 @@ async function atomicFile(path, bytes) {
 
 /** Host-only, data-only updater. No drawing bytes or model input enter the network request. */
 export async function loadGeologyKnowledge({ cacheRoot, fetcher = fetchKnowledgeThroughProxy, manifestUrl = GEOLOGY_MANIFEST_URL,
-  enabled = process.env.KJDRAW_KNOWLEDGE_UPDATES === 'on' } = {}) {
+  enabled = process.env.KJDRAW_KNOWLEDGE_UPDATES === 'on', verifyManifestSignature } = {}) {
   if (!enabled) return { source: 'disabled', packs: {}, notice: 'Knowledge updates disabled by KJDRAW_KNOWLEDGE_UPDATES=off' }
+  // The published manifest has no independent signature. A SHA-256 value in
+  // that same mutable manifest proves byte integrity, not publisher identity.
+  // Production callers have no verifier and must never read remote/cache data.
+  if (typeof verifyManifestSignature !== 'function')
+    return { source: 'bundled', packs: {}, notice: 'Unsigned knowledge updates are unavailable; using bundled defaults' }
   officialUrl(manifestUrl)
   if (!cacheRoot) throw new Error('Knowledge cache root is required')
   try { await assertSafeCachePath(cacheRoot) }
@@ -121,6 +126,7 @@ export async function loadGeologyKnowledge({ cacheRoot, fetcher = fetchKnowledge
   try {
     const manifestBytes = await safeCacheFile(cachedManifestPath, MAX_MANIFEST)
     if (manifestBytes) {
+      if (await verifyManifestSignature(manifestBytes) !== true) throw new Error('Cached knowledge manifest signature is invalid')
       const descriptors = parseManifest(manifestBytes, manifestUrl)
       for (const [role, descriptor] of Object.entries(descriptors)) {
         const bytes = await safeCacheFile(join(cacheRoot, `${role}-${descriptor.sha256}.json`), MAX_PACK)
@@ -131,6 +137,7 @@ export async function loadGeologyKnowledge({ cacheRoot, fetcher = fetchKnowledge
   } catch { cached = {} }
   try {
     const manifestBytes = await boundedFetch(manifestUrl, MAX_MANIFEST, fetcher)
+    if (await verifyManifestSignature(manifestBytes) !== true) throw new Error('Knowledge manifest signature is invalid')
     const descriptors = parseManifest(manifestBytes, manifestUrl)
     const fresh = {}
     const downloads = new Map()

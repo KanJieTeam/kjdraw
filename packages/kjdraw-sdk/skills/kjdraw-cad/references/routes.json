@@ -22,6 +22,7 @@
       "when": "根据明确需求以及宿主选定的单位或知识创建新的可编辑图纸。",
       "start": [],
       "preferredCompilers": [
+        "cad_propose_mechanical_flange",
         "cad_propose_geology_column",
         "cad_propose_geology_section_example",
         "cad_propose_geology_section",

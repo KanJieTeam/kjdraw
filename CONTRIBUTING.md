@@ -4,7 +4,13 @@ Thank you for helping build an open CAD foundation. Small, reproducible contribu
 
 ## Development
 
-Use Node.js 22 or newer. Run `npm ci`, then `npm run typecheck`, `node scripts/test.mjs`, `node --no-warnings scripts/build-typescript.mjs --check` and `node scripts/check.mjs`. Use `node scripts/serve.mjs` for the playground. Rust work requires stable Rust and the `wasm32-unknown-unknown` target; see [Getting started](docs/getting-started.md).
+Use Node.js 22 or newer. Run `npm ci`, then `npm run typecheck`, `node scripts/test.mjs`, `node --no-warnings scripts/build-typescript.mjs --check` and `node scripts/check.mjs`. Independent DXF tests require Python and pinned `ezdxf`: `python -m pip install -r scripts/audits/requirements-dxf.txt`. If multiple interpreters are installed, set `KJDRAW_PYTHON` to the one with `ezdxf` before running tests. A missing Python dependency is not a passing interoperability check. Use `node scripts/serve.mjs` for the playground. Rust work requires stable Rust and the `wasm32-unknown-unknown` target; see [Getting started](docs/getting-started.md).
+
+For a first domain contribution, follow the [bolt-circle planner starter](examples/domain-planner-starter/README.md): explicit facts, bounded output, one transaction, undo and both file reopens.
+
+Formatting and lint are being introduced **only for the listed pilot files**. Run `npm run format:pilot:write` before a PR, then `npm run format:pilot:check` and `npm run lint:pilot`; CI checks the same scope. This is not a one-time whole-repository reformat. Add further modules to the gate in small, reviewable steps.
+
+TypeScript under `packages/kjdraw-sdk/src` is authoritative, but adjacent generated JavaScript is still committed because the current pinned-source installer executes it directly. After changing TS, run `npm run build:runtime` and include matching JS in the PR; `node --no-warnings scripts/build-typescript.mjs --check` detects drift. Removing generated JS requires a coordinated installer/package migration, not an isolated cleanup.
 
 ## Changes
 
