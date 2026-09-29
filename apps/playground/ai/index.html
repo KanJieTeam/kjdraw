@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8f5">
+  <meta name="description" content="KJDraw AI：用自然语言创建和修改可审阅的工程图纸。">
+  <title>KJDraw AI — 对话式工程绘图</title>
+  <link rel="icon" href="../docs/assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../apps/playground/ai/ai.css">
+  <script type="module" src="../apps/playground/ai/ai.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="会话">
+      <div class="sidebar-top">
+        <a class="brand" href="../ai/" aria-label="KJDraw AI 首页">
+          <img src="../docs/assets/mark.svg" width="28" height="28" alt="">
+          <span>KJDraw <em>AI</em></span>
+        </a>
+        <button class="icon-button sidebar-close" id="sidebar-close" type="button" aria-label="关闭侧栏">×</button>
+      </div>
+      <button class="new-chat" id="new-chat" type="button"><span aria-hidden="true">＋</span><span data-text="newChat">新建对话</span></button>
+      <div class="history-heading"><span data-text="recent">最近对话</span><span class="history-count" id="history-count">0</span></div>
+      <nav class="conversation-list" id="conversation-list" aria-label="最近对话"></nav>
+      <div class="sidebar-bottom">
+        <a href="../" class="editor-link"><span aria-hidden="true">▦</span><span data-text="editor">打开 CAD 编辑器</span><span aria-hidden="true">↗</span></a>
+        <a href="../docs/latest/" class="docs-link" data-text="docs">使用文档 ↗</a>
+      </div>
+    </aside>
+
+    <div class="mobile-scrim" id="mobile-scrim" hidden></div>
+    <main class="main-panel">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="icon-button menu-button" id="menu-button" type="button" aria-label="打开侧栏" aria-controls="sidebar" aria-expanded="false">☰</button>
+          <span class="topbar-title">KJDraw AI</span>
+          <span class="topbar-badge" data-text="beta">预览版</span>
+        </div>
+        <div class="topbar-actions">
+          <span class="connection-pill" id="connection-pill"><span class="connection-dot"></span><span data-text="notConnected">未连接模型</span></span>
+          <button class="topbar-button" id="settings-open" type="button" aria-haspopup="dialog" data-testid="settings-open"><span aria-hidden="true">⚙</span><span data-text="connect">连接模型</span></button>
+          <button class="lang-button" id="language-button" type="button" aria-label="Switch to English">EN</button>
+        </div>
+      </header>
+
+      <section class="conversation" id="conversation" aria-label="聊天消息">
+        <div class="empty-state" id="empty-state" data-testid="chat-empty">
+          <div class="hero-mark" aria-hidden="true"><span class="hero-grid"></span><span class="hero-line"></span><span class="hero-dot"></span></div>
+          <div class="hero-eyebrow">KJDRAW / AI</div>
+          <h1 data-text="heroTitle">一句话，开始画工程图。</h1>
+          <p data-text="heroDescription">描述你的图纸需求。每一步修改都能预览、检查，再决定是否应用。</p>
+          <div class="suggestions" aria-label="示例需求">
+            <button type="button" data-prompt="line" data-text="suggestLine">画一条 100 mm 水平线</button>
+            <button type="button" data-prompt="circle" data-text="suggestCircle">画一个半径 25 mm 的圆</button>
+            <button type="button" data-prompt="outline" data-text="suggestOutline">画一个 120 × 80 mm 矩形</button>
+          </div>
+        </div>
+        <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions" hidden></div>
+      </section>
+
+      <div class="composer-wrap">
+        <form class="composer" id="chat-form">
+          <label class="sr-only" for="chat-input" data-text="promptLabel">描述你想绘制或修改的图纸</label>
+          <textarea id="chat-input" data-testid="chat-input" rows="2" maxlength="12000" placeholder="描述你想绘制或修改的图纸…" aria-keyshortcuts="Enter Shift+Enter"></textarea>
+          <div class="composer-footer">
+            <span class="composer-hint" data-text="composerHint">Enter 发送 · Shift + Enter 换行</span>
+            <button class="send-button" id="chat-send" data-testid="chat-send" type="submit" aria-label="发送消息"><span data-text="send">发送</span><span aria-hidden="true">↗</span></button>
+          </div>
+        </form>
+        <p class="disclaimer" data-text="disclaimer">AI 生成的工程图需由你审核。模型连接由你配置；密钥仅保留在当前页面内存中。</p>
+      </div>
+    </main>
+  </div>
+
+  <dialog class="settings-dialog" id="settings-dialog" aria-labelledby="settings-title">
+    <form id="settings-form" method="dialog" novalidate>
+      <div class="dialog-header">
+        <div><div class="dialog-eyebrow" data-text="connectionSettings">模型连接</div><h2 id="settings-title" data-text="connectModel">连接你的模型</h2></div>
+        <button class="icon-button" id="settings-close" type="button" aria-label="关闭设置">×</button>
+      </div>
+      <p class="dialog-intro" data-text="settingsIntro">使用支持浏览器跨域请求的 OpenAI 兼容接口。API 密钥只保留在当前页面内存中。</p>
+      <label for="settings-endpoint" data-text="endpoint">API 地址</label>
+      <input id="settings-endpoint" data-testid="settings-endpoint" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://api.example.com/v1">
+      <label for="settings-model" data-text="model">模型名称</label>
+      <input id="settings-model" data-testid="settings-model" type="text" autocomplete="off" spellcheck="false" placeholder="model-name">
+      <label for="settings-key" data-text="apiKey">API 密钥</label>
+      <input id="settings-key" data-testid="settings-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…">
+      <p class="settings-error" id="settings-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button class="secondary-button" id="settings-cancel" type="button" data-text="cancel">取消</button>
+        <button class="primary-button" data-testid="settings-save" type="submit" data-text="saveConnection">连接并继续</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

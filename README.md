@@ -9,7 +9,7 @@
 The model describes engineering intent. KJDraw compiles it into real CAD drawings<br/>
 that stay editable, verifiable, undoable, and reopenable.
 
-[**Quick start**](#-quick-start) · [**Try with AI**](https://kanjieteam.github.io/kjdraw/ai/) · [**Live editor**](https://kanjieteam.github.io/kjdraw/) · [**Docs**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [简体中文](README.zh-CN.md)
+[**Quick start**](#-quick-start) · [**Try with AI (bring your own key)**](https://kanjieteam.github.io/kjdraw/ai/) · [**Live editor**](https://kanjieteam.github.io/kjdraw/) · [**Docs**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [简体中文](README.zh-CN.md)
 
 [![GitHub release](https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0)](https://github.com/KanJieTeam/kjdraw/releases)
 [![npm next](https://img.shields.io/npm/v/@kanjieteam/kjdraw/next?style=flat-square&label=npm&labelColor=30363d&color=2863f0)](https://www.npmjs.com/package/@kanjieteam/kjdraw)
@@ -48,15 +48,17 @@ Use KJDraw to draw a circle with a radius of 5 mm.
 
 The Skill calls `kjdraw agent` locally; **no MCP registration or model API key is needed by KJDraw**. Edits remain proposals until a human approves them. [Other agents and optional MCP setup](docs/try-in-ai.md).
 
+Prefer the browser? [Try with AI](https://kanjieteam.github.io/kjdraw/ai/) is a separate chat page. Bring your own API key and a model endpoint that permits browser CORS requests; the key stays in page memory. CAD changes remain proposals until you approve them.
+
 ## What you can build
 
-| Workflow | What works today |
+| Workflow | Current scope |
 | --- | --- |
-| **Understand existing drawings** | Paged reads, spatial and property queries, stable IDs, layers, block references, topology and change-impact inspection |
-| **Generate engineering drawings** | High-level compilers for manufacturing parts, floor plans, site and utility plans, road alignments, borehole logs, geological sections and charts |
-| **Keep editing through conversation** | Select precisely, then move, copy, rotate, scale, offset, stretch, lengthen, edit text, change layers, and delete with relationships rebuilt |
-| **Deterministic quality loop** | Every run checks geometry, layers, references and revision; each change is one undoable transaction you can save, reopen and re-verify |
-| **Embed CAD in your product** | TypeScript/JavaScript SDK, React and Vue components, packaged editor, CLI, MCP and local file workflows — all on the same engine |
+| **Understand existing drawings** | Available: paged reads, spatial and property queries, stable IDs within a live/KJD document, layers, block references, topology and change-impact inspection for supported objects. DXF reimport may assign new internal IDs |
+| **Generate engineering drawings** | Sample workflows: manufacturing parts, floor plans, site and utility plans, road alignments, borehole logs, geological sections and charts. Complete production workflows are still being validated |
+| **Keep editing through conversation** | Available command subset: select, move, copy, rotate, scale, offset, stretch, lengthen, edit text, change layers and delete for supported objects and combinations; model-guided multi-turn tasks still need real-world validation |
+| **Review and revise safely** | Available: revision-bound proposals, human approval, one-transaction changes, undo and save/reopen checks for the supported workflow |
+| **Embed CAD in your product** | Available: TypeScript/JavaScript SDK, React and Vue components, packaged editor, CLI, MCP and local file workflows on the same engine |
 
 ## Is KJDraw right for you?
 

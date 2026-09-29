@@ -9,7 +9,7 @@
 模型只需表达工程意图，KJDraw 负责把它编译为<br/>
 可编辑、可验证、可撤销、可保存重开的真实 CAD 图纸。
 
-[**快速开始**](#-快速开始) · [**AI 绘图**](https://kanjieteam.github.io/kjdraw/ai/) · [**在线编辑器**](https://kanjieteam.github.io/kjdraw/) · [**文档**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [English](README.md)
+[**快速开始**](#-快速开始) · [**AI 绘图（自带 Key）**](https://kanjieteam.github.io/kjdraw/ai/) · [**在线编辑器**](https://kanjieteam.github.io/kjdraw/) · [**文档**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [English](README.md)
 
 [![GitHub release](https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0)](https://github.com/KanJieTeam/kjdraw/releases)
 [![npm next](https://img.shields.io/npm/v/@kanjieteam/kjdraw/next?style=flat-square&label=npm&labelColor=30363d&color=2863f0)](https://www.npmjs.com/package/@kanjieteam/kjdraw)
@@ -48,15 +48,17 @@ npx skills add KanJieTeam/kjdraw -g
 
 Skill 在本地调用 `kjdraw agent`，**不用注册 MCP，也不用把模型 API Key 给 KJDraw**。修改会先生成待审提案，须由真人批准。[其他智能体与可选 MCP 接入](docs/try-in-ai.zh-CN.md)。
 
+想直接在浏览器里试？[AI 绘图](https://kanjieteam.github.io/kjdraw/ai/)是独立对话页面。填入自己的 API Key 和允许浏览器跨域请求的模型接口；密钥仅留在当前页面内存中，CAD 修改须由你确认才应用。
+
 ## 核心能力
 
-| 能力 | 现在能做什么 |
+| 能力 | 当前范围 |
 | --- | --- |
-| **读懂现有图纸** | 分页读取、空间与属性查询、稳定对象 ID、图层、块引用、拓扑和修改影响分析 |
-| **高层工程成图** | 机械加工图、建筑平面图、场地与管线图、道路平纵横、柱状图、地质剖面图、折线图和柱状统计图 |
-| **精确多轮改图** | 定位对象后移动、复制、旋转、缩放、偏移、拉伸、延长、改文字、换图层，以及删除后关系重建 |
-| **确定性质量闭环** | 每次执行都检查几何、图层、引用和版本；一次修改对应一个可撤销事务，可保存、重开、再验证 |
-| **嵌入你的产品** | 同一引擎提供 TypeScript/JavaScript SDK、React、Vue、完整编辑器、CLI、MCP 和本地文件工作流 |
+| **读懂现有图纸** | 已提供：对支持的对象进行分页读取、空间与属性查询、在线图档/KJD 内稳定的对象 ID、图层、块引用、拓扑和修改影响分析；DXF 重新导入可能生成新的内部 ID |
+| **高层工程成图** | 示例工作流：机械加工图、建筑平面图、场地与管线图、道路平纵横、柱状图、地质剖面图和统计图；完整生产流程仍在验证 |
+| **多轮改图** | 已提供部分命令：对支持的对象及组合进行定位、移动、复制、旋转、缩放、偏移、拉伸、延长、改文字、换图层和删除；真实模型多轮任务仍需验证 |
+| **审核与修订** | 已提供：绑定图纸版本的修改提案、真人审批、单事务提交、撤销，以及在支持范围内保存和重开检查 |
+| **嵌入你的产品** | 已提供：同一引擎的 TypeScript/JavaScript SDK、React、Vue、完整编辑器、CLI、MCP 和本地文件工作流 |
 
 ## KJDraw 适合你吗？
 

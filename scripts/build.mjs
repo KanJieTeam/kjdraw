@@ -8,5 +8,5 @@ for (const path of ['apps/playground', 'packages/kjdraw-sdk/src', 'web/public/kj
 const index = await readFile(new URL('apps/playground/index.html', root), 'utf8')
 await writeFile(new URL('index.html', out), index)
 await mkdir(new URL('ai/', out), { recursive: true })
-await writeFile(new URL('ai/index.html', out), index.replaceAll('="./', '="../'))
-console.log('Static playground built in dist/. No server, account, or runtime dependency required.')
+await writeFile(new URL('ai/index.html', out), await readFile(new URL('apps/playground/ai/index.html', root), 'utf8'))
+console.log('Static playground and independent AI chat built in dist/.')

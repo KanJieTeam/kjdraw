@@ -23,7 +23,7 @@ const wire = (calls = [], text = '') => ({ choices: [{ finish_reason: calls.leng
 test('AI homepage keeps drawing changes approval-gated and supports preview, save, reopen, editor and undo', async ({ page }) => {
   const sdk=createKJDrawSDK(), source=sdk.createDocument({documentId:'ai-homepage-drawing',units:'millimeter'}), requests=[]
   await page.setViewportSize({width:1440,height:900})
-  await page.goto('/ai/')
+  await page.goto('/?surface=ai')
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
   await page.locator('#file-input').setInputFiles({name:'ai-homepage.kjd',mimeType:'application/json',buffer:Buffer.from(await sdk.writeDocument(source,{format:'KJD'}))})
   await expect(page.locator('body')).toHaveClass(/ai-surface/)
