@@ -24,7 +24,7 @@ const baseline = { schema: declarativeEzdxfSchema, units: 'millimeter', operatio
   ...expected.polylines.map((shape, index) => ({ op: 'add', id: `poly-${index}`, kind: 'LWPOLYLINE', shape })),
 ] }
 const usage = { inputTokens: 20, outputTokens: 10, totalTokens: 30 }
-const runtime = { python: 'D:\\anaconda\\python.exe', ezdxfPath: 'C:\\Users\\jkyli\\AppData\\Roaming\\Python\\Python312\\site-packages' }
+const runtime = { python: process.env.KJDRAW_PYTHON ?? 'python', ezdxfPath: process.env.KJDRAW_EZDXF_PATH ?? null }
 
 async function scratch(t) {
   const directory = await mkdtemp(join(tmpdir(), 'kjdraw-token-cli-'))
