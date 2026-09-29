@@ -37,6 +37,13 @@ elif mode=='extra': actual.modelspace().add_circle((50,50),2)
 elif mode=='layer': actual.layers.get('SURVEY').dxf.color=5
 elif mode=='units': actual.units=6
 elif mode=='unsupported': actual.modelspace().add_blockref('UNKNOWN',(0,0))
+elif mode=='block':
+    block=actual.blocks.new('UNSCORED')
+    block.add_line((0,0),(2,0))
+elif mode=='spoofed-layout-block':
+    block=actual.blocks.new('*PAPER_SPACE_FAKE')
+    block.add_line((0,0),(2,0))
+elif mode=='paperspace': actual.layout().add_circle((5,5),2)
 elif mode=='many':
     for i in range(600):
         expected.modelspace().add_line((100+i,0),(100+i,10))
@@ -86,6 +93,9 @@ test('geometry, hatch, additions, layer styling and units must match reference',
 
 test('unscored entity types and malformed inputs fail closed', () => {
   assert.equal(score(fixture('unsupported')).report.error, 'ValueError')
+  assert.equal(score(fixture('block')).report.error, 'ValueError')
+  assert.equal(score(fixture('spoofed-layout-block')).report.error, 'ValueError')
+  assert.equal(score(fixture('paperspace')).report.error, 'ValueError')
   assert.equal(score(fixture('same'), { actualDxf: 'not a DXF' }).report.passed, false)
   assert.equal(score(fixture('same'), { tolerance: 0.5 }).report.passed, false)
 })

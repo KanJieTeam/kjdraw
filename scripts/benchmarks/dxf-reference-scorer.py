@@ -68,6 +68,24 @@ def read_dxf(text):
     return document
 
 
+def require_scored_scope(document):
+    # A model-space-only scorer must not silently pass a drawing whose
+    # unscored layouts or reusable block definitions contain content.
+    for block in document.blocks:
+        name = block.name.upper()
+        paper_suffix = name.removeprefix("*PAPER_SPACE")
+        is_layout_block = (
+            name == "*MODEL_SPACE"
+            or name == "*PAPER_SPACE"
+            or (name.startswith("*PAPER_SPACE") and paper_suffix.isdigit())
+        )
+        if not is_layout_block:
+            raise ValueError("block definitions are not scored")
+    for layout in document.layouts:
+        if layout.name.lower() != "model":
+            require(len(layout) == 0, "paper space content is not scored")
+
+
 def entity_signature(entity, version):
     kind = entity.dxftype()
     require(kind in SUPPORTED, "unsupported modelspace entity")
@@ -96,6 +114,7 @@ def entity_signature(entity, version):
 
 
 def modelspace(document):
+    require_scored_scope(document)
     entities = list(document.modelspace())
     require(len(entities) <= MAX_ENTITIES, "entity budget exceeded")
     return [entity_signature(entity, document.dxfversion) for entity in entities]
