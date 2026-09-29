@@ -63,11 +63,12 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
   assert.match(shell, /trap .*KJDRAW_CURRENT_STAGE/)
 })
 
-test('English and Chinese homepages lead with the same Skill-first CAD engine setup', async () => {
+test('English and Chinese homepages lead with the same concise Skill-first CAD setup', async () => {
   const [english, chinese] = await Promise.all([read('README.md'), read('README.zh-CN.md')])
   for (const source of [chinese, english]) {
     assert.match(source, /npm install -g @kanjieteam\/kjdraw@next/)
-    assert.match(source, /npx skills add KanJieTeam\/kjdraw --skill kjdraw-cad -g -a codex -a claude-code -a cursor -y/)
+    assert.match(source, /npx skills add KanJieTeam\/kjdraw -g/)
+    assert.doesNotMatch(source, /npx skills add KanJieTeam\/kjdraw[^\n]*-a codex/)
     assert.match(source, /kjdraw agent/)
     assert.match(source, /docs\/try-in-ai/)
   }
