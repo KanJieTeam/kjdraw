@@ -21,6 +21,7 @@ test('published package carries one canonical KJDraw agent skill with no scaffol
   assert.match(source, /references\/routes\.json/)
   assert.match(source, /references\/acceptance\.md/)
   assert.match(source, /cad_propose_drawing_basic.*cad_propose_drawing_compact/s)
+  assert.match(source, /kjdraw --help.*--summary/s)
 })
 
 test('skill routes reference only real MCP tools and prefer every production drawing compiler', async () => {

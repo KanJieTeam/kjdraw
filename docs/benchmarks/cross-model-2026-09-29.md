@@ -39,6 +39,12 @@ Thus the smaller tool definition did **not** make these simple one-shot tasks ch
 
 The provider breakdown localizes the overhead: on these three fresh tasks the earlier full-schema pilot reported 8,243 input / 1,147 output tokens for Qwen and 6,946 input / 1,047 output for DeepSeek. The basic-tool follow-up reported 3,098 input / 638 output and 2,755 input / 575 output respectively. This supports using the narrowest suitable tool, but the separate model calls and possible provider changes mean the difference is **not** a controlled percentage-saving claim. The remaining fixed request and tool overhead still outweighs a tiny direct DXF on all six basic-tool task pairs.
 
+## CLI reply compaction: measured bytes, not a model-token result
+
+An opt-in source-candidate `kjdraw agent call ... --summary` now returns a small proposal receipt instead of echoing the full generated geometry into the agent's next context. The full native plan stays in the host review ledger, with a SHA-256 digest in the receipt; source drawings are not overwritten and human approval is still required. The default CLI reply is unchanged. The installed Skill checks `kjdraw --help` before using this flag because older published runtimes do not have it.
+
+The deterministic [CLI regression](../../packages/kjdraw-sdk/test/agent-cli.test.mjs) compared UTF-8 stdout for the same compiler inputs: a six-hole flange returned 58,255 bytes in full mode versus 1,159 bytes in summary mode; a 96-hole manufacturing sheet returned 358,235 versus 1,210 bytes. These are **CLI response bytes only**, not provider-reported input/output tokens or an end-to-end benchmark. The model still pays for its prompt, tool schema and any required inspection; a summary may require a follow-up query. Neither result establishes that 99% of tasks save total tokens. The product hypothesis worth testing next is that intent-level compilers, delta edits and bounded review receipts together reduce repeated geometry in a prespecified multi-round workload without weakening correctness.
+
 ## Reproduce and challenge
 
 The [paired runner](../../scripts/benchmarks/paired-model-benchmark.mjs), [versioned tasks](../../scripts/benchmarks/manufacturing-task-suite.mjs), [generic validator](../../scripts/benchmarks/paired-model-validator.py) and [manufacturing validator](../../scripts/benchmarks/manufacturing-model-validator.py) are public. A dry-run plan makes no model calls:

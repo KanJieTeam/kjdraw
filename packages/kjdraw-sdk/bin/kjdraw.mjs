@@ -21,11 +21,11 @@ Usage:
   kjdraw validate <drawing.kjd|drawing.dxf|project.kjp>
   kjdraw convert <input> <output.kjd|output.dxf|output.kjp> [--dxf-version 2018]
   kjdraw agent tools [tool-name] [--units millimeter|meter]  List tools or inspect one input schema
-  kjdraw agent call <tool-name> --input <drawing.kjd|drawing.dxf> [--args-file <request.json>] [--workspace <directory>]
-  kjdraw agent call <tool-name> --blank <new-drawing.kjd> --units <millimeter|meter> [--args-file <request.json>] [--workspace <directory>]
+  kjdraw agent call <tool-name> --input <drawing.kjd|drawing.dxf> [--args-file <request.json>] [--workspace <directory>] [--summary]
+  kjdraw agent call <tool-name> --blank <new-drawing.kjd> --units <millimeter|meter> [--args-file <request.json>] [--workspace <directory>] [--summary]
   kjdraw --version
 
-Agent calls run locally and only create review proposals. Approve a proposal separately with kjdraw-review in an interactive terminal.
+Agent calls run locally and only create review proposals. --summary keeps the full proposal in the review ledger while returning a small receipt to the agent. Approve separately with kjdraw-review in an interactive terminal.
 No drawing data is uploaded by the CLI.`
 
 const SOURCE_LIMITS = Object.freeze({ '.kjd': 64 * 1024 ** 2, '.dxf': 64 * 1024 ** 2, '.kjp': 512 * 1024 ** 2 })
@@ -340,17 +340,50 @@ async function convert(input, output, args) {
 
 function agentOptions(args) {
   const values = {}
-  for (let index = 0; index < args.length; index += 2) {
+  for (let index = 0; index < args.length;) {
     const key = args[index], value = args[index + 1]
+    if (key === '--summary') {
+      if (values.summary) throw new Error('Duplicate agent option: --summary')
+      values.summary = true
+      index += 1
+      continue
+    }
     if (!['--workspace', '--input', '--blank', '--units', '--args-file'].includes(key) || !value || value.startsWith('--') || Object.hasOwn(values, key.slice(2))) {
       throw new Error(`Unknown, duplicate or incomplete agent option: ${key ?? ''}`)
     }
     values[key.slice(2)] = value
+    index += 2
   }
   if (Boolean(values.input) === Boolean(values.blank)) throw new Error('agent call requires exactly one of --input or --blank')
   if (values.blank && !['millimeter', 'meter'].includes(values.units)) throw new Error('--blank requires --units millimeter or meter')
   if (values.input && values.units) throw new Error('--units is only allowed with --blank')
   return values
+}
+
+function summarizeAgentProposal(output, host, tool) {
+  if (!output.ok || output.value?.status !== 'awaiting-host-approval') return output
+  const proposal = host.ledger.proposals.at(-1)
+  if (!proposal || proposal.tool !== tool || proposal.result?.planId !== output.value.planId) throw new Error('Cannot summarize a proposal missing from the host review ledger')
+  const full = proposal.result
+  const candidateEntities = full.arguments?.entities ?? full.preview?.after
+  const entities = Array.isArray(candidateEntities) ? candidateEntities : []
+  const entityTypes = {}
+  for (const entity of entities) entityTypes[entity.type] = (entityTypes[entity.type] ?? 0) + 1
+  return { ok: true, value: {
+    product: 'KJDraw', responseKind: 'compact-agent-proposal@1',
+    planId: full.planId, documentId: full.documentId,
+    expectedRevision: full.expectedRevision, units: full.units,
+    command: full.command, status: full.status,
+    nativeGeometry: { proposedEntityCount: entities.length, entityTypes },
+    hostReview: {
+      ledgerPath: host.ledger.session.ledgerPath,
+      proposalSequence: proposal.sequence,
+      sourceFingerprint: host.sourceFingerprint,
+      fullResultSha256: hash(JSON.stringify(full)),
+      fullResultStoredOnlyInHostLedger: true,
+      sourceOverwritten: false, approvalAndCadSaveRequired: true,
+    },
+  } }
 }
 
 async function ensureAgentProposalDir(workspace) {
@@ -410,7 +443,8 @@ async function agent(args) {
   const host = await openAgentHost({ workspace, 'proposal-dir': proposalDir, 'tool-profile': 'full',
     ...(options.input ? { input: options.input } : { blank: options.blank, units: options.units }) })
   const response = await callAgentHost(host, tool, input)
-  const output = { command: 'agent call', tool, ledger: host.ledger.session.ledgerPath, ...response.output }
+  const visible = options.summary ? summarizeAgentProposal(response.output, host, tool) : response.output
+  const output = { command: 'agent call', tool, ledger: host.ledger.session.ledgerPath, ...visible }
   if (response.isError) process.exitCode = 1
   return output
 }

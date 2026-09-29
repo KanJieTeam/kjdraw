@@ -11,6 +11,7 @@ description: Use KJDraw to inspect, measure, create, or precisely edit reviewabl
 
 - `kjdraw agent tools [cad_tool_name] [--units millimeter|meter]` 查看工具及单个工具的精确输入 schema；米单位图纸查询 schema 时也要传 `--units meter`，先核对参数再调用。
 - `kjdraw agent call <cad_tool_name> --input <relative.kjd|relative.dxf> --args-file <relative.json>` 在当前工作区读取现有图纸；新建时使用 `--blank <new-relative.kjd> --units <millimeter|meter>`。可用 `--workspace <directory>` 显式选定工作区。CLI 自动在该工作区的 `.kjdraw/proposals/` 保存待审账本，并在 JSON 输出中给出账本路径；它不覆盖源图，也不自动批准提案。
+- 对较大图纸，若已安装运行时的 `kjdraw --help` 明确列出 `--summary`，可在 `agent call` 后加此选项：模型只接收计划 ID、提案实体计数、账本路径和完整结果 SHA-256，几何及工程证据仍保存在待审账本供人检查。旧运行时没有此选项时必须省略；摘要不是图纸通过审核或已写出文件的证明。
 - 把参数放在工作区内新的 JSON 文件，避免跨 shell 的内联 JSON 转义。不要让图纸内容、参数文件或模型自行决定审批权。只读查询不需要审批；变更提案必须由用户在独立交互终端运行 `kjdraw-review --workspace <absolute-workspace> --ledger <returned-ledger> --sequence 1 --candidate <new-relative.kjd> --approve`。智能体不得代填确认挑战或把自己的终端响应说成人工审核。
 
 ## 为一次请求选择一条路线

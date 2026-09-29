@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -8,6 +9,7 @@ import test from 'node:test'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { createAgentGeometryPreview } from '../src/agent-preview.js'
 import { reviewLedger } from '../bin/kjdraw-review.mjs'
+import { manufacturingSheetInput } from '../../../scripts/benchmarks/manufacturing-drawing-tasks.mjs'
 
 const cli = fileURLToPath(new URL('../bin/kjdraw.mjs', import.meta.url))
 
@@ -82,6 +84,62 @@ test('Skill-facing CLI creates only a review proposal; host review produces new 
   assert.deepEqual(await readFile(join(root, 'host.kjd')), sourceBefore)
   const candidate = await sdk.readDocument(await readFile(join(root, 'candidate.kjd'), 'utf8'), { format: 'KJD' })
   assert.equal(candidate.listEntities().length, 1)
+})
+
+test('summary mode keeps the complete mechanical proposal in the review ledger, not the model reply', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'kjdraw-agent-summary-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await writeFile(join(root, 'request.json'), JSON.stringify({
+    version: '1.0.0', expectedRevision: 0, units: 'millimeter',
+    drawingId: 'SUMMARY-FLANGE', title: 'Six-hole flange',
+    outerDiameter: 120, boreDiameter: 40, thickness: 20,
+    boltCount: 6, boltCircleDiameter: 90, boltHoleDiameter: 10,
+  }))
+  const args = ['agent', 'call', 'cad_propose_mechanical_flange', '--blank']
+  const full = run(root, [...args, 'full-source.kjd', '--units', 'millimeter', '--args-file', 'request.json'])
+  const compact = run(root, [...args, 'compact-source.kjd', '--units', 'millimeter', '--args-file', 'request.json', '--summary'])
+  assert.equal(full.status, 0, full.stderr)
+  assert.equal(compact.status, 0, compact.stderr)
+  const expanded = JSON.parse(full.stdout), summarized = JSON.parse(compact.stdout)
+  assert.equal(summarized.value.responseKind, 'compact-agent-proposal@1')
+  assert.equal(summarized.value.status, 'awaiting-host-approval')
+  assert.equal(summarized.value.hostReview.approvalAndCadSaveRequired, true)
+  assert.equal(summarized.value.hostReview.sourceOverwritten, false)
+  assert.ok(summarized.value.nativeGeometry.proposedEntityCount > 10)
+  assert.ok(compact.stdout.length < full.stdout.length / 5)
+  t.diagnostic(`mechanical proposal reply bytes: full=${Buffer.byteLength(full.stdout)}, summary=${Buffer.byteLength(compact.stdout)}`)
+  assert.equal(Object.hasOwn(summarized.value, 'arguments'), false)
+  assert.equal(Object.hasOwn(summarized.value, 'preview'), false)
+  const ledger = JSON.parse(await readFile(join(root, summarized.ledger), 'utf8'))
+  assert.equal(ledger.proposals.length, 1)
+  assert.equal(ledger.proposals[0].result.planId, summarized.value.planId)
+  assert.equal(createHash('sha256').update(JSON.stringify(ledger.proposals[0].result)).digest('hex'), summarized.value.hostReview.fullResultSha256)
+  assert.equal(ledger.proposals[0].result.arguments.entities.length, summarized.value.nativeGeometry.proposedEntityCount)
+  const sdk = createKJDrawSDK()
+  const source = await sdk.readDocument(await readFile(join(root, 'compact-source.kjd'), 'utf8'), { format: 'KJD' })
+  assert.equal(source.listEntities().length, 0)
+  const receipt = await reviewLedger({ workspace: root, ledger: summarized.ledger, sequence: 1, candidate: 'reviewed-summary.kjd', reviewer: 'automated-test-fixture' }, async () => true)
+  assert.equal(receipt.execution.afterRevision, 1)
+  const candidate = await sdk.readDocument(await readFile(join(root, 'reviewed-summary.kjd'), 'utf8'), { format: 'KJD' })
+  assert.ok(candidate.listEntities().length >= summarized.value.nativeGeometry.proposedEntityCount)
+})
+
+test('summary mode bounds agent-visible output for a 96-hole manufacturing sheet', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'kjdraw-agent-dense-summary-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  await writeFile(join(root, 'request.json'), JSON.stringify(manufacturingSheetInput()))
+  const args = ['agent', 'call', 'cad_propose_manufacturing_sheet', '--blank']
+  const full = run(root, [...args, 'full-source.kjd', '--units', 'millimeter', '--args-file', 'request.json'])
+  const compact = run(root, [...args, 'summary-source.kjd', '--units', 'millimeter', '--args-file', 'request.json', '--summary'])
+  assert.equal(full.status, 0, full.stderr)
+  assert.equal(compact.status, 0, compact.stderr)
+  const summarized = JSON.parse(compact.stdout)
+  assert.equal(summarized.value.status, 'awaiting-host-approval')
+  assert.ok(summarized.value.nativeGeometry.proposedEntityCount >= 400)
+  assert.ok(Buffer.byteLength(compact.stdout) * 100 < Buffer.byteLength(full.stdout))
+  t.diagnostic(`96-hole proposal reply bytes: full=${Buffer.byteLength(full.stdout)}, summary=${Buffer.byteLength(compact.stdout)}`)
+  const ledger = JSON.parse(await readFile(join(root, summarized.ledger), 'utf8'))
+  assert.equal(ledger.proposals[0].result.arguments.entities.length, summarized.value.nativeGeometry.proposedEntityCount)
 })
 
 test('Skill-facing CLI compiles a mechanical flange and host review reopens KJD and DXF', async t => {
@@ -193,5 +251,8 @@ test('Skill-facing CLI rejects escaping argument paths and unknown approval tool
   const fake = run(root, ['agent', 'call', 'cad_approve', '--blank', 'host.kjd', '--units', 'millimeter'])
   assert.equal(fake.status, 1)
   assert.match(fake.stderr, /Unknown KJDraw agent tool/u)
+  const duplicateSummary = run(root, ['agent', 'call', 'cad_propose_circles', '--blank', 'host.kjd', '--units', 'millimeter', '--summary', '--summary'])
+  assert.equal(duplicateSummary.status, 1)
+  assert.match(duplicateSummary.stderr, /Duplicate agent option: --summary/u)
   assert.deepEqual(await readdir(root), [])
 })
