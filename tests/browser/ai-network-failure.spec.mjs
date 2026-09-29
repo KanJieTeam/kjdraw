@@ -7,6 +7,7 @@ test('model network failure stays in the conversation as a clear error', async (
   await page.getByTestId('chat-input').fill(prompt)
   await page.getByTestId('chat-send').click()
 
+  await page.getByTestId('settings-provider').selectOption('custom')
   await page.getByTestId('settings-endpoint').fill('https://ai-test.invalid/v1/chat/completions')
   await page.getByTestId('settings-model').fill('test-model')
   await page.getByTestId('settings-key').fill('test-key')
