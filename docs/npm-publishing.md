@@ -1,6 +1,6 @@
 # npm package and publishing
 
-The distributable SDK package is `@kanjieteam/kjdraw`. The source-tree candidate is `1.0.0-rc.3`. The checkout version does not establish npm publication. Use the live registry queries below to distinguish source changes from the artifacts users can install.
+The distributable SDK package is `@kanjieteam/kjdraw`. The source-tree candidate is `1.0.0-rc.4`. The checkout version does not establish npm publication. Use the live registry queries below to distinguish source changes from the artifacts users can install.
 
 Candidates in the 1.0 release line use the `next` dist-tag; stable promotion will use `latest` only after the release gates pass.
 
@@ -12,7 +12,7 @@ Run `npm run audit:distribution` for a read-only source/registry version compari
 
 ```sh
 npm view @kanjieteam/kjdraw dist-tags
-npm view @kanjieteam/kjdraw@1.0.0-rc.3 version
+npm view @kanjieteam/kjdraw@1.0.0-rc.4 version
 npm install @kanjieteam/kjdraw@next
 ```
 
@@ -70,7 +70,7 @@ OIDC is recommended; `NPM_TOKEN` is optional and is not needed after the trusted
 
 ## Release gates
 
-Create an annotated version tag whose name exactly matches the SDK package version, for example `v1.0.0-rc.3` for the current source candidate. A tag is not evidence that npm publication succeeded. The `Release` workflow accepts only a tag whose target is on `main`, then waits for both the exact-SHA `CI` and `Deploy playground` runs to succeed. It rebuilds and tests the SDK, verifies generated sources and declarations, audits an isolated packed-package consumer, creates the GitHub release and delegates npm publication.
+Create an annotated version tag whose name exactly matches the SDK package version, for example `v1.0.0-rc.4` for the current source candidate. A tag is not evidence that npm publication succeeded. The `Release` workflow accepts only a tag whose target is on `main`, then waits for both the exact-SHA `CI` and `Deploy playground` runs to succeed. It rebuilds and tests the SDK, verifies generated sources and declarations, audits an isolated packed-package consumer, creates the GitHub release and delegates npm publication.
 
 The npm workflow independently checks the tag, GitHub release, exact-SHA CI and Pages deployment before publishing. Existing npm versions are immutable: a rerun succeeds only when the expected dist-tag already points to that exact version. The workflow never silently moves `latest` or `next` for an existing version. An existing draft GitHub release is also left untouched; review and publish or delete it manually before rerunning.
 

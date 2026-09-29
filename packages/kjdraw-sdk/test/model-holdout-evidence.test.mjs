@@ -187,8 +187,10 @@ test('release readiness reports external, model holdout and provenance evidence 
 test('release readiness accepts all three evidence files only for the exact checkout', async t => {
   const value = await fixture(); t.after(() => rm(value.directory, { recursive: true, force: true }))
   const commit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
-  const exact = { repository: 'KanJieTeam/kjdraw', commit, packageName: '@kanjieteam/kjdraw', packageVersion: '1.0.0-rc.3' }
+  const { version } = JSON.parse(await readFile(resolve(root, 'packages/kjdraw-sdk/package.json'), 'utf8'))
+  const exact = { repository: 'KanJieTeam/kjdraw', commit, packageName: '@kanjieteam/kjdraw', packageVersion: version }
   value.manifest.commit = commit
+  value.manifest.package.version = version
   const model = await buildModelHoldoutEvidence(value.manifest, exact)
   const external = buildExternalAcceptanceEvidence({
     tester: { id: 'external-tester-01', independent: true, didNotContributeToCandidate: true, noMaintainerGuidanceDuringRun: true },

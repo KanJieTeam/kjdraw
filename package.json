@@ -1,6 +1,6 @@
 {
   "name": "kjdraw",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "private": true,
   "description": "Open-source CAD engine and ready-to-use editor for engineering apps and AI agents",
   "type": "module",

@@ -22,7 +22,7 @@ async function projectFixture(t) {
 }
 
 test('release lock validates exact prerelease version, next tag, public source commit and tarball integrity', () => {
-  assert.equal(CANDIDATE_VERSION, '1.0.0-rc.3')
+  assert.equal(CANDIDATE_VERSION, '1.0.0-rc.4')
   const metadata = { next: CANDIDATE_VERSION, version: CANDIDATE_VERSION, gitHead: sha, integrity }
   assert.equal(validatePublishedCandidate(metadata, { candidateSha: sha, integrity }), true)
   for (const mismatch of [

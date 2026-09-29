@@ -1,9 +1,9 @@
 {
   "schema": "com.kanjie.kjdraw.api-reference@1",
   "package": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:a8208c123d8939d0063a2b524521a496a0d6a22e82f29f35c58672c9352ad52c",
+  "sourceDigest": "sha256:fbbccbc52304f3ef0e765420079760b122022a05f7b82e9f2bbc6c4496ad29bd",
   "modules": [
     {
       "exportPath": "./agent-skill-json",
@@ -3242,7 +3242,7 @@
         {
           "name": "KJDRAW_VERSION",
           "kind": "const",
-          "declaration": "export declare const KJDRAW_VERSION: '1.0.0-rc.3';",
+          "declaration": "export declare const KJDRAW_VERSION: '1.0.0-rc.4';",
           "source": "version.d.ts",
           "anchor": "core-const-kjdraw-version"
         },
@@ -9254,7 +9254,7 @@
         {
           "name": "KJDRAW_VERSION",
           "kind": "const",
-          "declaration": "export declare const KJDRAW_VERSION: '1.0.0-rc.3';",
+          "declaration": "export declare const KJDRAW_VERSION: '1.0.0-rc.4';",
           "source": "version.d.ts",
           "anchor": "root-const-kjdraw-version"
         },
