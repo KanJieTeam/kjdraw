@@ -167,8 +167,9 @@ test('release docs separate the source candidate from live registry verification
     read('docs/npm-publishing.md'), read('docs/status.md'), read('packages/kjdraw-sdk/package.json'),
   ])
   const { version } = JSON.parse(packageText)
+  assert.ok(guide.includes(`source-tree candidate is \`${version}\``))
+  assert.ok(status.includes(`current public candidate is \`${version}\``))
   for (const document of [guide, status]) {
-    assert.ok(document.includes(`source-tree candidate is \`${version}\``))
     assert.match(document, /checkout version does not establish npm publication/i)
     assert.match(document, /npm view @kanjieteam\/kjdraw dist-tags/)
     assert.ok(document.includes(`npm view @kanjieteam/kjdraw@${version} version`))
