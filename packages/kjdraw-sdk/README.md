@@ -102,6 +102,8 @@ node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs
 
 Your application supplies the AI model; KJDraw supplies the CAD tools. Connect your agent to create and modify drawing objects, preview supported changes for approval, and apply edits that users can continue working on or undo. Follow the [Agent guide](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) to get started.
 
+For a text-only model client, the opt-in [`agent-skill-json`](./src/agent-skill-json.js) interface generates a concise JSON operation contract from real SDK tool definitions. Use `routeCompactCadTools({ prompt, hasEditableSeed })` from [`agent-compact-tool-surface`](./src/agent-compact-tool-surface.js) to select the supported plate/slot tools from the public user request, then `buildCadSkillJsonContract({ definitions: session.definitions, names })` as the system instruction. Parse the model's `{"calls":[{"tool":"...","args":{...}}]}` with `parseCadSkillJsonResponse({ content, names })`. Map stable feature IDs and supply the current document revision and units in the host before calling the original `KJAgentToolSession`; parsing does **not** validate geometry, execute a proposal, or grant approval. A real user or authorized review gate must approve a proposal before it is applied. This is an opt-in integration API, not the default Skill or CLI behavior.
+
 The built-in Agent Demo uses preset scenarios, not a connected language model.
 
 ## Files and automation

@@ -1300,7 +1300,7 @@ export class KJAgentToolSession {
               commandArgs = styleAnnotatedDrawing(document, input, [...entities, ...annotations])
             } else if (name === 'cad_propose_drawing' || name === 'cad_propose_drawing_compact' || name === 'cad_propose_drawing_basic' || name === 'cad_propose_drawing_pattern') {
               const compact = name === 'cad_propose_drawing_basic' ? { lines: [], circles: [], arcs: [], polylines: [], ...args } : args
-              const drawing = name === 'cad_propose_drawing' ? args as unknown as KJAgentDrawingInput : decodeAgentCompactDrawing(compact as unknown as KJAgentCompactDrawingInput)
+              const drawing = name === 'cad_propose_drawing' ? args as unknown as KJAgentDrawingInput : decodeAgentCompactDrawing(compact as unknown as KJAgentCompactDrawingInput, { normalizeClosedEndpoint: name === 'cad_propose_drawing_basic' })
               if (name !== 'cad_propose_drawing') validate(drawingInputSchema, drawing)
               const ownerId = document.spaces.modelSpaceId
               commandArgs = { entities: name === 'cad_propose_drawing_pattern' ? buildPatternEntities(args as unknown as KJAgentPatternDrawingInput, drawing, ownerId) : buildAgentDrawingEntities(drawing, ownerId) }

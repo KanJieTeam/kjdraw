@@ -2,8 +2,56 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:0020f99e3809a8417c063a432342b7ec46c42011c165d0bc0ac15509011d8e97",
+  "sourceDigest": "sha256:d5965f956a020790e440b80a5bee2954b1652b88b9fb687fc67dd78e31c85d80",
   "entries": [
+    {
+      "name": "buildCadSkillJsonContract",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/agent-skill-json",
+      "href": "./api/reference/#agent-skill-json-function-buildcadskilljsoncontract",
+      "anchor": "agent-skill-json-function-buildcadskilljsoncontract",
+      "summary": "export declare function buildCadSkillJsonContract({ definitions, names, hostOwnsRevisionAndUnits }: { definitions: readonly CompactCadToolDefinition[]; names: readonly string[]; hostOwnsRevisionAndUnits?: boolean; }): st"
+    },
+    {
+      "name": "parseCadSkillJsonResponse",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/agent-skill-json",
+      "href": "./api/reference/#agent-skill-json-function-parsecadskilljsonresponse",
+      "anchor": "agent-skill-json-function-parsecadskilljsonresponse",
+      "summary": "export declare function parseCadSkillJsonResponse({ content, names, maxCalls }: { content: string; names: readonly string[]; maxCalls?: number; }): { tool: string; args: Record<string, unknown>; }[];"
+    },
+    {
+      "name": "CompactCadFunctionTool",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-compact-tool-surface",
+      "href": "./api/reference/#agent-compact-tool-surface-interface-compactcadfunctiontool",
+      "anchor": "agent-compact-tool-surface-interface-compactcadfunctiontool",
+      "summary": "export interface CompactCadFunctionTool { type: 'function'; function: { name: string; description: string; parameters: Record<string, unknown>; }; }"
+    },
+    {
+      "name": "CompactCadToolDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-compact-tool-surface",
+      "href": "./api/reference/#agent-compact-tool-surface-interface-compactcadtooldefinition",
+      "anchor": "agent-compact-tool-surface-interface-compactcadtooldefinition",
+      "summary": "export interface CompactCadToolDefinition { name: string; inputSchema: Record<string, unknown>; }"
+    },
+    {
+      "name": "projectCompactCadTools",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/agent-compact-tool-surface",
+      "href": "./api/reference/#agent-compact-tool-surface-function-projectcompactcadtools",
+      "anchor": "agent-compact-tool-surface-function-projectcompactcadtools",
+      "summary": "export declare function projectCompactCadTools({ definitions, names, hostOwnsRevisionAndUnits }: { definitions: readonly CompactCadToolDefinition[]; names: readonly string[]; hostOwnsRevisionAndUnits?: boolean; }): Compa"
+    },
+    {
+      "name": "routeCompactCadTools",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/agent-compact-tool-surface",
+      "href": "./api/reference/#agent-compact-tool-surface-function-routecompactcadtools",
+      "anchor": "agent-compact-tool-surface-function-routecompactcadtools",
+      "summary": "export declare function routeCompactCadTools({ prompt, hasEditableSeed }: { prompt: string; hasEditableSeed?: boolean; }): string[];"
+    },
     {
       "name": "extractKJModelUsage",
       "kind": "function",

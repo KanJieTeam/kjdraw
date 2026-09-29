@@ -29,4 +29,6 @@ export interface KJAgentCompactDrawingInput {
     }[];
 }
 /** Decode only after compact schema validation; validate the result against the full drawing schema before building entities. */
-export declare function decodeAgentCompactDrawing(input: KJAgentCompactDrawingInput): KJAgentDrawingInput;
+export declare function decodeAgentCompactDrawing(input: KJAgentCompactDrawingInput, options?: {
+    normalizeClosedEndpoint?: boolean;
+}): KJAgentDrawingInput;

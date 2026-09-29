@@ -4999,7 +4999,9 @@ export class KJAgentToolSession {
                                 polylines: [],
                                 ...args
                             } : args;
-                            const drawing = name === 'cad_propose_drawing' ? args : decodeAgentCompactDrawing(compact);
+                            const drawing = name === 'cad_propose_drawing' ? args : decodeAgentCompactDrawing(compact, {
+                                normalizeClosedEndpoint: name === 'cad_propose_drawing_basic'
+                            });
                             if (name !== 'cad_propose_drawing') validate(drawingInputSchema, drawing);
                             const ownerId = document.spaces.modelSpaceId;
                             commandArgs = {

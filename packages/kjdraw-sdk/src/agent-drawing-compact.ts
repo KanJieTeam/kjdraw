@@ -16,7 +16,7 @@ export interface KJAgentCompactDrawingInput {
 }
 
 /** Decode only after compact schema validation; validate the result against the full drawing schema before building entities. */
-export function decodeAgentCompactDrawing(input: KJAgentCompactDrawingInput): KJAgentDrawingInput {
+export function decodeAgentCompactDrawing(input: KJAgentCompactDrawingInput, options: { normalizeClosedEndpoint?: boolean } = {}): KJAgentDrawingInput {
   const point = (x: number, y: number): KJAgentPoint => ({ x, y })
   return {
     expectedRevision: input.expectedRevision,
@@ -33,7 +33,15 @@ export function decodeAgentCompactDrawing(input: KJAgentCompactDrawingInput): KJ
       ...(spline.knots ? { knots: [...spline.knots] } : {}),
       ...(spline.weights ? { weights: [...spline.weights] } : {}),
     })),
-    polylines: input.polylines.map(({ points, closed }) => ({ vertices: points.map(([x, y]) => point(x, y)), closed })),
+    polylines: input.polylines.map(({ points, closed }) => {
+      // A common JSON/GIS ring convention repeats the first point at the end.
+      // Only the basic text-facing tuple tool accepts that redundant closure;
+      // core drawing validation still rejects all other zero-length segments.
+      const redundantEnd = options.normalizeClosedEndpoint && closed && points.length > 1 &&
+        points[0]![0] === points.at(-1)![0] && points[0]![1] === points.at(-1)![1]
+      const vertices = redundantEnd ? points.slice(0, -1) : points
+      return { vertices: vertices.map(([x, y]) => point(x, y)), closed }
+    }),
     hatches: (input.hatches ?? []).map(hatch => ({ ...hatch, loops: hatch.loops.map(loop => ({ vertices: loop.vertices.map(({ x, y }) => point(x, y)) })) })),
   }
 }

@@ -29,7 +29,7 @@
 
 生成一张“看起来像 CAD”的图已经不难。工程 CAD 真正的门槛是：在一张包含数百个关联对象的图纸里，让模型连续多轮都能找到同一个对象，保持尺寸、图层、块、填充和引用关系正确，并且在撤销、导出、保存、重开之后结果一致。
 
-让 LLM 每轮重写整份 DXF 可能更耗 token，也可能产生无效文件；但工具定义很大时，一次性小图反而可能更贵。[跨模型实测与失败样本](docs/benchmarks/cross-model-2026-09-29.md)、[DeepSeek 耗时对照](docs/benchmarks/deepseek-2026-09-29.md)和不调用模型的 [10,000 轮本地编辑守卫](docs/benchmarks/multi-round-editor-soak.md)分别说明这些边界。
+让 LLM 每轮重写整份 DXF 可能更耗 token，也可能产生无效文件；但工具定义很大时，一次性小图反而可能更贵。[跨模型实测与失败样本](docs/benchmarks/cross-model-2026-09-29.md)和[百题基准协议及真实模型试跑](docs/benchmarks/token-efficiency-pilot-2026-09-29.md)同时公开有利和失败结果；**目前没有证据支持“99% 任务更省 token”**。[DeepSeek 耗时对照](docs/benchmarks/deepseek-2026-09-29.md)与不调用模型的 [10,000 轮本地编辑守卫](docs/benchmarks/multi-round-editor-soak.md)分别说明其他边界。
 
 KJDraw 给不同的模型和智能体提供同一套 CAD 执行层：**模型负责“画什么”，引擎负责“怎么正确地画”。** 几何、对象身份、图层、引用、事务、校验和文件输出，都由本地引擎确定性完成；缺少关键数据时直接拒绝，而不是猜。
 

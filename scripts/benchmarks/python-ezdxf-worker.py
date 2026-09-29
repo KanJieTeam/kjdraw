@@ -23,6 +23,10 @@ def main():
  import ezdxf.render.dim_linear,ezdxf.render.dim_radius,ezdxf.render.dim_diameter,ezdxf.render.dim_curved
  targets={root/'drawing.dxf',root/'drawing-manifest.json'}
  if any(p.exists() for p in targets):raise ValueError('OUTPUT_ALREADY_EXISTS')
+ previous=data.get('previous')
+ previous_files={root/'previous.dxf':previous['dxfSha256'],root/'previous-manifest.json':previous['manifestSha256']} if previous else {}
+ for path,digest in previous_files.items():
+  if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=digest:raise ValueError('PREVIOUS_ARTIFACT_CHANGED')
  read_roots=[pathlib.Path(p).resolve() for p in sys.path if p and pathlib.Path(p).is_dir() and pathlib.Path(p).resolve()!=root]
  def inside(path,parent):return path==parent or parent in path.parents
  def audit(event,args):
@@ -32,7 +36,7 @@ def main():
    path=pathlib.Path(os.fsdecode(name)).resolve()
    writing=bool(flags & (os.O_WRONLY|os.O_RDWR|os.O_CREAT|os.O_TRUNC|os.O_APPEND))
    if writing and path not in targets:raise PermissionError('WRITE_OUTSIDE_OUTPUT')
-   if not writing and path not in targets and not any(inside(path,p) for p in read_roots):raise PermissionError('READ_OUTSIDE_RUNTIME')
+   if not writing and path not in targets and path not in previous_files and not any(inside(path,p) for p in read_roots):raise PermissionError('READ_OUTSIDE_RUNTIME')
   elif event.startswith(('socket.','subprocess.','ctypes.')) or event in ('os.system','os.exec','os.posix_spawn','os.spawn','os.fork','os.remove','os.rmdir','os.rename','os.link','os.symlink','os.chdir','os.listdir','os.scandir','os.putenv','os.unsetenv','os.mkdir'):
    raise PermissionError('HOST_SIDE_EFFECT_NOT_ALLOWED')
  sys.addaudithook(audit)
@@ -65,6 +69,7 @@ def main():
  safe={name:getattr(builtins,name) for name in ['abs','all','any','bool','dict','enumerate','float','format','int','iter','isinstance','len','list','map','max','min','next','pow','print','range','reversed','round','set','slice','sorted','str','sum','tuple','zip','open','Exception','ValueError','RuntimeError','ZeroDivisionError']}
  safe['__import__']=limited_import
  namespace={'__builtins__':safe,'__name__':'__main__','OUTPUT_DXF':str(root/'drawing.dxf'),'OUTPUT_MANIFEST':str(root/'drawing-manifest.json')}
+ if previous_files:namespace.update(PREVIOUS_DXF=str(root/'previous.dxf'),PREVIOUS_MANIFEST=str(root/'previous-manifest.json'))
  class CappedLog(io.StringIO):
   def write(self,value):
    if self.tell()+len(value)>65536:raise ValueError('PROGRAM_LOG_BUDGET')

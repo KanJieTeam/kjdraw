@@ -61,6 +61,16 @@
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./agent-skill-json": {
+      "types": "./types/agent-skill-json.d.ts",
+      "import": "./src/agent-skill-json.js",
+      "default": "./src/agent-skill-json.js"
+    },
+    "./agent-compact-tool-surface": {
+      "types": "./types/agent-compact-tool-surface.d.ts",
+      "import": "./src/agent-compact-tool-surface.js",
+      "default": "./src/agent-compact-tool-surface.js"
+    },
     "./model-usage": {
       "types": "./types/model-usage.d.ts",
       "import": "./src/model-usage.js",

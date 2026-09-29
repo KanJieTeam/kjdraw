@@ -3,8 +3,66 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:0020f99e3809a8417c063a432342b7ec46c42011c165d0bc0ac15509011d8e97",
+  "sourceDigest": "sha256:d5965f956a020790e440b80a5bee2954b1652b88b9fb687fc67dd78e31c85d80",
   "modules": [
+    {
+      "exportPath": "./agent-skill-json",
+      "packageName": "@kanjieteam/kjdraw/agent-skill-json",
+      "declaration": "types/agent-skill-json.d.ts",
+      "anchor": "module-agent-skill-json",
+      "symbols": [
+        {
+          "name": "buildCadSkillJsonContract",
+          "kind": "function",
+          "declaration": "export declare function buildCadSkillJsonContract({ definitions, names, hostOwnsRevisionAndUnits }: {\n    definitions: readonly CompactCadToolDefinition[];\n    names: readonly string[];\n    hostOwnsRevisionAndUnits?: boolean;\n}): string;",
+          "source": "agent-skill-json.d.ts",
+          "anchor": "agent-skill-json-function-buildcadskilljsoncontract"
+        },
+        {
+          "name": "parseCadSkillJsonResponse",
+          "kind": "function",
+          "declaration": "export declare function parseCadSkillJsonResponse({ content, names, maxCalls }: {\n    content: string;\n    names: readonly string[];\n    maxCalls?: number;\n}): {\n    tool: string;\n    args: Record<string, unknown>;\n}[];",
+          "source": "agent-skill-json.d.ts",
+          "anchor": "agent-skill-json-function-parsecadskilljsonresponse"
+        }
+      ]
+    },
+    {
+      "exportPath": "./agent-compact-tool-surface",
+      "packageName": "@kanjieteam/kjdraw/agent-compact-tool-surface",
+      "declaration": "types/agent-compact-tool-surface.d.ts",
+      "anchor": "module-agent-compact-tool-surface",
+      "symbols": [
+        {
+          "name": "CompactCadFunctionTool",
+          "kind": "interface",
+          "declaration": "export interface CompactCadFunctionTool {\n    type: 'function';\n    function: {\n        name: string;\n        description: string;\n        parameters: Record<string, unknown>;\n    };\n}",
+          "source": "agent-compact-tool-surface.d.ts",
+          "anchor": "agent-compact-tool-surface-interface-compactcadfunctiontool"
+        },
+        {
+          "name": "CompactCadToolDefinition",
+          "kind": "interface",
+          "declaration": "export interface CompactCadToolDefinition {\n    name: string;\n    inputSchema: Record<string, unknown>;\n}",
+          "source": "agent-compact-tool-surface.d.ts",
+          "anchor": "agent-compact-tool-surface-interface-compactcadtooldefinition"
+        },
+        {
+          "name": "projectCompactCadTools",
+          "kind": "function",
+          "declaration": "export declare function projectCompactCadTools({ definitions, names, hostOwnsRevisionAndUnits }: {\n    definitions: readonly CompactCadToolDefinition[];\n    names: readonly string[];\n    hostOwnsRevisionAndUnits?: boolean;\n}): CompactCadFunctionTool[];",
+          "source": "agent-compact-tool-surface.d.ts",
+          "anchor": "agent-compact-tool-surface-function-projectcompactcadtools"
+        },
+        {
+          "name": "routeCompactCadTools",
+          "kind": "function",
+          "declaration": "export declare function routeCompactCadTools({ prompt, hasEditableSeed }: {\n    prompt: string;\n    hasEditableSeed?: boolean;\n}): string[];",
+          "source": "agent-compact-tool-surface.d.ts",
+          "anchor": "agent-compact-tool-surface-function-routecompactcadtools"
+        }
+      ]
+    },
     {
       "exportPath": "./model-usage",
       "packageName": "@kanjieteam/kjdraw/model-usage",
