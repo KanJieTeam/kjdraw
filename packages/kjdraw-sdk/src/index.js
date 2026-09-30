@@ -34,6 +34,7 @@ export * from './constants.js';
 export * from './document.js';
 export * from './design-relations.js';
 export * from './drawing-context.js';
+export * from './drawing-text-search.js';
 export * from './drafting.js';
 export * from './modification-controls.js';
 export * from './boundary-edit.js';

@@ -2,6 +2,7 @@
 import { KJDocument } from './document.js';
 import { KJValidationError } from './errors.js';
 import { defineFileAdapter } from './file-adapters.js';
+import { createEmptyDocumentState } from './schema.js';
 import { projectDimension, resolveDimensionAnnotationStyle } from './geometry/annotation.js';
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js';
 import { hatchPatternLines } from './geometry/hatch.js';
@@ -1632,7 +1633,7 @@ async function readDXF(source, options = {}) {
     if (!section(tags, 'ENTITIES').length && !tags.some((tag)=>tag.code === 0 && normalizeName(tag.value) === 'SECTION')) throw new KJValidationError('DXF has no valid SECTION structure');
     const version = dxfVersion(tags);
     const currentTextStyleName = dxfHeaderText(tags, '$TEXTSTYLE');
-    const document = KJDocument.create({
+    const initial = createEmptyDocumentState({
         sourceFormat: 'DXF',
         sourceVersion: version,
         codePage: dxfCodePage(tags),
@@ -1644,6 +1645,15 @@ async function readDXF(source, options = {}) {
         },
         title: 'Imported DXF'
     });
+    let highestSourceHandle = 0n;
+    for (const tag of tags)if ((tag.code === 5 || tag.code === 105) && /^[0-9a-f]+$/i.test(tag.value)) {
+        const value = BigInt(`0x${tag.value}`);
+        if (value > highestSourceHandle) highestSourceHandle = value;
+    }
+    let resourceHandle = highestSourceHandle + 1n;
+    for (const object of Object.values(initial.objects))object.handle = (resourceHandle++).toString(16).toUpperCase();
+    initial.header.handseed = resourceHandle.toString(16).toUpperCase();
+    const document = new KJDocument(initial);
     await document.transact('Import ASCII DXF', async (transaction)=>{
         const tableRecords = records(section(tags, 'TABLES'));
         const resources = importResourceTables(transaction, tableRecords, document);
@@ -2661,7 +2671,9 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
     emit(output, 71, p.associative ? 1 : 0);
     emit(output, 91, p.boundaryLoops?.length ?? 0);
     for (const loop of p.boundaryLoops ?? []){
-        const pathFlags = Number(loop.flags ?? 0) & ~1 | (loop.external === false ? 0 : 1);
+        const originalFlags = Number(loop.flags ?? 0);
+        const external = loop.external ?? (loop.flags == null || Boolean(originalFlags & 17));
+        const pathFlags = external ? originalFlags & 17 ? originalFlags : originalFlags | 1 : originalFlags & ~17;
         if (loop.vertices?.length) {
             emit(output, 92, pathFlags | 2);
             emit(output, 72, loop.vertices.some((vertex)=>Number(vertex.bulge)) ? 1 : 0);

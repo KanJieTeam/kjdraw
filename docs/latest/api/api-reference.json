@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:f5805347b5b6a7af09389f1dd8d3f986ffcb6031442a9378ad33e445d1f2c6d5",
+  "sourceDigest": "sha256:578cad082e25d99bcb740280e1ae9ae547794b4605e8a004b2a9218fb606ae6b",
   "modules": [
     {
       "exportPath": "./agent-skill-json",
@@ -6907,6 +6907,13 @@
           "anchor": "root-function-findbestsnap"
         },
         {
+          "name": "findDrawingText",
+          "kind": "function",
+          "declaration": "export declare function findDrawingText(document: KJDocument, query: KJDrawingTextQuery): Readonly<Record<string, unknown>>;",
+          "source": "drawing-text-search.d.ts",
+          "anchor": "root-function-finddrawingtext"
+        },
+        {
           "name": "findSnapCandidates",
           "kind": "function",
           "declaration": "export declare function findSnapCandidates(document: KJDocument, cursorInput: KJSnapPointInput, options?: KJSnapOptions): readonly Readonly<KJSnapCandidate>[];",
@@ -9397,6 +9404,13 @@
           "declaration": "export interface KJDrawingPrintWindowOptions extends KJDrawingPrintOptions {\n    /** Window receiving the user gesture; defaults to the current browser window. */\n    ownerWindow?: Window;\n    /** Host identity guard, checked before opening and after fonts are ready. */\n    isCurrent?: () => boolean;\n}",
           "source": "print-export.d.ts",
           "anchor": "root-interface-kjdrawingprintwindowoptions"
+        },
+        {
+          "name": "KJDrawingTextQuery",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingTextQuery {\n    expectedRevision: number;\n    search: string;\n    match?: 'contains' | 'exact';\n    caseSensitive?: boolean;\n    spaceId?: string;\n    includeHidden?: boolean;\n    offset?: number;\n    limit?: number;\n    maxBytes?: number;\n}",
+          "source": "drawing-text-search.d.ts",
+          "anchor": "root-interface-kjdrawingtextquery"
         },
         {
           "name": "KJDrawingValidationCheck",

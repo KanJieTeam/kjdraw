@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:f5805347b5b6a7af09389f1dd8d3f986ffcb6031442a9378ad33e445d1f2c6d5",
+  "sourceDigest": "sha256:578cad082e25d99bcb740280e1ae9ae547794b4605e8a004b2a9218fb606ae6b",
   "entries": [
     {
       "name": "buildCadSkillJsonContract",
@@ -7629,6 +7629,14 @@
       "summary": "export declare function findBestSnap(document: KJDocument, cursor: KJSnapPointInput, options?: KJSnapOptions): Readonly<KJSnapCandidate> | null;"
     },
     {
+      "name": "findDrawingText",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-finddrawingtext",
+      "anchor": "root-function-finddrawingtext",
+      "summary": "export declare function findDrawingText(document: KJDocument, query: KJDrawingTextQuery): Readonly<Record<string, unknown>>;"
+    },
+    {
       "name": "findSnapCandidates",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -10475,6 +10483,14 @@
       "href": "./api/reference/#root-interface-kjdrawingprintwindowoptions",
       "anchor": "root-interface-kjdrawingprintwindowoptions",
       "summary": "export interface KJDrawingPrintWindowOptions extends KJDrawingPrintOptions { /** Window receiving the user gesture; defaults to the current browser window. */ ownerWindow?: Window; /** Host identity guard, checked before"
+    },
+    {
+      "name": "KJDrawingTextQuery",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingtextquery",
+      "anchor": "root-interface-kjdrawingtextquery",
+      "summary": "export interface KJDrawingTextQuery { expectedRevision: number; search: string; match?: 'contains' | 'exact'; caseSensitive?: boolean; spaceId?: string; includeHidden?: boolean; offset?: number; limit?: number; maxBytes?"
     },
     {
       "name": "KJDrawingValidationCheck",

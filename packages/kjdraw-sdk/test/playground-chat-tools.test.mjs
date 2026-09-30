@@ -22,7 +22,7 @@ const modelCall = (name, args, inspect = () => {}) => ({ createConversation({ to
 test('workbench exposes useful tools and creates ordinary geometry through pattern arrays=[]', async () => {
   const { session, document } = fixture()
   assert.ok(Object.isFrozen(KJDRAW_CHAT_TOOL_NAMES))
-  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 29)
+  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 30)
   assert.ok(KJDRAW_CHAT_TOOL_NAMES.includes('cad_query_topology'))
   assert.ok(KJDRAW_CHAT_TOOL_NAMES.includes('cad_query_impact'))
   assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_cartesian_chart'])
@@ -131,14 +131,14 @@ test('explicit title-block text edits on an existing drawing load only read and 
   const { document } = fixture()
   await document.transact('existing text', tx => tx.createEntity('TEXT', { text: 'REV: A', position: [0, 0, 0], height: 3 }))
   const names = getKJDrawChatToolNamesForRequest(document, 'Change revision A to B in the existing title-block text.')
-  assert.deepEqual(names, ['cad_read_drawing', 'cad_query_drawing', 'cad_propose_text_edit'])
+  assert.deepEqual(names, ['cad_read_drawing', 'cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit'])
 })
 
 test('single label translation loads read, query and move schemas without a host selection', async () => {
   const { document } = fixture()
   await document.transact('existing labels', tx => tx.createEntity('TEXT', { text: 'TOP VIEW', position: [0, 0, 0], height: 3 }))
   const names = getKJDrawChatToolNamesForRequest(document, 'Move the existing TOP VIEW label up by exactly 2 millimeters. Keep geometry unchanged.')
-  assert.deepEqual(names, ['cad_read_drawing', 'cad_query_drawing', 'cad_propose_move'])
+  assert.deepEqual(names, ['cad_read_drawing', 'cad_find_text', 'cad_query_drawing', 'cad_propose_move'])
 })
 
 test('MOVE routing stays conservative without exact selection, displacement, or a single edit intent', async () => {

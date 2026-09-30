@@ -4,6 +4,7 @@ import { defineFileAdapter } from './file-adapters.js'
 import type { KJFileAdapter, KJFileAdapterContext, KJFileAdapterOptions } from './file-adapters.js'
 import type { KJTableName } from './constants.js'
 import type { KJObjectPayload, KJObjectRecord, KJReadonlyObjectRecord } from './schema.js'
+import { createEmptyDocumentState } from './schema.js'
 import type { KJTransaction } from './transaction.js'
 import { projectDimension, resolveDimensionAnnotationStyle } from './geometry/annotation.js'
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
@@ -983,7 +984,19 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
   if (!section(tags, 'ENTITIES').length && !tags.some(tag => tag.code === 0 && normalizeName(tag.value) === 'SECTION')) throw new KJValidationError('DXF has no valid SECTION structure')
   const version = dxfVersion(tags)
   const currentTextStyleName = dxfHeaderText(tags, '$TEXTSTYLE')
-  const document = KJDocument.create({ sourceFormat: 'DXF', sourceVersion: version, codePage: dxfCodePage(tags), ...dxfDrawingUnits(tags), systemVariables: { LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1), PDMODE: dxfHeaderInteger(tags, '$PDMODE') ?? 0, PDSIZE: dxfHeaderReal(tags, '$PDSIZE', 0) }, title: 'Imported DXF' })
+  const initial = createEmptyDocumentState({ sourceFormat: 'DXF', sourceVersion: version, codePage: dxfCodePage(tags), ...dxfDrawingUnits(tags), systemVariables: { LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1), PDMODE: dxfHeaderInteger(tags, '$PDMODE') ?? 0, PDSIZE: dxfHeaderReal(tags, '$PDSIZE', 0) }, title: 'Imported DXF' })
+  // Runtime resource handles are not source identities. Allocate them above all
+  // source handles before importing tables, so adding a layer cannot displace a
+  // low-numbered entity handle on the next DXF open.
+  let highestSourceHandle = 0n
+  for (const tag of tags) if ((tag.code === 5 || tag.code === 105) && /^[0-9a-f]+$/i.test(tag.value)) {
+    const value = BigInt(`0x${tag.value}`)
+    if (value > highestSourceHandle) highestSourceHandle = value
+  }
+  let resourceHandle = highestSourceHandle + 1n
+  for (const object of Object.values(initial.objects)) object.handle = (resourceHandle++).toString(16).toUpperCase()
+  initial.header.handseed = resourceHandle.toString(16).toUpperCase()
+  const document = new KJDocument(initial)
   await document.transact('Import ASCII DXF', async transaction => {
     const tableRecords = records(section(tags, 'TABLES'))
     const resources = importResourceTables(transaction, tableRecords, document)
@@ -1635,7 +1648,14 @@ function emitHatch(output: string[], entity: DxfEntity, layerName: string, owner
   emitPoint(output, [0, 0, 0]); emit(output, 2, p.patternName ?? 'SOLID'); emit(output, 70, p.solid ? 1 : 0); emit(output, 71, p.associative ? 1 : 0)
   emit(output, 91, p.boundaryLoops?.length ?? 0)
   for (const loop of p.boundaryLoops ?? []) {
-    const pathFlags = (Number(loop.flags ?? 0) & ~1) | (loop.external === false ? 0 : 1)
+    // DXF distinguishes External (1) from Outermost (16). Both are exposed as
+    // external=true by the reader; do not turn an imported Outermost loop into
+    // External as well when rebuilding it after a KJD save/reopen.
+    const originalFlags = Number(loop.flags ?? 0)
+    const external = loop.external ?? (loop.flags == null || Boolean(originalFlags & 17))
+    const pathFlags = external
+      ? (originalFlags & 17 ? originalFlags : originalFlags | 1)
+      : originalFlags & ~17
     if (loop.vertices?.length) {
       emit(output, 92, pathFlags | 2); emit(output, 72, loop.vertices.some(vertex => Number(vertex.bulge)) ? 1 : 0); emit(output, 73, loop.closed === false ? 0 : 1); emit(output, 93, loop.vertices.length)
       for (const vertex of loop.vertices) { const value = vertexPoint(vertex); emit(output, 10, value[0]); emit(output, 20, value[1]); if (vertex.bulge) emit(output, 42, vertex.bulge) }
