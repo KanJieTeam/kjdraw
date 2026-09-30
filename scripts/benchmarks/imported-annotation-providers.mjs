@@ -18,12 +18,16 @@ const codeFiles = Object.freeze([
   'tests/helpers/imported-drawing-edit-journey.mjs',
   'apps/playground/ai/runtime.js', 'apps/playground/agent-chat.js',
   'packages/kjdraw-sdk/src/agent-runner.js', 'packages/kjdraw-sdk/src/agent-tools.js',
+  'packages/kjdraw-sdk/src/model-adapters.js',
   'packages/kjdraw-sdk/src/drawing-text-search.js', 'packages/kjdraw-sdk/src/dxf-adapter.js',
 ])
 
-/** Real provider transport. Credentials stay in env; artifacts omit prompts/text/arguments. */
-export async function runImportedAnnotationProvider({ provider, model, bytes, targetText, sourceKind = 'public-generated-sheet', onProgress = () => {} }) {
+/** Real provider transport. Artifacts omit prompts/text/arguments. An explicit
+ * local diagnostic callback sees untrusted drawing/model content, never headers
+ * or credentials; do not publish its output for a private drawing. */
+export async function runImportedAnnotationProvider({ provider, model, bytes, targetText, sourceKind = 'public-generated-sheet', onProgress = () => {}, onDiagnostic }) {
   if (!Object.hasOwn(endpoints, provider)) throw new Error('Use deepseek or qwen')
+  if (onDiagnostic !== undefined && typeof onDiagnostic !== 'function') throw new Error('Diagnostic observer must be a function')
   const fingerprints = await Promise.all(codeFiles.map(async path => [path,
     createHash('sha256').update(await readFile(new URL('../../' + path, import.meta.url))).digest('hex'),
   ]))
@@ -52,6 +56,13 @@ export async function runImportedAnnotationProvider({ provider, model, bytes, ta
         return Response.json({ error: { code } }, { status: 503 })
       }
       returnedModels.add(result.model)
+      if (onDiagnostic) await onDiagnostic({ provider, request: requestIndex,
+        content: result.content, toolCalls: structuredClone(result.toolCalls),
+        // Tool results describe observations, not verified design requirements.
+        toolResults: messages.filter(message => message.role === 'tool').map(message => ({
+          toolCallId: message.tool_call_id, content: message.content,
+        })),
+      })
       const item = {
         request: requestIndex, toolsOffered: body.tools?.map(tool => tool.function.name) ?? [],
         toolCalls: result.toolCalls.map(tool => tool.function.name),

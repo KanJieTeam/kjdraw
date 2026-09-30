@@ -53,12 +53,20 @@ test('provider harness keeps reported usage and model identity without disclosin
     const bytes = new TextEncoder().encode((await publicAnnotationSheet()).dxf)
     for (const provider of ['deepseek', 'qwen']) {
       const start = requests.length
-      const artifact = await runImportedAnnotationProvider({ provider, model: 'requested-fixture-model', bytes })
+      const diagnostics = []
+      const artifact = await runImportedAnnotationProvider({ provider, model: 'requested-fixture-model', bytes,
+        onDiagnostic: event => diagnostics.push(event),
+      })
       assert.equal(artifact.report.passed, true)
       assert.equal(artifact.report.requests, 20)
       assert.equal(artifact.report.totalTokens, 2400)
       assert.deepEqual(artifact.returnedModels, ['returned-fixture-model'])
       assert.equal(artifact.trace.length, 20)
+      assert.equal(diagnostics.length, 20)
+      assert.equal(diagnostics[0].toolCalls[0].function.name, 'cad_find_text')
+      assert.equal(diagnostics[1].toolResults.length, 1)
+      assert.equal(Object.hasOwn(artifact, 'diagnostics'), false)
+      assert.equal(JSON.stringify(diagnostics).includes('local-fixture-secret'), false)
       assert.equal(artifact.trace[0].usage.cacheReadInputTokens, 60)
       assert.equal(artifact.report.usage[0].cacheReadInputTokens, 60)
       assert.deepEqual(artifact.transportFailures, [])
@@ -82,4 +90,10 @@ test('provider harness keeps reported usage and model identity without disclosin
 
 test('provider harness rejects an unknown provider before sending any request', async () => {
   await assert.rejects(runImportedAnnotationProvider({ provider: 'unknown', model: 'fixture', bytes: new Uint8Array() }), /Use deepseek or qwen/)
+})
+
+test('provider harness rejects an invalid diagnostic observer before sending requests', async () => {
+  await assert.rejects(runImportedAnnotationProvider({ provider: 'deepseek', model: 'fixture', bytes: new Uint8Array(),
+    onDiagnostic: true,
+  }), /Diagnostic observer must be a function/)
 })

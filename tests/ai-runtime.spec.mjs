@@ -118,3 +118,36 @@ test('real CAD tool call stays pending until the user approves it', async () => 
     assert.match(await chat.exportDocument('DXF'), /LINE/)
   } finally { chat.destroy() }
 })
+
+test('spatial candidate tools do not disable annotation proposal correction or create fake approval', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await document.transact('Building label', tx => {
+    tx.createEntity('LWPOLYLINE', { vertices: [[0, 0], [24, 0], [24, 20], [0, 20]], closed: true }, { id: 'outline' })
+    tx.createEntity('TEXT', { position: [4, 10, 0], text: '3F', height: 2 }, { id: 'floor-label' })
+  })
+  let requests = 0
+  const chat = createAiChatRuntime({ endpoint: 'https://example.invalid/v1/chat/completions', model: 'mock-model',
+    fetchImpl: async (_url, request) => {
+      requests++
+      const body = JSON.parse(request.body)
+      assert.ok(body.tools.some(tool => tool.function.name === 'cad_query_spatial_candidates'))
+      const message = requests === 1 ? { role: 'assistant', content: '', tool_calls: [{
+        id: 'find-floor-label', type: 'function', function: { name: 'cad_find_text', arguments: JSON.stringify({
+          expectedRevision: document.revision, search: '3F', match: 'exact',
+        }) },
+      }] } : { role: 'assistant', content: 'The proposal is ready.' }
+      return Response.json({ choices: [{ message, finish_reason: requests === 1 ? 'tool_calls' : 'stop' }] })
+    },
+  })
+  try {
+    await chat.importDocument(new File([await sdk.writeDocument(document, { format: 'DXF' })], 'building.dxf'))
+    const before = (await chat.exportLocalState()).drawing
+    const result = await chat.send('Change the label 3F to 4F. Edit the text only.')
+    assert.equal(requests, 3)
+    assert.equal(result.status, 'message')
+    assert.equal(result.noProposal, true)
+    assert.equal(result.proposalRepairAttempts, 1)
+    assert.equal(result.proposal, undefined)
+    assert.equal((await chat.exportLocalState()).drawing, before)
+  } finally { chat.destroy() }
+})

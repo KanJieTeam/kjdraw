@@ -50,6 +50,66 @@ function assertContinuation(protocol, body) {
 }
 
 for (const protocol of protocols) {
+  test(`${protocol}: one explicit text continuation retains observations and produces a real proposal`, async () => {
+    const { document, session } = fixture(), before = document.serialize()
+    let step = 0
+    const model = createKJModelAdapter({ protocol, model: 'offline-proposal-correction', request: async ({ body }) => {
+      step++
+      if (step === 1) return wire(protocol, [call('read', 'cad_read_drawing')])
+      if (step === 2) {
+        assert.equal(resultAtEnd(protocol, body).ok, true)
+        return wire(protocol, [], 'The proposal is ready for approval.')
+      }
+      const history = body.input ?? body.messages ?? body.contents
+      assert.equal(history.at(-1).role, 'user')
+      assert.match(history.at(-1).content ?? history.at(-1).parts[0].text, /no reviewable proposal exists/)
+      assert.ok(JSON.stringify(history).includes('read'))
+      return wire(protocol, [call('proposal', 'cad_propose_circles', args)])
+    } })
+    const result = await runKJAgentTask({ session, model, prompt: 'Draw the specified circle.',
+      expectProposal: true, toolNames: ['cad_read_drawing', 'cad_propose_circles'],
+    })
+    assert.equal(result.status, 'awaiting-approval', JSON.stringify(result.error))
+    assert.equal(step, 3)
+    assert.equal(result.proposalRepairAttempts, 1)
+    assert.equal(document.serialize(), before)
+  })
+
+  test(`${protocol}: text continuation requires opt-in and is limited to one prompt`, async () => {
+    for (const allowTextContinuation of [undefined, true]) {
+      let requests = 0
+      const model = createKJModelAdapter({ protocol, model: 'offline-continuation-budget', request: async () => {
+        requests++
+        return wire(protocol, [], 'No proposal was created.')
+      } })
+      const conversation = model.createConversation({ instructions: 'Read only.', tools: [], allowTextContinuation })
+      const signal = new AbortController().signal
+      await conversation.next({ kind: 'prompt', text: 'Inspect.' }, signal)
+      if (allowTextContinuation) await conversation.next({ kind: 'prompt', text: 'Clarify.' }, signal)
+      await assert.rejects(conversation.next({ kind: 'prompt', text: 'Again.' }, signal), /has ended/)
+      assert.equal(requests, allowTextContinuation ? 2 : 1)
+    }
+  })
+
+  test(`${protocol}: continuation cannot resume after transport failure or replace pending tool results`, async () => {
+    for (const failTransport of [true, false]) {
+      let requests = 0
+      const model = createKJModelAdapter({ protocol, model: 'offline-continuation-guard', request: async () => {
+        requests++
+        if (failTransport) throw new Error('fixture transport failed')
+        return wire(protocol, [call('read', 'cad_read_drawing')])
+      } })
+      const conversation = model.createConversation({ instructions: 'Read only.', tools: fixture().session.definitions,
+        allowTextContinuation: true,
+      })
+      const signal = new AbortController().signal
+      if (failTransport) await assert.rejects(conversation.next({ kind: 'prompt', text: 'Inspect.' }, signal), /transport failed/)
+      else await conversation.next({ kind: 'prompt', text: 'Inspect.' }, signal)
+      await assert.rejects(conversation.next({ kind: 'prompt', text: 'Continue.' }, signal), /has ended|pending tool/)
+      assert.equal(requests, 1)
+    }
+  })
+
   test(`${protocol}: actual object checks return failed requirements as successful read results`, async () => {
     const { document, session } = fixture()
     await document.transact('Measured geometry', tx => tx.createEntity('LINE', { start: [0, 0, 0], end: [3, 4, 12] }, { id: 'inspection-line' }))

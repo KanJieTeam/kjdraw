@@ -828,9 +828,10 @@ export function createKJModelAdapter(options) {
     const historyBytes = limit(options.maxHistoryBytes, 2097152, 16777216);
     const streaming = chatStreaming || responsesStreaming || anthropicStreaming || geminiStreaming;
     return Object.freeze({
-        createConversation ({ instructions, tools, onTextDelta, onUsage }) {
+        createConversation ({ instructions, tools, onTextDelta, onUsage, allowTextContinuation }) {
             if (onTextDelta !== undefined && typeof onTextDelta !== 'function') invalid('onTextDelta must be a function');
             if (onUsage !== undefined && typeof onUsage !== 'function') invalid('onUsage must be a function');
+            if (allowTextContinuation !== undefined && typeof allowTextContinuation !== 'boolean') invalid('allowTextContinuation must be a boolean');
             const definitions = tools.map((tool)=>({
                     name: tool.name,
                     description: tool.description,
@@ -840,10 +841,12 @@ export function createKJModelAdapter(options) {
             const history = [];
             let pending = [];
             let started = false, busy = false, ended = false, turnNumber = 0;
+            let textContinuationAvailable = false, textContinuations = 0;
             const geminiIds = new Map();
             return {
                 async next (input, signal) {
-                    if (busy || ended) invalid('Conversation is busy or has ended; start a fresh conversation');
+                    const continueText = ended && textContinuationAvailable && allowTextContinuation === true && textContinuations === 0 && input.kind === 'prompt';
+                    if (busy || ended && !continueText) invalid('Conversation is busy or has ended; start a fresh conversation');
                     busy = true;
                     try {
                         signal.throwIfAborted();
@@ -913,6 +916,23 @@ export function createKJModelAdapter(options) {
                                         text: input.text
                                     }
                                 ]
+                            });
+                        } else if (continueText) {
+                            if (input.kind !== 'prompt' || typeof input.text !== 'string' || !input.text.trim() || input.text.length > 16000 || imagesForPrompt(input).length) invalid('A text continuation requires a nonempty bounded prompt without images');
+                            textContinuations++;
+                            textContinuationAvailable = false;
+                            ended = false;
+                            if (protocol === 'gemini-generate-content') history.push({
+                                role: 'user',
+                                parts: [
+                                    {
+                                        text: input.text
+                                    }
+                                ]
+                            });
+                            else history.push({
+                                role: 'user',
+                                content: input.text
                             });
                         } else {
                             if (input.kind !== 'tool-results' || input.results.length !== pending.length || !pending.length) invalid('Every pending tool call needs exactly one result');
@@ -1144,6 +1164,7 @@ export function createKJModelAdapter(options) {
                         if (streaming && !streamedResponse) delta(text);
                         pending = calls;
                         ended = !calls.length;
+                        textContinuationAvailable = ended;
                         return deepFreeze({
                             text,
                             calls,
@@ -1151,6 +1172,7 @@ export function createKJModelAdapter(options) {
                         });
                     } catch (error) {
                         ended = true;
+                        textContinuationAvailable = false;
                         throw error;
                     } finally{
                         busy = false;

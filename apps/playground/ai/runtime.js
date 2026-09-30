@@ -215,6 +215,8 @@ export function createAiChatRuntime(options = {}) {
         .filter(name => availableTools.has(name))
         .filter(name => document.listEntities().length === 0 ||
           !['cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_section_example'].includes(name)))]
+      const expectProposal = toolNames.includes('cad_find_text') && toolNames.length === 3 &&
+        toolNames.some(name => name === 'cad_propose_text_edit' || name === 'cad_propose_move')
       if (candidates.length && !capability) toolNames.push(SPATIAL_TOOL.name)
       const checkedEraseIds = new Set()
       const modelSession = {
@@ -254,6 +256,7 @@ export function createAiChatRuntime(options = {}) {
       if (context.length > MAX_PROMPT_LENGTH) return errorResult('AI_CONTEXT_LIMIT', '需求太长，请缩短后重试。')
       const result = await runKJAgentTask({
         session: modelSession, model, prompt: context, toolNames,
+        expectProposal,
         ...(capability ? { capabilities: { registry: capability.registry, lock: capability.lock } } : {}),
         signal: controller.signal, onProgress,
       })
@@ -266,11 +269,13 @@ export function createAiChatRuntime(options = {}) {
         const [proposal] = proposals
         history.push({ user: normalized, assistant: result.text.slice(0, 4000) })
         history = history.slice(-8)
-        return { status: 'proposal', text: result.text || '已生成 CAD 提案，图纸尚未修改。', proposal, proposals }
+        return { status: 'proposal', text: result.text || '已生成 CAD 提案，图纸尚未修改。', proposal, proposals,
+          ...(expectProposal ? { proposalRepairAttempts: result.proposalRepairAttempts } : {}) }
       }
       history.push({ user: normalized, assistant: result.text.slice(0, 4000) })
       history = history.slice(-8)
-      return { status: 'message', text: result.text }
+      return { status: 'message', text: result.text,
+        ...(expectProposal ? { noProposal: true, proposalRepairAttempts: result.proposalRepairAttempts } : {}) }
     } catch {
       return errorResult('AI_REQUEST_FAILED', transportError ?? '这次请求未能完成，图纸未修改。')
     } finally {

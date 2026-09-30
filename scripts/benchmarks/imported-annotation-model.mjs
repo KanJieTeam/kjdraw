@@ -80,7 +80,7 @@ export async function runImportedAnnotationModel({ bytes, targetText, connection
       const requestsBefore = report.requests
       const result = await chat.send(prompt)
       const entry = { round: index + 1, operation: kind, status: result.status, requests: report.requests - requestsBefore,
-        elapsedMs: Math.round(performance.now() - started), passed: false }
+        elapsedMs: Math.round(performance.now() - started), proposalRepairAttempts: result.proposalRepairAttempts ?? 0, passed: false }
       report.rounds.push(entry)
       let stage = 'proposal-isolation'
       try {

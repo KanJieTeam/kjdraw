@@ -29,6 +29,23 @@ The public runs archive [DeepSeek counters and tool-name trace](data/imported-an
 
 The private drawing and its query content are not published. Its aggregate results cannot be independently reproduced without access to that drawing. Do not treat anonymous private results as a public regression fixture.
 
+## Missing-proposal diagnosis and follow-up
+
+Three additional fixed DeepSeek repeats on the same private section completed **3, 2, and 10 approved rounds**. The first two failures had already located a unique editable text object, but the model described a proposed change in prose without invoking a proposal tool. That establishes a failure class in these repeats, not the cause of every earlier failure.
+
+The runner now supports explicit host edit intent (`expectProposal`, default false). After a successful read and a text-only response, it can send **one** protocol correction within the existing repair, turn, tool-call and timeout budgets. The adapter permits that single continuation only after a successful text turn, with observations retained. Pending tool results cannot be bypassed, and transport/protocol failures cannot be resumed. No correction approves or applies geometry; a successful proposal tool and host approval remain required. A text-only result in the annotation-edit UI displays an explicit unchanged-drawing notice, including after refresh.
+
+The first runner-only implementation was incomplete: the adapter still closed the conversation after text. Its three private DeepSeek repeats completed **10, 10, and 9 rounds**, with the last journey blocked before a correction request could reach the provider. After fixing the adapter, the next fixed repeats completed **10, 10, and 10 rounds**; Qwen completed **10 rounds** in both intermediate and completed versions. All eleven repeats, including failures and code fingerprints, are retained in the [sanitized repeat summary](data/imported-annotations-2026-09-30/proposal-protocol-repeat-summary.json). Private diagnostic prose and drawing observations are not published.
+
+The completed-version public fixture was also run once per provider:
+
+| Model | Approved rounds | API requests | Reported total tokens | Correction requests |
+| --- | ---: | ---: | ---: | ---: |
+| DeepSeek `deepseek-flash` | 10/10 | 21 | 72,627 | 0 |
+| Qwen `qwen3.8-flash` | 10/10 | 21 | 58,944 | 0 |
+
+[DeepSeek public counters](data/imported-annotations-2026-09-30/deepseek-public-protocol-correction.json) and [Qwen public counters](data/imported-annotations-2026-09-30/qwen-public-protocol-correction.json) archive the actual tested code fingerprints. The four completed private runs and these two public runs **did not invoke a correction**. Therefore these passes do not establish live-model recovery effectiveness or a population success rate. Protocol fixtures across all four adapters and Chrome tests exercise the correction and persistent no-proposal notice, but are not real-model results. This remains an exploratory, adaptively refined annotation workflow—not a held-out multi-model benchmark, token-saving comparison or geological-data revision proof. Private repeats precede a follow-up host-policy guard for annotation edits on drawings containing spatial building candidates; that guard has a separate runtime regression.
+
 ## Reproduce the public fixture
 
 Use Node.js 22+, `npm ci`, and your provider credential in the corresponding process environment (`KJDRAW_DEEPSEEK_API_KEY` or `KJDRAW_QWEN_API_KEY`). Running without `--run` makes zero model requests.

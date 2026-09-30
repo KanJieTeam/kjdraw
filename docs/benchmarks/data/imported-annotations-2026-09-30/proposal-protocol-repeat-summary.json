@@ -1,0 +1,1235 @@
+{
+  "scope": "Exploratory private-source native annotation edits only. All fixed repeats retained, including intermediate failures. Not a public fixture, held-out benchmark, causal estimate, token-saving comparison, or geology-data redraw test.",
+  "approval": "Exact automated oracle, not independent human acceptance.",
+  "runs": [
+    {
+      "stage": "before-protocol-correction",
+      "provider": "deepseek",
+      "repeat": 1,
+      "testedAt": "2026-09-30T08:54:48.137Z",
+      "returnedModels": [
+        "deepseek-flash"
+      ],
+      "sourceKind": "private-local-section",
+      "sourceSha256": "60db77c4fd640b1a9221f9669955428d7bc1cf6af4c956209868c3fdf6892eeb",
+      "protocol": "imported-annotation-v1",
+      "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+      "codeSha256": {
+        "scripts/benchmarks/imported-annotation-model.mjs": "ac214b830a857158603ab49157b3d9c899d6e807d9502047002643c9d27d2a12",
+        "scripts/benchmarks/imported-annotation-providers.mjs": "c28d8e199606fe22dff0ffa59ce20f193244b398d0d6dbf1b3a2919c181c8c84",
+        "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+        "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+        "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+        "apps/playground/ai/runtime.js": "848e4a4c0ce1e6253fa8c0df5cbfb7ddadbad2aef940c1cf147d49175ab631eb",
+        "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+        "packages/kjdraw-sdk/src/agent-runner.js": "b02dd951e97a597603beb2f6db0386ab101e409545ddd279617e4554eac1ec11",
+        "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+        "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+        "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+      },
+      "passed": false,
+      "approvedRounds": 3,
+      "requests": 12,
+      "totalTokens": 159188,
+      "rounds": [
+        {
+          "round": 1,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 9197,
+          "passed": true
+        },
+        {
+          "round": 2,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 7259,
+          "passed": true
+        },
+        {
+          "round": 3,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 6679,
+          "passed": true
+        },
+        {
+          "round": 4,
+          "operation": "text",
+          "status": "message",
+          "requests": 3,
+          "elapsedMs": 5204,
+          "passed": false,
+          "failure": "EXACT_ORACLE_OR_REOPEN_FAILED",
+          "failureStage": "model-proposal"
+        }
+      ],
+      "transportFailures": []
+    },
+    {
+      "stage": "before-protocol-correction",
+      "provider": "deepseek",
+      "repeat": 2,
+      "testedAt": "2026-09-30T08:54:35.419Z",
+      "returnedModels": [
+        "deepseek-flash"
+      ],
+      "sourceKind": "private-local-section",
+      "sourceSha256": "60db77c4fd640b1a9221f9669955428d7bc1cf6af4c956209868c3fdf6892eeb",
+      "protocol": "imported-annotation-v1",
+      "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+      "codeSha256": {
+        "scripts/benchmarks/imported-annotation-model.mjs": "ac214b830a857158603ab49157b3d9c899d6e807d9502047002643c9d27d2a12",
+        "scripts/benchmarks/imported-annotation-providers.mjs": "c28d8e199606fe22dff0ffa59ce20f193244b398d0d6dbf1b3a2919c181c8c84",
+        "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+        "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+        "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+        "apps/playground/ai/runtime.js": "848e4a4c0ce1e6253fa8c0df5cbfb7ddadbad2aef940c1cf147d49175ab631eb",
+        "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+        "packages/kjdraw-sdk/src/agent-runner.js": "b02dd951e97a597603beb2f6db0386ab101e409545ddd279617e4554eac1ec11",
+        "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+        "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+        "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+      },
+      "passed": false,
+      "approvedRounds": 2,
+      "requests": 8,
+      "totalTokens": 48524,
+      "rounds": [
+        {
+          "round": 1,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 4520,
+          "passed": true
+        },
+        {
+          "round": 2,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 5948,
+          "passed": true
+        },
+        {
+          "round": 3,
+          "operation": "move",
+          "status": "message",
+          "requests": 2,
+          "elapsedMs": 4117,
+          "passed": false,
+          "failure": "EXACT_ORACLE_OR_REOPEN_FAILED",
+          "failureStage": "model-proposal"
+        }
+      ],
+      "transportFailures": []
+    },
+    {
+      "stage": "before-protocol-correction",
+      "provider": "deepseek",
+      "repeat": 3,
+      "testedAt": "2026-09-30T08:55:00.436Z",
+      "returnedModels": [
+        "deepseek-flash"
+      ],
+      "sourceKind": "private-local-section",
+      "sourceSha256": "60db77c4fd640b1a9221f9669955428d7bc1cf6af4c956209868c3fdf6892eeb",
+      "protocol": "imported-annotation-v1",
+      "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+      "codeSha256": {
+        "scripts/benchmarks/imported-annotation-model.mjs": "ac214b830a857158603ab49157b3d9c899d6e807d9502047002643c9d27d2a12",
+        "scripts/benchmarks/imported-annotation-providers.mjs": "c28d8e199606fe22dff0ffa59ce20f193244b398d0d6dbf1b3a2919c181c8c84",
+        "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+        "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+        "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+        "apps/playground/ai/runtime.js": "848e4a4c0ce1e6253fa8c0df5cbfb7ddadbad2aef940c1cf147d49175ab631eb",
+        "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+        "packages/kjdraw-sdk/src/agent-runner.js": "b02dd951e97a597603beb2f6db0386ab101e409545ddd279617e4554eac1ec11",
+        "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+        "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+        "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+      },
+      "passed": true,
+      "approvedRounds": 10,
+      "requests": 21,
+      "totalTokens": 62856,
+      "rounds": [
+        {
+          "round": 1,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 4909,
+          "passed": true
+        },
+        {
+          "round": 2,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 2229,
+          "passed": true
+        },
+        {
+          "round": 3,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 2406,
+          "passed": true
+        },
+        {
+          "round": 4,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 2725,
+          "passed": true
+        },
+        {
+          "round": 5,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 2390,
+          "passed": true
+        },
+        {
+          "round": 6,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 2967,
+          "passed": true
+        },
+        {
+          "round": 7,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 1687,
+          "passed": true
+        },
+        {
+          "round": 8,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 2731,
+          "passed": true
+        },
+        {
+          "round": 9,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 2112,
+          "passed": true
+        },
+        {
+          "round": 10,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 2421,
+          "passed": true
+        }
+      ],
+      "transportFailures": []
+    },
+    {
+      "stage": "runner-only-intermediate",
+      "provider": "deepseek",
+      "repeat": 1,
+      "testedAt": "2026-09-30T09:11:44.830Z",
+      "returnedModels": [
+        "deepseek-flash"
+      ],
+      "sourceKind": "private-local-drawing",
+      "sourceSha256": "60db77c4fd640b1a9221f9669955428d7bc1cf6af4c956209868c3fdf6892eeb",
+      "protocol": "imported-annotation-v1",
+      "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+      "codeSha256": {
+        "scripts/benchmarks/imported-annotation-model.mjs": "a64253d4db64bb85c5272d4dc4ec191254849d21b7a8a4b0c2404fcbe9b33139",
+        "scripts/benchmarks/imported-annotation-providers.mjs": "c28d8e199606fe22dff0ffa59ce20f193244b398d0d6dbf1b3a2919c181c8c84",
+        "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+        "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+        "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+        "apps/playground/ai/runtime.js": "e2379419eb8cd2a46f5dbd08f84a0bfc6e218d99422e1898e2cceeb75c8c7631",
+        "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+        "packages/kjdraw-sdk/src/agent-runner.js": "72301d79fde8e216dd11ff2b2586710b7b4f3fab0d82a64653d4acdcc8445767",
+        "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+        "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+        "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+      },
+      "passed": true,
+      "approvedRounds": 10,
+      "requests": 23,
+      "totalTokens": 64911,
+      "rounds": [
+        {
+          "round": 1,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 4300,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 2,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 2778,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 3,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 5836,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 4,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 4725,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 5,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 12091,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 6,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 13414,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 7,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 8821,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 8,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 5516,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 9,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3983,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 10,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 7928,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        }
+      ],
+      "transportFailures": []
+    },
+    {
+      "stage": "runner-only-intermediate",
+      "provider": "deepseek",
+      "repeat": 2,
+      "testedAt": "2026-09-30T09:11:46.450Z",
+      "returnedModels": [
+        "deepseek-flash"
+      ],
+      "sourceKind": "private-local-drawing",
+      "sourceSha256": "60db77c4fd640b1a9221f9669955428d7bc1cf6af4c956209868c3fdf6892eeb",
+      "protocol": "imported-annotation-v1",
+      "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+      "codeSha256": {
+        "scripts/benchmarks/imported-annotation-model.mjs": "a64253d4db64bb85c5272d4dc4ec191254849d21b7a8a4b0c2404fcbe9b33139",
+        "scripts/benchmarks/imported-annotation-providers.mjs": "c28d8e199606fe22dff0ffa59ce20f193244b398d0d6dbf1b3a2919c181c8c84",
+        "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+        "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+        "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+        "apps/playground/ai/runtime.js": "e2379419eb8cd2a46f5dbd08f84a0bfc6e218d99422e1898e2cceeb75c8c7631",
+        "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+        "packages/kjdraw-sdk/src/agent-runner.js": "72301d79fde8e216dd11ff2b2586710b7b4f3fab0d82a64653d4acdcc8445767",
+        "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+        "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+        "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+      },
+      "passed": true,
+      "approvedRounds": 10,
+      "requests": 22,
+      "totalTokens": 97857,
+      "rounds": [
+        {
+          "round": 1,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 5431,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 2,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 4251,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 3,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 2381,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 4,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 4117,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 5,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 4953,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 6,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 8644,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 7,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 16592,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 8,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 9618,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 9,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 6907,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 10,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3617,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        }
+      ],
+      "transportFailures": []
+    },
+    {
+      "stage": "runner-only-intermediate",
+      "provider": "deepseek",
+      "repeat": 3,
+      "testedAt": "2026-09-30T09:11:43.901Z",
+      "returnedModels": [
+        "deepseek-flash"
+      ],
+      "sourceKind": "private-local-drawing",
+      "sourceSha256": "60db77c4fd640b1a9221f9669955428d7bc1cf6af4c956209868c3fdf6892eeb",
+      "protocol": "imported-annotation-v1",
+      "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+      "codeSha256": {
+        "scripts/benchmarks/imported-annotation-model.mjs": "a64253d4db64bb85c5272d4dc4ec191254849d21b7a8a4b0c2404fcbe9b33139",
+        "scripts/benchmarks/imported-annotation-providers.mjs": "c28d8e199606fe22dff0ffa59ce20f193244b398d0d6dbf1b3a2919c181c8c84",
+        "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+        "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+        "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+        "apps/playground/ai/runtime.js": "e2379419eb8cd2a46f5dbd08f84a0bfc6e218d99422e1898e2cceeb75c8c7631",
+        "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+        "packages/kjdraw-sdk/src/agent-runner.js": "72301d79fde8e216dd11ff2b2586710b7b4f3fab0d82a64653d4acdcc8445767",
+        "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+        "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+        "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+      },
+      "passed": false,
+      "approvedRounds": 9,
+      "requests": 21,
+      "totalTokens": 90420,
+      "rounds": [
+        {
+          "round": 1,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 6905,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 2,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3810,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 3,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3822,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 4,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 11179,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 5,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 16698,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 6,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 11257,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 7,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 9195,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 8,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 7278,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 9,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 8490,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 10,
+          "operation": "text",
+          "status": "message",
+          "requests": 1,
+          "elapsedMs": 1617,
+          "proposalRepairAttempts": 0,
+          "passed": false,
+          "failure": "EXACT_ORACLE_OR_REOPEN_FAILED",
+          "failureStage": "model-proposal"
+        }
+      ],
+      "transportFailures": []
+    },
+    {
+      "stage": "runner-only-intermediate",
+      "provider": "qwen",
+      "repeat": 1,
+      "testedAt": "2026-09-30T09:12:10.764Z",
+      "returnedModels": [
+        "qwen3.8-flash"
+      ],
+      "sourceKind": "private-local-drawing",
+      "sourceSha256": "60db77c4fd640b1a9221f9669955428d7bc1cf6af4c956209868c3fdf6892eeb",
+      "protocol": "imported-annotation-v1",
+      "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+      "codeSha256": {
+        "scripts/benchmarks/imported-annotation-model.mjs": "a64253d4db64bb85c5272d4dc4ec191254849d21b7a8a4b0c2404fcbe9b33139",
+        "scripts/benchmarks/imported-annotation-providers.mjs": "c28d8e199606fe22dff0ffa59ce20f193244b398d0d6dbf1b3a2919c181c8c84",
+        "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+        "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+        "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+        "apps/playground/ai/runtime.js": "e2379419eb8cd2a46f5dbd08f84a0bfc6e218d99422e1898e2cceeb75c8c7631",
+        "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+        "packages/kjdraw-sdk/src/agent-runner.js": "72301d79fde8e216dd11ff2b2586710b7b4f3fab0d82a64653d4acdcc8445767",
+        "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+        "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+        "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+      },
+      "passed": true,
+      "approvedRounds": 10,
+      "requests": 22,
+      "totalTokens": 64036,
+      "rounds": [
+        {
+          "round": 1,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 4,
+          "elapsedMs": 11089,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 2,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 9052,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 3,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 14629,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 4,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 13943,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 5,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 12628,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 6,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 13370,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 7,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 7441,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 8,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 4448,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 9,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 6403,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 10,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 5175,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        }
+      ],
+      "transportFailures": []
+    },
+    {
+      "stage": "runner-and-adapter-correction",
+      "provider": "deepseek",
+      "repeat": 1,
+      "testedAt": "2026-09-30T09:19:23.338Z",
+      "returnedModels": [
+        "deepseek-flash"
+      ],
+      "sourceKind": "private-local-drawing",
+      "sourceSha256": "60db77c4fd640b1a9221f9669955428d7bc1cf6af4c956209868c3fdf6892eeb",
+      "protocol": "imported-annotation-v1",
+      "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+      "codeSha256": {
+        "scripts/benchmarks/imported-annotation-model.mjs": "a64253d4db64bb85c5272d4dc4ec191254849d21b7a8a4b0c2404fcbe9b33139",
+        "scripts/benchmarks/imported-annotation-providers.mjs": "ab73d6a48aa85e06a1d1de8b438775960b16f27e1860e895dffa0245b8409984",
+        "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+        "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+        "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+        "apps/playground/ai/runtime.js": "e2379419eb8cd2a46f5dbd08f84a0bfc6e218d99422e1898e2cceeb75c8c7631",
+        "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+        "packages/kjdraw-sdk/src/agent-runner.js": "33ad8841145f83fa7f54741ed6955f2a2d78369446636d1a8302b76ca5ec8094",
+        "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+        "packages/kjdraw-sdk/src/model-adapters.js": "9706eaf58a47d8614c366e5bc5cf7bfa9364c3ff2c8c7fe3081ba33d4cdfdb34",
+        "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+        "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+      },
+      "passed": true,
+      "approvedRounds": 10,
+      "requests": 24,
+      "totalTokens": 108613,
+      "rounds": [
+        {
+          "round": 1,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 14163,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 2,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 11148,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 3,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 8377,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 4,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 7964,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 5,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 5012,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 6,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3637,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 7,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 2564,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 8,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3924,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 9,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3222,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 10,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 2256,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        }
+      ],
+      "transportFailures": []
+    },
+    {
+      "stage": "runner-and-adapter-correction",
+      "provider": "deepseek",
+      "repeat": 2,
+      "testedAt": "2026-09-30T09:19:20.328Z",
+      "returnedModels": [
+        "deepseek-flash"
+      ],
+      "sourceKind": "private-local-drawing",
+      "sourceSha256": "60db77c4fd640b1a9221f9669955428d7bc1cf6af4c956209868c3fdf6892eeb",
+      "protocol": "imported-annotation-v1",
+      "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+      "codeSha256": {
+        "scripts/benchmarks/imported-annotation-model.mjs": "a64253d4db64bb85c5272d4dc4ec191254849d21b7a8a4b0c2404fcbe9b33139",
+        "scripts/benchmarks/imported-annotation-providers.mjs": "ab73d6a48aa85e06a1d1de8b438775960b16f27e1860e895dffa0245b8409984",
+        "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+        "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+        "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+        "apps/playground/ai/runtime.js": "e2379419eb8cd2a46f5dbd08f84a0bfc6e218d99422e1898e2cceeb75c8c7631",
+        "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+        "packages/kjdraw-sdk/src/agent-runner.js": "33ad8841145f83fa7f54741ed6955f2a2d78369446636d1a8302b76ca5ec8094",
+        "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+        "packages/kjdraw-sdk/src/model-adapters.js": "9706eaf58a47d8614c366e5bc5cf7bfa9364c3ff2c8c7fe3081ba33d4cdfdb34",
+        "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+        "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+      },
+      "passed": true,
+      "approvedRounds": 10,
+      "requests": 23,
+      "totalTokens": 107172,
+      "rounds": [
+        {
+          "round": 1,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 8503,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 2,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 7427,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 3,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 5396,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 4,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 5321,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 5,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 4361,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 6,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3599,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 7,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3551,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 8,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 5715,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 9,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3498,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 10,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 5421,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        }
+      ],
+      "transportFailures": []
+    },
+    {
+      "stage": "runner-and-adapter-correction",
+      "provider": "deepseek",
+      "repeat": 3,
+      "testedAt": "2026-09-30T09:19:20.745Z",
+      "returnedModels": [
+        "deepseek-flash"
+      ],
+      "sourceKind": "private-local-drawing",
+      "sourceSha256": "60db77c4fd640b1a9221f9669955428d7bc1cf6af4c956209868c3fdf6892eeb",
+      "protocol": "imported-annotation-v1",
+      "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+      "codeSha256": {
+        "scripts/benchmarks/imported-annotation-model.mjs": "a64253d4db64bb85c5272d4dc4ec191254849d21b7a8a4b0c2404fcbe9b33139",
+        "scripts/benchmarks/imported-annotation-providers.mjs": "ab73d6a48aa85e06a1d1de8b438775960b16f27e1860e895dffa0245b8409984",
+        "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+        "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+        "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+        "apps/playground/ai/runtime.js": "e2379419eb8cd2a46f5dbd08f84a0bfc6e218d99422e1898e2cceeb75c8c7631",
+        "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+        "packages/kjdraw-sdk/src/agent-runner.js": "33ad8841145f83fa7f54741ed6955f2a2d78369446636d1a8302b76ca5ec8094",
+        "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+        "packages/kjdraw-sdk/src/model-adapters.js": "9706eaf58a47d8614c366e5bc5cf7bfa9364c3ff2c8c7fe3081ba33d4cdfdb34",
+        "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+        "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+      },
+      "passed": true,
+      "approvedRounds": 10,
+      "requests": 22,
+      "totalTokens": 80597,
+      "rounds": [
+        {
+          "round": 1,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 9401,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 2,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 6136,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 3,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3599,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 4,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 6148,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 5,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 5099,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 6,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 5170,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 7,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 5276,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 8,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3947,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 9,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 4893,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 10,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3655,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        }
+      ],
+      "transportFailures": []
+    },
+    {
+      "stage": "runner-and-adapter-correction",
+      "provider": "qwen",
+      "repeat": 1,
+      "testedAt": "2026-09-30T09:19:36.293Z",
+      "returnedModels": [
+        "qwen3.8-flash"
+      ],
+      "sourceKind": "private-local-drawing",
+      "sourceSha256": "60db77c4fd640b1a9221f9669955428d7bc1cf6af4c956209868c3fdf6892eeb",
+      "protocol": "imported-annotation-v1",
+      "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+      "codeSha256": {
+        "scripts/benchmarks/imported-annotation-model.mjs": "a64253d4db64bb85c5272d4dc4ec191254849d21b7a8a4b0c2404fcbe9b33139",
+        "scripts/benchmarks/imported-annotation-providers.mjs": "ab73d6a48aa85e06a1d1de8b438775960b16f27e1860e895dffa0245b8409984",
+        "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+        "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+        "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+        "apps/playground/ai/runtime.js": "e2379419eb8cd2a46f5dbd08f84a0bfc6e218d99422e1898e2cceeb75c8c7631",
+        "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+        "packages/kjdraw-sdk/src/agent-runner.js": "33ad8841145f83fa7f54741ed6955f2a2d78369446636d1a8302b76ca5ec8094",
+        "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+        "packages/kjdraw-sdk/src/model-adapters.js": "9706eaf58a47d8614c366e5bc5cf7bfa9364c3ff2c8c7fe3081ba33d4cdfdb34",
+        "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+        "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+      },
+      "passed": true,
+      "approvedRounds": 10,
+      "requests": 22,
+      "totalTokens": 68444,
+      "rounds": [
+        {
+          "round": 1,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 12681,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 2,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 3,
+          "elapsedMs": 15870,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 3,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 7454,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 4,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 6182,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 5,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 6495,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 6,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 7529,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 7,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 7463,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 8,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 5565,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 9,
+          "operation": "move",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 4627,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        },
+        {
+          "round": 10,
+          "operation": "text",
+          "status": "proposal",
+          "requests": 2,
+          "elapsedMs": 3917,
+          "proposalRepairAttempts": 0,
+          "passed": true
+        }
+      ],
+      "transportFailures": []
+    }
+  ]
+}

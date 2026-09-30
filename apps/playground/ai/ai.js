@@ -19,6 +19,7 @@ const copy = {
     endpoint:'API 地址',model:'模型名称',apiKey:'API 密钥',cancel:'取消',saveConnection:'连接并继续',
     invalidSettings:'请填写完整的 API 地址和模型名称。',invalidEndpoint:'请输入完整的 http(s) API 地址。',keyRequired:'请填写该服务商的 API 密钥。',you:'你',assistant:'KJDraw AI',
     proposal:'CAD 修改提案',proposalPending:'待审核',proposalApproved:'已应用',proposalRejected:'已放弃',proposalExpired:'已失效',
+    noProposal:'尚未生成可确认的修改，图纸未改变。',
     previewMissing:'暂时无法绘制预览，请检查提案详情。',reviewDetails:'查看提案详情',approve:'审核并应用',reject:'放弃提案',
     download:'下载 DXF 图纸',openEditor:'打开编辑器',applied:'修改已应用。可下载 DXF 图纸，在 CAD 软件中继续编辑。',
     emptyResponse:'模型没有返回可显示的内容。',retry:'请重试或检查模型设置。',newConversation:'新对话',
@@ -44,6 +45,7 @@ const copy = {
     endpoint:'API endpoint',model:'Model name',apiKey:'API key',cancel:'Cancel',saveConnection:'Connect and continue',
     invalidSettings:'Enter an API endpoint and model name.',invalidEndpoint:'Enter a complete http(s) API endpoint.',keyRequired:'Enter an API key for this provider.',you:'You',assistant:'KJDraw AI',
     proposal:'CAD change proposal',proposalPending:'Awaiting review',proposalApproved:'Applied',proposalRejected:'Discarded',proposalExpired:'Expired',
+    noProposal:'No reviewable change was created. The drawing is unchanged.',
     previewMissing:'Preview could not be rendered. Review the proposal details.',reviewDetails:'View proposal details',approve:'Review and apply',reject:'Discard proposal',
     download:'Download DXF drawing',openEditor:'Open editor',applied:'Change applied. Download the DXF drawing to continue editing in CAD software.',
     emptyResponse:'The model returned no displayable content.',retry:'Try again or check your model settings.',newConversation:'New chat',
@@ -310,6 +312,11 @@ function render() {
     body.append(element('div','message-role',t(message.role === 'user' ? 'you' : 'assistant')))
     if (message.status === 'pending') body.append(element('div','message-progress',t('working')))
     else body.append(element('div','message-content',message.text || t('emptyResponse')))
+    if (message.status === 'not-proposed') {
+      const notice = element('div','message-progress',t('noProposal'))
+      notice.dataset.testid = 'chat-no-proposal'
+      body.append(notice)
+    }
     if (message.proposals?.length) for (const proposal of message.proposals) body.append(createProposalCard(active,proposal))
     wrapper.append(avatar,body)
     ui.messages.append(wrapper)
@@ -463,7 +470,7 @@ async function submitPrompt() {
     const index = session.messages.indexOf(waiting)
     if (index >= 0) session.messages.splice(index,1)
     if (result.status === 'proposal') session.messages.push({role:'assistant',text:result.text,proposals:(result.proposals?.length ? result.proposals : [result.proposal]).map(proposal => ({...proposal, uiState:'pending'}))})
-    else if (result.status === 'message') session.messages.push({role:'assistant',text:result.text})
+    else if (result.status === 'message') session.messages.push({role:'assistant',text:result.text,...(result.noProposal ? {status:'not-proposed'} : {})})
     else if (result.status === 'cancelled') {
       session.messages.push({role:'assistant',text:t('stopped')})
       if (!ui.input.value) ui.input.value = prompt
