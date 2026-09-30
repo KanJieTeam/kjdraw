@@ -195,6 +195,7 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack> = vali
     'geology-column-layout': {
       paperWidth: 210,
       paperHeight: 297,
+      pageHeightOptions: [{ pageHeightMillimeters: 297 }, { pageHeightMillimeters: 500 }, { pageHeightMillimeters: 841 }],
       left: 15,
       right: 195,
       headerDepth: 52,

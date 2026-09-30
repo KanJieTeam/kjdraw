@@ -242,7 +242,7 @@ function columnLayout(input) {
             columnStylePack: KJDRAW_GEOLOGY_KNOWLEDGE_PACK
         });
         const height = input.pageHeightMillimeters ?? 297;
-        if (height !== 297 && height !== 841) throw new KJValidationError('Geology: column page height must be 297 or 841 mm');
+        if (height !== 297 && height !== 500 && height !== 841) throw new KJValidationError('Geology: column page height must be 297, 500 or 841 mm');
         return {
             paperWidth: 210,
             paperHeight: height,
@@ -331,7 +331,7 @@ function columnLayout(input) {
     }
     let pageHeightOption;
     if (value.pageHeightOptions != null) {
-        if (!Array.isArray(value.pageHeightOptions) || value.pageHeightOptions.length < 1 || value.pageHeightOptions.length > 2) throw new KJValidationError('Geology: style page height options must declare one or two bounded sheets');
+        if (!Array.isArray(value.pageHeightOptions) || value.pageHeightOptions.length < 1 || value.pageHeightOptions.length > 3) throw new KJValidationError('Geology: style page height options must declare one to three bounded sheets');
         const seenHeights = new Set();
         const options = value.pageHeightOptions.map((raw, index)=>{
             if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: style page height option must be a declared object');
@@ -343,7 +343,7 @@ function columnLayout(input) {
                 ] : []
             ].sort().join(',')) throw new KJValidationError('Geology: style page height option has an undeclared field');
             const height = numeric(option.pageHeightMillimeters, `style page height option ${index + 1}`);
-            if (height !== 297 && height !== 841 || seenHeights.has(height)) throw new KJValidationError('Geology: style page heights must be unique 297 or 841 mm values');
+            if (height !== 297 && height !== 500 && height !== 841 || seenHeights.has(height)) throw new KJValidationError('Geology: style page heights must be unique 297, 500 or 841 mm values');
             seenHeights.add(height);
             let fieldTextWidthFactors;
             if (hasFactors) {
@@ -3313,17 +3313,20 @@ export function compileGeologyColumn(input) {
         const descriptionBoundaryClearances = new Map();
         const textBoxes = [];
         const emitFieldText = (item, y, value, height = 1.8)=>{
-            const width = estimatedWidth(value, height) * (item.textWidthFactor ?? 1);
-            if (width > fieldWidth(item) - 2.4) throw new KJValidationError(`Geology: ${item.role} text does not fit its declared field`);
+            const available = fieldWidth(item) - 2.4;
+            const preferredWidth = estimatedWidth(value, height) * (item.textWidthFactor ?? 1);
+            const fittedHeight = item.role === 'layerName' && preferredWidth > available ? Math.max(1.5, height * available / preferredWidth - 1e-6) : height;
+            const width = estimatedWidth(value, fittedHeight) * (item.textWidthFactor ?? 1);
+            if (width > available) throw new KJValidationError(`Geology: ${item.role} text does not fit its declared field`);
             const centered = item.role !== 'description';
             const x = centered ? item.start + fieldWidth(item) / 2 : item.start + 1.2;
-            g.text(3, x, y, value, height, centered, item.textWidthFactor, undefined, item.role === 'layerName' ? 'layerName' : undefined);
+            g.text(3, x, y, value, fittedHeight, centered, item.textWidthFactor, undefined, item.role === 'layerName' ? 'layerName' : undefined);
             textBoxes.push({
                 role: item.role,
                 left: x - (centered ? width / 2 : 0) - 0.25,
                 right: x + (centered ? width / 2 : width) + 0.25,
                 bottom: y - 0.25,
-                top: y + height + 0.25
+                top: y + fittedHeight + 0.25
             });
         };
         const emitPlacedFieldText = (item, anchorY, value, placement)=>{

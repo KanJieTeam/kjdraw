@@ -238,35 +238,101 @@ test('local conversation history can be reopened, searched, renamed and deleted'
   await expect(page.locator('#drawing-name')).toHaveText('alpha.kjd')
 })
 
-test('building removal finds geometry without manual selection or a model key', async ({ page }) => {
+test('building edits are chosen by model tools, impact-checked, and never inferred by a canned phrase', async ({ page }) => {
   const sdk=createKJDrawSDK(), source=sdk.createDocument({documentId:'building-source',units:'millimeter'})
-  await source.transact('Four buildings',tx=>{
-    for(let index=0;index<4;index++){
+  await source.transact('Two building rows',tx=>{
+    for(let index=0;index<6;index++){
       const x=index*40
-      tx.createEntity('LWPOLYLINE',{vertices:[[x,100],[x+24,100],[x+24,120],[x,120]],closed:true},{id:'building-'+index})
-      tx.createEntity('TEXT',{position:[x+4,110],text:String(index+3)+'F',height:2},{id:'floor-'+index})
+      const y=index<4?100:40
+      tx.createEntity('LWPOLYLINE',{vertices:[[x,y],[x+24,y],[x+24,y+20],[x,y+20]],closed:true},{id:'building-'+index})
+      tx.createEntity('TEXT',{position:[x+4,y+10],text:String(index+3)+'F',height:2},{id:'floor-'+index})
     }
-    tx.createEntity('LINE',{start:[0,80],end:[144,80]},{id:'road'})
+    tx.createEntity('LINE',{start:[0,20],end:[224,20]},{id:'road'})
   })
-  const dxf=await sdk.writeDocument(source,{format:'DXF'})
+  const requests=[]
+  let phase=0, ids=[]
+  await page.route('https://ai-test.invalid/v1/chat/completions',route=>{
+    const body=route.request().postDataJSON()
+    requests.push(body)
+    const userMessage=body.messages.findLast(message=>message.role==='user')?.content ?? ''
+    if(userMessage.endsWith('Current user request: 删掉顶部三个楼')){
+      return route.fulfill({json:{choices:[{message:{role:'assistant',content:'顶部有四栋候选，请指出是哪三栋。'},finish_reason:'stop'}]}})
+    }
+    const revision=source.revision
+    let name,args
+    if(phase===0){name='cad_query_spatial_candidates';args={expectedRevision:revision,indices:[4,5]}}
+    else if(phase===1){
+      const result=JSON.parse(body.messages.filter(message=>message.role==='tool').at(-1).content)
+      ids=result.value.candidates.flatMap(candidate=>candidate.memberIds)
+      name='cad_query_impact';args={expectedRevision:revision,units:'millimeter',operation:'erase',ids,tolerance:0.01,maxBytes:262144}
+    }else{
+      const result=JSON.parse(body.messages.filter(message=>message.role==='tool').at(-1).content)
+      expect(result.value.canErase).toBe(true)
+      name='cad_propose_structural_edit';args={expectedRevision:revision,units:'millimeter',eraseIds:ids,tolerance:0.01,maxBytes:262144}
+    }
+    phase++
+    return route.fulfill({json:{choices:[{message:{role:'assistant',content:'',tool_calls:[{
+      id:'building-tool-'+phase,type:'function',function:{name,arguments:JSON.stringify(args)},
+    }]},finish_reason:'tool_calls'}]}})
+  })
   await page.goto('/ai/')
-  await page.getByTestId('drawing-file').setInputFiles({name:'four-buildings.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)})
+  await page.getByTestId('drawing-file').setInputFiles({
+    name:'six-buildings.kjd',mimeType:'application/json',buffer:Buffer.from(await sdk.writeDocument(source,{format:'KJD'})),
+  })
   await page.getByTestId('chat-input').fill('删掉顶部三个楼')
   await page.getByTestId('chat-send').click()
-  await expect(page.locator('.message.assistant .message-content').last()).toContainText('4 栋候选')
+  await expect(page.locator('#settings-dialog')).toBeVisible()
   await expect(page.getByTestId('drawing-result')).toHaveCount(0)
-  await page.getByTestId('chat-input').fill('删掉顶部从左数三个楼')
+  await page.getByTestId('settings-provider').selectOption('custom')
+  await page.getByTestId('settings-endpoint').fill('https://ai-test.invalid/v1/chat/completions')
+  await page.getByTestId('settings-model').fill('browser-fixture')
+  await page.getByTestId('settings-key').fill('browser-test-key')
+  await page.getByTestId('settings-save').click()
+  await expect(page.locator('.message.assistant .message-content').last()).toContainText('请指出是哪三栋')
+  await page.getByTestId('chat-input').fill('删掉底部两个楼')
   await page.getByTestId('chat-send').click()
-  await expect(page.getByTestId('settings-open')).toContainText('Connect model')
-  await expect(page.locator('#settings-dialog')).not.toBeVisible()
   await expect(page.getByTestId('proposal-approve')).toBeVisible()
+  expect(phase).toBe(3)
+  expect(ids).toEqual(['building-4','floor-4','building-5','floor-5'])
+  expect(requests.some(body=>body.tools.some(tool=>tool.function.name==='cad_query_spatial_candidates'))).toBe(true)
   await page.getByTestId('proposal-approve').click()
   const waiting=page.waitForEvent('download')
   await page.getByTestId('drawing-download').click()
   const download=await waiting
   const output=await createKJDrawSDK().readDocument(new Uint8Array(await readFile(await download.path())),{format:'DXF'})
   expect(output.validate().valid).toBe(true)
-  expect(output.listEntities({ownerId:output.spaces.modelSpaceId})).toHaveLength(3)
+  expect(output.listEntities({ownerId:output.spaces.modelSpaceId})).toHaveLength(9)
+})
+
+test('imported DXF geology edits disclose missing source facts instead of exposing blank-only redraw tools', async ({ page }) => {
+  const sdk=createKJDrawSDK(), source=sdk.createDocument({documentId:'section-graphic',units:'millimeter'})
+  await source.transact('Graphic section',tx=>{
+    tx.createEntity('TEXT',{position:[0,0],text:'ZK01',height:2},{id:'hole-label'})
+    tx.createEntity('LINE',{start:[0,-10],end:[10,-10]},{id:'stratum-line'})
+  })
+  let captured
+  await page.route('https://ai-test.invalid/v1/chat/completions',route=>{
+    captured=route.request().postDataJSON()
+    return route.fulfill({json:{choices:[{message:{role:'assistant',content:'请提供 ZK01 的原始分层表和与邻孔的对比关系，不能只改图上的文字。'},finish_reason:'stop'}]}})
+  })
+  await page.goto('/ai/')
+  await page.getByTestId('drawing-file').setInputFiles({
+    name:'section.dxf',mimeType:'application/dxf',buffer:Buffer.from(await sdk.writeDocument(source,{format:'DXF'})),
+  })
+  await page.getByTestId('settings-open').click()
+  await page.getByTestId('settings-provider').selectOption('custom')
+  await page.getByTestId('settings-endpoint').fill('https://ai-test.invalid/v1/chat/completions')
+  await page.getByTestId('settings-model').fill('browser-fixture')
+  await page.getByTestId('settings-key').fill('browser-test-key')
+  await page.getByTestId('settings-save').click()
+  await page.getByTestId('chat-input').fill('把 ZK01 第三层改成砂层并重绘剖面图')
+  await page.getByTestId('chat-send').click()
+  await expect(page.locator('.message.assistant .message-content').last()).toContainText('原始分层表')
+  expect(captured.messages.findLast(message=>message.role==='user').content).toContain('not a verified borehole source table')
+  const names=captured.tools.map(tool=>tool.function.name)
+  expect(names).not.toContain('cad_propose_geology_section')
+  expect(names).not.toContain('cad_propose_geology_column')
+  await expect(page.getByTestId('proposal-approve')).toHaveCount(0)
 })
 
 test('refresh retains the conversation but expires proposals that were never approved', async ({ page }) => {

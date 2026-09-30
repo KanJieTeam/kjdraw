@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:fbbccbc52304f3ef0e765420079760b122022a05f7b82e9f2bbc6c4496ad29bd",
+  "sourceDigest": "sha256:f5805347b5b6a7af09389f1dd8d3f986ffcb6031442a9378ad33e445d1f2c6d5",
   "modules": [
     {
       "exportPath": "./agent-skill-json",
@@ -10122,7 +10122,7 @@
         {
           "name": "KJGeologyColumnInput",
           "kind": "interface",
-          "declaration": "export interface KJGeologyColumnInput {\n    /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */\n    locale?: 'zh-CN' | 'en';\n    hole: KJGeologyBorehole;\n    projectName?: string;\n    /** Exact source-backed document facts requested by a host-selected style pack; never inferred. */\n    documentFacts?: Record<string, string>;\n    /** Explicit source/template fact. Omit to select from the style pack's standard scales. */\n    verticalScaleDenominator?: number;\n    /** Physical long-log sheet or ordinary A4 sheet, in millimetres. */\n    pageHeightMillimeters?: 297 | 841;\n    /** Host-selected, versioned physical table geometry; independent of model text. */\n    columnStylePack?: ReadonlyDeep<KJKnowledgePack>;\n    /** Refuse a source-template mismatch or an unrenderable observation kind. This is a template gate, not 1:1 certification. */\n    strictSourceTemplate?: boolean;\n    /** Optional licensed, versioned pattern knowledge; no purchased pattern is built into KJDraw. */\n    hatchPack?: ReadonlyDeep<KJKnowledgePack>;\n    expectedRevision: number;\n    title?: string;\n}",
+          "declaration": "export interface KJGeologyColumnInput {\n    /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */\n    locale?: 'zh-CN' | 'en';\n    hole: KJGeologyBorehole;\n    projectName?: string;\n    /** Exact source-backed document facts requested by a host-selected style pack; never inferred. */\n    documentFacts?: Record<string, string>;\n    /** Explicit source/template fact. Omit to select from the style pack's standard scales. */\n    verticalScaleDenominator?: number;\n    /** Physical long-log sheet or ordinary A4 sheet, in millimetres. */\n    pageHeightMillimeters?: 297 | 500 | 841;\n    /** Host-selected, versioned physical table geometry; independent of model text. */\n    columnStylePack?: ReadonlyDeep<KJKnowledgePack>;\n    /** Refuse a source-template mismatch or an unrenderable observation kind. This is a template gate, not 1:1 certification. */\n    strictSourceTemplate?: boolean;\n    /** Optional licensed, versioned pattern knowledge; no purchased pattern is built into KJDraw. */\n    hatchPack?: ReadonlyDeep<KJKnowledgePack>;\n    expectedRevision: number;\n    title?: string;\n}",
           "source": "geology-engineering.d.ts",
           "anchor": "root-interface-kjgeologycolumninput"
         },

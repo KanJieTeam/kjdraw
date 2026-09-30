@@ -317,7 +317,7 @@ export interface KJGeologyColumnInput {
     /** Explicit source/template fact. Omit to select from the style pack's standard scales. */
     verticalScaleDenominator?: number;
     /** Physical long-log sheet or ordinary A4 sheet, in millimetres. */
-    pageHeightMillimeters?: 297 | 841;
+    pageHeightMillimeters?: 297 | 500 | 841;
     /** Host-selected, versioned physical table geometry; independent of model text. */
     columnStylePack?: ReadonlyDeep<KJKnowledgePack>;
     /** Refuse a source-template mismatch or an unrenderable observation kind. This is a template gate, not 1:1 certification. */

@@ -243,7 +243,7 @@ test('wrong version, unlicensed pattern request, missing engineering facts and h
   const before = document.serialize()
   for (const bad of [
     { ...intent(), version: '2.0.0' },
-    { ...intent(), pageHeightMillimeters: 500 },
+    { ...intent(), pageHeightMillimeters: 503 },
     { ...intent(), hole: { ...intent().hole, strata: intent().hole.strata.map((layer, index) => index ? layer : { ...layer, patternKey: 'purchased-private-pattern' }) } },
     { ...intent(), hole: { ...intent().hole, strata: intent().hole.strata.slice(0, 2) } },
   ]) assert.equal((await session.call('cad_propose_geology_column', bad)).ok, false)

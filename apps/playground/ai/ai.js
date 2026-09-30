@@ -443,7 +443,7 @@ async function submitPrompt() {
   await initialLoad
   const prompt = ui.input.value.trim()
   if (!prompt || busy) return
-  if (!settings && !currentSession().runtime.canHandleLocally(prompt)) { showSettings(true); return }
+  if (!settings) { showSettings(true); return }
   const session = currentSession()
   if (settings) session.runtime.configure(settings)
   for (const message of session.messages) for (const proposal of message.proposals ?? []) if (proposal.uiState === 'pending') proposal.uiState = 'expired'
