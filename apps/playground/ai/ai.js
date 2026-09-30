@@ -1,4 +1,5 @@
 import { createAiChatRuntime } from './runtime.js'
+import { loadLocalHistory, saveLocalHistory } from './local-history.js'
 import { CHAT_MODEL_PROVIDER_PRESETS, getChatModelProviderPreset, formatChatModelUpstreamEndpoint } from '../chat-model-presets.js'
 
 const copy = {
@@ -9,16 +10,19 @@ const copy = {
     suggestLine:'画一条 100 mm 水平线',suggestCircle:'画一个半径 25 mm 的圆',suggestOutline:'画一个 120 × 80 mm 矩形',
     promptLabel:'描述你想绘制或修改的图纸',promptPlaceholder:'描述你想绘制或修改的图纸…',
     composerHint:'Enter 发送 · Shift + Enter 换行',send:'发送',stop:'停止生成',stopped:'已停止，图纸未修改。',working:'正在处理图纸需求…',
-    disclaimer:'对话及所需图纸上下文会发送给你选择的模型服务商；密钥仅保留在当前页面内存中。工程图须由你审核。',
-    connectionSettings:'模型连接',connectModel:'连接你的模型',settingsIntro:'选择常用模型或自定义接口。请求直接发给所选服务商；密钥仅留在本页内存。请使用测试密钥，勿填生产密钥。',
+    disclaimer:'对话、图纸及模型密钥保存在此浏览器；请求会发送给所选模型服务商。共用电脑可清除本站数据，工程图须由你审核。',
+    connectionSettings:'模型连接',connectModel:'连接你的模型',settingsIntro:'选择常用模型或自定义接口。请求直接发给所选服务商；连接配置和密钥保存在此浏览器，清除本站数据即可移除。',
     provider:'服务商',commonModel:'常用模型',customModel:'自定义模型…',connectionDetails:'连接详情与自定义',protocol:'接口协议',
     endpoint:'API 地址',model:'模型名称',apiKey:'API 密钥',cancel:'取消',saveConnection:'连接并继续',
     invalidSettings:'请填写完整的 API 地址和模型名称。',invalidEndpoint:'请输入完整的 http(s) API 地址。',keyRequired:'请填写该服务商的 API 密钥。',you:'你',assistant:'KJDraw AI',
     proposal:'CAD 修改提案',proposalPending:'待审核',proposalApproved:'已应用',proposalRejected:'已放弃',proposalExpired:'已失效',
     previewMissing:'暂时无法绘制预览，请检查提案详情。',reviewDetails:'查看提案详情',approve:'审核并应用',reject:'放弃提案',
-    download:'下载 KJD 图纸',openEditor:'打开编辑器',applied:'修改已应用。下载 KJD 文件后，可在编辑器中打开。',
+    download:'下载 DXF 图纸',openEditor:'打开编辑器',applied:'修改已应用。可下载 DXF 图纸，在 CAD 软件中继续编辑。',
     emptyResponse:'模型没有返回可显示的内容。',retry:'请重试或检查模型设置。',newConversation:'新对话',
-    failedDownload:'导出图纸失败。',editorHint:'编辑器会在新标签页打开。请使用 Open 导入刚下载的 KJD 文件。',
+    failedDownload:'导出图纸失败。',editorHint:'编辑器会在新标签页打开。请使用“打开文件”导入刚下载的 DXF 图纸。',
+    openDrawing:'打开图纸',dropDrawing:'松开以打开图纸',importFailed:'图纸未导入，请检查文件格式。',
+    importBusy:'请等待当前请求结束后再打开图纸。',drawingLoaded:'已打开图纸',entities:'个对象',
+    storageFailed:'本地会话保存失败。请先下载 DXF 图纸，并检查浏览器存储空间。',
   },
   en: {
     newChat:'New chat',recent:'RECENT CHATS',editor:'Open CAD editor',docs:'Documentation ↗',beta:'PREVIEW',
@@ -27,16 +31,19 @@ const copy = {
     suggestLine:'Draw a 100 mm horizontal line',suggestCircle:'Draw a circle with a 25 mm radius',suggestOutline:'Draw a 120 × 80 mm rectangle',
     promptLabel:'Describe the drawing you want to create or change',promptPlaceholder:'Describe the drawing you want to create or change…',
     composerHint:'Enter to send · Shift + Enter for a new line',send:'Send',stop:'Stop',stopped:'Stopped. The drawing was not changed.',working:'Working on your drawing…',
-    disclaimer:'Your conversation and needed drawing context go to your chosen model provider. Your key stays in this page’s memory; review drawings before use.',
-    connectionSettings:'Model connection',connectModel:'Connect your model',settingsIntro:'Choose a common model or custom endpoint. Requests go directly to that provider; the key stays only in this page’s memory. Use a test key, not a production key.',
+    disclaimer:'Chats, drawings, and your model key stay in this browser. Requests go to your chosen model provider. Clear this site’s data on shared devices; review drawings before use.',
+    connectionSettings:'Model connection',connectModel:'Connect your model',settingsIntro:'Choose a common model or custom endpoint. Requests go directly to that provider. Your connection and key are saved in this browser; clearing this site’s data removes them.',
     provider:'Provider',commonModel:'Common model',customModel:'Custom model…',connectionDetails:'Connection details & custom setup',protocol:'API protocol',
     endpoint:'API endpoint',model:'Model name',apiKey:'API key',cancel:'Cancel',saveConnection:'Connect and continue',
     invalidSettings:'Enter an API endpoint and model name.',invalidEndpoint:'Enter a complete http(s) API endpoint.',keyRequired:'Enter an API key for this provider.',you:'You',assistant:'KJDraw AI',
     proposal:'CAD change proposal',proposalPending:'Awaiting review',proposalApproved:'Applied',proposalRejected:'Discarded',proposalExpired:'Expired',
     previewMissing:'Preview could not be rendered. Review the proposal details.',reviewDetails:'View proposal details',approve:'Review and apply',reject:'Discard proposal',
-    download:'Download KJD drawing',openEditor:'Open editor',applied:'Change applied. Download the KJD file, then open it in the editor.',
+    download:'Download DXF drawing',openEditor:'Open editor',applied:'Change applied. Download the DXF drawing to continue editing in CAD software.',
     emptyResponse:'The model returned no displayable content.',retry:'Try again or check your model settings.',newConversation:'New chat',
-    failedDownload:'Could not export drawing.',editorHint:'The editor opens in a new tab. Use Open to import the KJD file you downloaded.',
+    failedDownload:'Could not export drawing.',editorHint:'The editor opens in a new tab. Use Open file to import the downloaded DXF drawing.',
+    openDrawing:'Open drawing',dropDrawing:'Drop to open drawing',importFailed:'Drawing not opened. Check the file format.',
+    importBusy:'Wait for the current request before opening a drawing.',drawingLoaded:'Drawing opened',entities:'entities',
+    storageFailed:'Could not save this conversation locally. Download the DXF drawing and check browser storage.',
   },
 }
 const examples = {
@@ -62,6 +69,9 @@ const ui = {
   protocol:byId('settings-protocol'), details:byId('settings-details'),
   settingsError:byId('settings-error'), pill:byId('connection-pill'), settingsOpen:byId('settings-open'),
   sidebar:byId('sidebar'), scrim:byId('mobile-scrim'), menu:byId('menu-button'),
+  drawingFile:byId('drawing-file'), openDrawing:byId('open-drawing'), attachDrawing:byId('attach-drawing'),
+  drawingContext:byId('drawing-context'), drawingName:byId('drawing-name'), drawingMeta:byId('drawing-meta'),
+  drawingCanvas:byId('drawing-canvas'), importError:byId('import-error'), dropOverlay:byId('drawing-drop-overlay'),
 }
 let language = navigator.language?.toLowerCase().startsWith('zh') ? 'zh' : 'en'
 let settings = null
@@ -70,6 +80,11 @@ let active = null
 let pendingSend = false
 let busy = false
 let activeRequest = null
+let importing = false
+let hydrated = false
+let persistRequested = false
+let persistSerial = Promise.resolve()
+let initialLoad
 const t = key => copy[language][key] ?? key
 for (const preset of CHAT_MODEL_PROVIDER_PRESETS) {
   const option = document.createElement('option')
@@ -125,17 +140,89 @@ function updateConnection() {
   ui.pill.querySelector('[data-text]').textContent = t(settings ? 'connected' : 'notConnected')
   ui.settingsOpen.querySelector('[data-text]').textContent = t(settings ? 'manage' : 'connect')
 }
-function createSession() {
-  const session = { id: crypto.randomUUID(), title:t('newConversation'), messages:[], runtime:createAiChatRuntime(settings ?? {}) }
+function createSession({ runtime = createAiChatRuntime(settings ?? {}), source = null } = {}) {
+  if (active && !active.messages.length && !active.source) {
+    active.runtime.destroy()
+    sessions = sessions.filter(item => item !== active)
+  }
+  const session = { id: crypto.randomUUID(), title:source?.name ?? t('newConversation'), messages:[], runtime, source }
   sessions.unshift(session)
   active = session
   render()
   return session
 }
+function queuePersist() {
+  if (!hydrated || persistRequested) return
+  persistRequested = true
+  persistSerial = persistSerial.catch(() => {}).then(async () => {
+    persistRequested = false
+    const saved = []
+    for (const session of sessions.filter(item => item.messages.length || item.source)) {
+      const state = await session.runtime.exportLocalState()
+      saved.push({
+        id: session.id, title: session.title, source: session.source,
+        messages: session.messages.filter(message => message.status !== 'pending').map(message => ({
+          role: message.role, text: message.text, status: message.status,
+          ...(message.proposals ? { proposals: message.proposals.map(proposal => ({
+            planId: proposal.planId, command: proposal.command, expectedRevision: proposal.expectedRevision,
+            preview: proposal.preview, engineeringEvidence: proposal.engineeringEvidence, uiState: proposal.uiState,
+          })) } : {}),
+        })),
+        state,
+      })
+    }
+    await saveLocalHistory({
+      version: 1, activeId: active?.id ?? null, sessions: saved,
+      connection: settings ? {
+        endpoint: settings.endpoint, model: settings.model, apiKey: settings.apiKey,
+        provider: settings.provider, protocol: settings.protocol,
+      } : null,
+    })
+  }).catch(() => showImportError(t('storageFailed')))
+}
+async function restoreSessions() {
+  let loaded = false
+  try {
+    const saved = await loadLocalHistory()
+    if (saved?.connection) {
+      const candidate = Object.fromEntries(['endpoint', 'model', 'apiKey', 'provider', 'protocol']
+        .map(key => [key, saved.connection[key]]))
+      try {
+        const probe = createAiChatRuntime(candidate)
+        if (probe.configured) settings = candidate
+        probe.destroy()
+      } catch { settings = null }
+    }
+    if (saved?.version === 1 && Array.isArray(saved.sessions)) {
+      for (const item of saved.sessions) {
+        if (!item || typeof item.id !== 'string' || !Array.isArray(item.messages)) continue
+        const runtime = createAiChatRuntime(settings ?? {})
+        try {
+          await runtime.restoreLocalState(item.state)
+          const messages = item.messages.filter(message => ['user', 'assistant'].includes(message?.role)).map(message => ({
+            role: message.role, text: String(message.text ?? ''), status: message.status,
+            ...(Array.isArray(message.proposals) ? { proposals: message.proposals.map(proposal => ({
+              ...proposal, uiState: proposal.uiState === 'pending' ? 'expired' : proposal.uiState,
+            })) } : {}),
+          }))
+          sessions.push({ id: item.id, title: String(item.title ?? t('newConversation')), source: item.source ?? null, messages, runtime })
+        } catch { runtime.destroy() }
+      }
+      active = sessions.find(session => session.id === saved.activeId) ?? sessions[0] ?? null
+    }
+    loaded = true
+  } catch {
+    showImportError(t('storageFailed'))
+  } finally {
+    hydrated = loaded
+    updateConnection()
+    render()
+  }
+}
 function currentSession() { return active ?? createSession() }
 function renderSidebar() {
   ui.list.replaceChildren()
-  for (const session of sessions.filter(item => item.messages.length)) {
+  for (const session of sessions.filter(item => item.messages.length || item.source)) {
     const button = element('button','conversation-item'+(session === active ? ' active' : ''))
     button.type = 'button'
     button.setAttribute('aria-current',session === active ? 'page' : 'false')
@@ -143,10 +230,17 @@ function renderSidebar() {
     button.addEventListener('click',()=>{ active = session; render(); closeSidebar() })
     ui.list.append(button)
   }
-  ui.count.textContent = String(sessions.filter(item => item.messages.length).length)
+  ui.count.textContent = String(sessions.filter(item => item.messages.length || item.source).length)
 }
 function render() {
   renderSidebar()
+  const source = active?.source
+  ui.drawingContext.hidden = !source
+  if (source) {
+    ui.drawingName.textContent = source.name
+    ui.drawingMeta.textContent = `${source.entityCount} ${t('entities')} · ${source.units}`
+    if (ui.drawingContext.open) requestAnimationFrame(()=>renderDrawingContext(active))
+  }
   const messages = active?.messages ?? []
   document.body.classList.toggle('chat-empty', messages.length === 0)
   ui.empty.hidden = messages.length > 0
@@ -166,6 +260,12 @@ function render() {
     ui.messages.append(wrapper)
   }
   requestAnimationFrame(()=>{ ui.conversation.scrollTop = ui.conversation.scrollHeight })
+  queuePersist()
+}
+function renderDrawingContext(session) {
+  if (session !== active || !ui.drawingContext.open || !ui.drawingCanvas.isConnected) return
+  try { session.runtime.renderDocument(ui.drawingCanvas,{width:760,height:190}) }
+  catch { ui.drawingContext.open = false }
 }
 function createProposalCard(session, proposal) {
   const card = element('section','proposal-card')
@@ -187,7 +287,12 @@ function createProposalCard(session, proposal) {
       try { session.runtime.renderProposal(canvas,proposal.planId,{width:640,height:255}) }
       catch { preview.replaceChildren(element('div','proposal-preview-fallback',t('previewMissing'))) }
     })
-  } else preview.append(element('div','proposal-preview-fallback',state === 'approved' ? t('applied') : t('proposalExpired')))
+  } else if (state === 'approved') {
+    const canvas = element('canvas')
+    canvas.setAttribute('aria-label',t('drawingLoaded'))
+    preview.append(canvas)
+    requestAnimationFrame(()=>{ if(canvas.isConnected) try { session.runtime.renderDocument(canvas,{width:640,height:255}) } catch {} })
+  } else preview.append(element('div','proposal-preview-fallback',t('proposalExpired')))
   const details = element('details','proposal-details')
   details.append(element('summary','',t('reviewDetails')))
   const safeDetails = {command:proposal.command,expectedRevision:proposal.expectedRevision,preview:proposal.preview,engineeringEvidence:proposal.engineeringEvidence}
@@ -204,6 +309,7 @@ function createProposalCard(session, proposal) {
       const result = await session.runtime.approve(proposal.planId)
       if (result.status === 'applied') {
         proposal.uiState = 'approved'
+        if (session.source) session.source.entityCount = session.runtime.entityCount
         for (const message of session.messages) for (const other of message.proposals ?? []) if (other !== proposal && other.uiState === 'pending') other.uiState = 'expired'
         session.messages.push({role:'assistant',text:result.text})
       } else {
@@ -238,12 +344,12 @@ function createProposalCard(session, proposal) {
 }
 async function downloadDrawing(session) {
   try {
-    const data = await session.runtime.exportDocument('KJD')
-    const blob = new Blob([data],{type:'application/json'})
+    const data = await session.runtime.exportDocument('DXF')
+    const blob = new Blob([data],{type:'application/dxf'})
     const url = URL.createObjectURL(blob)
     const link = element('a')
     link.href = url
-    link.download = 'kjdraw-ai-drawing.kjd'
+    link.download = `${(session.source?.name ?? 'kjdraw-ai-drawing').replace(/\.(kjd|kjp|dxf)$/i,'')}.dxf`
     document.body.append(link)
     link.click()
     link.remove()
@@ -279,6 +385,7 @@ function refreshKeyPlaceholder() {
     : (language === 'zh' ? '输入服务商 API 密钥' : 'Enter provider API key')
 }
 async function submitPrompt() {
+  await initialLoad
   const prompt = ui.input.value.trim()
   if (!prompt || busy) return
   if (!settings) { showSettings(true); return }
@@ -324,6 +431,51 @@ async function submitPrompt() {
   }
 }
 function closeSidebar(){ui.sidebar.classList.remove('open');ui.scrim.hidden=true;ui.menu.setAttribute('aria-expanded','false')}
+function showImportError(message) {
+  ui.importError.textContent = message
+  ui.importError.hidden = false
+}
+async function openDrawing(file) {
+  if (!file) return
+  await initialLoad
+  if (busy || importing) { showImportError(t('importBusy')); return }
+  importing = true
+  ui.openDrawing.disabled = ui.attachDrawing.disabled = true
+  const runtime = createAiChatRuntime(settings ?? {})
+  try {
+    const source = await runtime.importDocument(file)
+    createSession({ runtime, source })
+    ui.importError.hidden = true
+    ui.drawingContext.open = true
+    render()
+    ui.input.focus()
+  } catch (error) {
+    runtime.destroy()
+    showImportError(error?.message ?? t('importFailed'))
+  } finally {
+    importing = false
+    ui.openDrawing.disabled = ui.attachDrawing.disabled = false
+    ui.drawingFile.value = ''
+    ui.dropOverlay.hidden = true
+  }
+}
+function hasDroppedFiles(event) { return [...(event.dataTransfer?.types ?? [])].includes('Files') }
+for (const button of [ui.openDrawing,ui.attachDrawing]) button.addEventListener('click',()=>ui.drawingFile.click())
+ui.drawingFile.addEventListener('change',()=>openDrawing(ui.drawingFile.files?.[0]))
+ui.drawingContext.addEventListener('toggle',()=>{ if (ui.drawingContext.open && active?.source) requestAnimationFrame(()=>renderDrawingContext(active)) })
+window.addEventListener('dragover',event=>{
+  if (!hasDroppedFiles(event)) return
+  event.preventDefault()
+  event.dataTransfer.dropEffect = 'copy'
+  ui.dropOverlay.hidden = false
+})
+window.addEventListener('dragleave',event=>{ if (!event.relatedTarget) ui.dropOverlay.hidden = true })
+window.addEventListener('drop',event=>{
+  if (!hasDroppedFiles(event)) return
+  event.preventDefault()
+  ui.dropOverlay.hidden = true
+  openDrawing(event.dataTransfer.files?.[0])
+})
 ui.stop.addEventListener('click',()=>{activeRequest?.abort()})
 ui.form.addEventListener('submit',event=>{event.preventDefault();submitPrompt()})
 ui.input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();submitPrompt()}})
@@ -380,18 +532,20 @@ ui.settingsForm.addEventListener('submit',event=>{
   const shouldSend=pendingSend
   hideSettings()
   updateConnection()
+  queuePersist()
   if(shouldSend) submitPrompt()
 })
 byId('settings-close').addEventListener('click',hideSettings)
 byId('settings-cancel').addEventListener('click',hideSettings)
 ui.dialog.addEventListener('close',()=>{ui.key.value='';pendingSend=false})
 ui.settingsOpen.addEventListener('click',()=>showSettings(false))
-byId('new-chat').addEventListener('click',()=>{if(active?.messages.length) createSession();else render();closeSidebar();ui.input.focus()})
+byId('new-chat').addEventListener('click',async()=>{await initialLoad;if(active?.messages.length || active?.source) createSession();else render();closeSidebar();ui.input.focus()})
 byId('language-button').addEventListener('click',()=>setLanguage(language==='zh'?'en':'zh'))
 document.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListener('click',()=>{ui.input.value=examples[language][button.dataset.prompt];ui.input.focus()}))
 ui.menu.addEventListener('click',()=>{ui.sidebar.classList.add('open');ui.scrim.hidden=false;ui.menu.setAttribute('aria-expanded','true')})
 byId('sidebar-close').addEventListener('click',closeSidebar)
 ui.scrim.addEventListener('click',closeSidebar)
-window.addEventListener('pagehide',()=>{settings=null;ui.key.value='';for(const session of sessions) session.runtime.destroy()})
+window.addEventListener('pagehide',()=>{ui.key.value='';queuePersist()})
 window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()})
 setLanguage(language)
+initialLoad = restoreSessions()

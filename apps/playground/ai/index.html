@@ -40,6 +40,7 @@
           <span class="topbar-badge" data-text="beta">预览版</span>
         </div>
         <div class="topbar-actions">
+          <button class="topbar-button" id="open-drawing" data-testid="drawing-open" type="button" data-text="openDrawing">打开图纸</button>
           <span class="connection-pill" id="connection-pill"><span class="connection-dot"></span><span data-text="notConnected">未连接模型</span></span>
           <button class="topbar-button" id="settings-open" type="button" aria-haspopup="dialog" data-testid="settings-open"><span data-text="connect">连接模型</span></button>
           <button class="lang-button" id="language-button" type="button" aria-label="Switch to English">EN</button>
@@ -60,17 +61,24 @@
       </section>
 
       <div class="composer-wrap">
+        <input id="drawing-file" data-testid="drawing-file" class="sr-only" type="file" accept=".kjd,.kjp,.dxf" aria-label="选择 KJD、KJP 或 DXF 图纸">
+        <p class="import-error" id="import-error" role="alert" hidden></p>
+        <details class="drawing-context" id="drawing-context" data-testid="drawing-context" hidden>
+          <summary><span id="drawing-name"></span><small id="drawing-meta"></small></summary>
+          <canvas id="drawing-canvas" aria-label="当前图纸预览"></canvas>
+        </details>
         <form class="composer" id="chat-form">
           <label class="sr-only" for="chat-input" data-text="promptLabel">描述你想绘制或修改的图纸</label>
           <textarea id="chat-input" data-testid="chat-input" rows="2" maxlength="12000" placeholder="描述你想绘制或修改的图纸…" aria-keyshortcuts="Enter Shift+Enter"></textarea>
           <div class="composer-footer">
-            <span class="composer-hint" data-text="composerHint">Enter 发送 · Shift + Enter 换行</span>
+            <div class="composer-tools"><button id="attach-drawing" class="attach-drawing" type="button" data-text="openDrawing">打开图纸</button><span class="composer-hint" data-text="composerHint">Enter 发送 · Shift + Enter 换行</span></div>
             <button class="stop-button" id="chat-stop" data-testid="chat-stop" type="button" hidden><span data-text="stop">停止生成</span><span aria-hidden="true">■</span></button>
             <button class="send-button" id="chat-send" data-testid="chat-send" type="submit" aria-label="发送消息"><span data-text="send">发送</span><span aria-hidden="true">↗</span></button>
           </div>
         </form>
-        <p class="disclaimer" data-text="disclaimer">对话及所需图纸上下文会发送给你选择的模型服务商；密钥仅保留在当前页面内存中。工程图须由你审核。</p>
+        <p class="disclaimer" data-text="disclaimer">对话、图纸及模型密钥保存在此浏览器；请求会发送给所选模型服务商。共用电脑可清除本站数据，工程图须由你审核。</p>
       </div>
+      <div class="drawing-drop-overlay" id="drawing-drop-overlay" hidden><span data-text="dropDrawing">松开以打开图纸</span><small>KJD · KJP · DXF</small></div>
     </main>
   </div>
 
@@ -80,7 +88,7 @@
         <div><div class="dialog-eyebrow" data-text="connectionSettings">模型连接</div><h2 id="settings-title" data-text="connectModel">连接你的模型</h2></div>
         <button class="icon-button" id="settings-close" type="button" aria-label="关闭设置">×</button>
       </div>
-      <p class="dialog-intro" data-text="settingsIntro">选择常用模型或自定义接口。请求直接发给所选服务商；密钥仅留在本页内存。请使用测试密钥，勿填生产密钥。</p>
+      <p class="dialog-intro" data-text="settingsIntro">选择常用模型或自定义接口。请求直接发给所选服务商；连接配置和密钥保存在此浏览器，清除本站数据即可移除。</p>
       <div class="settings-pair">
         <div><label for="settings-provider" data-text="provider">服务商</label><select id="settings-provider" data-testid="settings-provider"></select></div>
         <div><label for="settings-common-model" data-text="commonModel">常用模型</label><select id="settings-common-model" data-testid="settings-common-model"></select></div>

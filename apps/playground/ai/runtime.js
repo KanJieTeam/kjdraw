@@ -1,4 +1,5 @@
 import { createKJDrawSDK } from '../../../packages/kjdraw-sdk/src/sdk.js'
+import { openKjpPackage } from '../../../packages/kjdraw-sdk/src/project-package.js'
 import { KJAgentToolSession } from '../../../packages/kjdraw-sdk/src/agent-tools.js'
 import { runKJAgentTask } from '../../../packages/kjdraw-sdk/src/agent-runner.js'
 import { KJCanvasRenderer } from '../../../packages/kjdraw-sdk/src/canvas-renderer.js'
@@ -8,6 +9,7 @@ import { getChatModelAdapterOptions } from '../chat-model-presets.js'
 import { getKJDrawChatCapabilityForRequest, getKJDrawChatToolNamesForRequest } from '../agent-chat.js'
 
 const MAX_PROMPT_LENGTH = 16000
+const MAX_DRAWING_BYTES = 20 * 1024 * 1024
 const CONNECTION_ERROR = '模型连接失败。请检查地址、网络及服务商的浏览器 CORS 设置；图纸未修改。'
 
 const SUPPORTED_PROTOCOLS = new Set(['chat-completions', 'responses', 'anthropic-messages', 'gemini-generate-content'])
@@ -57,7 +59,7 @@ export function computeAiProposalCamera(document, preview, engineeringEvidence, 
  */
 export function createAiChatRuntime(options = {}) {
   const sdk = createKJDrawSDK()
-  const document = sdk.createDocument({ documentId: `ai-${crypto.randomUUID()}`, title: 'AI drawing', units: options.units ?? 'millimeter' })
+  let document = sdk.createDocument({ documentId: `ai-${crypto.randomUUID()}`, title: 'AI drawing', units: options.units ?? 'millimeter' })
   const fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis)
   let connection = connectionSettings(options)
   let activeController = null
@@ -76,6 +78,63 @@ export function createAiChatRuntime(options = {}) {
     if (activeController) throw new Error('请等待当前请求结束后更换模型。')
     connection = connectionSettings(next)
     return { configured: Boolean(connection), model: connection?.model ?? '' }
+  }
+
+  async function importDocument(file) {
+    if (disposed || activeController) throw new Error('请等待当前操作结束后再打开图纸。')
+    if (document.revision !== 0 || document.listEntities().length || history.length || pending.size || committed) {
+      throw new Error('请新建对话后再打开另一张图纸。')
+    }
+    const name = String(file?.name ?? '')
+    const extension = name.toLowerCase().match(/\.(kjd|dxf|kjp)$/)?.[1]?.toUpperCase()
+    if (!extension) throw new Error('请选择 KJD、KJP 或 DXF 图纸；DWG 需先转换为 DXF。')
+    if (!Number.isSafeInteger(file.size) || file.size < 1 || file.size > MAX_DRAWING_BYTES) {
+      throw new Error('图纸必须非空，且不超过 20 MiB。')
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    if (bytes.byteLength !== file.size) throw new Error('图纸读取不完整，请重新选择。')
+    const reader = createKJDrawSDK()
+    const imported = extension === 'KJP'
+      ? (await openKjpPackage(bytes)).activeDocument
+      : await reader.readDocument(extension === 'DXF' ? bytes : new TextDecoder().decode(bytes), { format: extension })
+    if (!imported.validate().valid) throw new Error('图纸未通过结构校验，未导入。')
+    const previous = document
+    sdk.attachDocument(imported)
+    document = imported
+    if (previous.id !== imported.id) sdk.closeDocument(previous.id)
+    return {
+      name, format: extension, title: imported.snapshot().header.title ?? name,
+      entityCount: imported.listEntities().length, revision: imported.revision,
+      units: imported.snapshot().header.units,
+    }
+  }
+
+  async function exportLocalState() {
+    if (disposed) throw new Error('会话已经结束。')
+    return {
+      drawing: await sdk.writeDocument(document, { format: 'KJD' }),
+      history: history.map(item => ({ user: item.user, assistant: item.assistant })),
+      committed,
+    }
+  }
+
+  async function restoreLocalState(state) {
+    if (disposed || activeController || document.revision !== 0 || history.length || committed) {
+      throw new Error('只能恢复到新的空白会话。')
+    }
+    if (!state || typeof state.drawing !== 'string') throw new Error('本地会话图纸无效。')
+    const reader = createKJDrawSDK()
+    const restored = await reader.readDocument(state.drawing, { format: 'KJD' })
+    if (!restored.validate().valid) throw new Error('本地会话图纸未通过校验。')
+    const previous = document
+    sdk.attachDocument(restored)
+    document = restored
+    if (previous.id !== restored.id) sdk.closeDocument(previous.id)
+    history = Array.isArray(state.history)
+      ? state.history.filter(item => typeof item?.user === 'string' && typeof item?.assistant === 'string')
+        .slice(-8).map(item => ({ user: item.user.slice(0, MAX_PROMPT_LENGTH), assistant: item.assistant.slice(0, 4000) }))
+      : []
+    committed = state.committed === true
   }
 
   async function send(prompt, { signal, onProgress } = {}) {
@@ -185,6 +244,15 @@ export function createAiChatRuntime(options = {}) {
     } finally { renderer.dispose() }
   }
 
+  function renderDocument(canvas, { width = 720, height = 420 } = {}) {
+    const renderer = new KJCanvasRenderer(canvas, { document, theme: 'light', grid: false, background: '#fff', pixelRatio: 1, padding: 30 })
+    try {
+      renderer.resize(width, height)
+      renderer.fit()
+      return renderer.render()
+    } finally { renderer.dispose() }
+  }
+
   async function approve(planId) {
     if (activeController) return errorResult('AI_BUSY', '请等待当前请求结束后审阅。')
     const entry = pending.get(planId)
@@ -224,7 +292,7 @@ export function createAiChatRuntime(options = {}) {
     history = []
   }
 
-  return { send, configure, renderProposal, approve, reject, exportDocument, destroy,
+  return { send, configure, importDocument, exportLocalState, restoreLocalState, renderProposal, renderDocument, approve, reject, exportDocument, destroy,
     get configured() { return Boolean(connection) },
     get revision() { return document.revision },
     get entityCount() { return document.listEntities().length },
