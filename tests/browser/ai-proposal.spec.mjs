@@ -95,7 +95,7 @@ test('real CAD proposal stays pending until approval and exports a reopenable DX
   await page.locator('#new-chat').click()
   await expect(page.getByTestId('chat-empty')).toBeVisible()
   await expect(page.locator('#history-count')).toHaveText('1')
-  await page.locator('#conversation-list button').click()
+  await page.locator('#conversation-list .conversation-item').click()
   await expect(page.getByTestId('drawing-download')).toBeVisible()
 })
 
@@ -199,6 +199,74 @@ test('KJP project upload restores its active drawing after refresh', async ({ pa
   await page.reload()
   await expect(page.locator('#drawing-name')).toHaveText('survey.kjp')
   await expect(page.locator('#drawing-meta')).toContainText('1 entities')
+})
+
+test('local conversation history can be reopened, searched, renamed and deleted', async ({ page }) => {
+  const sdk=createKJDrawSDK(), source=sdk.createDocument({documentId:'history-source',units:'millimeter'})
+  await source.transact('History drawing',tx=>tx.createEntity('LINE',{start:[0,0,0],end:[10,0,0]},{id:'history-line'}))
+  const drawing=await sdk.writeDocument(source,{format:'KJD'})
+  await page.goto('/ai/')
+  await page.getByTestId('drawing-file').setInputFiles({name:'alpha.kjd',mimeType:'application/json',buffer:Buffer.from(drawing)})
+  await expect(page.locator('#drawing-name')).toHaveText('alpha.kjd')
+  await page.getByTestId('drawing-file').setInputFiles({name:'beta.kjd',mimeType:'application/json',buffer:Buffer.from(drawing)})
+  await expect(page.locator('#history-count')).toHaveText('2')
+  await page.locator('.history-row').filter({hasText:'alpha.kjd'}).locator('.conversation-item').click()
+  await expect(page.locator('#drawing-name')).toHaveText('alpha.kjd')
+  await page.locator('.history-row').filter({hasText:'alpha.kjd'}).locator('.history-menu-trigger').click()
+  await page.locator('.history-row').filter({hasText:'alpha.kjd'}).getByRole('button',{name:'Rename'}).click()
+  await page.locator('#history-title-input').fill('Survey plan')
+  await page.locator('#history-confirm').click()
+  await expect(page.locator('.history-row').filter({hasText:'Survey plan'})).toHaveCount(1)
+  await page.locator('#history-search').fill('survey')
+  await expect(page.locator('.history-row')).toHaveCount(1)
+  await page.locator('#history-search').fill('')
+  await page.locator('.history-row').filter({hasText:'beta.kjd'}).locator('.history-menu-trigger').click()
+  await page.locator('.history-row').filter({hasText:'beta.kjd'}).getByRole('button',{name:'Delete'}).click()
+  await expect(page.locator('#history-dialog')).toBeVisible()
+  await page.locator('#history-confirm').click()
+  await expect(page.locator('#history-count')).toHaveText('1')
+  await expect(page.locator('.history-row').filter({hasText:'beta.kjd'})).toHaveCount(0)
+  await expect.poll(async()=>page.evaluate(()=>new Promise(resolve=>{
+    const open=indexedDB.open('kjdraw-ai-local')
+    open.onsuccess=()=>{
+      const request=open.result.transaction('conversations').objectStore('conversations').get('history')
+      request.onsuccess=()=>resolve(request.result?.sessions?.map(item=>item.title))
+    }
+  }))).toEqual(['Survey plan'])
+  await page.reload()
+  await expect(page.locator('.history-row').filter({hasText:'Survey plan'})).toHaveCount(1)
+  await expect(page.locator('#drawing-name')).toHaveText('alpha.kjd')
+})
+
+test('building removal finds geometry without manual selection or a model key', async ({ page }) => {
+  const sdk=createKJDrawSDK(), source=sdk.createDocument({documentId:'building-source',units:'millimeter'})
+  await source.transact('Four buildings',tx=>{
+    for(let index=0;index<4;index++){
+      const x=index*40
+      tx.createEntity('LWPOLYLINE',{vertices:[[x,100],[x+24,100],[x+24,120],[x,120]],closed:true},{id:'building-'+index})
+      tx.createEntity('TEXT',{position:[x+4,110],text:String(index+3)+'F',height:2},{id:'floor-'+index})
+    }
+    tx.createEntity('LINE',{start:[0,80],end:[144,80]},{id:'road'})
+  })
+  const dxf=await sdk.writeDocument(source,{format:'DXF'})
+  await page.goto('/ai/')
+  await page.getByTestId('drawing-file').setInputFiles({name:'four-buildings.dxf',mimeType:'application/dxf',buffer:Buffer.from(dxf)})
+  await page.getByTestId('chat-input').fill('删掉顶部三个楼')
+  await page.getByTestId('chat-send').click()
+  await expect(page.locator('.message.assistant .message-content').last()).toContainText('4 栋候选')
+  await expect(page.getByTestId('drawing-result')).toHaveCount(0)
+  await page.getByTestId('chat-input').fill('删掉顶部从左数三个楼')
+  await page.getByTestId('chat-send').click()
+  await expect(page.getByTestId('settings-open')).toContainText('Connect model')
+  await expect(page.locator('#settings-dialog')).not.toBeVisible()
+  await expect(page.getByTestId('proposal-approve')).toBeVisible()
+  await page.getByTestId('proposal-approve').click()
+  const waiting=page.waitForEvent('download')
+  await page.getByTestId('drawing-download').click()
+  const download=await waiting
+  const output=await createKJDrawSDK().readDocument(new Uint8Array(await readFile(await download.path())),{format:'DXF'})
+  expect(output.validate().valid).toBe(true)
+  expect(output.listEntities({ownerId:output.spaces.modelSpaceId})).toHaveLength(3)
 })
 
 test('refresh retains the conversation but expires proposals that were never approved', async ({ page }) => {

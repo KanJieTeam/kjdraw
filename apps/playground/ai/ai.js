@@ -5,6 +5,9 @@ import { CHAT_MODEL_PROVIDER_PRESETS, getChatModelProviderPreset, formatChatMode
 const copy = {
   zh: {
     newChat:'新建对话',recent:'最近对话',editor:'打开 CAD 编辑器',docs:'使用文档 ↗',beta:'预览版',
+    searchHistory:'搜索对话',today:'今天',yesterday:'昨天',lastWeek:'近 7 天',older:'更早',
+    rename:'重命名',deleteChat:'删除',conversationName:'对话名称',deleteTitle:'删除这段对话？',
+    deleteDescription:'消息与本地图纸将从此浏览器永久删除，此操作无法撤销。',renameTitle:'重命名对话',emptyTitle:'请输入对话名称。',
     notConnected:'未连接模型',connected:'模型已连接',connect:'连接模型',manage:'连接设置',
     heroTitle:'今天想画什么图？',heroDescription:'描述需求，检查提案，然后再应用到可编辑图纸。',
     suggestLine:'画一条 100 mm 水平线',suggestCircle:'画一个半径 25 mm 的圆',suggestOutline:'画一个 120 × 80 mm 矩形',
@@ -23,9 +26,13 @@ const copy = {
     openDrawing:'打开图纸',dropDrawing:'松开以打开图纸',importFailed:'图纸未导入，请检查文件格式。',
     importBusy:'请等待当前请求结束后再打开图纸。',drawingLoaded:'已打开图纸',entities:'个对象',
     storageFailed:'本地会话保存失败。请先下载 DXF 图纸，并检查浏览器存储空间。',
+    historyEmpty:'没有找到对话',busyHistory:'请先停止当前请求，再管理这段对话。',
   },
   en: {
-    newChat:'New chat',recent:'RECENT CHATS',editor:'Open CAD editor',docs:'Documentation ↗',beta:'PREVIEW',
+    newChat:'New chat',recent:'Recent chats',editor:'Open CAD editor',docs:'Documentation ↗',beta:'PREVIEW',
+    searchHistory:'Search conversations',today:'Today',yesterday:'Yesterday',lastWeek:'Past 7 days',older:'Older',
+    rename:'Rename',deleteChat:'Delete',conversationName:'Conversation name',deleteTitle:'Delete this conversation?',
+    deleteDescription:'Messages and the local drawing will be permanently removed from this browser. This cannot be undone.',renameTitle:'Rename conversation',emptyTitle:'Enter a conversation name.',
     notConnected:'Model not connected',connected:'Model connected',connect:'Connect model',manage:'Connection settings',
     heroTitle:'What would you like to draw?',heroDescription:'Describe the drawing, review the proposal, then apply it to an editable file.',
     suggestLine:'Draw a 100 mm horizontal line',suggestCircle:'Draw a circle with a 25 mm radius',suggestOutline:'Draw a 120 × 80 mm rectangle',
@@ -44,6 +51,7 @@ const copy = {
     openDrawing:'Open drawing',dropDrawing:'Drop to open drawing',importFailed:'Drawing not opened. Check the file format.',
     importBusy:'Wait for the current request before opening a drawing.',drawingLoaded:'Drawing opened',entities:'entities',
     storageFailed:'Could not save this conversation locally. Download the DXF drawing and check browser storage.',
+    historyEmpty:'No conversations found',busyHistory:'Stop the current request before managing this conversation.',
   },
 }
 const examples = {
@@ -72,6 +80,9 @@ const ui = {
   drawingFile:byId('drawing-file'), openDrawing:byId('open-drawing'), attachDrawing:byId('attach-drawing'),
   drawingContext:byId('drawing-context'), drawingName:byId('drawing-name'), drawingMeta:byId('drawing-meta'),
   drawingCanvas:byId('drawing-canvas'), importError:byId('import-error'), dropOverlay:byId('drawing-drop-overlay'),
+  historySearch:byId('history-search'), historyDialog:byId('history-dialog'), historyForm:byId('history-form'),
+  historyDialogTitle:byId('history-dialog-title'), historyDialogDescription:byId('history-dialog-description'),
+  historyTitleInput:byId('history-title-input'), historyConfirm:byId('history-confirm'),
 }
 let language = navigator.language?.toLowerCase().startsWith('zh') ? 'zh' : 'en'
 let settings = null
@@ -85,6 +96,7 @@ let hydrated = false
 let persistRequested = false
 let persistSerial = Promise.resolve()
 let initialLoad
+let historyAction = null
 const t = key => copy[language][key] ?? key
 for (const preset of CHAT_MODEL_PROVIDER_PRESETS) {
   const option = document.createElement('option')
@@ -128,6 +140,8 @@ function setLanguage(next) {
   for (const node of document.querySelectorAll('[data-text]')) node.textContent = t(node.dataset.text)
   relabelProviders()
   ui.input.placeholder = t('promptPlaceholder')
+  ui.historySearch.placeholder = t('searchHistory')
+  ui.historySearch.setAttribute('aria-label', t('searchHistory'))
   refreshKeyPlaceholder()
   byId('language-button').textContent = next === 'zh' ? 'EN' : '中文'
   byId('language-button').setAttribute('aria-label', next === 'zh' ? 'Switch to English' : '切换到中文')
@@ -145,7 +159,7 @@ function createSession({ runtime = createAiChatRuntime(settings ?? {}), source =
     active.runtime.destroy()
     sessions = sessions.filter(item => item !== active)
   }
-  const session = { id: crypto.randomUUID(), title:source?.name ?? t('newConversation'), messages:[], runtime, source }
+  const session = { id: crypto.randomUUID(), title:source?.name ?? t('newConversation'), messages:[], runtime, source, updatedAt:Date.now() }
   sessions.unshift(session)
   active = session
   render()
@@ -160,7 +174,7 @@ function queuePersist() {
     for (const session of sessions.filter(item => item.messages.length || item.source)) {
       const state = await session.runtime.exportLocalState()
       saved.push({
-        id: session.id, title: session.title, source: session.source,
+        id: session.id, title: session.title, source: session.source, updatedAt: session.updatedAt,
         messages: session.messages.filter(message => message.status !== 'pending').map(message => ({
           role: message.role, text: message.text, status: message.status,
           ...(message.proposals ? { proposals: message.proposals.map(proposal => ({
@@ -205,7 +219,8 @@ async function restoreSessions() {
               ...proposal, uiState: proposal.uiState === 'pending' ? 'expired' : proposal.uiState,
             })) } : {}),
           }))
-          sessions.push({ id: item.id, title: String(item.title ?? t('newConversation')), source: item.source ?? null, messages, runtime })
+          sessions.push({ id: item.id, title: String(item.title ?? t('newConversation')), source: item.source ?? null,
+            updatedAt: Number.isFinite(item.updatedAt) ? item.updatedAt : Date.now(), messages, runtime })
         } catch { runtime.destroy() }
       }
       active = sessions.find(session => session.id === saved.activeId) ?? sessions[0] ?? null
@@ -222,15 +237,55 @@ async function restoreSessions() {
 function currentSession() { return active ?? createSession() }
 function renderSidebar() {
   ui.list.replaceChildren()
-  for (const session of sessions.filter(item => item.messages.length || item.source)) {
-    const button = element('button','conversation-item'+(session === active ? ' active' : ''))
+  const saved = sessions.filter(item => item.messages.length || item.source)
+  const query = ui.historySearch.value.trim().normalize('NFKC').toLowerCase()
+  const visible = saved.filter(item => item.title.normalize('NFKC').toLowerCase().includes(query))
+    .sort((a,b) => b.updatedAt - a.updatedAt)
+  const now = new Date()
+  const midnight = new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime()
+  let lastGroup = ''
+  for (const session of visible) {
+    const age = Math.max(0, midnight - session.updatedAt)
+    const group = session.updatedAt >= midnight ? 'today' : age < 86400000 ? 'yesterday' : age < 7*86400000 ? 'lastWeek' : 'older'
+    if (!query && group !== lastGroup) {
+      ui.list.append(element('div','history-group',t(group)))
+      lastGroup = group
+    }
+    const row = element('div','history-row'+(session === active ? ' active' : ''))
+    const button = element('button','conversation-item')
     button.type = 'button'
     button.setAttribute('aria-current',session === active ? 'page' : 'false')
-    button.append(element('span','chat-icon','◇'),element('span','chat-title',session.title))
+    button.title = session.title
+    button.append(element('span','chat-title',session.title))
     button.addEventListener('click',()=>{ active = session; render(); closeSidebar() })
-    ui.list.append(button)
+    const menu = element('details','history-menu')
+    const trigger = element('summary','history-menu-trigger','···')
+    trigger.setAttribute('aria-label',session.title + ' — ' + t('rename') + ' / ' + t('deleteChat'))
+    menu.append(trigger)
+    for (const action of ['rename','deleteChat']) {
+      const actionButton = element('button','history-menu-action'+(action === 'deleteChat' ? ' danger' : ''),t(action))
+      actionButton.type = 'button'
+      actionButton.addEventListener('click',()=>{ menu.open = false; openHistoryAction(action,session) })
+      menu.append(actionButton)
+    }
+    row.append(button,menu)
+    ui.list.append(row)
   }
-  ui.count.textContent = String(sessions.filter(item => item.messages.length || item.source).length)
+  if (!visible.length && query) ui.list.append(element('p','history-empty',t('historyEmpty')))
+  ui.count.textContent = String(saved.length)
+}
+function openHistoryAction(action,session) {
+  if (busy) { showImportError(t('busyHistory')); return }
+  historyAction = {action,session}
+  ui.historyDialogTitle.textContent = t(action === 'rename' ? 'renameTitle' : 'deleteTitle')
+  ui.historyDialogDescription.textContent = action === 'rename' ? '' : t('deleteDescription')
+  ui.historyTitleInput.hidden = action !== 'rename'
+  ui.historyTitleInput.required = action === 'rename'
+  ui.historyTitleInput.value = action === 'rename' ? session.title : ''
+  ui.historyConfirm.textContent = t(action)
+  ui.historyConfirm.classList.toggle('danger',action === 'deleteChat')
+  ui.historyDialog.showModal()
+  if (action === 'rename') ui.historyTitleInput.select()
 }
 function render() {
   renderSidebar()
@@ -388,12 +443,13 @@ async function submitPrompt() {
   await initialLoad
   const prompt = ui.input.value.trim()
   if (!prompt || busy) return
-  if (!settings) { showSettings(true); return }
+  if (!settings && !currentSession().runtime.canHandleLocally(prompt)) { showSettings(true); return }
   const session = currentSession()
-  session.runtime.configure(settings)
+  if (settings) session.runtime.configure(settings)
   for (const message of session.messages) for (const proposal of message.proposals ?? []) if (proposal.uiState === 'pending') proposal.uiState = 'expired'
   if (!session.messages.length) session.title = prompt.replace(/\s+/g,' ').slice(0,34)
   session.messages.push({role:'user',text:prompt})
+  session.updatedAt = Date.now()
   const waiting = {role:'assistant',status:'pending',text:''}
   session.messages.push(waiting)
   busy = true
@@ -540,6 +596,31 @@ byId('settings-cancel').addEventListener('click',hideSettings)
 ui.dialog.addEventListener('close',()=>{ui.key.value='';pendingSend=false})
 ui.settingsOpen.addEventListener('click',()=>showSettings(false))
 byId('new-chat').addEventListener('click',async()=>{await initialLoad;if(active?.messages.length || active?.source) createSession();else render();closeSidebar();ui.input.focus()})
+ui.historySearch.addEventListener('input',renderSidebar)
+document.addEventListener('click',event=>{
+  for (const menu of ui.list.querySelectorAll('.history-menu[open]')) if (!menu.contains(event.target)) menu.open = false
+})
+byId('history-cancel').addEventListener('click',()=>ui.historyDialog.close())
+ui.historyDialog.addEventListener('close',()=>{ historyAction = null })
+ui.historyForm.addEventListener('submit',event=>{
+  event.preventDefault()
+  const choice = historyAction
+  if (!choice || !sessions.includes(choice.session)) { ui.historyDialog.close(); return }
+  if (choice.action === 'rename') {
+    const title = ui.historyTitleInput.value.trim()
+    if (!title) { ui.historyTitleInput.setCustomValidity(t('emptyTitle')); ui.historyTitleInput.reportValidity(); return }
+    choice.session.title = title
+    choice.session.updatedAt = Date.now()
+  } else {
+    if (busy) { ui.historyDialog.close(); showImportError(t('busyHistory')); return }
+    choice.session.runtime.destroy()
+    sessions = sessions.filter(item => item !== choice.session)
+    if (active === choice.session) active = sessions[0] ?? null
+  }
+  ui.historyDialog.close()
+  render()
+})
+ui.historyTitleInput.addEventListener('input',()=>ui.historyTitleInput.setCustomValidity(''))
 byId('language-button').addEventListener('click',()=>setLanguage(language==='zh'?'en':'zh'))
 document.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListener('click',()=>{ui.input.value=examples[language][button.dataset.prompt];ui.input.focus()}))
 ui.menu.addEventListener('click',()=>{ui.sidebar.classList.add('open');ui.scrim.hidden=false;ui.menu.setAttribute('aria-expanded','true')})

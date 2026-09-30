@@ -23,6 +23,7 @@
         <button class="icon-button sidebar-close" id="sidebar-close" type="button" aria-label="关闭侧栏">×</button>
       </div>
       <button class="new-chat" id="new-chat" type="button"><span aria-hidden="true">＋</span><span data-text="newChat">新建对话</span></button>
+      <label class="history-search"><span aria-hidden="true">⌕</span><input id="history-search" type="search" autocomplete="off" data-placeholder="searchHistory" placeholder="搜索对话" aria-label="搜索对话"></label>
       <div class="history-heading"><span data-text="recent">最近对话</span><span class="history-count" id="history-count">0</span></div>
       <nav class="conversation-list" id="conversation-list" aria-label="最近对话"></nav>
       <div class="sidebar-bottom">
@@ -113,6 +114,18 @@
       <div class="dialog-actions">
         <button class="secondary-button" id="settings-cancel" type="button" data-text="cancel">取消</button>
         <button class="primary-button" data-testid="settings-save" type="submit" data-text="saveConnection">连接并继续</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog class="history-dialog" id="history-dialog" aria-labelledby="history-dialog-title">
+    <form id="history-form">
+      <h2 id="history-dialog-title"></h2>
+      <p id="history-dialog-description"></p>
+      <label class="sr-only" for="history-title-input" data-text="conversationName">对话名称</label>
+      <input id="history-title-input" maxlength="80" autocomplete="off">
+      <div class="dialog-actions">
+        <button class="secondary-button" id="history-cancel" type="button" data-text="cancel">取消</button>
+        <button class="primary-button" id="history-confirm" type="submit"></button>
       </div>
     </form>
   </dialog>
