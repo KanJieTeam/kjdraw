@@ -1,0 +1,985 @@
+{
+  "testedAt": "2026-09-30T08:43:04.445Z",
+  "provider": "qwen",
+  "sourceKind": "public-generated-sheet",
+  "returnedModels": [
+    "qwen3.8-flash"
+  ],
+  "settings": {
+    "maxOutputTokens": 4096,
+    "reasoning": "disabled",
+    "timeoutMs": 60000,
+    "maxRequests": 40
+  },
+  "codeSha256": {
+    "scripts/benchmarks/imported-annotation-model.mjs": "ac214b830a857158603ab49157b3d9c899d6e807d9502047002643c9d27d2a12",
+    "scripts/benchmarks/imported-annotation-providers.mjs": "63f9817660e1eede4375d77f5e1f7c9b48ea98abaf40b8a4ae9d53b88ab0ac1a",
+    "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+    "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+    "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+    "apps/playground/ai/runtime.js": "848e4a4c0ce1e6253fa8c0df5cbfb7ddadbad2aef940c1cf147d49175ab631eb",
+    "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+    "packages/kjdraw-sdk/src/agent-runner.js": "b02dd951e97a597603beb2f6db0386ab101e409545ddd279617e4554eac1ec11",
+    "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+    "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+    "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+  },
+  "report": {
+    "protocol": "imported-annotation-v1",
+    "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+    "scope": "Exploratory single-arm native annotation edits, not geological data redraw, model comparison or token-saving evidence.",
+    "sourceSha256": "f8f6f78148cb484b37d7310f344bd7a198722d5b4715a8bed4405dba0b401560",
+    "model": "qwen3.8-flash",
+    "rounds": [
+      {
+        "round": 1,
+        "operation": "text",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 4884,
+        "passed": true
+      },
+      {
+        "round": 2,
+        "operation": "move",
+        "status": "proposal",
+        "requests": 3,
+        "elapsedMs": 7451,
+        "passed": true
+      },
+      {
+        "round": 3,
+        "operation": "move",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 3829,
+        "passed": true
+      },
+      {
+        "round": 4,
+        "operation": "text",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 5996,
+        "passed": true
+      },
+      {
+        "round": 5,
+        "operation": "move",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 4057,
+        "passed": true
+      },
+      {
+        "round": 6,
+        "operation": "text",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 4785,
+        "passed": true
+      },
+      {
+        "round": 7,
+        "operation": "move",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 3703,
+        "passed": true
+      },
+      {
+        "round": 8,
+        "operation": "text",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 4779,
+        "passed": true
+      },
+      {
+        "round": 9,
+        "operation": "move",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 6627,
+        "passed": true
+      },
+      {
+        "round": 10,
+        "operation": "text",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 4432,
+        "passed": true
+      }
+    ],
+    "requests": 21,
+    "usage": [
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2044,
+        "outputTokens": 71,
+        "totalTokens": 2115,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2044,
+        "reportedOutputTokens": 71,
+        "reportedTotalTokens": 2115,
+        "cacheReadInputTokens": 1024,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2029.7770000000019,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2488,
+        "outputTokens": 116,
+        "totalTokens": 2604,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2488,
+        "reportedOutputTokens": 116,
+        "reportedTotalTokens": 2604,
+        "cacheReadInputTokens": 1024,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2838.603000000003,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2368,
+        "outputTokens": 87,
+        "totalTokens": 2455,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2368,
+        "reportedOutputTokens": 87,
+        "reportedTotalTokens": 2455,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1886.3216999999931,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2830,
+        "outputTokens": 147,
+        "totalTokens": 2977,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2830,
+        "reportedOutputTokens": 147,
+        "reportedTotalTokens": 2977,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2891.7145999999993,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3406,
+        "outputTokens": 128,
+        "totalTokens": 3534,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3406,
+        "reportedOutputTokens": 128,
+        "reportedTotalTokens": 3534,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2659.8452999999936,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2431,
+        "outputTokens": 74,
+        "totalTokens": 2505,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2431,
+        "reportedOutputTokens": 74,
+        "reportedTotalTokens": 2505,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2098.7307,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2880,
+        "outputTokens": 114,
+        "totalTokens": 2994,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2880,
+        "reportedOutputTokens": 114,
+        "reportedTotalTokens": 2994,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1713.4407999999967,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2195,
+        "outputTokens": 52,
+        "totalTokens": 2247,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2195,
+        "reportedOutputTokens": 52,
+        "reportedTotalTokens": 2247,
+        "cacheReadInputTokens": 1024,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 3006.6258000000016,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2622,
+        "outputTokens": 117,
+        "totalTokens": 2739,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2622,
+        "reportedOutputTokens": 117,
+        "reportedTotalTokens": 2739,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2978.2072999999946,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2518,
+        "outputTokens": 71,
+        "totalTokens": 2589,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2518,
+        "reportedOutputTokens": 71,
+        "reportedTotalTokens": 2589,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1938.6117000000013,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2964,
+        "outputTokens": 115,
+        "totalTokens": 3079,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2964,
+        "reportedOutputTokens": 115,
+        "reportedTotalTokens": 3079,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2104.4403999999995,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2282,
+        "outputTokens": 71,
+        "totalTokens": 2353,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2282,
+        "reportedOutputTokens": 71,
+        "reportedTotalTokens": 2353,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2015.8218000000052,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2728,
+        "outputTokens": 132,
+        "totalTokens": 2860,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2728,
+        "reportedOutputTokens": 132,
+        "reportedTotalTokens": 2860,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2745.0831999999937,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2621,
+        "outputTokens": 81,
+        "totalTokens": 2702,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2621,
+        "reportedOutputTokens": 81,
+        "reportedTotalTokens": 2702,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1641.876700000008,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3077,
+        "outputTokens": 115,
+        "totalTokens": 3192,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3077,
+        "reportedOutputTokens": 115,
+        "reportedTotalTokens": 3192,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2039.3245000000024,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2384,
+        "outputTokens": 87,
+        "totalTokens": 2471,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2384,
+        "reportedOutputTokens": 87,
+        "reportedTotalTokens": 2471,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2382.4550000000017,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2846,
+        "outputTokens": 131,
+        "totalTokens": 2977,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2846,
+        "reportedOutputTokens": 131,
+        "reportedTotalTokens": 2977,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2373.525800000003,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2722,
+        "outputTokens": 82,
+        "totalTokens": 2804,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2722,
+        "reportedOutputTokens": 82,
+        "reportedTotalTokens": 2804,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 4635.315100000007,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3177,
+        "outputTokens": 115,
+        "totalTokens": 3292,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3177,
+        "reportedOutputTokens": 115,
+        "reportedTotalTokens": 3292,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1960.3166000000056,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2449,
+        "outputTokens": 70,
+        "totalTokens": 2519,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2449,
+        "reportedOutputTokens": 70,
+        "reportedTotalTokens": 2519,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1321.4863999999943,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2893,
+        "outputTokens": 133,
+        "totalTokens": 3026,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2893,
+        "reportedOutputTokens": 133,
+        "reportedTotalTokens": 3026,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 3075.606899999999,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      }
+    ],
+    "passed": true,
+    "totalTokens": 58034
+  },
+  "trace": [
+    {
+      "request": 1,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 6727,
+      "usage": {
+        "inputTokens": 2044,
+        "outputTokens": 71,
+        "totalTokens": 2115,
+        "cacheReadInputTokens": 1024,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2029
+    },
+    {
+      "request": 2,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_text_edit"
+      ],
+      "requestBytes": 8097,
+      "usage": {
+        "inputTokens": 2488,
+        "outputTokens": 116,
+        "totalTokens": 2604,
+        "cacheReadInputTokens": 1024,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2837
+    },
+    {
+      "request": 3,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 8097,
+      "usage": {
+        "inputTokens": 2368,
+        "outputTokens": 87,
+        "totalTokens": 2455,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1885
+    },
+    {
+      "request": 4,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_query_drawing"
+      ],
+      "requestBytes": 9500,
+      "usage": {
+        "inputTokens": 2830,
+        "outputTokens": 147,
+        "totalTokens": 2977,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2891
+    },
+    {
+      "request": 5,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_move"
+      ],
+      "requestBytes": 10929,
+      "usage": {
+        "inputTokens": 3406,
+        "outputTokens": 128,
+        "totalTokens": 3534,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2659
+    },
+    {
+      "request": 6,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 8356,
+      "usage": {
+        "inputTokens": 2431,
+        "outputTokens": 74,
+        "totalTokens": 2505,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2098
+    },
+    {
+      "request": 7,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_move"
+      ],
+      "requestBytes": 9737,
+      "usage": {
+        "inputTokens": 2880,
+        "outputTokens": 114,
+        "totalTokens": 2994,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1713
+    },
+    {
+      "request": 8,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 7328,
+      "usage": {
+        "inputTokens": 2195,
+        "outputTokens": 52,
+        "totalTokens": 2247,
+        "cacheReadInputTokens": 1024,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 3006
+    },
+    {
+      "request": 9,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_text_edit"
+      ],
+      "requestBytes": 8662,
+      "usage": {
+        "inputTokens": 2622,
+        "outputTokens": 117,
+        "totalTokens": 2739,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2978
+    },
+    {
+      "request": 10,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 8700,
+      "usage": {
+        "inputTokens": 2518,
+        "outputTokens": 71,
+        "totalTokens": 2589,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1938
+    },
+    {
+      "request": 11,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_move"
+      ],
+      "requestBytes": 10064,
+      "usage": {
+        "inputTokens": 2964,
+        "outputTokens": 115,
+        "totalTokens": 3079,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2104
+    },
+    {
+      "request": 12,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 7672,
+      "usage": {
+        "inputTokens": 2282,
+        "outputTokens": 71,
+        "totalTokens": 2353,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2014
+    },
+    {
+      "request": 13,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_text_edit"
+      ],
+      "requestBytes": 9048,
+      "usage": {
+        "inputTokens": 2728,
+        "outputTokens": 132,
+        "totalTokens": 2860,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2742
+    },
+    {
+      "request": 14,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 9111,
+      "usage": {
+        "inputTokens": 2621,
+        "outputTokens": 81,
+        "totalTokens": 2702,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1641
+    },
+    {
+      "request": 15,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_move"
+      ],
+      "requestBytes": 10516,
+      "usage": {
+        "inputTokens": 3077,
+        "outputTokens": 115,
+        "totalTokens": 3192,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2038
+    },
+    {
+      "request": 16,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 8081,
+      "usage": {
+        "inputTokens": 2384,
+        "outputTokens": 87,
+        "totalTokens": 2471,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2381
+    },
+    {
+      "request": 17,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_text_edit"
+      ],
+      "requestBytes": 9484,
+      "usage": {
+        "inputTokens": 2846,
+        "outputTokens": 131,
+        "totalTokens": 2977,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2372
+    },
+    {
+      "request": 18,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 9518,
+      "usage": {
+        "inputTokens": 2722,
+        "outputTokens": 82,
+        "totalTokens": 2804,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 4634
+    },
+    {
+      "request": 19,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_move"
+      ],
+      "requestBytes": 10906,
+      "usage": {
+        "inputTokens": 3177,
+        "outputTokens": 115,
+        "totalTokens": 3292,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1958
+    },
+    {
+      "request": 20,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 8350,
+      "usage": {
+        "inputTokens": 2449,
+        "outputTokens": 70,
+        "totalTokens": 2519,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1320
+    },
+    {
+      "request": 21,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_text_edit"
+      ],
+      "requestBytes": 9708,
+      "usage": {
+        "inputTokens": 2893,
+        "outputTokens": 133,
+        "totalTokens": 3026,
+        "cacheReadInputTokens": 2048,
+        "cacheMissInputTokens": null,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 3074
+    }
+  ],
+  "transportFailures": []
+}

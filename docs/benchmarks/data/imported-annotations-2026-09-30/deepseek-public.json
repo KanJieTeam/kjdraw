@@ -1,0 +1,1072 @@
+{
+  "testedAt": "2026-09-30T08:42:39.588Z",
+  "provider": "deepseek",
+  "sourceKind": "public-generated-sheet",
+  "returnedModels": [
+    "deepseek-flash"
+  ],
+  "settings": {
+    "maxOutputTokens": 4096,
+    "reasoning": "disabled",
+    "timeoutMs": 60000,
+    "maxRequests": 40
+  },
+  "codeSha256": {
+    "scripts/benchmarks/imported-annotation-model.mjs": "ac214b830a857158603ab49157b3d9c899d6e807d9502047002643c9d27d2a12",
+    "scripts/benchmarks/imported-annotation-providers.mjs": "63f9817660e1eede4375d77f5e1f7c9b48ea98abaf40b8a4ae9d53b88ab0ac1a",
+    "scripts/benchmarks/token-provider-transport.mjs": "3069b06035cd9698bf77b586efa9390833abcab4d3b9bdc9fd2a937d58147b6e",
+    "tests/helpers/public-annotation-sheet.mjs": "7f38ef3b433e08dd61187ac02901eb8e4d9201636c6ea3dfa37932d3d0f718b6",
+    "tests/helpers/imported-drawing-edit-journey.mjs": "1ee045171c3e0ea69ce49a02e3ccb8549933fb387902d4b8c838c4dcd8780ef7",
+    "apps/playground/ai/runtime.js": "848e4a4c0ce1e6253fa8c0df5cbfb7ddadbad2aef940c1cf147d49175ab631eb",
+    "apps/playground/agent-chat.js": "bd1195e6dfd7df3541d64e6466ba9e9843ae983c3505aeb23e3e6c59501557dc",
+    "packages/kjdraw-sdk/src/agent-runner.js": "b02dd951e97a597603beb2f6db0386ab101e409545ddd279617e4554eac1ec11",
+    "packages/kjdraw-sdk/src/agent-tools.js": "68a40a4f80186202ad1c99b7dc4ecce0f26a15ca5de55dd096763e4c6bf7a8b4",
+    "packages/kjdraw-sdk/src/drawing-text-search.js": "bea3fabf37cf1eb98169000ee73146009b8b47dbd2107b88d217e3ef89858180",
+    "packages/kjdraw-sdk/src/dxf-adapter.js": "c8c5d403d66774e4faf2ee6b6ceabd5120d7d9e9526f3627429ea15e04ce8265"
+  },
+  "report": {
+    "protocol": "imported-annotation-v1",
+    "protocolHash": "ed7746406fedd03491fb1c41917be2aedc5c13d7e66253ebb4207cde47d4dbba",
+    "scope": "Exploratory single-arm native annotation edits, not geological data redraw, model comparison or token-saving evidence.",
+    "sourceSha256": "f8f6f78148cb484b37d7310f344bd7a198722d5b4715a8bed4405dba0b401560",
+    "model": "deepseek-flash",
+    "rounds": [
+      {
+        "round": 1,
+        "operation": "text",
+        "status": "proposal",
+        "requests": 3,
+        "elapsedMs": 4301,
+        "passed": true
+      },
+      {
+        "round": 2,
+        "operation": "move",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 2158,
+        "passed": true
+      },
+      {
+        "round": 3,
+        "operation": "move",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 2001,
+        "passed": true
+      },
+      {
+        "round": 4,
+        "operation": "text",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 2390,
+        "passed": true
+      },
+      {
+        "round": 5,
+        "operation": "move",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 2075,
+        "passed": true
+      },
+      {
+        "round": 6,
+        "operation": "text",
+        "status": "proposal",
+        "requests": 3,
+        "elapsedMs": 3343,
+        "passed": true
+      },
+      {
+        "round": 7,
+        "operation": "move",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 1925,
+        "passed": true
+      },
+      {
+        "round": 8,
+        "operation": "text",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 2207,
+        "passed": true
+      },
+      {
+        "round": 9,
+        "operation": "move",
+        "status": "proposal",
+        "requests": 3,
+        "elapsedMs": 2871,
+        "passed": true
+      },
+      {
+        "round": 10,
+        "operation": "text",
+        "status": "proposal",
+        "requests": 2,
+        "elapsedMs": 2656,
+        "passed": true
+      }
+    ],
+    "requests": 23,
+    "usage": [
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 1904,
+        "outputTokens": 110,
+        "totalTokens": 2014,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 1904,
+        "reportedOutputTokens": 110,
+        "reportedTotalTokens": 2014,
+        "cacheReadInputTokens": 1536,
+        "cacheMissInputTokens": 368,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 930.2701000000015,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2332,
+        "outputTokens": 342,
+        "totalTokens": 2674,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2332,
+        "reportedOutputTokens": 342,
+        "reportedTotalTokens": 2674,
+        "cacheReadInputTokens": 1920,
+        "cacheMissInputTokens": 412,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1285.7363000000041,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 12405,
+        "outputTokens": 278,
+        "totalTokens": 12683,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 12405,
+        "reportedOutputTokens": 278,
+        "reportedTotalTokens": 12683,
+        "cacheReadInputTokens": 2560,
+        "cacheMissInputTokens": 9845,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 2055.082300000002,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2371,
+        "outputTokens": 131,
+        "totalTokens": 2502,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2371,
+        "reportedOutputTokens": 131,
+        "reportedTotalTokens": 2502,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": 579,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1009.4308999999994,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3136,
+        "outputTokens": 142,
+        "totalTokens": 3278,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3136,
+        "reportedOutputTokens": 142,
+        "reportedTotalTokens": 3278,
+        "cacheReadInputTokens": 2432,
+        "cacheMissInputTokens": 704,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1134.3934000000008,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2432,
+        "outputTokens": 153,
+        "totalTokens": 2585,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2432,
+        "reportedOutputTokens": 153,
+        "reportedTotalTokens": 2585,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": 640,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 754.6501999999964,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3079,
+        "outputTokens": 291,
+        "totalTokens": 3370,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3079,
+        "reportedOutputTokens": 291,
+        "reportedTotalTokens": 3370,
+        "cacheReadInputTokens": 2560,
+        "cacheMissInputTokens": 519,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1232.0299000000014,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2389,
+        "outputTokens": 156,
+        "totalTokens": 2545,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2389,
+        "reportedOutputTokens": 156,
+        "reportedTotalTokens": 2545,
+        "cacheReadInputTokens": 1536,
+        "cacheMissInputTokens": 853,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 885.8415000000023,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3179,
+        "outputTokens": 280,
+        "totalTokens": 3459,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3179,
+        "reportedOutputTokens": 280,
+        "reportedTotalTokens": 3459,
+        "cacheReadInputTokens": 2432,
+        "cacheMissInputTokens": 747,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1488.401899999997,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2851,
+        "outputTokens": 94,
+        "totalTokens": 2945,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2851,
+        "reportedOutputTokens": 94,
+        "reportedTotalTokens": 2945,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": 1059,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 927.7387999999992,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3265,
+        "outputTokens": 229,
+        "totalTokens": 3494,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3265,
+        "reportedOutputTokens": 229,
+        "reportedTotalTokens": 3494,
+        "cacheReadInputTokens": 2944,
+        "cacheMissInputTokens": 321,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1134.365300000005,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 2736,
+        "outputTokens": 85,
+        "totalTokens": 2821,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 2736,
+        "reportedOutputTokens": 85,
+        "reportedTotalTokens": 2821,
+        "cacheReadInputTokens": 1536,
+        "cacheMissInputTokens": 1200,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 509.593200000003,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3139,
+        "outputTokens": 168,
+        "totalTokens": 3307,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3139,
+        "reportedOutputTokens": 168,
+        "reportedTotalTokens": 3307,
+        "cacheReadInputTokens": 2816,
+        "cacheMissInputTokens": 323,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1062.7328000000052,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3673,
+        "outputTokens": 371,
+        "totalTokens": 4044,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3673,
+        "reportedOutputTokens": 371,
+        "reportedTotalTokens": 4044,
+        "cacheReadInputTokens": 3200,
+        "cacheMissInputTokens": 473,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1758.076000000001,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3296,
+        "outputTokens": 70,
+        "totalTokens": 3366,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3296,
+        "reportedOutputTokens": 70,
+        "reportedTotalTokens": 3366,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": 1504,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1019.2338999999993,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3684,
+        "outputTokens": 145,
+        "totalTokens": 3829,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3684,
+        "reportedOutputTokens": 145,
+        "reportedTotalTokens": 3829,
+        "cacheReadInputTokens": 3328,
+        "cacheMissInputTokens": 356,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 892.8266000000003,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3096,
+        "outputTokens": 262,
+        "totalTokens": 3358,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3096,
+        "reportedOutputTokens": 262,
+        "reportedTotalTokens": 3358,
+        "cacheReadInputTokens": 1536,
+        "cacheMissInputTokens": 1560,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 973.546500000004,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 4038,
+        "outputTokens": 293,
+        "totalTokens": 4331,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 4038,
+        "reportedOutputTokens": 293,
+        "reportedTotalTokens": 4331,
+        "cacheReadInputTokens": 3328,
+        "cacheMissInputTokens": 710,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1219.5694000000003,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3576,
+        "outputTokens": 86,
+        "totalTokens": 3662,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3576,
+        "reportedOutputTokens": 86,
+        "reportedTotalTokens": 3662,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": 1784,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 591.4170000000013,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3979,
+        "outputTokens": 168,
+        "totalTokens": 4147,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3979,
+        "reportedOutputTokens": 168,
+        "reportedTotalTokens": 4147,
+        "cacheReadInputTokens": 3584,
+        "cacheMissInputTokens": 395,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 983.0199999999968,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 4512,
+        "outputTokens": 350,
+        "totalTokens": 4862,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 4512,
+        "reportedOutputTokens": 350,
+        "reportedTotalTokens": 4862,
+        "cacheReadInputTokens": 4096,
+        "cacheMissInputTokens": 416,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1278.2725999999966,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3388,
+        "outputTokens": 86,
+        "totalTokens": 3474,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3388,
+        "reportedOutputTokens": 86,
+        "reportedTotalTokens": 3474,
+        "cacheReadInputTokens": 1536,
+        "cacheMissInputTokens": 1852,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 850.4068999999945,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      },
+      {
+        "protocol": "chat-completions",
+        "inputTokens": 3791,
+        "outputTokens": 402,
+        "totalTokens": 4193,
+        "inputTokensSource": "reported",
+        "outputTokensSource": "reported",
+        "totalTokensSource": "reported",
+        "reportedInputTokens": 3791,
+        "reportedOutputTokens": 402,
+        "reportedTotalTokens": 4193,
+        "cacheReadInputTokens": 3456,
+        "cacheMissInputTokens": 335,
+        "cacheWriteInputTokens": null,
+        "reasoningOutputTokens": null,
+        "toolUsePromptTokens": null,
+        "latencyMs": 1783.8613000000041,
+        "latencyScope": "transport-wall",
+        "invalidFields": []
+      }
+    ],
+    "passed": true,
+    "totalTokens": 86943
+  },
+  "trace": [
+    {
+      "request": 1,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 6735,
+      "usage": {
+        "inputTokens": 1904,
+        "outputTokens": 110,
+        "totalTokens": 2014,
+        "cacheReadInputTokens": 1536,
+        "cacheMissInputTokens": 368,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 926
+    },
+    {
+      "request": 2,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_query_drawing",
+        "cad_query_drawing"
+      ],
+      "requestBytes": 8152,
+      "usage": {
+        "inputTokens": 2332,
+        "outputTokens": 342,
+        "totalTokens": 2674,
+        "cacheReadInputTokens": 1920,
+        "cacheMissInputTokens": 412,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1284
+    },
+    {
+      "request": 3,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_text_edit"
+      ],
+      "requestBytes": 35420,
+      "usage": {
+        "inputTokens": 12405,
+        "outputTokens": 278,
+        "totalTokens": 12683,
+        "cacheReadInputTokens": 2560,
+        "cacheMissInputTokens": 9845,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 2053
+    },
+    {
+      "request": 4,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text",
+        "cad_find_text"
+      ],
+      "requestBytes": 8671,
+      "usage": {
+        "inputTokens": 2371,
+        "outputTokens": 131,
+        "totalTokens": 2502,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": 579,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1009
+    },
+    {
+      "request": 5,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_move"
+      ],
+      "requestBytes": 11281,
+      "usage": {
+        "inputTokens": 3136,
+        "outputTokens": 142,
+        "totalTokens": 3278,
+        "cacheReadInputTokens": 2432,
+        "cacheMissInputTokens": 704,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1134
+    },
+    {
+      "request": 6,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text",
+        "cad_find_text"
+      ],
+      "requestBytes": 8938,
+      "usage": {
+        "inputTokens": 2432,
+        "outputTokens": 153,
+        "totalTokens": 2585,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": 640,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 753
+    },
+    {
+      "request": 7,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_move"
+      ],
+      "requestBytes": 11216,
+      "usage": {
+        "inputTokens": 3079,
+        "outputTokens": 291,
+        "totalTokens": 3370,
+        "cacheReadInputTokens": 2560,
+        "cacheMissInputTokens": 519,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1231
+    },
+    {
+      "request": 8,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text",
+        "cad_find_text"
+      ],
+      "requestBytes": 8392,
+      "usage": {
+        "inputTokens": 2389,
+        "outputTokens": 156,
+        "totalTokens": 2545,
+        "cacheReadInputTokens": 1536,
+        "cacheMissInputTokens": 853,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 885
+    },
+    {
+      "request": 9,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_text_edit"
+      ],
+      "requestBytes": 11076,
+      "usage": {
+        "inputTokens": 3179,
+        "outputTokens": 280,
+        "totalTokens": 3459,
+        "cacheReadInputTokens": 2432,
+        "cacheMissInputTokens": 747,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1488
+    },
+    {
+      "request": 10,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 10370,
+      "usage": {
+        "inputTokens": 2851,
+        "outputTokens": 94,
+        "totalTokens": 2945,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": 1059,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 927
+    },
+    {
+      "request": 11,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_move"
+      ],
+      "requestBytes": 11786,
+      "usage": {
+        "inputTokens": 3265,
+        "outputTokens": 229,
+        "totalTokens": 3494,
+        "cacheReadInputTokens": 2944,
+        "cacheMissInputTokens": 321,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1134
+    },
+    {
+      "request": 12,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 9630,
+      "usage": {
+        "inputTokens": 2736,
+        "outputTokens": 85,
+        "totalTokens": 2821,
+        "cacheReadInputTokens": 1536,
+        "cacheMissInputTokens": 1200,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 509
+    },
+    {
+      "request": 13,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_query_drawing"
+      ],
+      "requestBytes": 11022,
+      "usage": {
+        "inputTokens": 3139,
+        "outputTokens": 168,
+        "totalTokens": 3307,
+        "cacheReadInputTokens": 2816,
+        "cacheMissInputTokens": 323,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1062
+    },
+    {
+      "request": 14,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_text_edit"
+      ],
+      "requestBytes": 12455,
+      "usage": {
+        "inputTokens": 3673,
+        "outputTokens": 371,
+        "totalTokens": 4044,
+        "cacheReadInputTokens": 3200,
+        "cacheMissInputTokens": 473,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1757
+    },
+    {
+      "request": 15,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 11912,
+      "usage": {
+        "inputTokens": 3296,
+        "outputTokens": 70,
+        "totalTokens": 3366,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": 1504,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1018
+    },
+    {
+      "request": 16,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_move"
+      ],
+      "requestBytes": 13280,
+      "usage": {
+        "inputTokens": 3684,
+        "outputTokens": 145,
+        "totalTokens": 3829,
+        "cacheReadInputTokens": 3328,
+        "cacheMissInputTokens": 356,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 892
+    },
+    {
+      "request": 17,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "requestBytes": 10954,
+      "usage": {
+        "inputTokens": 3096,
+        "outputTokens": 262,
+        "totalTokens": 3358,
+        "cacheReadInputTokens": 1536,
+        "cacheMissInputTokens": 1560,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 973
+    },
+    {
+      "request": 18,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_text_edit"
+      ],
+      "requestBytes": 13758,
+      "usage": {
+        "inputTokens": 4038,
+        "outputTokens": 293,
+        "totalTokens": 4331,
+        "cacheReadInputTokens": 3328,
+        "cacheMissInputTokens": 710,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1218
+    },
+    {
+      "request": 19,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 12878,
+      "usage": {
+        "inputTokens": 3576,
+        "outputTokens": 86,
+        "totalTokens": 3662,
+        "cacheReadInputTokens": 1792,
+        "cacheMissInputTokens": 1784,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 591
+    },
+    {
+      "request": 20,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_query_drawing"
+      ],
+      "requestBytes": 14269,
+      "usage": {
+        "inputTokens": 3979,
+        "outputTokens": 168,
+        "totalTokens": 4147,
+        "cacheReadInputTokens": 3584,
+        "cacheMissInputTokens": 395,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 982
+    },
+    {
+      "request": 21,
+      "toolsOffered": [
+        "cad_propose_move",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_move"
+      ],
+      "requestBytes": 15702,
+      "usage": {
+        "inputTokens": 4512,
+        "outputTokens": 350,
+        "totalTokens": 4862,
+        "cacheReadInputTokens": 4096,
+        "cacheMissInputTokens": 416,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1277
+    },
+    {
+      "request": 22,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_find_text"
+      ],
+      "requestBytes": 11852,
+      "usage": {
+        "inputTokens": 3388,
+        "outputTokens": 86,
+        "totalTokens": 3474,
+        "cacheReadInputTokens": 1536,
+        "cacheMissInputTokens": 1852,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 849
+    },
+    {
+      "request": 23,
+      "toolsOffered": [
+        "cad_propose_text_edit",
+        "cad_find_text",
+        "cad_query_drawing"
+      ],
+      "toolCalls": [
+        "cad_propose_text_edit"
+      ],
+      "requestBytes": 13246,
+      "usage": {
+        "inputTokens": 3791,
+        "outputTokens": 402,
+        "totalTokens": 4193,
+        "cacheReadInputTokens": 3456,
+        "cacheMissInputTokens": 335,
+        "reasoningOutputTokens": null
+      },
+      "elapsedMs": 1783
+    }
+  ],
+  "transportFailures": []
+}

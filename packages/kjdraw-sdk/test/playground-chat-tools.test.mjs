@@ -131,14 +131,39 @@ test('explicit title-block text edits on an existing drawing load only read and 
   const { document } = fixture()
   await document.transact('existing text', tx => tx.createEntity('TEXT', { text: 'REV: A', position: [0, 0, 0], height: 3 }))
   const names = getKJDrawChatToolNamesForRequest(document, 'Change revision A to B in the existing title-block text.')
-  assert.deepEqual(names, ['cad_read_drawing', 'cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit'])
+  assert.deepEqual(names, ['cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit'])
 })
 
 test('single label translation loads read, query and move schemas without a host selection', async () => {
   const { document } = fixture()
   await document.transact('existing labels', tx => tx.createEntity('TEXT', { text: 'TOP VIEW', position: [0, 0, 0], height: 3 }))
   const names = getKJDrawChatToolNamesForRequest(document, 'Move the existing TOP VIEW label up by exactly 2 millimeters. Keep geometry unchanged.')
-  assert.deepEqual(names, ['cad_read_drawing', 'cad_find_text', 'cad_query_drawing', 'cad_propose_move'])
+  assert.deepEqual(names, ['cad_find_text', 'cad_query_drawing', 'cad_propose_move'])
+})
+
+test('annotation-only policies avoid whole-page reads without narrowing compound edits', async () => {
+  const { document, session } = fixture()
+  await document.transact('existing labels', tx => tx.createEntity('TEXT', { text: 'ZK03', position: [0, 0, 0], height: 3 }))
+  for (const prompt of [
+    '把孔号标注“ZK03”改成“ZK03-A”。仅修改这个文字对象，不调整孔的几何或数据。',
+    '把孔号标注“ZK03”沿 X 移动 2、沿 Y 移动 0，只移动这一个文字对象。',
+  ]) {
+    const names = getKJDrawChatToolNamesForRequest(document, prompt)
+    assert.equal(names.includes('cad_read_drawing'), false)
+    assert.ok(names.includes('cad_find_text'))
+    assert.ok(names.includes('cad_query_drawing'))
+    assert.equal(names.length, 3)
+    const result = await runKJAgentTask({ session, prompt, toolNames: names,
+      model: modelCall('cad_read_drawing', { expectedRevision: document.revision }),
+    })
+    assert.equal(result.error.code, 'KJAGENT_TOOL_NOT_ALLOWED')
+    assert.equal(result.toolCalls, 0)
+  }
+  for (const prompt of [
+    'Change the text label and rotate its leader.',
+    'Move the label and copy the adjacent circle.',
+    '修改文字并添加一个孔。',
+  ]) assert.equal(getKJDrawChatToolNamesForRequest(document, prompt), KJDRAW_CHAT_TOOL_NAMES)
 })
 
 test('MOVE routing stays conservative without exact selection, displacement, or a single edit intent', async () => {

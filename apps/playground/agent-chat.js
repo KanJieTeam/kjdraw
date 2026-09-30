@@ -20,8 +20,11 @@ const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['
 const roadRevisionToolNames = Object.freeze([...meterToolNames, 'cad_propose_road_revision'])
 const selectionToolNames = new Map([KJDRAW_CHAT_TOOL_NAMES,meterToolNames,roadRevisionToolNames].map(names=>[names,Object.freeze([...names,'cad_read_selection_sets'])]))
 const moveToolNames = Object.freeze(['cad_propose_move'])
-const labelMoveToolNames = Object.freeze(['cad_read_drawing', 'cad_find_text', 'cad_query_drawing', 'cad_propose_move'])
-const textEditToolNames = Object.freeze(['cad_read_drawing', 'cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit'])
+// The host supplies document revision/units. For annotation-only edits, search
+// complete text and inspect exact IDs/local bounds instead of loading a whole
+// first page of unrelated entities. General/compound requests retain all reads.
+const labelMoveToolNames = Object.freeze(['cad_find_text', 'cad_query_drawing', 'cad_propose_move'])
+const textEditToolNames = Object.freeze(['cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit'])
 const builtinCapabilityRegistry = createKJDrawBuiltinCapabilityRegistry()
 /** Host policy only: SDK defaults and explicitly selected/locked tools remain unchanged. */
 export function getKJDrawChatToolNames(document,roadDrawingIds=[]) {
