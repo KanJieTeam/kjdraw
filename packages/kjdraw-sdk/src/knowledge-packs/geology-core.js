@@ -852,6 +852,17 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
         'geology-column-layout': {
             paperWidth: 210,
             paperHeight: 297,
+            pageHeightOptions: [
+                {
+                    pageHeightMillimeters: 297
+                },
+                {
+                    pageHeightMillimeters: 500
+                },
+                {
+                    pageHeightMillimeters: 841
+                }
+            ],
             left: 15,
             right: 195,
             headerDepth: 52,
@@ -921,6 +932,13 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
                         {
                             role: 'endDate',
                             label: '终孔日期',
+                            optional: true
+                        }
+                    ],
+                    [
+                        {
+                            role: 'initialWaterDepth',
+                            label: '初见水位(m)',
                             optional: true
                         },
                         {

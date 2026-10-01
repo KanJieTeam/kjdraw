@@ -25,6 +25,9 @@ function angleOf(vector: Point2Input): number {
 
 function transformAngle(matrix: AffineMatrix3Input, angle: unknown): number {
   const number = Number(angle)
+  // Translation changes placement, not the stored angle representation. In
+  // particular, do not wrap a source DXF angle into [-PI, PI] when moving text.
+  if (Number(matrix[0]) === 1 && Number(matrix[1]) === 0 && Number(matrix[2]) === 0 && Number(matrix[3]) === 1) return number
   return angleOf(transformVector3(matrix, [Math.cos(number), Math.sin(number)]))
 }
 

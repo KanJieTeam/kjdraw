@@ -17,6 +17,7 @@ function angleOf(vector) {
 }
 function transformAngle(matrix, angle) {
     const number = Number(angle);
+    if (Number(matrix[0]) === 1 && Number(matrix[1]) === 0 && Number(matrix[2]) === 0 && Number(matrix[3]) === 1) return number;
     return angleOf(transformVector3(matrix, [
         Math.cos(number),
         Math.sin(number)

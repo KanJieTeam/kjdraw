@@ -22,10 +22,10 @@ const modelCall = (name, args, inspect = () => {}) => ({ createConversation({ to
 test('workbench exposes useful tools and creates ordinary geometry through pattern arrays=[]', async () => {
   const { session, document } = fixture()
   assert.ok(Object.isFrozen(KJDRAW_CHAT_TOOL_NAMES))
-  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 29)
+  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 32)
   assert.ok(KJDRAW_CHAT_TOOL_NAMES.includes('cad_query_topology'))
   assert.ok(KJDRAW_CHAT_TOOL_NAMES.includes('cad_query_impact'))
-  assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_cartesian_chart'])
+  assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_revision'])
   const args = { expectedRevision: 0, units: 'millimeter', lines: [[0, 0, 20, 0]], circles: [[3, 4, 2]], arcs: [], polylines: [], arrays: [] }
   const result = await runKJAgentTask({ session, prompt: 'Draw a line and circle.', toolNames: KJDRAW_CHAT_TOOL_NAMES,
     model: modelCall('cad_propose_drawing_pattern', args, tools => assert.deepEqual(tools.map(item => item.name).sort(), [...KJDRAW_CHAT_TOOL_NAMES].sort())) })
@@ -131,14 +131,39 @@ test('explicit title-block text edits on an existing drawing load only read and 
   const { document } = fixture()
   await document.transact('existing text', tx => tx.createEntity('TEXT', { text: 'REV: A', position: [0, 0, 0], height: 3 }))
   const names = getKJDrawChatToolNamesForRequest(document, 'Change revision A to B in the existing title-block text.')
-  assert.deepEqual(names, ['cad_read_drawing', 'cad_query_drawing', 'cad_propose_text_edit'])
+  assert.deepEqual(names, ['cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit'])
 })
 
 test('single label translation loads read, query and move schemas without a host selection', async () => {
   const { document } = fixture()
   await document.transact('existing labels', tx => tx.createEntity('TEXT', { text: 'TOP VIEW', position: [0, 0, 0], height: 3 }))
   const names = getKJDrawChatToolNamesForRequest(document, 'Move the existing TOP VIEW label up by exactly 2 millimeters. Keep geometry unchanged.')
-  assert.deepEqual(names, ['cad_read_drawing', 'cad_query_drawing', 'cad_propose_move'])
+  assert.deepEqual(names, ['cad_find_text', 'cad_query_drawing', 'cad_propose_move'])
+})
+
+test('annotation-only policies avoid whole-page reads without narrowing compound edits', async () => {
+  const { document, session } = fixture()
+  await document.transact('existing labels', tx => tx.createEntity('TEXT', { text: 'ZK03', position: [0, 0, 0], height: 3 }))
+  for (const prompt of [
+    '把孔号标注“ZK03”改成“ZK03-A”。仅修改这个文字对象，不调整孔的几何或数据。',
+    '把孔号标注“ZK03”沿 X 移动 2、沿 Y 移动 0，只移动这一个文字对象。',
+  ]) {
+    const names = getKJDrawChatToolNamesForRequest(document, prompt)
+    assert.equal(names.includes('cad_read_drawing'), false)
+    assert.ok(names.includes('cad_find_text'))
+    assert.ok(names.includes('cad_query_drawing'))
+    assert.equal(names.length, 3)
+    const result = await runKJAgentTask({ session, prompt, toolNames: names,
+      model: modelCall('cad_read_drawing', { expectedRevision: document.revision }),
+    })
+    assert.equal(result.error.code, 'KJAGENT_TOOL_NOT_ALLOWED')
+    assert.equal(result.toolCalls, 0)
+  }
+  for (const prompt of [
+    'Change the text label and rotate its leader.',
+    'Move the label and copy the adjacent circle.',
+    '修改文字并添加一个孔。',
+  ]) assert.equal(getKJDrawChatToolNamesForRequest(document, prompt), KJDRAW_CHAT_TOOL_NAMES)
 })
 
 test('MOVE routing stays conservative without exact selection, displacement, or a single edit intent', async () => {
@@ -233,7 +258,7 @@ test('locked legacy capability tools are not replaced by workbench defaults and 
 test('meter workbench exposes the road tool and retains the complete native proposal and all resources', async () => {
   const sdk=createKJDrawSDK(), document=sdk.createDocument({units:'meter'}), session=new KJAgentToolSession(sdk,document)
   const toolNames=getKJDrawChatToolNames(document), input={...createRoadDesignFixture(),...roadDrawingFixtureOptions,expectedRevision:0}
-  assert.ok(Object.isFrozen(toolNames)); assert.deepEqual(toolNames,[...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['cad_propose_manufacturing_sheet','cad_propose_architecture_plan','cad_propose_cartesian_chart'].includes(name)),'cad_propose_site_plan','cad_propose_road_drawing'])
+  assert.ok(Object.isFrozen(toolNames)); assert.deepEqual(toolNames,[...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['cad_propose_manufacturing_sheet','cad_propose_architecture_plan','cad_propose_cartesian_chart','cad_read_geology_source','cad_propose_geology_revision'].includes(name)),'cad_propose_site_plan','cad_propose_road_drawing'])
   const expected=buildRoadDrawing(createRoadDesignFixture(),roadDrawingFixtureOptions), before=document.serialize()
   assert.ok(expected.entities.length>64)
   const result=await runKJAgentTask({session,prompt:'Compile this fully supplied road study for host review.',toolNames,

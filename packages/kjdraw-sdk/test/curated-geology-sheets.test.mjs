@@ -19,13 +19,16 @@ test('original synthetic geology sheets preserve geology, scale and cross-view i
     'the section must have genuinely variable layer boundaries')
 
   const [log, section, plan] = sheets
-  assert.equal(log.facts.waterY, 139)
+  // The water-fact header reserves 64 mm plus the 10 mm field-heading row.
+  // Keep the measured 18.4 m water depth and 1:200 scale, not the old header Y.
+  assert.equal(log.facts.topY, 297 - 64 - 10)
+  assert.equal(log.facts.waterY, 131)
   assert.equal(log.facts.millimetresPerMetre, 5)
   assert.equal(log.facts.topY - log.facts.bottomY, 150)
   const waterRule = log.document.getObject('geology-log-stable-water-rule')
   assert.equal(waterRule?.type, 'LINE')
-  assert.deepEqual(waterRule.payload.start.slice(0, 2), [67, 139])
-  assert.deepEqual(waterRule.payload.end.slice(0, 2), [92, 139])
+  assert.deepEqual(waterRule.payload.start.slice(0, 2), [67, 131])
+  assert.deepEqual(waterRule.payload.end.slice(0, 2), [92, 131])
   assert.equal(log.document.listEntities({ type: 'HATCH' }).length, 12)
   const logTexts = log.document.listEntities({ type: 'TEXT' }).map(entity => entity.payload.text)
   assert.equal(logTexts.filter(value => value.includes('SYNTHETIC, NOT MEASURED')).length, 1)

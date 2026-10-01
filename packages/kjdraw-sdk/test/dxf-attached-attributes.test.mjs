@@ -69,6 +69,21 @@ test('ATTRIB subclass codes never override AcDbText generation or alignment and 
   assert.deepEqual(next.payload.dxfAttributeExtraTags,attribute.payload.dxfAttributeExtraTags)
 })
 
+test('attribute scalar XDATA tails remain intact with an exact registered APPID', async () => {
+  const tail = '1001\nSYNTHETIC_SURVEY\n1070\n7\n1071\n123456\n1005\n0'
+  const source = fixture().replace('70\n0\n74\n2', '70\n0\n74\n2\n' + tail)
+  const adapter = createDXFFileAdapter(), document = await adapter.read(source)
+  const attribute = attributes(document).values[0], output = adapter.write(document)
+  const appids = rawRecords(output).filter(record => record.type === 'APPID').map(record => tag(record, 2))
+  assert.ok(appids.includes('SYNTHETIC_SURVEY'))
+  const next = attributes(await adapter.read(output)).values[0]
+  assert.deepEqual(next.payload.dxfAttributeExtraTags, attribute.payload.dxfAttributeExtraTags)
+  assert.equal(next.payload.horizontalAlignment, attribute.payload.horizontalAlignment)
+  assert.equal(next.payload.generationFlags, attribute.payload.generationFlags)
+  const invalid = await adapter.read(source.replace('1005\n0', '1005\nDEAD'))
+  assert.throws(() => adapter.write(invalid), /metadata cannot be exported without loss/)
+})
+
 test('native sequences preserve block and secondary-paper ownership, including space-owned SEQEND',async()=>{
   const adapter=createDXFFileAdapter()
   for(const scope of ['block','paper']){

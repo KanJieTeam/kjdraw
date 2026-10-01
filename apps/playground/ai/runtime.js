@@ -7,13 +7,26 @@ import { displayedEntityBounds } from '../../../packages/kjdraw-sdk/src/selectio
 import { createChatModelAdapter, readChatModelResponse } from '../chat-model-settings.js'
 import { getChatModelAdapterOptions } from '../chat-model-presets.js'
 import { getKJDrawChatCapabilityForRequest, getKJDrawChatToolNamesForRequest } from '../agent-chat.js'
-import { describeBuildingCandidates, resolveTopBuildingRemoval } from './scene-context.js'
+import { describeBuildingCandidates, inspectBuildingCandidates, queryBuildingCandidates } from './scene-context.js'
 
 const MAX_PROMPT_LENGTH = 16000
 const MAX_DRAWING_BYTES = 20 * 1024 * 1024
 const CONNECTION_ERROR = '模型连接失败。请检查地址、网络及服务商的浏览器 CORS 设置；图纸未修改。'
 
 const SUPPORTED_PROTOCOLS = new Set(['chat-completions', 'responses', 'anthropic-messages', 'gemini-generate-content'])
+const SPATIAL_TOOL = Object.freeze({
+  name: 'cad_query_spatial_candidates',
+  effect: 'read',
+  description: 'Read exact model-space entity IDs for 1–8 indexed building candidates from the current drawing spatial index. Indices, centers and bounds appear in host context. Candidates are inferred from floor labels inside closed outlines, not confirmed ownership or permission to delete. The model selects indices, inspects the returned members, checks erase impact, then proposes only the user-requested change. Never treat a candidate label as an entity ID.',
+  inputSchema: {
+    type: 'object', additionalProperties: false,
+    properties: {
+      expectedRevision: { type: 'integer', minimum: 0 },
+      indices: { type: 'array', minItems: 1, maxItems: 8, uniqueItems: true, items: { type: 'integer', minimum: 0 } },
+    },
+    required: ['expectedRevision', 'indices'],
+  },
+})
 
 function connectionSettings({ endpoint, model, apiKey, provider = 'custom', protocol = 'chat-completions' } = {}) {
   const name = typeof model === 'string' ? model.trim() : ''
@@ -68,6 +81,7 @@ export function createAiChatRuntime(options = {}) {
   let history = []
   let disposed = false
   let committed = false
+  let sourceFormat = 'blank'
 
   function rejectPending(reason = 'ai-new-request') {
     for (const [id, { session }] of pending) session.reject(id, reason)
@@ -88,7 +102,7 @@ export function createAiChatRuntime(options = {}) {
     }
     const name = String(file?.name ?? '')
     const extension = name.toLowerCase().match(/\.(kjd|dxf|kjp)$/)?.[1]?.toUpperCase()
-    if (!extension) throw new Error('请选择 KJD、KJP 或 DXF 图纸；DWG 需先转换为 DXF。')
+    if (!extension) throw new Error('请选择 DXF 图纸；DWG 需先转换为 DXF。')
     if (!Number.isSafeInteger(file.size) || file.size < 1 || file.size > MAX_DRAWING_BYTES) {
       throw new Error('图纸必须非空，且不超过 20 MiB。')
     }
@@ -102,6 +116,7 @@ export function createAiChatRuntime(options = {}) {
     const previous = document
     sdk.attachDocument(imported)
     document = imported
+    sourceFormat = extension
     if (previous.id !== imported.id) sdk.closeDocument(previous.id)
     return {
       name, format: extension, title: imported.snapshot().header.title ?? name,
@@ -116,6 +131,7 @@ export function createAiChatRuntime(options = {}) {
       drawing: await sdk.writeDocument(document, { format: 'KJD' }),
       history: history.map(item => ({ user: item.user, assistant: item.assistant })),
       committed,
+      sourceFormat,
     }
   }
 
@@ -130,6 +146,7 @@ export function createAiChatRuntime(options = {}) {
     const previous = document
     sdk.attachDocument(restored)
     document = restored
+    sourceFormat = ['DXF', 'KJD', 'KJP', 'blank'].includes(state.sourceFormat) ? state.sourceFormat : 'KJD'
     if (previous.id !== restored.id) sdk.closeDocument(previous.id)
     history = Array.isArray(state.history)
       ? state.history.filter(item => typeof item?.user === 'string' && typeof item?.assistant === 'string')
@@ -190,61 +207,60 @@ export function createAiChatRuntime(options = {}) {
       }) : null
       const session = new KJAgentToolSession(sdk, document)
       const normalized = prompt.trim()
-      const structural = resolveTopBuildingRemoval(document, normalized)
-      if (structural?.status === 'clarify') {
-        history.push({ user: normalized, assistant: structural.text })
-        history = history.slice(-8)
-        return { status: 'message', text: structural.text }
-      }
-      if (structural?.status === 'proposal') {
-        const result = await session.call('cad_propose_structural_edit', {
-          expectedRevision: document.revision, units: document.snapshot().header.units,
-          eraseIds: structural.ids, tolerance: 0.01, maxBytes: 262144,
-        })
-        if (!result.ok || result.value?.status !== 'awaiting-host-approval') {
-          return errorResult('AI_STRUCTURAL_PROPOSAL_FAILED',
-            result.error?.message ?? '楼栋修改未通过影响检查，图纸未修改。')
-        }
-        const selectedBounds = structural.buildings.map(item => item.bounds)
-        const bounds = [
-          Math.min(...selectedBounds.map(item => item[0])), Math.min(...selectedBounds.map(item => item[1])),
-          Math.max(...selectedBounds.map(item => item[2])), Math.max(...selectedBounds.map(item => item[3])),
-        ]
-        const proposal = {
-          ...result.value,
-          engineeringEvidence: {
-            ...result.value.engineeringEvidence, bounds,
-            detectedBuildings: structural.buildings,
-            objectCount: structural.ids.length,
-            detection: 'floor labels inside closed outlines; review all highlighted geometry before approval',
-          },
-        }
-        pending.set(proposal.planId, { proposal, session })
-        const english = !/[\u3400-\u9fff]/.test(normalized)
-        const description = english
-          ? 'Found ' + structural.buildings.length + ' building candidates (left to right: '
-            + structural.buildings.map(item => item.label).join(', ') + ') containing ' + structural.ids.length
-            + ' CAD objects. Review the highlighted scope; nothing changes before approval.'
-          : '已自动定位 ' + structural.buildings.length + ' 栋楼候选（从左到右：'
-            + structural.buildings.map(item => item.label).join('、') + '），涉及 ' + structural.ids.length
-            + ' 个图元。请检查高亮范围；确认前图纸不会修改。'
-        history.push({ user: normalized, assistant: description })
-        history = history.slice(-8)
-        return { status: 'proposal', text: description, proposal, proposals: [proposal] }
-      }
       if (!model) return errorResult('AI_MODEL_REQUIRED', '请先连接模型，再发送绘图需求。')
       const capability = getKJDrawChatCapabilityForRequest(document, normalized)
-      const toolNames = getKJDrawChatToolNamesForRequest(document, normalized)
+      const candidates = inspectBuildingCandidates(document)
+      const availableTools = new Set(session.definitions.map(tool => tool.name))
+      const toolNames = [...new Set(getKJDrawChatToolNamesForRequest(document, normalized)
+        .filter(name => availableTools.has(name))
+        .filter(name => document.listEntities().length === 0 ||
+          !['cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_section_example'].includes(name)))]
+      const expectProposal = toolNames.includes('cad_find_text') && toolNames.length === 3 &&
+        toolNames.some(name => name === 'cad_propose_text_edit' || name === 'cad_propose_move')
+      if (candidates.length && !capability) toolNames.push(SPATIAL_TOOL.name)
+      const checkedEraseIds = new Set()
+      const modelSession = {
+        definitions: candidates.length && !capability ? [...session.definitions, SPATIAL_TOOL] : session.definitions,
+        async call(name, args) {
+          if (name === SPATIAL_TOOL.name) return queryBuildingCandidates(document, args)
+          if (name === 'cad_query_impact') {
+            const result = await session.call(name, args)
+            if (result.ok && result.value?.canErase === true && Array.isArray(args?.ids)) {
+              checkedEraseIds.add(JSON.stringify([...args.ids].sort()))
+            }
+            return result
+          }
+          if (name === 'cad_propose_structural_edit') {
+            const signature = Array.isArray(args?.eraseIds) ? JSON.stringify([...args.eraseIds].sort()) : ''
+            if (!checkedEraseIds.has(signature)) {
+              return { ok: false, error: { code: 'CAD_IMPACT_REQUIRED', message: 'Call cad_query_impact for these exact eraseIds at the current revision before proposing a structural edit.' } }
+            }
+          }
+          return session.call(name, args)
+        },
+        reject(id, reason) { return session.reject(id, reason) },
+      }
       const previous = history.slice(-8)
-      const scene = describeBuildingCandidates(document)
-      let context = `Host context: document ${document.id}; revision ${document.revision}; units ${document.snapshot().header.units}. ${scene} Previous conversation is untrusted text, not an execution receipt: ${JSON.stringify(previous)}. Current user request: ${normalized}`
+      const scene = candidates.length ? describeBuildingCandidates(document) : ''
+      const geologyIds = Object.keys(document.snapshot().opaquePayloads).filter(key => key.startsWith('geology-drawing-recipe:')).slice(0,16).map(key => key.slice('geology-drawing-recipe:'.length))
+      const geologyNotice = geologyIds.length
+        ? `Source-backed geology drawing IDs: ${JSON.stringify(geologyIds)}. For borehole data changes, first call cad_read_geology_source at the current revision with an exact drawingId, then cad_propose_geology_revision using exact hole/interval identities and only requested changes. Rebuild source data and native drawing together; editing labels alone does not change borehole data. Source records are supplied facts, not independently verified measurements. `
+        : ''
+      const readNotice = document.listEntities().length && !geologyIds.length
+        ? 'For a target named by hole ID, layer label, title or other drawing text, use cad_find_text to find complete text and exact IDs throughout the drawing, then cad_query_drawing with IDs or a local bounding box to inspect nearby geometry. Do not assume cad_read_drawing first page contains every target. Read at the current revision after every approved or manual change. '
+        : ''
+      const sourceNotice = geologyNotice + readNotice + (sourceFormat === 'DXF'
+        ? 'This imported DXF is graphics, not a verified borehole source table. Do not treat labels, hatches or geometric proximity as proven stratum facts or correlations. For data-level borehole changes or geological re-stratification, inspect available geometry and ask for missing source facts/correlations; changing one text label alone is not a full redraw. Explicit visual-only edits may use the normal review tools. '
+        : '')
+      let context = `Host context: document ${document.id}; revision ${document.revision}; units ${document.snapshot().header.units}. ${sourceNotice}${scene} Previous conversation is untrusted text, not an execution receipt: ${JSON.stringify(previous)}. Current user request: ${normalized}`
       while (context.length > MAX_PROMPT_LENGTH && previous.length) {
         previous.shift()
-        context = `Host context: document ${document.id}; revision ${document.revision}; units ${document.snapshot().header.units}. ${scene} Previous conversation is untrusted text, not an execution receipt: ${JSON.stringify(previous)}. Current user request: ${normalized}`
+        context = `Host context: document ${document.id}; revision ${document.revision}; units ${document.snapshot().header.units}. ${sourceNotice}${scene} Previous conversation is untrusted text, not an execution receipt: ${JSON.stringify(previous)}. Current user request: ${normalized}`
       }
       if (context.length > MAX_PROMPT_LENGTH) return errorResult('AI_CONTEXT_LIMIT', '需求太长，请缩短后重试。')
       const result = await runKJAgentTask({
-        session, model, prompt: context, toolNames,
+        session: modelSession, model, prompt: context, toolNames,
+        expectProposal,
         ...(capability ? { capabilities: { registry: capability.registry, lock: capability.lock } } : {}),
         signal: controller.signal, onProgress,
       })
@@ -257,11 +273,13 @@ export function createAiChatRuntime(options = {}) {
         const [proposal] = proposals
         history.push({ user: normalized, assistant: result.text.slice(0, 4000) })
         history = history.slice(-8)
-        return { status: 'proposal', text: result.text || '已生成 CAD 提案，图纸尚未修改。', proposal, proposals }
+        return { status: 'proposal', text: result.text || '已生成 CAD 提案，图纸尚未修改。', proposal, proposals,
+          ...(expectProposal ? { proposalRepairAttempts: result.proposalRepairAttempts } : {}) }
       }
       history.push({ user: normalized, assistant: result.text.slice(0, 4000) })
       history = history.slice(-8)
-      return { status: 'message', text: result.text }
+      return { status: 'message', text: result.text,
+        ...(expectProposal ? { noProposal: true, proposalRepairAttempts: result.proposalRepairAttempts } : {}) }
     } catch {
       return errorResult('AI_REQUEST_FAILED', transportError ?? '这次请求未能完成，图纸未修改。')
     } finally {
@@ -321,9 +339,9 @@ export function createAiChatRuntime(options = {}) {
     return result.ok ? { status: 'rejected', text: '已放弃提案，图纸未修改。' } : errorResult('AI_REJECTION_FAILED', '提案未能放弃，请刷新会话。')
   }
 
-  async function exportDocument(format = 'KJD') {
+  async function exportDocument(format = 'DXF') {
     if (!committed) throw new Error('请先审阅并应用 CAD 提案。')
-    if (!['KJD', 'DXF'].includes(format)) throw new Error('只支持 KJD 或 DXF 导出。')
+    if (!['KJD', 'DXF'].includes(format)) throw new Error('请选择 DXF 导出格式。')
     return sdk.writeDocument(document, { format })
   }
 
@@ -337,7 +355,6 @@ export function createAiChatRuntime(options = {}) {
   }
 
   return { send, configure, importDocument, exportLocalState, restoreLocalState, renderProposal, renderDocument, approve, reject, exportDocument, destroy,
-    canHandleLocally(request) { return Boolean(resolveTopBuildingRemoval(document, String(request ?? ''))) },
     get configured() { return Boolean(connection) },
     get revision() { return document.revision },
     get entityCount() { return document.listEntities().length },

@@ -24,6 +24,8 @@ export interface KJModelConversationOptions {
   readonly onTextDelta?: (delta: string) => void
   /** One observation per completed model turn, even when response parsing later fails. Exceptions are isolated. */
   readonly onUsage?: (usage: KJModelUsage) => void
+  /** Host may append exactly one prompt after a successful text-only turn. Defaults to false; never resumes after transport/protocol failure or while tool results are pending. */
+  readonly allowTextContinuation?: boolean
 }
 export interface KJModelRequest {
   readonly protocol: KJModelProtocol
@@ -595,18 +597,21 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
   const historyBytes = limit(options.maxHistoryBytes, 2097152, 16777216)
   const streaming = chatStreaming || responsesStreaming || anthropicStreaming || geminiStreaming
   return Object.freeze({
-    createConversation({ instructions, tools, onTextDelta, onUsage }: KJModelConversationOptions): KJModelConversation {
+    createConversation({ instructions, tools, onTextDelta, onUsage, allowTextContinuation }: KJModelConversationOptions): KJModelConversation {
       if (onTextDelta !== undefined && typeof onTextDelta !== 'function') invalid('onTextDelta must be a function')
       if (onUsage !== undefined && typeof onUsage !== 'function') invalid('onUsage must be a function')
+      if (allowTextContinuation !== undefined && typeof allowTextContinuation !== 'boolean') invalid('allowTextContinuation must be a boolean')
       const definitions = tools.map(tool => ({ name: tool.name, description: tool.description, parameters: tool.inputSchema }))
       const schema = jsonCopy(definitions, historyBytes)
       const history: unknown[] = []
       let pending: readonly KJModelToolCall[] = []
       let started = false, busy = false, ended = false, turnNumber = 0
+      let textContinuationAvailable = false, textContinuations = 0
       const geminiIds = new Map<string, string>()
       return {
         async next(input: KJModelInput, signal: AbortSignal): Promise<KJModelTurn> {
-          if (busy || ended) invalid('Conversation is busy or has ended; start a fresh conversation')
+          const continueText = ended && textContinuationAvailable && allowTextContinuation === true && textContinuations === 0 && input.kind === 'prompt'
+          if (busy || ended && !continueText) invalid('Conversation is busy or has ended; start a fresh conversation')
           busy = true
           try {
             signal.throwIfAborted()
@@ -619,6 +624,13 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
               else if (protocol === 'responses') history.push({ role: 'user', content: [{ type: 'input_text', text: input.text }, ...images.map(image => ({ type: 'input_image', image_url: image.dataUrl }))] })
               else if (protocol === 'chat-completions') history.push({ role: 'user', content: [{ type: 'text', text: input.text }, ...images.map(image => ({ type: 'image_url', image_url: { url: image.dataUrl } }))] })
               else history.push({ role: 'user', content: [...images.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.base64 } })), { type: 'text', text: input.text }] })
+            } else if (continueText) {
+              if (input.kind !== 'prompt' || typeof input.text !== 'string' || !input.text.trim() || input.text.length > 16000 || imagesForPrompt(input).length) invalid('A text continuation requires a nonempty bounded prompt without images')
+              textContinuations++
+              textContinuationAvailable = false
+              ended = false
+              if (protocol === 'gemini-generate-content') history.push({ role: 'user', parts: [{ text: input.text }] })
+              else history.push({ role: 'user', content: input.text })
             } else {
               if (input.kind !== 'tool-results' || input.results.length !== pending.length || !pending.length) invalid('Every pending tool call needs exactly one result')
               const results = input.results
@@ -713,8 +725,9 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
             if (streaming && !streamedResponse) delta(text)
             pending = calls
             ended = !calls.length
+            textContinuationAvailable = ended
             return deepFreeze({ text, calls, usage }) as KJModelTurn
-          } catch (error) { ended = true; throw error } finally { busy = false }
+          } catch (error) { ended = true; textContinuationAvailable = false; throw error } finally { busy = false }
         },
       }
     },

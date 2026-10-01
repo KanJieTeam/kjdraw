@@ -4,6 +4,8 @@ import { validatePlotSettings } from './plot-settings.js';
 import { paperLimitsFromPlotSettings } from './layout-geometry.js';
 import { createCommandEditScope } from './edit-policy.js';
 import { applyRoadDrawingRevision } from './road-drawing-update.js';
+import { applyGeologyDrawingRevision, createGeologyDrawingRecipe } from './geology-drawing-update.js';
+import { KJDocument as GeologyRecipeDocument } from './document.js';
 import { createDesignRelations, deleteDesignRelations, readDesignRelations, updateDesignRelations } from './design-relations.js';
 import { createEraseImpact } from './erase-impact.js';
 import { applyTextEdits, validateTextEdits } from './text-edit.js';
@@ -114,6 +116,12 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         domain: 'road-drawing',
         atomic: true,
         stableIds: true,
+        requiresUnmodifiedPrevious: true
+    },
+    GEOLOGY_DRAWING_UPDATE: {
+        domain: 'geology-drawing',
+        atomic: true,
+        preservesUnchangedObjects: true,
         requiresUnmodifiedPrevious: true
     },
     ERASE: {
@@ -742,6 +750,7 @@ export class KJCommandRegistry {
         if (command.id === 'STRUCTURALEDIT' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'STRUCTURALEDIT');
         if (command.id === 'TEXTEDIT' && command.owner === '@kanjieteam/kjdraw') validateTextEdits(args);
         if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
+        if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE');
         if (command.transactional === false) {
             if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
             return command.execute({
@@ -781,6 +790,7 @@ export class KJCommandRegistry {
         if (command.id === 'STRUCTURALEDIT' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'STRUCTURALEDIT');
         if (command.id === 'TEXTEDIT' && command.owner === '@kanjieteam/kjdraw') validateTextEdits(args);
         if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
+        if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE');
         if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
         const scope = createCommandEditScope(context.transaction, command.id);
         const result = await command.execute({
@@ -793,6 +803,20 @@ export class KJCommandRegistry {
 }
 export function registerCoreCommands(registry) {
     const disposers = [];
+    disposers.push(registry.register({
+        id: 'GEOLOGY_DRAWING_UPDATE',
+        title: 'Update geology source facts and drawing',
+        transactional: false,
+        execute: ({ document, expectedRevision }, args)=>{
+            if (!document || expectedRevision === undefined) throw new KJValidationError('GEOLOGY_DRAWING_UPDATE requires a document and expectedRevision');
+            if (Object.keys(args).length !== 2 || !Object.hasOwn(args, 'previous') || !Object.hasOwn(args, 'next')) throw new KJValidationError('GEOLOGY_DRAWING_UPDATE requires exactly previous recipe and next source facts');
+            return applyGeologyDrawingRevision(document, args.previous, args.next, {
+                expectedRevision
+            });
+        }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
     disposers.push(registry.register({
         id: 'ROAD_DRAWING_UPDATE',
         title: 'Update road drawing',
@@ -3840,6 +3864,13 @@ function createEntityBatch({ document, transaction }, args = {}) {
     if (pointDisplay?.PDMODE !== undefined) transaction.setSystemVariable('PDMODE', pointDisplay.PDMODE);
     if (pointDisplay?.PDSIZE !== undefined) transaction.setSystemVariable('PDSIZE', pointDisplay.PDSIZE);
     if (batchLayout) created.push(createBatchLayout(transaction, batchLayout));
+    if (Object.hasOwn(args, 'geologySource')) {
+        const draft = new GeologyRecipeDocument(JSON.parse(JSON.stringify(transaction._draft())));
+        const recipe = createGeologyDrawingRecipe(draft, args.geologySource);
+        const key = `geology-drawing-recipe:${recipe.drawingId}`;
+        if (Object.hasOwn(draft.snapshot().opaquePayloads, key)) throw new KJValidationError('Geology source recipe is already registered');
+        transaction.putOpaquePayload(key, recipe);
+    }
     return created;
 }
 function requiredEntity(document, id) {

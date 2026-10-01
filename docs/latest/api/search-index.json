@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:fbbccbc52304f3ef0e765420079760b122022a05f7b82e9f2bbc6c4496ad29bd",
+  "sourceDigest": "sha256:c913d15119038bb9f56c221076866158d021c6b25ecaed1d0314b384557a6373",
   "entries": [
     {
       "name": "buildCadSkillJsonContract",
@@ -6621,6 +6621,14 @@
       "summary": "export declare function angle2(value: Point2Input): number;"
     },
     {
+      "name": "applyGeologyDrawingRevision",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-applygeologydrawingrevision",
+      "anchor": "root-function-applygeologydrawingrevision",
+      "summary": "export declare function applyGeologyDrawingRevision(document: KJDocument, previous: ReadonlyDeep<KJGeologyDrawingRecipe>, next: KJGeologyDrawingSource, options: KJGeologyDrawingRevisionOptions): Promise<ReadonlyDeep<KJGe"
+    },
+    {
       "name": "ArcDefinition",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -7213,6 +7221,14 @@
       "summary": "export declare function createEraseImpact(document: KJDocument, query: KJEraseImpactQuery, options?: KJEraseImpactOptions): Readonly<KJEraseImpact>;"
     },
     {
+      "name": "createGeologyDrawingRecipe",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-creategeologydrawingrecipe",
+      "anchor": "root-function-creategeologydrawingrecipe",
+      "summary": "export declare function createGeologyDrawingRecipe(document: KJDocument, source: KJGeologyDrawingSource): ReadonlyDeep<KJGeologyDrawingRecipe>;"
+    },
+    {
       "name": "createId",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -7627,6 +7643,14 @@
       "href": "./api/reference/#root-function-findbestsnap",
       "anchor": "root-function-findbestsnap",
       "summary": "export declare function findBestSnap(document: KJDocument, cursor: KJSnapPointInput, options?: KJSnapOptions): Readonly<KJSnapCandidate> | null;"
+    },
+    {
+      "name": "findDrawingText",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-finddrawingtext",
+      "anchor": "root-function-finddrawingtext",
+      "summary": "export declare function findDrawingText(document: KJDocument, query: KJDrawingTextQuery): Readonly<Record<string, unknown>>;"
     },
     {
       "name": "findSnapCandidates",
@@ -10477,6 +10501,14 @@
       "summary": "export interface KJDrawingPrintWindowOptions extends KJDrawingPrintOptions { /** Window receiving the user gesture; defaults to the current browser window. */ ownerWindow?: Window; /** Host identity guard, checked before"
     },
     {
+      "name": "KJDrawingTextQuery",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingtextquery",
+      "anchor": "root-interface-kjdrawingtextquery",
+      "summary": "export interface KJDrawingTextQuery { expectedRevision: number; search: string; match?: 'contains' | 'exact'; caseSensitive?: boolean; spaceId?: string; includeHidden?: boolean; offset?: number; limit?: number; maxBytes?"
+    },
+    {
       "name": "KJDrawingValidationCheck",
       "kind": "type",
       "module": "@kanjieteam/kjdraw",
@@ -11323,6 +11355,38 @@
       "href": "./api/reference/#root-interface-kjgeologydescriptiontextstyle",
       "anchor": "root-interface-kjgeologydescriptiontextstyle",
       "summary": "export interface KJGeologyDescriptionTextStyle { fieldRole: 'description'; anchor: 'declared-major-group-boundary'; height: number; /** Optional source-declared MTEXT paragraph width in physical millimetres. */ width?: n"
+    },
+    {
+      "name": "KJGeologyDrawingRecipe",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologydrawingrecipe",
+      "anchor": "root-interface-kjgeologydrawingrecipe",
+      "summary": "export interface KJGeologyDrawingRecipe { schema: 'com.kanjie.kjdraw.geology-drawing-recipe'; version: 1; compilerVersion: 1; documentId: string; drawingId: string; source: KJGeologyDrawingSource; entityIds: string[]; re"
+    },
+    {
+      "name": "KJGeologyDrawingRevision",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologydrawingrevision",
+      "anchor": "root-interface-kjgeologydrawingrevision",
+      "summary": "export interface KJGeologyDrawingRevision { recipe: ReadonlyDeep<KJGeologyDrawingRecipe>; previousRevision: number; revision: number; createdIds: string[]; removedIds: string[]; unchangedIds: string[]; before: KJObjectRe"
+    },
+    {
+      "name": "KJGeologyDrawingRevisionOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologydrawingrevisionoptions",
+      "anchor": "root-interface-kjgeologydrawingrevisionoptions",
+      "summary": "export interface KJGeologyDrawingRevisionOptions { expectedRevision: number; }"
+    },
+    {
+      "name": "KJGeologyDrawingSource",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjgeologydrawingsource",
+      "anchor": "root-type-kjgeologydrawingsource",
+      "summary": "export type KJGeologyDrawingSource = { kind: 'column'; input: KJGeologyColumnInput; } | { kind: 'section'; input: KJGeologySectionInput; };"
     },
     {
       "name": "KJGeologyFieldHeaderTextPlacement",
@@ -13493,6 +13557,14 @@
       "summary": "export type PolylineVertex = readonly unknown[] | BulgedPolylineVertex;"
     },
     {
+      "name": "prepareGeologyDrawingRevision",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-preparegeologydrawingrevision",
+      "anchor": "root-function-preparegeologydrawingrevision",
+      "summary": "export declare function prepareGeologyDrawingRevision(document: KJDocument, previous: ReadonlyDeep<KJGeologyDrawingRecipe>, next: KJGeologyDrawingSource, options: KJGeologyDrawingRevisionOptions): ReadonlyDeep<KJGeologyD"
+    },
+    {
       "name": "previewKJModification",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -13523,6 +13595,14 @@
       "href": "./api/reference/#root-function-readdesignrelations",
       "anchor": "root-function-readdesignrelations",
       "summary": "export declare function readDesignRelations(document: KJDocument, ids?: readonly string[]): KJDesignRelationView[];"
+    },
+    {
+      "name": "readGeologyDrawingRecipe",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-readgeologydrawingrecipe",
+      "anchor": "root-function-readgeologydrawingrecipe",
+      "summary": "export declare function readGeologyDrawingRecipe(document: KJDocument, drawingId: string): ReadonlyDeep<KJGeologyDrawingRecipe>;"
     },
     {
       "name": "ReadonlyDeep",
@@ -13571,6 +13651,14 @@
       "href": "./api/reference/#root-type-registeredgeometrybackend",
       "anchor": "root-type-registeredgeometrybackend",
       "summary": "export type RegisteredGeometryBackend = Readonly<KJGeometryBackend & { identity: KJGeometryBackendIdentity; }>;"
+    },
+    {
+      "name": "registerGeologyDrawingRecipe",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-registergeologydrawingrecipe",
+      "anchor": "root-function-registergeologydrawingrecipe",
+      "summary": "export declare function registerGeologyDrawingRecipe(document: KJDocument, source: KJGeologyDrawingSource, options: KJGeologyDrawingRevisionOptions): Promise<ReadonlyDeep<KJGeologyDrawingRecipe>>;"
     },
     {
       "name": "registerGeologyKnowledgePack",

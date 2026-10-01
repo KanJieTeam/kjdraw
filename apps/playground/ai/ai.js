@@ -1,5 +1,6 @@
 import { createAiChatRuntime } from './runtime.js'
 import { loadLocalHistory, saveLocalHistory } from './local-history.js'
+import { geologySourceChanges } from './geology-source-changes.js'
 import { CHAT_MODEL_PROVIDER_PRESETS, getChatModelProviderPreset, formatChatModelUpstreamEndpoint } from '../chat-model-presets.js'
 
 const copy = {
@@ -19,10 +20,13 @@ const copy = {
     endpoint:'API 地址',model:'模型名称',apiKey:'API 密钥',cancel:'取消',saveConnection:'连接并继续',
     invalidSettings:'请填写完整的 API 地址和模型名称。',invalidEndpoint:'请输入完整的 http(s) API 地址。',keyRequired:'请填写该服务商的 API 密钥。',you:'你',assistant:'KJDraw AI',
     proposal:'CAD 修改提案',proposalPending:'待审核',proposalApproved:'已应用',proposalRejected:'已放弃',proposalExpired:'已失效',
+    noProposal:'尚未生成可确认的修改，图纸未改变。',
     previewMissing:'暂时无法绘制预览，请检查提案详情。',reviewDetails:'查看提案详情',approve:'审核并应用',reject:'放弃提案',
     download:'下载 DXF 图纸',openEditor:'打开编辑器',applied:'修改已应用。可下载 DXF 图纸，在 CAD 软件中继续编辑。',
     emptyResponse:'模型没有返回可显示的内容。',retry:'请重试或检查模型设置。',newConversation:'新对话',
     failedDownload:'导出图纸失败。',editorHint:'编辑器会在新标签页打开。请使用“打开文件”导入刚下载的 DXF 图纸。',
+    unsafeDxfWarning:'图纸已打开，但部分视口关联数据暂不能安全保留。可在当前会话查看和编辑，暂不能导出 DXF。原始文件未改动；请先在 CAD 软件中检查相关数据，再重新打开。',
+    unsafeDxfExport:'为避免丢失视口关联数据，本次 DXF 导出已阻止。当前图纸仍保留在会话中，原始文件未改动。请先在 CAD 软件中检查相关数据，再重新打开。',
     openDrawing:'打开图纸',dropDrawing:'松开以打开图纸',importFailed:'图纸未导入，请检查文件格式。',
     importBusy:'请等待当前请求结束后再打开图纸。',drawingLoaded:'已打开图纸',entities:'个对象',
     storageFailed:'本地会话保存失败。请先下载 DXF 图纸，并检查浏览器存储空间。',
@@ -44,10 +48,13 @@ const copy = {
     endpoint:'API endpoint',model:'Model name',apiKey:'API key',cancel:'Cancel',saveConnection:'Connect and continue',
     invalidSettings:'Enter an API endpoint and model name.',invalidEndpoint:'Enter a complete http(s) API endpoint.',keyRequired:'Enter an API key for this provider.',you:'You',assistant:'KJDraw AI',
     proposal:'CAD change proposal',proposalPending:'Awaiting review',proposalApproved:'Applied',proposalRejected:'Discarded',proposalExpired:'Expired',
+    noProposal:'No reviewable change was created. The drawing is unchanged.',
     previewMissing:'Preview could not be rendered. Review the proposal details.',reviewDetails:'View proposal details',approve:'Review and apply',reject:'Discard proposal',
     download:'Download DXF drawing',openEditor:'Open editor',applied:'Change applied. Download the DXF drawing to continue editing in CAD software.',
     emptyResponse:'The model returned no displayable content.',retry:'Try again or check your model settings.',newConversation:'New chat',
     failedDownload:'Could not export drawing.',editorHint:'The editor opens in a new tab. Use Open file to import the downloaded DXF drawing.',
+    unsafeDxfWarning:'Drawing opened, but some viewport-linked data cannot yet be preserved safely. You can view and edit it in this conversation, but DXF export is unavailable. The original file is unchanged. Check the linked data in your CAD software before reopening it.',
+    unsafeDxfExport:'DXF export was blocked to avoid losing viewport-linked data. The current drawing remains in this conversation and the original file is unchanged. Check the linked data in your CAD software before reopening it.',
     openDrawing:'Open drawing',dropDrawing:'Drop to open drawing',importFailed:'Drawing not opened. Check the file format.',
     importBusy:'Wait for the current request before opening a drawing.',drawingLoaded:'Drawing opened',entities:'entities',
     storageFailed:'Could not save this conversation locally. Download the DXF drawing and check browser storage.',
@@ -165,6 +172,18 @@ function createSession({ runtime = createAiChatRuntime(settings ?? {}), source =
   render()
   return session
 }
+function hasUnsupportedDxfMetadata(state) {
+  try { return JSON.parse(state.drawing)?.opaquePayloads?.['dxf:viewport-metadata-unsupported:v1'] != null }
+  catch { return false }
+}
+function drawingExportError(error) {
+  const seen = new Set()
+  for (let current = error, depth = 0; current && depth < 4 && !seen.has(current); current = current.cause, depth++) {
+    seen.add(current)
+    if (typeof current.message === 'string' && current.message.startsWith('DXF viewport metadata:')) return t('unsafeDxfExport')
+  }
+  return error?.message ?? t('failedDownload')
+}
 function queuePersist() {
   if (!hydrated || persistRequested) return
   persistRequested = true
@@ -219,7 +238,8 @@ async function restoreSessions() {
               ...proposal, uiState: proposal.uiState === 'pending' ? 'expired' : proposal.uiState,
             })) } : {}),
           }))
-          sessions.push({ id: item.id, title: String(item.title ?? t('newConversation')), source: item.source ?? null,
+          const source = item.source ? { ...item.source, exportRestricted: hasUnsupportedDxfMetadata(item.state) } : null
+          sessions.push({ id: item.id, title: String(item.title ?? t('newConversation')), source,
             updatedAt: Number.isFinite(item.updatedAt) ? item.updatedAt : Date.now(), messages, runtime })
         } catch { runtime.destroy() }
       }
@@ -290,6 +310,15 @@ function openHistoryAction(action,session) {
 function render() {
   renderSidebar()
   const source = active?.source
+  let exportWarning = document.querySelector('[data-testid="drawing-export-warning"]')
+  if (!exportWarning) {
+    exportWarning = element('p', 'import-error')
+    exportWarning.dataset.testid = 'drawing-export-warning'
+    exportWarning.setAttribute('role', 'alert')
+    ui.drawingContext.before(exportWarning)
+  }
+  exportWarning.hidden = !source?.exportRestricted
+  exportWarning.textContent = source?.exportRestricted ? t('unsafeDxfWarning') : ''
   ui.drawingContext.hidden = !source
   if (source) {
     ui.drawingName.textContent = source.name
@@ -310,6 +339,11 @@ function render() {
     body.append(element('div','message-role',t(message.role === 'user' ? 'you' : 'assistant')))
     if (message.status === 'pending') body.append(element('div','message-progress',t('working')))
     else body.append(element('div','message-content',message.text || t('emptyResponse')))
+    if (message.status === 'not-proposed') {
+      const notice = element('div','message-progress',t('noProposal'))
+      notice.dataset.testid = 'chat-no-proposal'
+      body.append(notice)
+    }
     if (message.proposals?.length) for (const proposal of message.proposals) body.append(createProposalCard(active,proposal))
     wrapper.append(avatar,body)
     ui.messages.append(wrapper)
@@ -347,7 +381,7 @@ function createProposalCard(session, proposal) {
     canvas.setAttribute('aria-label',t('drawingLoaded'))
     preview.append(canvas)
     requestAnimationFrame(()=>{ if(canvas.isConnected) try { session.runtime.renderDocument(canvas,{width:640,height:255}) } catch {} })
-  } else preview.append(element('div','proposal-preview-fallback',t('proposalExpired')))
+  } else preview.append(element('div','proposal-preview-fallback',t(state === 'rejected' ? 'proposalRejected' : 'proposalExpired')))
   const details = element('details','proposal-details')
   details.append(element('summary','',t('reviewDetails')))
   const safeDetails = {command:proposal.command,expectedRevision:proposal.expectedRevision,preview:proposal.preview,engineeringEvidence:proposal.engineeringEvidence}
@@ -394,7 +428,26 @@ function createProposalCard(session, proposal) {
     })
     actions.append(download,editor)
   }
-  card.append(header,preview,details,actions)
+  const changes = geologySourceChanges(proposal.engineeringEvidence)
+  const sourceReview = element('div','source-review')
+  if (changes.length) {
+    sourceReview.dataset.testid = 'geology-source-changes'
+    sourceReview.append(element('h4','',language === 'zh' ? '钻孔数据修改' : 'Borehole data changes'))
+    const table = element('table'), head = element('tr')
+    for (const text of language === 'zh' ? ['钻孔 / 字段','修改前','修改后'] : ['Borehole / field','Before','After']) head.append(element('th','',text))
+    const thead = element('thead'); thead.append(head); table.append(thead)
+    const tbody = element('tbody')
+    const labels = language === 'zh'
+      ? {collarElevation:'孔口高程',depth:'孔深',station:'里程',initialWaterDepth:'初见水位',stableWaterDepth:'稳定水位',strata:'分层',observations:'取样 / 标贯',groundwaterObservations:'地下水观测'}
+      : {collarElevation:'Collar elevation',depth:'Depth',station:'Station',initialWaterDepth:'Initial water depth',stableWaterDepth:'Stable water depth',strata:'Strata',observations:'Samples / SPT',groundwaterObservations:'Groundwater observations'}
+    for (const change of changes) {
+      const row = element('tr')
+      for (const text of [`${change.holeId} · ${labels[change.field]}`,change.before,change.after]) row.append(element('td','',text))
+      tbody.append(row)
+    }
+    table.append(tbody); sourceReview.append(table)
+  }
+  card.append(header,preview,...(changes.length ? [sourceReview] : []),details,actions)
   return card
 }
 async function downloadDrawing(session) {
@@ -411,7 +464,7 @@ async function downloadDrawing(session) {
     setTimeout(()=>URL.revokeObjectURL(url),60000)
     return true
   } catch(error) {
-    session.messages.push({role:'assistant',status:'error',text:error?.message ?? t('failedDownload')})
+    session.messages.push({role:'assistant',status:'error',text:drawingExportError(error)})
     if(active===session) render()
     return false
   }
@@ -443,7 +496,7 @@ async function submitPrompt() {
   await initialLoad
   const prompt = ui.input.value.trim()
   if (!prompt || busy) return
-  if (!settings && !currentSession().runtime.canHandleLocally(prompt)) { showSettings(true); return }
+  if (!settings) { showSettings(true); return }
   const session = currentSession()
   if (settings) session.runtime.configure(settings)
   for (const message of session.messages) for (const proposal of message.proposals ?? []) if (proposal.uiState === 'pending') proposal.uiState = 'expired'
@@ -463,7 +516,7 @@ async function submitPrompt() {
     const index = session.messages.indexOf(waiting)
     if (index >= 0) session.messages.splice(index,1)
     if (result.status === 'proposal') session.messages.push({role:'assistant',text:result.text,proposals:(result.proposals?.length ? result.proposals : [result.proposal]).map(proposal => ({...proposal, uiState:'pending'}))})
-    else if (result.status === 'message') session.messages.push({role:'assistant',text:result.text})
+    else if (result.status === 'message') session.messages.push({role:'assistant',text:result.text,...(result.noProposal ? {status:'not-proposed'} : {})})
     else if (result.status === 'cancelled') {
       session.messages.push({role:'assistant',text:t('stopped')})
       if (!ui.input.value) ui.input.value = prompt
@@ -500,6 +553,7 @@ async function openDrawing(file) {
   const runtime = createAiChatRuntime(settings ?? {})
   try {
     const source = await runtime.importDocument(file)
+    source.exportRestricted = hasUnsupportedDxfMetadata(await runtime.exportLocalState())
     createSession({ runtime, source })
     ui.importError.hidden = true
     ui.drawingContext.open = true

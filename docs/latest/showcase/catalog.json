@@ -1940,20 +1940,20 @@
         "collarElevation": 299.85,
         "stratumCount": 6,
         "hatchCount": 12,
-        "waterY": 139,
-        "topY": 231,
-        "bottomY": 81,
+        "waterY": 131,
+        "topY": 223,
+        "bottomY": 73,
         "millimetresPerMetre": 5,
         "illustrative": true,
         "measuredData": false,
-        "editableObjects": 77,
+        "editableObjects": 78,
         "layers": 7,
         "units": "millimeter",
         "entityTypes": {
           "HATCH": 12,
           "LINE": 15,
           "LWPOLYLINE": 8,
-          "TEXT": 42
+          "TEXT": 43
         }
       },
       "links": {
@@ -1966,7 +1966,7 @@
       "artifact": {
         "path": "showcase/assets/borehole-log-sheet.svg",
         "svgStatus": "approximate",
-        "renderedEntities": 77,
+        "renderedEntities": 78,
         "diagnostics": 0,
         "revision": 3
       },
@@ -1976,7 +1976,7 @@
         "endLine": 140
       },
       "thumbnail": "./assets/borehole-log-sheet.svg",
-      "thumbnailSha256": "392ce7d0c7910336cb34b64286730f6dc18995866e57b1ae27684744cfc00888"
+      "thumbnailSha256": "4683f70e035ff22318920814f2f91bfc2d0cb93050e9a6aa77f4970a892cf309"
     },
     {
       "id": "geological-section-sheet",

@@ -1,6 +1,7 @@
 // Generated from agent-tools.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { createCommandReceipt } from './product-contract.js';
 import { createDrawingContext, createLayoutContext } from './drawing-context.js';
+import { findDrawingText } from './drawing-text-search.js';
 import { KJDrawError, KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze, normalizeName, stableHash } from './utils.js';
 import { createId } from './ids.js';
@@ -9,6 +10,7 @@ import { buildAgentDrawingEntities } from './agent-drawing.js';
 import { buildAgentRoadDrawing } from './agent-road-drawing.js';
 import { buildAgentRoadRevision } from './agent-road-revision.js';
 import { restoreRoadDrawingRecipe } from './road-drawing-recipe.js';
+import { readGeologyDrawingRecipe, prepareGeologyDrawingRevision, applyGeologyDrawingRevision } from './geology-drawing-update.js';
 import { createAgentInputAsset } from './input-assets.js';
 export { KJDRAW_ROAD_INPUT_ASSET_SCHEMA } from './input-assets.js';
 import { buildAgentAnnotationEntities } from './agent-annotations.js';
@@ -1987,6 +1989,7 @@ const geologyColumnSchema = objectWithOptional({
         type: 'integer',
         enum: [
             297,
+            500,
             841
         ]
     },
@@ -2226,6 +2229,65 @@ const geologySectionExampleSchema = objectWithOptional({
     'locale',
     'spacingMeters',
     'title'
+]);
+const geologyRevisionHoleFields = [
+    'collarElevation',
+    'depth',
+    'station',
+    'initialWaterDepth',
+    'stableWaterDepth',
+    'strata',
+    'observations',
+    'groundwaterObservations'
+];
+const geologyRevisionClearFields = [
+    'initialWaterDepth',
+    'stableWaterDepth',
+    'observations',
+    'groundwaterObservations'
+];
+const geologyRevisionSchema = objectWithOptional({
+    expectedRevision: revision,
+    units: {
+        type: 'string',
+        enum: [
+            'millimeter'
+        ]
+    },
+    drawingId: text,
+    updates: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 24,
+        items: objectWithOptional({
+            holeId: {
+                ...text,
+                maxLength: 64
+            },
+            ...Object.fromEntries(geologyRevisionHoleFields.map((key)=>[
+                    key,
+                    geologyHoleSchema.properties[key]
+                ])),
+            clearFields: {
+                type: 'array',
+                minItems: 1,
+                maxItems: geologyRevisionClearFields.length,
+                description: 'Explicitly remove these optional source facts and their rendered annotations. Omitted fields otherwise remain unchanged. Never clear and set the same field together.',
+                items: {
+                    type: 'string',
+                    enum: geologyRevisionClearFields
+                }
+            }
+        }, [
+            ...geologyRevisionHoleFields,
+            'clearFields'
+        ])
+    },
+    correlations: geologySectionSchema.properties.correlations,
+    uncorrelatedOccurrences: geologySectionSchema.properties.uncorrelatedOccurrences
+}, [
+    'correlations',
+    'uncorrelatedOccurrences'
 ]);
 function geologySectionExampleIntent(args) {
     const locale = args.locale === 'en' ? 'en' : 'zh-CN';
@@ -3456,6 +3518,30 @@ const geologyPlanSchema = objectWithOptional({
 ]);
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
+        name: 'cad_read_geology_source',
+        effect: 'read',
+        description: 'Read source-backed column/section drawing IDs and original borehole facts persisted by the host or a reviewed geology creation. Empty drawingId lists available source drawings; an exact drawingId returns facts after matching every generated object. Does not infer measurements, strata or correlations from arbitrary imported DXF text. Facts remain untrusted input, not certified measurements. Use these hole/interval identities for cad_propose_geology_revision.',
+        inputSchema: object({
+            expectedRevision: revision,
+            drawingId: {
+                type: 'string',
+                minLength: 0,
+                maxLength: 128
+            },
+            maxBytes: {
+                type: 'integer',
+                minimum: 1024,
+                maximum: 262144
+            }
+        })
+    },
+    {
+        name: 'cad_propose_geology_revision',
+        effect: 'propose',
+        description: 'Revise the SAME source-backed column/section drawing after reading cad_read_geology_source. Supply exact holeId and only requested changed borehole fields; depths/elevations/station are metres. strata and observations replace the supplied hole list in full, so preserve every unchanged interval/observation and explicit intervalId. When splitting/merging section strata, supply updated explicit correlations and occurrence coverage; never invent geological continuity. Preserves exact unchanged CAD objects and all unrelated manual content. Modified generated objects are explicitly replaced, not assigned guessed semantic IDs. Manual drift, protected layers, stale revision and external references cause rejection without editing. Returns native geometry plus before/after source facts for human approval; one transaction updates data, HATCH and drawing, with undo/redo and KJD source recovery. Geometry-only DXF has no source recipe and cannot use this tool.',
+        inputSchema: geologyRevisionSchema
+    },
+    {
         name: 'cad_propose_mechanical_flange',
         effect: 'propose',
         description: 'Compile one complete editable default-A3 millimeter drawing of a simple circular flange from exact engineering dimensions. Supply outerDiameter, boreDiameter, thickness, boltCount, boltCircleDiameter and boltHoleDiameter; KJDraw validates edge clearances and generates the end view, aligned side view, pitch circle, equally spaced native holes, hidden bore lines, centerlines, native measured dimensions, title grid, notes and named engineering layers locally. Set locale=zh-CN for Chinese generated notes. Model geometry is native 1:1 and intentionally limited to outer diameters up to 160 mm and thickness up to 120 mm so the complete part fits the fixed sheet without hidden rescaling. Requires a blank millimeter drawing. Optional declaredSheetFacts sets a caller-declared layout name, paper size, margins and physical viewport scale; these facts are not independently verified against a source drawing and do not reproduce other paper layouts, layer catalogs or device plot settings. The complete model frame must fit. Returns a full preview and engineering evidence; only host approval commits one undoable CREATEBATCH transaction.',
@@ -3614,7 +3700,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_column',
         effect: 'propose',
-        description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Never merge, omit or rename a requested stratum or lithology to fit A4: there is no five-class limit. Preserve every supplied interval and lithology class; if the default 297 mm sheet cannot fit a deep log, retry with pageHeightMillimeters=841 only when the host-selected style declares that long sheet; undeclared or arbitrary heights are rejected rather than silently changing geological facts. The result reports exact stratumCount and lithologyCount for review. Set locale=zh-CN for a Chinese request so every compiler-generated visible title, heading, legend and note is Chinese; if omitted, Chinese source text is detected automatically. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses either the built-in generic style or one versioned geology column knowledge pack selected and hash-locked by the host before this session; the model cannot supply or replace style code. A bound pack may request up to eight explicit source-backed documentFacts as stable key/value pairs (for example an appendix identifier); undeclared, duplicate, missing or unsafe facts are rejected and never inferred. It does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. Supply verticalScaleDenominator only when it is an explicit source/template fact; otherwise KJDraw selects the smallest fitting standard denominator declared by the style. The model supplies engineering facts, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
+        description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Never merge, omit or rename a requested stratum or lithology to fit A4: there is no five-class limit. Preserve every supplied interval and lithology class; if the default 297 mm sheet cannot fit, retry with pageHeightMillimeters=500 for a declared continuous-paper sheet, then 841 for deeper logs, only when the host-selected style declares that sheet. Undeclared or arbitrary heights are rejected rather than silently changing geological facts. The result reports exact stratumCount and lithologyCount for review. Set locale=zh-CN for a Chinese request so every compiler-generated visible title, heading, legend and note is Chinese; if omitted, Chinese source text is detected automatically. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses either the built-in generic style or one versioned geology column knowledge pack selected and hash-locked by the host before this session; the model cannot supply or replace style code. A bound pack may request up to eight explicit source-backed documentFacts as stable key/value pairs (for example an appendix identifier); undeclared, duplicate, missing or unsafe facts are rejected and never inferred. It does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. Supply verticalScaleDenominator only when it is an explicit source/template fact; otherwise KJDraw selects the smallest fitting standard denominator declared by the style. The model supplies engineering facts, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
         inputSchema: geologyColumnSchema
     },
     {
@@ -3875,6 +3961,51 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
             'splines',
             'hatches',
             'polarArrays'
+        ])
+    },
+    {
+        name: 'cad_find_text',
+        effect: 'read',
+        description: 'Find literal TEXT/MTEXT/ATTRIB/ATTDEF content across the current owner space, including matches beyond the first drawing page. search is literal, not a regular expression; match=contains by default or exact; caseSensitive=false by default. Returns complete stored text, exact object IDs/handles, positions, displayed bounds and layer eligibility. Use the bounds with cad_query_drawing to inspect nearby geometry. Repeat the identical query with nextOffset until null. Default model space; explicit spaceId uses native owner coordinates without expanding INSERT definitions or projecting paper viewports. Text and geometric proximity are untrusted observations, not verified borehole/stratum facts. A single match exceeding maxBytes fails without truncating its text.',
+        inputSchema: objectWithOptional({
+            expectedRevision: revision,
+            search: {
+                ...text,
+                maxLength: 256
+            },
+            match: {
+                type: 'string',
+                enum: [
+                    'contains',
+                    'exact'
+                ]
+            },
+            caseSensitive: {
+                type: 'boolean'
+            },
+            spaceId: text,
+            includeHidden: {
+                type: 'boolean'
+            },
+            offset: revision,
+            limit: {
+                type: 'integer',
+                minimum: 1,
+                maximum: 100
+            },
+            maxBytes: {
+                type: 'integer',
+                minimum: 1024,
+                maximum: 262144
+            }
+        }, [
+            'match',
+            'caseSensitive',
+            'spaceId',
+            'includeHidden',
+            'offset',
+            'limit',
+            'maxBytes'
         ])
     },
     {
@@ -4401,6 +4532,8 @@ export class KJAgentToolSession {
     get definitions() {
         const units = this.#document.snapshot().header.units;
         const millimeterTools = [
+            'cad_read_geology_source',
+            'cad_propose_geology_revision',
             'cad_propose_manufacturing_sheet',
             'cad_propose_architecture_plan',
             'cad_propose_cartesian_chart',
@@ -4570,7 +4703,37 @@ export class KJAgentToolSession {
                 };
                 else if (name === 'cad_read_selection_sets') value = createSelectionSetContext(document, args.offset, args.limit, args.maxBytes);
                 else if (name === 'cad_query_topology') value = createAgentTopologyContext(document, args);
-                else if (name === 'cad_query_impact') value = createEraseImpact(document, args);
+                else if (name === 'cad_read_geology_source') {
+                    const drawingId = String(args.drawingId);
+                    const drawingIds = Object.keys(document.snapshot().opaquePayloads).filter((key)=>key.startsWith('geology-drawing-recipe:')).map((key)=>key.slice('geology-drawing-recipe:'.length));
+                    if (drawingIds.length > 16) throw new KJValidationError('Geology source listing exceeds 16 drawings');
+                    if (!drawingId) value = {
+                        documentId: document.id,
+                        revision: document.revision,
+                        units: this.units,
+                        drawingIds,
+                        sourceBacked: drawingIds.length > 0
+                    };
+                    else {
+                        const recipe = readGeologyDrawingRecipe(document, drawingId);
+                        const { columnStylePack: _columnPack, sectionStylePack: _sectionPack, hatchPack: _hatchPack, ...facts } = recipe.source.input;
+                        value = {
+                            documentId: document.id,
+                            revision: document.revision,
+                            units: this.units,
+                            drawingId,
+                            kind: recipe.source.kind,
+                            facts,
+                            sourceBacked: true,
+                            measurementsVerified: false
+                        };
+                    }
+                    if (new TextEncoder().encode(JSON.stringify({
+                        ok: true,
+                        value
+                    })).length > Number(args.maxBytes)) throw new KJValidationError('Geology source facts exceed maxBytes; increase the response budget');
+                } else if (name === 'cad_query_impact') value = createEraseImpact(document, args);
+                else if (name === 'cad_find_text') value = findDrawingText(document, args);
                 else if (name === 'cad_query_drawing') {
                     const query = args;
                     value = createDrawingContext(document, {
@@ -4584,7 +4747,99 @@ export class KJAgentToolSession {
                     });
                 } else {
                     if (args.units !== document.snapshot().header.units) throw new KJValidationError('Unit mismatch; read the drawing units before calling this tool');
-                    if (name === 'cad_propose_road_revision') {
+                    if (name === 'cad_propose_geology_revision') {
+                        if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session');
+                        const previous = readGeologyDrawingRecipe(document, String(args.drawingId));
+                        const next = structuredClone(previous.source);
+                        const holes = next.kind === 'column' ? [
+                            next.input.hole
+                        ] : next.input.holes;
+                        const seen = new Set();
+                        for (const update of args.updates){
+                            const holeId = String(update.holeId), hole = holes.find((item)=>item.id === holeId);
+                            if (!hole || seen.has(holeId) || Object.keys(update).length < 2) throw new KJValidationError('Geology revision requires unique existing hole IDs and changed fields');
+                            seen.add(holeId);
+                            const clearFields = update.clearFields;
+                            if (clearFields && (new Set(clearFields).size !== clearFields.length || clearFields.some((field)=>Object.hasOwn(update, field)))) throw new KJValidationError('Geology revision cannot both clear and set a field, or clear the same field twice');
+                            for (const field of clearFields ?? [])delete hole[field];
+                            for (const field of geologyRevisionHoleFields)if (Object.hasOwn(update, field)) hole[field] = structuredClone(update[field]);
+                        }
+                        if (next.kind === 'column' && (args.correlations !== undefined || args.uncorrelatedOccurrences !== undefined)) throw new KJValidationError('Cross-hole links belong to sections only');
+                        if (next.kind === 'section') {
+                            if (args.correlations !== undefined) next.input.correlations = structuredClone(args.correlations);
+                            if (args.uncorrelatedOccurrences !== undefined) next.input.uncorrelatedOccurrences = structuredClone(args.uncorrelatedOccurrences);
+                        }
+                        const revision = document.revision, snapshot = document.snapshot();
+                        const compiled = prepareGeologyDrawingRevision(document, previous, next, {
+                            expectedRevision: revision
+                        });
+                        if (compiled.before.length > 512 || compiled.after.length > 512) throw new KJValidationError('Geology revision exceeds the 512 changed entity preview budget');
+                        await applyGeologyDrawingRevision(document.fork(), previous, next, {
+                            expectedRevision: revision
+                        });
+                        if (document.revision !== revision || document.snapshot() !== snapshot) throw new KJValidationError('Drawing changed while preparing geology revision');
+                        const project = (entity)=>({
+                                id: entity.id,
+                                type: entity.type,
+                                payload: entity.payload
+                            });
+                        const preview = deepFreeze({
+                            documentId: document.id,
+                            revision,
+                            command: 'GEOLOGY_DRAWING_UPDATE',
+                            before: compiled.before.map(project),
+                            after: compiled.after.map(project)
+                        });
+                        const commandArgs = {
+                            previous: structuredClone(previous),
+                            next
+                        };
+                        const definition = this.#sdk.commands.resolve('GEOLOGY_DRAWING_UPDATE');
+                        if (!definition || definition.owner !== '@kanjieteam/kjdraw') throw new KJValidationError('Geology revision requires the built-in core command');
+                        const envelope = this.#sdk.createCommandEnvelope('GEOLOGY_DRAWING_UPDATE', commandArgs, {
+                            document,
+                            mode: 'plan',
+                            origin: 'ai',
+                            expectedRevision: revision
+                        });
+                        const omitPacks = (source)=>{
+                            const { columnStylePack: _columnPack, sectionStylePack: _sectionPack, hatchPack: _hatchPack, ...facts } = source.input;
+                            return {
+                                kind: source.kind,
+                                facts
+                            };
+                        };
+                        value = {
+                            planId: envelope.id,
+                            documentId: document.id,
+                            expectedRevision: revision,
+                            units: this.units,
+                            command: 'GEOLOGY_DRAWING_UPDATE',
+                            status: 'awaiting-host-approval',
+                            previewKind: 'geometry',
+                            preview,
+                            unchangedIds: compiled.unchangedIds,
+                            engineeringEvidence: {
+                                ...compiled.evidence,
+                                beforeSource: omitPacks(previous.source),
+                                afterSource: omitPacks(next)
+                            }
+                        };
+                        if (new TextEncoder().encode(JSON.stringify({
+                            ok: true,
+                            value
+                        })).length > 1048576) throw new KJValidationError('Geology revision proposal exceeds the 1 MiB output limit');
+                        await this.#sdk.executeCommandEnvelope(envelope, {
+                            document
+                        });
+                        this.#pending.set(envelope.id, {
+                            envelope,
+                            preview,
+                            definition,
+                            sourceToolName: name
+                        });
+                        this.#proposals++;
+                    } else if (name === 'cad_propose_road_revision') {
                         if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session');
                         const registered = this.#roadRecipes.get(String(args.drawingId));
                         if (!registered) throw new KJValidationError('The host must register a verified road recipe for this drawingId before revision');
@@ -4845,17 +5100,24 @@ export class KJAgentToolSession {
                                     documentFacts[fact.key] = fact.value;
                                 }
                             }
-                            const compiled = compileGeologyColumn({
-                                ...intent,
-                                ...documentFacts ? {
-                                    documentFacts
-                                } : {},
-                                ...this.#geologyColumnKnowledge ? {
-                                    columnStylePack: this.#geologyColumnKnowledge.pack
-                                } : {}
-                            });
+                            const geologySource = {
+                                kind: 'column',
+                                input: {
+                                    ...intent,
+                                    ...documentFacts ? {
+                                        documentFacts
+                                    } : {},
+                                    ...this.#geologyColumnKnowledge ? {
+                                        columnStylePack: this.#geologyColumnKnowledge.pack
+                                    } : {}
+                                }
+                            };
+                            const compiled = compileGeologyColumn(geologySource.input);
                             if (compiled.commandArgs.entities.length > 512 || compiled.commandArgs.resources.layers.length + compiled.commandArgs.resources.linetypes.length > 32) throw new KJValidationError('Geology column exceeds the bounded Agent proposal budget');
-                            commandArgs = structuredClone(compiled.commandArgs);
+                            commandArgs = {
+                                ...structuredClone(compiled.commandArgs),
+                                geologySource: structuredClone(geologySource)
+                            };
                             engineeringEvidence = {
                                 ...compiled.evidence,
                                 ...this.geologyColumnKnowledge ? {
@@ -4879,19 +5141,26 @@ export class KJAgentToolSession {
                                     documentFacts[fact.key] = fact.value;
                                 }
                             }
-                            const compiled = compileGeologySection({
-                                ...intent,
-                                sourceFactMode: illustrative ? 'illustrative' : 'complete-occurrence-map',
-                                ...documentFacts ? {
-                                    documentFacts
-                                } : {},
-                                ...this.#geologySectionKnowledge ? {
-                                    sectionStylePack: this.#geologySectionKnowledge.pack
-                                } : {}
-                            });
+                            const geologySource = {
+                                kind: 'section',
+                                input: {
+                                    ...intent,
+                                    sourceFactMode: illustrative ? 'illustrative' : 'complete-occurrence-map',
+                                    ...documentFacts ? {
+                                        documentFacts
+                                    } : {},
+                                    ...this.#geologySectionKnowledge ? {
+                                        sectionStylePack: this.#geologySectionKnowledge.pack
+                                    } : {}
+                                }
+                            };
+                            const compiled = compileGeologySection(geologySource.input);
                             const entityLimit = illustrative ? 2048 : 512;
                             if (compiled.commandArgs.entities.length > entityLimit || compiled.commandArgs.resources.layers.length + compiled.commandArgs.resources.linetypes.length > 64) throw new KJValidationError('Geology section exceeds the bounded Agent proposal budget');
-                            commandArgs = structuredClone(compiled.commandArgs);
+                            commandArgs = {
+                                ...structuredClone(compiled.commandArgs),
+                                geologySource: structuredClone(geologySource)
+                            };
                             engineeringEvidence = {
                                 ...compiled.evidence,
                                 ...illustrative ? {

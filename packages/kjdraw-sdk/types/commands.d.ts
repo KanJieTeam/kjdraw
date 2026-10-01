@@ -360,6 +360,12 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         stableIds: boolean;
         requiresUnmodifiedPrevious: boolean;
     };
+    readonly GEOLOGY_DRAWING_UPDATE: {
+        domain: string;
+        atomic: boolean;
+        preservesUnchangedObjects: boolean;
+        requiresUnmodifiedPrevious: boolean;
+    };
     readonly ERASE: {
         domain: string;
         supportedObjectKinds: string;

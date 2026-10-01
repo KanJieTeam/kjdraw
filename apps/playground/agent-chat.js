@@ -12,16 +12,19 @@ import { capabilityReference, createKJDrawBuiltinCapabilityRegistry, matchKJDraw
 
 // This workbench exposes general geometry and annotated creation tools; SDK callers and locked capability packs keep their own policies.
 export const KJDRAW_CHAT_TOOL_NAMES = Object.freeze([
-  'cad_read_drawing', 'cad_read_page', 'cad_query_drawing', 'cad_query_topology', 'cad_query_impact', 'cad_read_layouts', 'cad_read_designs', 'cad_read_components', 'cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update',
+  'cad_read_drawing', 'cad_read_page', 'cad_find_text', 'cad_query_drawing', 'cad_query_topology', 'cad_query_impact', 'cad_read_layouts', 'cad_read_designs', 'cad_read_components', 'cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update',
   'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet',
-  'cad_propose_architecture_plan', 'cad_propose_cartesian_chart',
+  'cad_propose_architecture_plan', 'cad_propose_cartesian_chart', 'cad_read_geology_source', 'cad_propose_geology_revision',
 ])
-const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['cad_propose_manufacturing_sheet','cad_propose_architecture_plan','cad_propose_cartesian_chart'].includes(name)), 'cad_propose_site_plan', 'cad_propose_road_drawing'])
+const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['cad_propose_manufacturing_sheet','cad_propose_architecture_plan','cad_propose_cartesian_chart','cad_read_geology_source','cad_propose_geology_revision'].includes(name)), 'cad_propose_site_plan', 'cad_propose_road_drawing'])
 const roadRevisionToolNames = Object.freeze([...meterToolNames, 'cad_propose_road_revision'])
 const selectionToolNames = new Map([KJDRAW_CHAT_TOOL_NAMES,meterToolNames,roadRevisionToolNames].map(names=>[names,Object.freeze([...names,'cad_read_selection_sets'])]))
 const moveToolNames = Object.freeze(['cad_propose_move'])
-const labelMoveToolNames = Object.freeze(['cad_read_drawing', 'cad_query_drawing', 'cad_propose_move'])
-const textEditToolNames = Object.freeze(['cad_read_drawing', 'cad_query_drawing', 'cad_propose_text_edit'])
+// The host supplies document revision/units. For annotation-only edits, search
+// complete text and inspect exact IDs/local bounds instead of loading a whole
+// first page of unrelated entities. General/compound requests retain all reads.
+const labelMoveToolNames = Object.freeze(['cad_find_text', 'cad_query_drawing', 'cad_propose_move'])
+const textEditToolNames = Object.freeze(['cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit'])
 const builtinCapabilityRegistry = createKJDrawBuiltinCapabilityRegistry()
 /** Host policy only: SDK defaults and explicitly selected/locked tools remain unchanged. */
 export function getKJDrawChatToolNames(document,roadDrawingIds=[]) {
@@ -54,6 +57,8 @@ export function getKJDrawChatToolNamesForRequest(document,request,selectedIds=[]
   if(isExplicitSingleMoveRequest(document,request,selectedIds))return moveToolNames
   const normalized=request.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim()
   const textIntent=/\b(?:text|note|title.?block|revision|quantity|label|callout|field)\b|文字|注释|标题栏|修订|数量|标签|字段/.test(normalized)
+  const hasGeologySource=Object.keys(document.snapshot().opaquePayloads).some(key=>key.startsWith('geology-drawing-recipe:'))
+  if(hasGeologySource&&/\b(?:borehole|strat(?:um|a)|groundwater|lithology|spt|sample)\b|钻孔|孔深|孔口|水位|分层|地层|岩性|标贯|取样|柱状图|剖面图/.test(normalized))return ['cad_read_geology_source','cad_propose_geology_revision']
   const textAction=/\b(?:change|edit|update|replace|set|correct|rename)\b|修改|更改|更新|替换|改成|设为/.test(normalized)
   const geometryIntent=/\b(?:draw|create|move|translate|rotate|delete|erase|relayer|add|remove|copy|stretch|offset|fillet|chamfer)\b|绘制|创建|移动|平移|旋转|删除|擦除|调层|添加|移除|复制|拉伸|偏移|圆角|倒角/.test(normalized)
   if(document.listEntities().length>0&&textIntent&&textAction&&!geometryIntent)return textEditToolNames
