@@ -7,6 +7,8 @@ import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { runKJAgentTask } from '../src/agent-runner.js'
 import { KJAgentCapabilityRegistry } from '../src/agent-capabilities.js'
+import { compileGeologyColumn } from '../src/geology-engineering.js'
+import { readGeologyDrawingRecipe } from '../src/geology-drawing-update.js'
 
 function fixture() {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
@@ -19,13 +21,33 @@ const modelCall = (name, args, inspect = () => {}) => ({ createConversation({ to
   return { next: async () => sent ? { text: 'Done.', calls: [] } : (sent=true, { text: '', calls: [{ id: 'call-1', name, arguments: args }] }) }
 } })
 
+test('native geometry properties and caller revision frames cannot hide their edit tools behind text routing', async () => {
+  const { document } = fixture()
+  await document.transact('Native geometry', tx => tx.createEntity('LINE', { start: [0, 0, 0], end: [1, 0, 0] }))
+  for (const request of [
+    'Set polyline width to 2. Public input: read native data at the current revision.',
+    '把多段线的宽度设为2。Public synthetic task input: current revision.',
+    'Set segment bulge to 0.25; preserve the note text and every other object.',
+    '修改顶点坐标，不改变其余文字。',
+    'Update LWPOLYLINE width and inspect its label field.',
+  ]) {
+    const selected = getKJDrawChatToolNamesForRequest(document, request)
+    assert.ok(selected.includes('cad_propose_polyline_edit'), request)
+    assert.ok(selected.includes('cad_read_drawing'), request)
+  }
+  assert.deepEqual(getKJDrawChatToolNamesForRequest(document,
+    'Replace the project-name text; read native data at the current revision.'),
+  ['cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit'])
+})
+
 test('workbench exposes useful tools and creates ordinary geometry through pattern arrays=[]', async () => {
   const { session, document } = fixture()
   assert.ok(Object.isFrozen(KJDRAW_CHAT_TOOL_NAMES))
-  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 32)
+  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 36)
+  for (const name of ['cad_read_history', 'cad_propose_undo', 'cad_propose_redo']) assert.ok(KJDRAW_CHAT_TOOL_NAMES.includes(name))
   assert.ok(KJDRAW_CHAT_TOOL_NAMES.includes('cad_query_topology'))
   assert.ok(KJDRAW_CHAT_TOOL_NAMES.includes('cad_query_impact'))
-  assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_revision'])
+  assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_undo', 'cad_propose_redo', 'cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_set_circle_radius', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_revision'])
   const args = { expectedRevision: 0, units: 'millimeter', lines: [[0, 0, 20, 0]], circles: [[3, 4, 2]], arcs: [], polylines: [], arrays: [] }
   const result = await runKJAgentTask({ session, prompt: 'Draw a line and circle.', toolNames: KJDRAW_CHAT_TOOL_NAMES,
     model: modelCall('cad_propose_drawing_pattern', args, tools => assert.deepEqual(tools.map(item => item.name).sort(), [...KJDRAW_CHAT_TOOL_NAMES].sort())) })
@@ -132,6 +154,32 @@ test('explicit title-block text edits on an existing drawing load only read and 
   await document.transact('existing text', tx => tx.createEntity('TEXT', { text: 'REV: A', position: [0, 0, 0], height: 3 }))
   const names = getKJDrawChatToolNamesForRequest(document, 'Change revision A to B in the existing title-block text.')
   assert.deepEqual(names, ['cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit'])
+})
+
+test('read-only text inspection keeps discovery tools instead of forcing an edit proposal', async () => {
+  const { document } = fixture()
+  await document.transact('Inspection fixture', tx => tx.createEntity('TEXT', { text: 'ZK03', position: [0, 0, 0], height: 3 }))
+  for (const prompt of [
+    'Read the complete stored text. Do not change the drawing.',
+    'Inspect this label without editing anything.',
+    '先读一下孔号文字和图层，别改图。',
+    '只读检查标题栏字段，不修改图纸。',
+  ]) assert.equal(getKJDrawChatToolNamesForRequest(document, prompt), KJDRAW_CHAT_TOOL_NAMES)
+})
+
+test('workbench circle radius tool produces a reviewable exact native edit', async () => {
+  const { document, session } = fixture()
+  await document.transact('Radius fixture', tx => tx.createEntity('CIRCLE', { center: [2, 3, 0], radius: 4 }, { id: 'radius-target' }))
+  const before = document.getObject('radius-target')
+  const result = await runKJAgentTask({ session, prompt: 'Set the existing circle radius to 6 mm.', toolNames: KJDRAW_CHAT_TOOL_NAMES,
+    model: modelCall('cad_propose_set_circle_radius', { expectedRevision: document.revision, units: 'millimeter', id: 'radius-target', radius: 6 }) })
+  assert.equal(result.status, 'awaiting-approval')
+  assert.deepEqual(document.getObject('radius-target'), before)
+  assert.equal((await session.approve(result.proposalIds[0], 'radius-reviewer')).ok, true)
+  assert.deepEqual(document.getObject('radius-target'), { ...before, payload: { ...before.payload, radius: 6 } })
+  for (const prompt of ['Set the radius to 6 and preserve the label and revision field.', '将圆半径设为6毫米，修订字段不改。']) {
+    assert.equal(getKJDrawChatToolNamesForRequest(document, prompt), KJDRAW_CHAT_TOOL_NAMES)
+  }
 })
 
 test('single label translation loads read, query and move schemas without a host selection', async () => {
@@ -288,4 +336,81 @@ test('road advertisement follows current document units and non-meter dispatch i
   assert.ok(getKJDrawChatToolNames(document).includes('cad_propose_road_drawing'))
   await document.transact('host restores millimeter units',tx=>tx.setHeader('units','millimeter'))
   assert.equal(getKJDrawChatToolNames(document),KJDRAW_CHAT_TOOL_NAMES)
+})
+
+async function retainedSourcePolicyFixture() {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const source = { kind: 'column', input: { expectedRevision: 0, units: 'millimeter', locale: 'en', hole: {
+    id: 'PUBLIC-POLICY-A', collarElevation: 106.5, depth: 18,
+    strata: [
+      { intervalId: 'I-FILL', code: '1', name: 'Fill', lithology: 'fill', top: 0, bottom: 3 },
+      { intervalId: 'I-CLAY', code: '2', name: 'Clay', lithology: 'clay', top: 3, bottom: 10 },
+      { intervalId: 'I-SAND', code: '3', name: 'Sand', lithology: 'sand', top: 10, bottom: 18 },
+    ],
+  } } }
+  const compiled = compileGeologyColumn(source.input)
+  await sdk.executeCommand('CREATEBATCH', { ...structuredClone(compiled.commandArgs), geologySource: source }, { document })
+  await document.transact('Manual policy context', tx => {
+    tx.createEntity('TEXT', { text: 'REV: A', position: [220, 220, 0], height: 3 }, { id: 'manual-policy-label' })
+    tx.createEntity('CIRCLE', { center: [220, 230, 0], radius: 3 }, { id: 'manual-policy-circle' })
+  })
+  const recipe = readGeologyDrawingRecipe(document, compiled.evidence.rootObjectId)
+  assert.deepEqual(recipe.source, source)
+  return { sdk, document, drawingId: recipe.drawingId }
+}
+
+test('actual retained source keeps source tools alongside every narrowed CAD mutation policy', async () => {
+  const { sdk, document } = await retainedSourcePolicyFixture()
+  try {
+    const before = document.serialize()
+    for (const [prompt, selectedIds, requiredCadTools] of [
+      ['Set I-CLAY description to Brownish yellow, plastic with descriptionSource=interval. Read native data at the current revision before acting.', [], ['cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit']],
+      ['Set I-SAND patternVisibility to boundary-only, removing its fill but retaining its name and boundaries. Read native data at the current revision before acting.', [], ['cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit']],
+      ['Change the manual label from REV: A to REV: B.', [], ['cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit']],
+      ['Move the manual label up by exactly 2 millimeters.', [], ['cad_find_text', 'cad_query_drawing', 'cad_propose_move']],
+      ['Move the selected object 5 mm right.', ['manual-policy-circle'], ['cad_propose_move']],
+      ['Change the label without modifying any other source fields.', [], []],
+    ]) {
+      const names = getKJDrawChatToolNamesForRequest(document, prompt, selectedIds)
+      assert.ok(Object.isFrozen(names), prompt)
+      assert.equal(new Set(names).size, names.length, prompt)
+      for (const name of [...requiredCadTools, 'cad_read_geology_source', 'cad_propose_geology_revision']) assert.ok(names.includes(name), `${prompt}: ${name}`)
+    }
+    assert.equal(document.serialize(), before, 'routing never mutates the recipe or executes a request')
+  } finally { for (const id of [...sdk.documents.keys()]) sdk.closeDocument(id) }
+})
+
+test('explicit read-only retained-source requests expose source reads without a source mutation policy', async () => {
+  const { sdk, document } = await retainedSourcePolicyFixture()
+  try {
+    for (const prompt of [
+      'Read I-CLAY descriptionSource and I-SAND patternVisibility. Do not change the drawing.',
+      'Inspect the stored source fields without editing anything.',
+      'Read-only: what source facts are stored at the current revision?',
+      '只读查看孔口高程和地层源记录，别改图。',
+    ]) {
+      const names = getKJDrawChatToolNamesForRequest(document, prompt)
+      assert.ok(names.includes('cad_read_geology_source'), prompt)
+      assert.equal(names.some(name => name.startsWith('cad_propose_')), false, prompt)
+      assert.ok(names.includes('cad_query_drawing'), 'read discovery remains available')
+    }
+  } finally { for (const id of [...sdk.documents.keys()]) sdk.closeDocument(id) }
+})
+
+test('geometry-only DXF labels do not supply a retained source recipe or expand a narrowed policy', async () => {
+  const { sdk, document, drawingId } = await retainedSourcePolicyFixture()
+  try {
+    const imported = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF' }), { format: 'DXF' })
+    assert.equal(Object.keys(imported.snapshot().opaquePayloads).some(key => key.startsWith('geology-drawing-recipe:')), false)
+    const prompt = 'Set I-CLAY descriptionSource to interval. Read native data at the current revision before acting.'
+    const names = getKJDrawChatToolNamesForRequest(imported, prompt)
+    assert.deepEqual(names, ['cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit'])
+    const session = new KJAgentToolSession(sdk, imported), before = imported.serialize()
+    const read = await session.call('cad_read_geology_source', { expectedRevision: imported.revision, drawingId, maxBytes: 262144 })
+    assert.equal(read.ok, false, 'a visible drawing label is not a source recipe')
+    const proposed = await session.call('cad_propose_geology_revision', { expectedRevision: imported.revision, units: 'millimeter', drawingId,
+      updates: [{ holeId: 'PUBLIC-POLICY-A', collarElevation: 107 }] })
+    assert.equal(proposed.ok, false)
+    assert.equal(imported.serialize(), before)
+  } finally { for (const id of [...sdk.documents.keys()]) sdk.closeDocument(id) }
 })

@@ -8,6 +8,7 @@ import {
   validateDocumentState,
 } from './schema.js'
 import { KJTransaction } from './transaction.js'
+import { createId } from './ids.js'
 import { canonicalStringify, clone, deepFreeze, nowIso, stableHash } from './utils.js'
 import type {
   KJDocumentOptions,
@@ -27,6 +28,52 @@ export interface KJDocumentHistory {
   canRedo: boolean
   undoLabel: string | null
   redoLabel: string | null
+  undoCount: number
+  redoCount: number
+  undoTarget: Readonly<KJDocumentHistoryTarget> | null
+  redoTarget: Readonly<KJDocumentHistoryTarget> | null
+}
+
+export interface KJDocumentHistoryTarget {
+  id: string
+  label: string
+  revision: number
+  source: string
+}
+
+export interface KJDocumentHistoryPreview {
+  target: Readonly<KJDocumentHistoryTarget>
+  /** Detached content branch with no history or authority. */
+  document: KJDocument
+}
+
+export const KJ_DOCUMENT_HISTORY_ARCHIVE_SCHEMA = 'com.kanjie.kjdraw.document-history@1' as const
+export const KJ_DOCUMENT_HISTORY_ARCHIVE_LIMIT = 50
+export const KJ_DOCUMENT_HISTORY_ARCHIVE_MAX_BYTES = 16777216
+
+export interface KJDocumentHistoryArchiveEntry {
+  label: string
+  source: string
+  revision: number
+  before: KJDocumentState
+  after: KJDocumentState
+}
+
+/** Optional local recovery data, separate from portable KJD/DXF content and approval plans. */
+export interface KJDocumentHistoryArchive {
+  schema: typeof KJ_DOCUMENT_HISTORY_ARCHIVE_SCHEMA
+  documentId: string
+  documentRevision: number
+  documentFingerprint: string
+  baselineRevision: number
+  undo: KJDocumentHistoryArchiveEntry[]
+  redo: KJDocumentHistoryArchiveEntry[]
+}
+
+export interface KJDocumentHistoryArchiveOptions {
+  /** Nearest undo/redo entries combined, at most 50. */
+  limit?: number
+  maxBytes?: number
 }
 
 export interface KJDocumentAuthority {
@@ -56,6 +103,8 @@ export interface KJDocumentTransactionOptions {
 
 export interface KJDocumentHistoryOptions {
   expectedRevision?: number
+  /** Exact next entry captured during review; checked inside the document queue. */
+  targetHistoryId?: string
   at?: string
   author?: unknown
   source?: string
@@ -90,7 +139,9 @@ interface KJDocumentEvents {
 }
 
 interface KJHistoryEntry {
+  id: string
   label: string
+  source: string
   before: KJDocumentState
   after: KJDocumentState
   revision: number
@@ -157,6 +208,7 @@ export class KJDocument {
   #undo: KJHistoryEntry[] = []
   #redo: KJHistoryEntry[] = []
   #historyLimit: number
+  #historyBaselineRevision: number
   #queue: Promise<unknown> = Promise.resolve()
   #authority: KJDocumentAuthority | null = null
   #snapshotCache: ReadonlyDeep<KJDocumentState> | null = null
@@ -174,6 +226,7 @@ export class KJDocument {
     validateDocumentState(state)
     this.#state = clone(state)
     this.#historyLimit = Math.max(1, Number(options.historyLimit ?? 500))
+    this.#historyBaselineRevision = state.revision
   }
 
   static create(options: KJDocumentOptions & KJDocumentConstructorOptions = {}): KJDocument { return new KJDocument(options, options) }
@@ -185,6 +238,7 @@ export class KJDocument {
   fork(): KJDocument {
     const branch = KJDocument.create({ historyLimit: this.#historyLimit })
     branch.#state = this.#state
+    branch.#historyBaselineRevision = this.#state.revision
     branch.#snapshotCache = this.#snapshotCache
     branch.#fingerprintCache = this.#fingerprintCache
     return branch
@@ -200,6 +254,123 @@ export class KJDocument {
       canRedo: this.#redo.length > 0,
       undoLabel: this.#undo.at(-1)?.label ?? null,
       redoLabel: this.#redo.at(-1)?.label ?? null,
+      undoCount: this.#undo.length,
+      redoCount: this.#redo.length,
+      undoTarget: this.#historyTarget(this.#undo.at(-1)),
+      redoTarget: this.#historyTarget(this.#redo.at(-1)),
+    })
+  }
+
+  #historyTarget(entry: KJHistoryEntry | undefined): Readonly<KJDocumentHistoryTarget> | null {
+    return entry ? Object.freeze({ id: entry.id, label: entry.label, revision: entry.revision, source: entry.source }) : null
+  }
+
+  #requireHistoryTarget(kind: 'undo' | 'redo', options: KJDocumentHistoryOptions): KJHistoryEntry | undefined {
+    if (options.expectedRevision != null && Number(options.expectedRevision) !== this.#state.revision) {
+      throw new KJRevisionConflictError(Number(options.expectedRevision), this.#state.revision, { documentId: this.id })
+    }
+    const entry = (kind === 'undo' ? this.#undo : this.#redo).at(-1)
+    if (options.targetHistoryId !== undefined && (typeof options.targetHistoryId !== 'string' || !options.targetHistoryId || entry?.id !== options.targetHistoryId)) {
+      throw new KJValidationError(`The reviewed ${kind} history target is unavailable or changed; read history and propose again`)
+    }
+    return entry
+  }
+
+  /** Preview the actual next history snapshot without invoking or altering history. */
+  previewHistory(kind: 'undo' | 'redo', options: KJDocumentHistoryOptions = {}): KJDocumentHistoryPreview {
+    if (kind !== 'undo' && kind !== 'redo') throw new KJValidationError('History preview requires undo or redo')
+    const entry = this.#requireHistoryTarget(kind, options)
+    if (!entry) throw new KJValidationError(`No ${kind} history is available in this document session`)
+    const branch = this.fork(), source = kind === 'undo' ? entry.before : entry.after
+    branch.#adoptState({ ...source, revision: this.#state.revision, revisions: this.#state.revisions }, null)
+    return Object.freeze({ target: this.#historyTarget(entry)!, document: branch })
+  }
+
+  /** Establish an import/open baseline without changing content or audit records. Host-only. */
+  clearHistory(options: Pick<KJDocumentHistoryOptions, 'expectedRevision'> = {}): Promise<Readonly<KJDocumentHistory>> {
+    return this.#enqueue(() => {
+      if (options.expectedRevision != null && options.expectedRevision !== this.revision) throw new KJRevisionConflictError(options.expectedRevision, this.revision)
+      this.#undo = []
+      this.#redo = []
+      this.#historyBaselineRevision = this.revision
+      this.#events.emit(KJ_EVENT_NAMES.HISTORY, this.history)
+      return this.history
+    })
+  }
+
+  /** Export bounded engine snapshots for a trusted host's local session store. */
+  exportHistory(options: KJDocumentHistoryArchiveOptions = {}): ReadonlyDeep<KJDocumentHistoryArchive> {
+    const limit = options.limit ?? KJ_DOCUMENT_HISTORY_ARCHIVE_LIMIT
+    const maxBytes = options.maxBytes ?? KJ_DOCUMENT_HISTORY_ARCHIVE_MAX_BYTES
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > KJ_DOCUMENT_HISTORY_ARCHIVE_LIMIT || !Number.isSafeInteger(maxBytes) || maxBytes < 1024 || maxBytes > KJ_DOCUMENT_HISTORY_ARCHIVE_MAX_BYTES) throw new KJValidationError('History archive requires limit 1–50 and maxBytes 1024–16777216')
+    const undoCount = Math.min(this.#undo.length, Math.ceil(limit / 2) + Math.max(0, Math.floor(limit / 2) - this.#redo.length))
+    const redoCount = Math.min(this.#redo.length, limit - undoCount)
+    const projectEntry = ({ label, source, revision, before, after }: KJHistoryEntry): KJDocumentHistoryArchiveEntry => ({ label, source, revision, before, after })
+    const archive: KJDocumentHistoryArchive = { schema: KJ_DOCUMENT_HISTORY_ARCHIVE_SCHEMA, documentId: this.id, documentRevision: this.revision, documentFingerprint: this.fingerprint(), baselineRevision: this.#historyBaselineRevision, undo: [], redo: [] }
+    const undo = undoCount ? this.#undo.slice(-undoCount).reverse() : [], redo = redoCount ? this.#redo.slice(-redoCount).reverse() : []
+    let byteLength = new TextEncoder().encode(JSON.stringify(archive)).length
+    // Measure one entry at a time; serializing 50 large DXF snapshots first can
+    // exhaust memory before the byte limit gets a chance to reduce the archive.
+    let undoFull = false, redoFull = false
+    for (let index = 0; index < Math.max(undo.length, redo.length); index++) {
+      for (const kind of ['undo', 'redo'] as const) {
+        const entry = (kind === 'undo' ? undo : redo)[index]
+        if (!entry || (kind === 'undo' ? undoFull : redoFull)) continue
+        const projected = projectEntry(entry), addition = new TextEncoder().encode(JSON.stringify(projected)).length + (archive[kind].length ? 1 : 0)
+        if (byteLength + addition > maxBytes) {
+          if (kind === 'undo') undoFull = true
+          else redoFull = true
+          continue
+        }
+        archive[kind].unshift(projected)
+        byteLength += addition
+      }
+      if (undoFull && redoFull) break
+    }
+    if (this.#undo.length + this.#redo.length > 0 && !archive.undo.length && !archive.redo.length) throw new KJValidationError('One history snapshot exceeds the local archive byte limit')
+    return deepFreeze(clone(archive))
+  }
+
+  /** Validate a local archive against current content, then install fresh history identities.
+   * No geometry, document revision or saved approval registry is restored here. */
+  restoreHistory(input: unknown, options: Pick<KJDocumentHistoryOptions, 'expectedRevision'> = {}): Promise<Readonly<KJDocumentHistory>> {
+    return this.#enqueue(() => {
+      if (options.expectedRevision != null && options.expectedRevision !== this.revision) throw new KJRevisionConflictError(options.expectedRevision, this.revision)
+      if (!input || typeof input !== 'object' || Array.isArray(input)) throw new KJValidationError('History archive must be an object')
+      const serialized = canonicalStringify(input)
+      if (!serialized || new TextEncoder().encode(serialized).length > KJ_DOCUMENT_HISTORY_ARCHIVE_MAX_BYTES) throw new KJValidationError('History archive exceeds the 16 MiB limit')
+      const archive = clone(input) as KJDocumentHistoryArchive
+      if (Object.keys(archive).sort().join(',') !== 'baselineRevision,documentFingerprint,documentId,documentRevision,redo,schema,undo' || archive.schema !== KJ_DOCUMENT_HISTORY_ARCHIVE_SCHEMA || archive.documentId !== this.id || archive.documentRevision !== this.revision || archive.documentFingerprint !== this.fingerprint()) throw new KJValidationError('History archive does not match the current document identity, revision or content fingerprint')
+      if (!Number.isSafeInteger(archive.baselineRevision) || archive.baselineRevision < 0 || archive.baselineRevision > this.revision) throw new KJValidationError('History archive baseline revision is invalid')
+      if (!Array.isArray(archive.undo) || !Array.isArray(archive.redo) || archive.undo.length + archive.redo.length > KJ_DOCUMENT_HISTORY_ARCHIVE_LIMIT) throw new KJValidationError('History archive exceeds the 50 step limit')
+      const content = (state: KJDocumentState): string => canonicalStringify(contentForFingerprint(state))!
+      for (const entry of [...archive.undo, ...archive.redo]) {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry) || Object.keys(entry).sort().join(',') !== 'after,before,label,revision,source' || typeof entry.label !== 'string' || entry.label.length > 1024 || typeof entry.source !== 'string' || entry.source.length > 256 || entry.source === 'adapter:dxf-ascii' || !Number.isSafeInteger(entry.revision) || entry.revision <= archive.baselineRevision || entry.revision > this.revision) throw new KJValidationError('Invalid history archive entry or attempt to undo the import baseline')
+        for (const state of [entry.before, entry.after]) {
+          validateDocumentState(state)
+          if (state.documentId !== this.id || !Number.isSafeInteger(state.revision) || state.revision < archive.baselineRevision || state.revision > this.revision || state.revisions.length !== 0) throw new KJValidationError('History snapshot identity, revision or audit trail is invalid')
+          if (Object.entries(state.objects).some(([id, record]) => record.id !== id)) throw new KJValidationError('History snapshot object IDs do not match their registry keys')
+        }
+        if (entry.before.revision >= entry.after.revision) throw new KJValidationError('History snapshot revisions are not ordered')
+        const recorded = this.#state.revisions.find(record => record.revision === entry.revision)
+        if (!recorded || recorded.kind !== 'commit' || recorded.label !== entry.label || recorded.source !== entry.source) throw new KJValidationError('History entry is not bound to a recorded document commit')
+      }
+      let current = content(this.#state)
+      for (const entry of [...archive.undo].reverse()) {
+        if (content(entry.after) !== current) throw new KJValidationError('Undo history snapshot chain does not match current or adjacent content')
+        current = content(entry.before)
+      }
+      current = content(this.#state)
+      for (const entry of [...archive.redo].reverse()) {
+        if (content(entry.before) !== current) throw new KJValidationError('Redo history snapshot chain does not match current or adjacent content')
+        current = content(entry.after)
+      }
+      const renew = (entry: KJDocumentHistoryArchiveEntry): KJHistoryEntry => ({ ...entry, id: createId('history') })
+      this.#undo = archive.undo.slice(-this.#historyLimit).map(renew)
+      this.#redo = archive.redo.slice(-this.#historyLimit).map(renew)
+      this.#historyBaselineRevision = archive.baselineRevision
+      this.#events.emit(KJ_EVENT_NAMES.HISTORY, this.history)
+      return this.history
     })
   }
 
@@ -379,7 +550,7 @@ export class KJDocument {
       this.#events.emit(KJ_EVENT_NAMES.BEFORE_COMMIT, beforeCommit)
       const acceptedFingerprint = accepted.revisions.at(-1)?.fingerprint
       this.#adoptState(accepted, typeof acceptedFingerprint === 'string' ? acceptedFingerprint : null)
-      this.#undo.push({ label: String(label), before: historyState(before), after: historyState(accepted), revision })
+      this.#undo.push({ id: createId('history'), label: String(label), source: record.source, before: historyState(before), after: historyState(accepted), revision })
       if (this.#undo.length > this.#historyLimit) this.#undo.shift()
       this.#redo = []
       this.#emitChange(KJ_EVENT_NAMES.AFTER_COMMIT, record)
@@ -393,10 +564,7 @@ export class KJDocument {
 
   undo(options: KJDocumentHistoryOptions = {}): Promise<boolean> {
     return this.#enqueue(async () => {
-      if (options.expectedRevision != null && Number(options.expectedRevision) !== this.#state.revision) {
-        throw new KJRevisionConflictError(Number(options.expectedRevision), this.#state.revision, { documentId: this.id })
-      }
-      const entry = this.#undo.at(-1)
+      const entry = this.#requireHistoryTarget('undo', options)
       if (!entry) return false
       const current = this.#state
       const restored = this.#restoreHistoricalState(entry.before, {
@@ -413,10 +581,7 @@ export class KJDocument {
 
   redo(options: KJDocumentHistoryOptions = {}): Promise<boolean> {
     return this.#enqueue(async () => {
-      if (options.expectedRevision != null && Number(options.expectedRevision) !== this.#state.revision) {
-        throw new KJRevisionConflictError(Number(options.expectedRevision), this.#state.revision, { documentId: this.id })
-      }
-      const entry = this.#redo.at(-1)
+      const entry = this.#requireHistoryTarget('redo', options)
       if (!entry) return false
       const before = this.#state
       const restored = this.#restoreHistoricalState(entry.after, {

@@ -62,6 +62,12 @@
       </section>
 
       <div class="composer-wrap">
+        <div class="drawing-history-actions" id="drawing-history-actions" hidden aria-label="图纸历史">
+          <button class="topbar-button" id="drawing-undo" data-testid="drawing-undo" type="button" disabled><span aria-hidden="true">↶</span><span data-text="undoDrawing">撤销</span></button>
+          <button class="topbar-button" id="drawing-redo" data-testid="drawing-redo" type="button" disabled><span aria-hidden="true">↷</span><span data-text="redoDrawing">重做</span></button>
+          <small id="drawing-history-status"></small>
+        </div>
+        <p class="import-error" id="drawing-history-warning" role="status" hidden></p>
         <input id="drawing-file" data-testid="drawing-file" class="sr-only" type="file" accept=".dxf,.kjd,.kjp" aria-label="选择 DXF 图纸">
         <p class="import-error" id="import-error" role="alert" hidden></p>
         <details class="drawing-context" id="drawing-context" data-testid="drawing-context" hidden>

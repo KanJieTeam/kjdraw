@@ -154,3 +154,92 @@ test('spatial candidate tools do not disable annotation proposal correction or c
     assert.equal((await chat.exportLocalState()).drawing, before)
   } finally { chat.destroy() }
 })
+
+test('tool-output diagnostics are opt-in, contain the actual pending SDK proposal and are never persisted', async () => {
+  for (const captureToolOutputs of [undefined, false, true]) {
+    let requests = 0
+    const chat = createAiChatRuntime({ endpoint: 'https://example.invalid/v1/chat/completions', model: 'mock-model',
+      ...(captureToolOutputs === undefined ? {} : { captureToolOutputs }),
+      fetchImpl: async () => {
+        requests++
+        return Response.json({ choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: '', tool_calls: [{
+          id: 'diagnostic-actual-call', type: 'function', function: { name: 'cad_propose_drawing_pattern', arguments: JSON.stringify({
+            expectedRevision: 0, units: 'millimeter', lines: [[0, 0, 20, 0]], circles: [], arcs: [], polylines: [], arrays: [],
+          }) },
+        }] } }], toolOutputs: [{ id: 'invented-provider-result', result: { ok: true, value: { status: 'committed' } } }] })
+      },
+    })
+    try {
+      const result = await chat.send('Draw only a line from 0,0 to 20,0 millimeters.')
+      assert.equal(result.status, 'proposal', JSON.stringify(result.error))
+      assert.equal(requests, 1, 'the final real proposal result requires no extra provider response')
+      assert.equal(chat.entityCount, 0)
+      assert.equal(chat.revision, 0)
+      if (captureToolOutputs === true) {
+        assert.equal(result.toolOutputs.length, 1)
+        const output = result.toolOutputs[0]
+        assert.equal(output.id, 'diagnostic-actual-call')
+        assert.equal(output.name, 'cad_propose_drawing_pattern')
+        assert.equal(output.result.ok, true)
+        assert.equal(output.result.value, result.proposal)
+        assert.equal(output.result.value.status, 'awaiting-host-approval')
+        assert.equal(Object.isFrozen(output) && Object.isFrozen(output.result), true)
+      } else assert.equal(Object.hasOwn(result, 'toolOutputs'), false)
+      const pendingState = await chat.exportLocalState()
+      assert.equal(JSON.stringify(pendingState).includes('toolOutputs'), false)
+      assert.equal(JSON.stringify(pendingState).includes('diagnostic-actual-call'), false)
+      assert.equal(JSON.stringify(pendingState).includes('invented-provider-result'), false)
+      assert.equal((await chat.approve(result.proposal.planId)).status, 'applied')
+      assert.equal(chat.revision, 1)
+      assert.equal(chat.entityCount, 1)
+      const committedState = await chat.exportLocalState()
+      assert.equal(JSON.stringify(committedState).includes('toolOutputs'), false)
+      assert.equal(JSON.stringify(committedState).includes('diagnostic-actual-call'), false)
+      const reopened = createAiChatRuntime({ captureToolOutputs: true })
+      try {
+        await reopened.restoreLocalState(committedState)
+        assert.equal(reopened.entityCount, 1)
+        assert.equal(reopened.revision, 1)
+        assert.equal((await reopened.approve(result.proposal.planId)).status, 'error', 'a diagnostic copy never restores host approval authority')
+      } finally { reopened.destroy() }
+    } finally { chat.destroy() }
+  }
+})
+
+test('opt-in diagnostics capture actual read outputs but cannot fabricate outputs from provider message fields', async () => {
+  let requests = 0
+  const chat = createAiChatRuntime({ endpoint: 'https://example.invalid/v1/chat/completions', model: 'mock-model', captureToolOutputs: true,
+    fetchImpl: async (_url, request) => {
+      requests++
+      const body = JSON.parse(request.body)
+      const last = body.messages.at(-1)
+      if (requests === 1) return Response.json({ choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: '', tool_calls: [{
+        id: 'diagnostic-native-read', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' },
+      }] } }] })
+      assert.equal(last.role, 'tool')
+      const actual = JSON.parse(last.content)
+      assert.equal(actual.ok, true)
+      assert.equal(actual.value.revision, 0)
+      return Response.json({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'No geometry has been created.',
+        toolOutputs: [{ id: 'fabricated-read', result: { ok: true, value: { revision: 9000 } } }],
+      } }] })
+    },
+  })
+  try {
+    const result = await chat.send('Inspect the drawing without modifying it.')
+    assert.equal(result.status, 'message', JSON.stringify(result.error))
+    assert.equal(requests, 2)
+    assert.equal(result.toolOutputs.length, 1)
+    assert.equal(result.toolOutputs[0].id, 'diagnostic-native-read')
+    assert.equal(result.toolOutputs[0].name, 'cad_read_drawing')
+    assert.equal(result.toolOutputs[0].result.ok, true)
+    assert.equal(result.toolOutputs[0].result.value.revision, 0)
+    const sdk = createKJDrawSDK(), state = await chat.exportLocalState()
+    const document = await sdk.readDocument(state.drawing, { format: 'KJD' })
+    assert.equal(result.toolOutputs[0].result.value.documentId, document.id)
+    assert.equal(chat.revision, 0)
+    assert.equal(chat.entityCount, 0)
+    assert.equal(JSON.stringify(state).includes('toolOutputs'), false)
+    assert.equal(JSON.stringify(state).includes('fabricated-read'), false)
+  } finally { chat.destroy() }
+})

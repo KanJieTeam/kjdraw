@@ -104,6 +104,9 @@ export interface KJDrawingContext {
     };
     readonly layers: readonly KJDrawingContextLayer[];
     readonly entities: readonly KJDrawingContextEntity[];
+    /** Deterministic counts of the returned page only, not the full document or
+     * all matching rows. Follow nextOffset before claiming a complete inventory. */
+    readonly pageEntityCounts: Readonly<Record<string, number>>;
     /** True when either collection or any requested native geometry was omitted. */
     readonly truncated: boolean;
     readonly truncationReasons: readonly KJDrawingContextTruncationReason[];

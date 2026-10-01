@@ -49,6 +49,55 @@ function assertContinuation(protocol, body) {
   }
 }
 
+test('chat-completions: final read continuation omits empty assistant tool calls while retaining real calls and provider fields', async () => {
+  for (const emptyToolCalls of [[], null, undefined]) {
+    const { session } = fixture(), requests = []
+    const firstResponse = wire('chat-completions', [call('read', 'cad_read_drawing')])
+    const observedMessage = Object.freeze({ role: 'assistant', content: 'The native drawing was read.',
+      tool_calls: emptyToolCalls, reasoning_content: 'opaque-final-read-reasoning',
+      provider_extension: Object.freeze({ signature: 'opaque-provider-signature' }),
+    })
+    const responses = [firstResponse, { choices: [{ finish_reason: 'stop', message: observedMessage }] },
+      wire('chat-completions', [], 'The requested final answer.')]
+    const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'offline-empty-tool-history',
+      request: async ({ body }) => {
+        requests.push(body)
+        // Reproduce the confirmed provider wire boundary, without a live API.
+        for (const message of body.messages) {
+          if (message.role === 'assistant' && Object.hasOwn(message, 'tool_calls')) {
+            assert.ok(Array.isArray(message.tool_calls) && message.tool_calls.length > 0,
+              'assistant text history must omit tool_calls, not serialize an empty array or null')
+          }
+        }
+        return responses[requests.length - 1]
+      },
+    })
+    const conversation = model.createConversation({ instructions: 'Read native data, then answer without edits.',
+      tools: session.definitions, allowTextContinuation: true })
+    const signal = new AbortController().signal
+    const read = await conversation.next({ kind: 'prompt', text: 'Inspect the drawing.' }, signal)
+    assert.equal(read.calls.length, 1)
+    const result = await session.call('cad_read_drawing', {})
+    assert.equal(result.ok, true)
+    const observed = await conversation.next({ kind: 'tool-results', results: [
+      { id: read.calls[0].id, name: read.calls[0].name, result },
+    ] }, signal)
+    assert.equal(observed.text, observedMessage.content)
+    const final = await conversation.next({ kind: 'prompt', text: 'Now provide the requested final answer.' }, signal)
+    assert.equal(final.text, 'The requested final answer.')
+    assert.equal(requests.length, 3)
+    const messages = requests[2].messages
+    assert.deepEqual(messages.map(message => message.role), ['system', 'user', 'assistant', 'tool', 'assistant', 'user'])
+    assert.deepEqual(messages[2], firstResponse.choices[0].message, 'real tool calls, IDs and reasoning are preserved')
+    assert.equal(messages[3].tool_call_id, 'read')
+    assert.equal(Object.hasOwn(messages[4], 'tool_calls'), false)
+    assert.equal(messages[4].reasoning_content, observedMessage.reasoning_content)
+    assert.deepEqual(messages[4].provider_extension, observedMessage.provider_extension)
+    assert.equal(observedMessage.tool_calls, emptyToolCalls, 'the response is not mutated')
+    assert.equal(Object.isFrozen(requests[2]) && Object.isFrozen(messages[4]), true)
+  }
+})
+
 for (const protocol of protocols) {
   test(`${protocol}: one explicit text continuation retains observations and produces a real proposal`, async () => {
     const { document, session } = fixture(), before = document.serialize()

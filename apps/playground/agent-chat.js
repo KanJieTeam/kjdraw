@@ -12,8 +12,9 @@ import { capabilityReference, createKJDrawBuiltinCapabilityRegistry, matchKJDraw
 
 // This workbench exposes general geometry and annotated creation tools; SDK callers and locked capability packs keep their own policies.
 export const KJDRAW_CHAT_TOOL_NAMES = Object.freeze([
+  'cad_read_history', 'cad_propose_undo', 'cad_propose_redo',
   'cad_read_drawing', 'cad_read_page', 'cad_find_text', 'cad_query_drawing', 'cad_query_topology', 'cad_query_impact', 'cad_read_layouts', 'cad_read_designs', 'cad_read_components', 'cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update',
-  'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet',
+  'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_set_circle_radius', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet',
   'cad_propose_architecture_plan', 'cad_propose_cartesian_chart', 'cad_read_geology_source', 'cad_propose_geology_revision',
 ])
 const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['cad_propose_manufacturing_sheet','cad_propose_architecture_plan','cad_propose_cartesian_chart','cad_read_geology_source','cad_propose_geology_revision'].includes(name)), 'cad_propose_site_plan', 'cad_propose_road_drawing'])
@@ -54,19 +55,32 @@ function isExplicitSingleMoveRequest(document,request,selectedIds) {
 export function getKJDrawChatToolNamesForRequest(document,request,selectedIds=[],roadDrawingIds=[]) {
   const names=getKJDrawChatToolNames(document,roadDrawingIds)
   if(typeof request!=='string')return names
-  if(isExplicitSingleMoveRequest(document,request,selectedIds))return moveToolNames
   const normalized=request.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim()
-  const textIntent=/\b(?:text|note|title.?block|revision|quantity|label|callout|field)\b|文字|注释|标题栏|修订|数量|标签|字段/.test(normalized)
   const hasGeologySource=Object.keys(document.snapshot().opaquePayloads).some(key=>key.startsWith('geology-drawing-recipe:'))
-  if(hasGeologySource&&/\b(?:borehole|strat(?:um|a)|groundwater|lithology|spt|sample)\b|钻孔|孔深|孔口|水位|分层|地层|岩性|标贯|取样|柱状图|剖面图/.test(normalized))return ['cad_read_geology_source','cad_propose_geology_revision']
+  // Keep the tools for a retained source recipe available even when an unrelated
+  // CAD policy is narrowed. Host metadata (such as "current revision") must not
+  // hide that recipe behind a text-only policy. This selects tools, not an edit.
+  // A preservation clause about OTHER fields is not global read-only consent.
+  const explicitReadOnly=/\bread[- ]only\b|\b(?:do not|don't|dont)\s+(?:edit|change|modify)\s+(?:the\s+)?(?:drawing|document|anything)\b|\bwithout\s+(?:editing|changing|modifying)\s+(?:the\s+)?(?:drawing|document|anything)\b|只读|别改图|不改图|不要修改图纸|不修改图纸/.test(normalized)
+  const retainSourceTools=selected=>{
+    if(!hasGeologySource)return selected
+    const retained=explicitReadOnly?selected.filter(name=>!name.startsWith('cad_propose_')):selected
+    return Object.freeze([...new Set([...retained,'cad_read_geology_source',...(explicitReadOnly?[]:['cad_propose_geology_revision'])])])
+  }
+  if(isExplicitSingleMoveRequest(document,request,selectedIds))return retainSourceTools(moveToolNames)
+  // Negated edit vocabulary does not establish a text-edit intent. Retain the
+  // complete tool policy, without interpreting or executing the user's words.
+  if(/\bread[- ]only\b|\b(?:do not|don't|dont|without)\s+(?:any\s+)?(?:edit|editing|change|changing|modify|modifying)\b|只读|别改图|不改图|不要修改图纸|不修改图纸/.test(normalized))return retainSourceTools(names)
+  const textIntent=/\b(?:text|note|title.?block|revision|quantity|label|callout|field)\b|文字|注释|标题栏|修订|数量|标签|字段/.test(normalized)
+  if(hasGeologySource&&/\b(?:borehole|strat(?:um|a)|groundwater|lithology|spt|sample)\b|钻孔|孔深|孔口|水位|分层|地层|岩性|标贯|取样|柱状图|剖面图/.test(normalized))return retainSourceTools(['cad_read_geology_source','cad_propose_geology_revision'])
   const textAction=/\b(?:change|edit|update|replace|set|correct|rename)\b|修改|更改|更新|替换|改成|设为/.test(normalized)
-  const geometryIntent=/\b(?:draw|create|move|translate|rotate|delete|erase|relayer|add|remove|copy|stretch|offset|fillet|chamfer)\b|绘制|创建|移动|平移|旋转|删除|擦除|调层|添加|移除|复制|拉伸|偏移|圆角|倒角/.test(normalized)
-  if(document.listEntities().length>0&&textIntent&&textAction&&!geometryIntent)return textEditToolNames
+  const geometryIntent=/\b(?:draw|create|move|translate|rotate|delete|erase|relayer|add|remove|copy|stretch|offset|fillet|chamfer|radius|diameter|polyline|lwpolyline|vertex|vertices|segment|bulge|width|line|circle|arc|ellipse|spline|hatch|dimension)\b|绘制|创建|移动|平移|旋转|删除|擦除|调层|添加|移除|复制|拉伸|偏移|圆角|倒角|半径|直径|孔径|多段线|顶点|线段|凸度|线宽|宽度|圆弧|椭圆|样条|填充|尺寸/.test(normalized)
+  if(document.listEntities().length>0&&textIntent&&textAction&&!geometryIntent)return retainSourceTools(textEditToolNames)
   const labelMove=/\b(?:move|translate|shift)\b[^.]{0,120}\b(?:label|text|note)s?\b|(?:移动|平移|挪动)[^。]{0,120}(?:标签|文字|注释)/.test(normalized)
   const moveOnly=!/\b(?:rotate|delete|draw|create|copy|relayer|stretch|offset)\b|旋转|删除|绘制|创建|复制|调层|拉伸|偏移/.test(normalized)
-  if(document.listEntities().length>0&&labelMove&&moveOnly&&/[+-]?\d+(?:\.\d+)?/.test(normalized))return labelMoveToolNames
+  if(document.listEntities().length>0&&labelMove&&moveOnly&&/[+-]?\d+(?:\.\d+)?/.test(normalized))return retainSourceTools(labelMoveToolNames)
   const capability=matchKJDrawBuiltinCapability({prompt:request,units:document.snapshot().header.units,entityCount:document.listEntities().length})
-  return capability?.manifest.requiredToolNames??names
+  return retainSourceTools(capability?.manifest.requiredToolNames??names)
 }
 
 export function getKJDrawChatCapabilityForRequest(document,request) {

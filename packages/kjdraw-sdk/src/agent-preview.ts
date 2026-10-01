@@ -34,7 +34,17 @@ export interface KJAgentGeometryPreview {
   readonly blockDependencies?: readonly KJAgentBlockPreviewDependency[]
   readonly designChange?: { readonly id: string; readonly before: ReadonlyDeep<KJDesignDefinition>; readonly after: ReadonlyDeep<KJDesignDefinition>; readonly record: KJReadonlyObjectRecord; readonly members: readonly KJReadonlyObjectRecord[]; readonly dictionary: { readonly id: string; readonly key: string } }
   readonly recordChanges?: readonly Readonly<{ id: string; before: KJReadonlyObjectRecord; after: KJReadonlyObjectRecord | null }>[]
-  readonly command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT' | 'ROAD_DRAWING_UPDATE' | 'GEOLOGY_DRAWING_UPDATE'
+  readonly command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT' | 'ROAD_DRAWING_UPDATE' | 'GEOLOGY_DRAWING_UPDATE' | 'UNDO' | 'REDO'
+  readonly historyChange?: {
+    readonly targetHistoryId: string
+    readonly targetRevision: number
+    readonly label: string
+    readonly source: string
+    readonly beforeFingerprint: string
+    readonly afterFingerprint: string
+    readonly changedRecordCount: number
+    readonly changedSections: readonly string[]
+  }
   readonly before: readonly KJAgentPreviewEntity[]
   readonly after: readonly KJAgentPreviewEntity[]
 }
@@ -88,7 +98,7 @@ export function resolveAgentTransformEntityIds(document: KJDocument, sourceIds: 
   return result
 }
 
-function validateMovableAnnotation(document: KJDocument, entity: KJReadonlyObjectRecord): void {
+function validateMovableAnnotation(document: KJDocument, entity: KJReadonlyObjectRecord, allowElevatedText = false): void {
   if (['ELLIPSE', 'SPLINE', 'HATCH'].includes(entity.type)) { validateTransformGeometry(document, entity); return }
   if (entity.type === 'LEADER' || entity.type === 'MTEXT') { validateTransformGeometry(document, entity); return }
   if (entity.type !== 'TEXT' && entity.type !== 'DIMENSION' && entity.type !== 'TOLERANCE') return
@@ -98,7 +108,13 @@ function validateMovableAnnotation(document: KJDocument, entity: KJReadonlyObjec
     if (normal !== undefined && normal !== null && (!Array.isArray(normal) || normal.length !== 3 || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) throw new KJValidationError('Annotation move preview requires the default +Z plane')
   }
   const points = entity.type === 'TEXT' || entity.type === 'TOLERANCE' ? [payload.position, ...(payload.alignmentPoint ? [payload.alignmentPoint] : [])] : [...(Array.isArray(payload.definitionPoints) ? payload.definitionPoints : []), ...(payload.textPosition ? [payload.textPosition] : [])]
-  if (!points.length || points.some(point => !Array.isArray(point) || point.length !== 3 || point.some(value => typeof value !== 'number' || !Number.isFinite(value)) || point[2] !== 0)) throw new KJValidationError('Annotation move preview requires complete model XY geometry at z=0')
+  // An XY displacement of native +Z TEXT is also well defined at a nonzero
+  // elevation: translate X/Y and retain the original Z of every text anchor.
+  // This is not permission to flatten OCS, rotate/scale elevated geometry or
+  // project dimensions from another plane.
+  const elevatedText = allowElevatedText && entity.type === 'TEXT'
+  if (!points.length || points.some(point => !Array.isArray(point) || point.length !== 3 || point.some(value => typeof value !== 'number' || !Number.isFinite(value) || elevatedText && Math.abs(value) > 1e12) || !elevatedText && point[2] !== 0)) throw new KJValidationError('Annotation move preview requires complete bounded native XY geometry')
+  if (elevatedText && points.some(point => (point as readonly number[])[2] !== (points[0] as readonly number[])[2])) throw new KJValidationError('Annotation move preview requires TEXT anchors in the same native elevation plane')
   if (entity.type === 'TOLERANCE' && (typeof payload.text !== 'string' || !payload.text || !Array.isArray(payload.xAxisDirection) || Math.hypot(Number(payload.xAxisDirection[0]), Number(payload.xAxisDirection[1])) <= 1e-12)) throw new KJValidationError('Annotation move preview requires a bounded native tolerance frame')
   if (entity.type === 'DIMENSION') {
     const type = String(payload.dimensionType ?? 'ALIGNED').toUpperCase()
@@ -411,7 +427,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
       }
     } else if (command !== 'LENGTHEN' && command !== 'OFFSET' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE' && command !== 'TEXTEDIT') {
       if (ids.some(id => !KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`)
-      for (const id of ids) validateMovableAnnotation(document, document.getObject(String(id))!)
+      for (const id of ids) validateMovableAnnotation(document, document.getObject(String(id))!, command === 'MOVE')
     }
     if (affine) {
       if (ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length) throw new KJValidationError('Object IDs must be unique strings')
@@ -441,7 +457,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
     const previous = old.get(entity.id)
     if (!previous || canonicalStringify(project(previous)) !== canonicalStringify(project(entity))) {
       if (previous) before.push(project(previous))
-      if (command === 'MOVE' || command === 'COPY') validateMovableAnnotation(draft, entity)
+      if (command === 'MOVE' || command === 'COPY') validateMovableAnnotation(draft, entity, command === 'MOVE')
       if (affine) validateTransformGeometry(draft, entity)
       if (command === 'LENGTHEN') validateLengthenPreview(draft, args)
       if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN' || command === 'OFFSET' || command === 'TEXTEDIT') {
@@ -489,7 +505,32 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   return deepFreeze(preview) as KJAgentGeometryPreview
 }
 
+/** Project the engine's retained snapshot; this never guesses inverse geometry. */
+export function createAgentHistoryPreview(document: KJDocument, command: 'UNDO' | 'REDO', targetHistoryId: string, expectedRevision: number): KJAgentGeometryPreview {
+  const { target, document: draft } = document.previewHistory(command === 'UNDO' ? 'undo' : 'redo', { targetHistoryId, expectedRevision })
+  const source = document.snapshot(), restored = draft.snapshot()
+  if (Object.keys(source.objects).length > 250000 || Object.keys(restored.objects).length > 250000) throw new KJValidationError('History preview exceeds the 250000 object document limit')
+  const before: KJAgentPreviewEntity[] = [], after: KJAgentPreviewEntity[] = []
+  let changedRecordCount = 0
+  for (const id of new Set([...Object.keys(source.objects), ...Object.keys(restored.objects)])) {
+    const previous = source.objects[id], next = restored.objects[id]
+    if (previous === next || canonicalStringify(previous) === canonicalStringify(next)) continue
+    changedRecordCount++
+    if (previous?.kind === 'entity' && !previous.erased) before.push(project(previous))
+    if (next?.kind === 'entity' && !next.erased) after.push(project(next))
+  }
+  if (before.length > 4096 || after.length > 4096) throw new KJValidationError('History preview exceeds the 4096 changed entity limit; use the host history controls')
+  const changedSections = Object.keys(source).filter(key => !['objects', 'revision', 'revisions'].includes(key) && canonicalStringify(source[key as keyof typeof source]) !== canonicalStringify(restored[key as keyof typeof restored]))
+  const preview = { documentId: document.id, revision: document.revision, command, before, after, historyChange: {
+    targetHistoryId: target.id, targetRevision: target.revision, label: target.label, source: target.source,
+    beforeFingerprint: document.fingerprint(), afterFingerprint: draft.fingerprint(), changedRecordCount, changedSections,
+  } }
+  if (new TextEncoder().encode(JSON.stringify(preview)).length > 4194304) throw new KJValidationError('History preview exceeds the 4 MiB output limit; use the host history controls')
+  return deepFreeze(preview) as KJAgentGeometryPreview
+}
+
 export function agentPreviewMatchesDocument(document: KJDocument, preview: KJAgentGeometryPreview): boolean {
+  if (preview.historyChange) return document.id === preview.documentId && document.revision === preview.revision + 1 && document.fingerprint() === preview.historyChange.afterFingerprint
   const retained = new Set(preview.after.map(entity => entity.id))
   return document.id === preview.documentId
     && (!preview.designChange || (() => { const actual = document.getObject(preview.designChange.id); return actual?.kind === 'custom' && !actual.erased && actual.type === 'DESIGN_RELATIONS' && canonicalStringify(actual) === canonicalStringify(preview.designChange.record) })())

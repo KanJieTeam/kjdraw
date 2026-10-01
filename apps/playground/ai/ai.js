@@ -2,6 +2,7 @@ import { createAiChatRuntime } from './runtime.js'
 import { loadLocalHistory, saveLocalHistory } from './local-history.js'
 import { geologySourceChanges } from './geology-source-changes.js'
 import { createDrawingViewer } from './drawing-viewer.js'
+import { renderMessageMarkdown } from './message-markdown.js'
 import { CHAT_MODEL_PROVIDER_PRESETS, getChatModelProviderPreset, formatChatModelUpstreamEndpoint } from '../chat-model-presets.js'
 
 const copy = {
@@ -33,6 +34,9 @@ const copy = {
     importBusy:'请等待当前请求结束后再打开图纸。',drawingLoaded:'已打开图纸',entities:'个对象',
     storageFailed:'本地会话保存失败。请先下载 DXF 图纸，并检查浏览器存储空间。',
     historyEmpty:'没有找到对话',busyHistory:'请先停止当前请求，再管理这段对话。',
+    undoDrawing:'撤销',redoDrawing:'重做',historyRestored:'图纸历史',
+    historyUnavailable:'当前图纸已恢复，但旧会话或超出保存容量的撤销历史不可用。新的修改仍可撤销。',
+    historyLimited:'刷新后可恢复的修改：撤销 {undo} 步、重做 {redo} 步。当前页面内仍可使用全部现有历史。',
   },
   en: {
     newChat:'New chat',recent:'Recent chats',editor:'Open CAD editor',docs:'Documentation ↗',beta:'PREVIEW',
@@ -62,6 +66,9 @@ const copy = {
     importBusy:'Wait for the current request before opening a drawing.',drawingLoaded:'Drawing opened',entities:'entities',
     storageFailed:'Could not save this conversation locally. Download the DXF drawing and check browser storage.',
     historyEmpty:'No conversations found',busyHistory:'Stop the current request before managing this conversation.',
+    undoDrawing:'Undo',redoDrawing:'Redo',historyRestored:'Drawing history',
+    historyUnavailable:'The current drawing was restored, but undo history from an older session or beyond storage limits is unavailable. New edits can still be undone.',
+    historyLimited:'After refresh: {undo} undo steps and {redo} redo steps can be recovered. All current history remains available until then.',
   },
 }
 const examples = {
@@ -93,6 +100,8 @@ const ui = {
   historySearch:byId('history-search'), historyDialog:byId('history-dialog'), historyForm:byId('history-form'),
   historyDialogTitle:byId('history-dialog-title'), historyDialogDescription:byId('history-dialog-description'),
   historyTitleInput:byId('history-title-input'), historyConfirm:byId('history-confirm'),
+  historyActions:byId('drawing-history-actions'), undo:byId('drawing-undo'), redo:byId('drawing-redo'),
+  historyStatus:byId('drawing-history-status'), historyWarning:byId('drawing-history-warning'),
 }
 let language = navigator.language?.toLowerCase().startsWith('zh') ? 'zh' : 'en'
 let settings = null
@@ -227,6 +236,7 @@ function queuePersist() {
         provider: settings.provider, protocol: settings.protocol,
       } : null,
     })
+    updateHistoryStorageNotice()
   }).catch(() => showImportError(t('storageFailed')))
 }
 async function restoreSessions() {
@@ -328,6 +338,14 @@ function render() {
   const version = ++renderVersion
   renderSidebar()
   const source = active?.source
+  const drawingHistory = active?.runtime.drawingHistory
+  ui.historyActions.hidden = !source && !active?.messages.some(message => message.proposals?.some(proposal => proposal.uiState === 'approved'))
+  ui.undo.disabled = busy || importing || !drawingHistory?.canUndo
+  ui.redo.disabled = busy || importing || !drawingHistory?.canRedo
+  ui.undo.title = drawingHistory?.undoLabel ?? t('undoDrawing')
+  ui.redo.title = drawingHistory?.redoLabel ?? t('redoDrawing')
+  ui.historyStatus.textContent = active ? `REV ${active.runtime.revision}` : ''
+  updateHistoryStorageNotice()
   let exportWarning = document.querySelector('[data-testid="drawing-export-warning"]')
   if (!exportWarning) {
     exportWarning = element('p', 'import-error')
@@ -356,7 +374,12 @@ function render() {
     const body = element('div','message-body')
     body.append(element('div','message-role',t(message.role === 'user' ? 'you' : 'assistant')))
     if (message.status === 'pending') body.append(element('div','message-progress',t('working')))
-    else body.append(element('div','message-content',message.text || t('emptyResponse')))
+    else {
+      const content = element('div', 'message-content')
+      if (message.role === 'user') content.textContent = message.text || t('emptyResponse')
+      else renderMessageMarkdown(content, message.text || t('emptyResponse'))
+      body.append(content)
+    }
     if (message.status === 'not-proposed') {
       const notice = element('div','message-progress',t('noProposal'))
       notice.dataset.testid = 'chat-no-proposal'
@@ -368,6 +391,13 @@ function render() {
   }
   requestAnimationFrame(()=>{ ui.conversation.scrollTop = ui.conversation.scrollHeight })
   queuePersist()
+}
+function updateHistoryStorageNotice() {
+  const runtime = active?.runtime
+  const saved = runtime?.historyStorage
+  ui.historyWarning.hidden = !runtime?.historyRestoreWarning && !saved?.limited
+  ui.historyWarning.textContent = runtime?.historyRestoreWarning ? t('historyUnavailable')
+    : t('historyLimited').replace('{undo}',saved?.undoCount ?? 0).replace('{redo}',saved?.redoCount ?? 0)
 }
 function renderDrawingContext(session) {
   if (session !== active || !ui.drawingContext.open || !ui.drawingCanvas.isConnected) return
@@ -597,6 +627,30 @@ async function openDrawing(file) {
   }
 }
 function hasDroppedFiles(event) { return [...(event.dataTransfer?.types ?? [])].includes('Files') }
+async function applyDrawingHistory(kind) {
+  await initialLoad
+  if (!active || busy || importing) return
+  const session = active
+  busy = true
+  render()
+  try {
+    const result = await session.runtime.applyHistory(kind)
+    if (result.status === 'applied') {
+      for (const message of session.messages) for (const proposal of message.proposals ?? []) {
+        if (proposal.uiState === 'pending') proposal.uiState = 'expired'
+      }
+      if (session.source) session.source.entityCount = session.runtime.entityCount
+      session.messages.push({ role:'assistant', text:result.text })
+      session.updatedAt = Date.now()
+    } else session.messages.push({ role:'assistant', status:'error', text:result.error?.message ?? t('retry') })
+  } finally {
+    busy = false
+    if (active === session) render()
+    else queuePersist()
+  }
+}
+ui.undo.addEventListener('click',()=>applyDrawingHistory('undo'))
+ui.redo.addEventListener('click',()=>applyDrawingHistory('redo'))
 for (const button of [ui.openDrawing,ui.attachDrawing]) button.addEventListener('click',()=>ui.drawingFile.click())
 ui.drawingFile.addEventListener('change',()=>openDrawing(ui.drawingFile.files?.[0]))
 ui.drawingContext.addEventListener('toggle',()=>{ if (ui.drawingContext.open && active?.source) requestAnimationFrame(()=>renderDrawingContext(active)) })

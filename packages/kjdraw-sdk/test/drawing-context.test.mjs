@@ -141,6 +141,7 @@ test('huge text and polylines omit geometry atomically while retaining stable ID
     assert.equal(entity.geometryOmittedReason, 'geometry-budget')
   }
   assert.deepEqual(context.entities[2].geometry.position, [8, 9, 0])
+  assert.deepEqual(context.pageEntityCounts, { TEXT: 1, LWPOLYLINE: 1, POINT: 1 }, 'geometry omission does not omit the admitted native entity count')
   assert.deepEqual(context.truncationReasons, ['geometry-budget'])
   assert.ok(byteLength(context) <= context.limits.maxBytes)
 })
@@ -274,4 +275,130 @@ test('mirror orientation flags survive projection for existing ellipse, text and
 test('an identity that cannot fit the budget fails explicitly without serializing it into the result', () => {
   const document = KJDocument.create({ documentId: 'x'.repeat(10_000) })
   assert.throws(() => createDrawingContext(document, { maxBytes: 1024 }), error => error instanceof KJValidationError && error.message.length < 200)
+})
+
+function exactReturnedPageCounts(context) {
+  const counts = new Map()
+  for (const entity of context.entities) counts.set(entity.type, (counts.get(entity.type) ?? 0) + 1)
+  return Object.fromEntries(counts)
+}
+
+test('page entity counts follow returned visibility, owner and intersected filters without revealing hidden inventory', async () => {
+  const { document, locked } = await drawing()
+  const before = document.serialize(), history = document.history
+  const visible = createDrawingContext(document)
+  assert.deepEqual(visible.pageEntityCounts, { LINE: 1, ARC: 1 })
+  assert.equal(Object.hasOwn(visible.pageEntityCounts, 'POINT'), false)
+  assert.deepEqual(createDrawingContext(document, { includeHidden: true }).pageEntityCounts, { LINE: 1, ARC: 1, POINT: 3 })
+  assert.deepEqual(createDrawingContext(document, { includeHidden: true, types: ['POINT'], bounds: [-1, -1, 1.5, 1.5] }).pageEntityCounts, { POINT: 2 })
+  assert.deepEqual(createDrawingContext(document, { types: ['LINE'], bounds: [100, 100, 110, 110] }).pageEntityCounts, {})
+  const filtered = createDrawingContext(document, { ids: ['arc', 'line', 'arc', 'hidden-point'], types: ['arc'], layerIds: [locked.id] })
+  assert.deepEqual(filtered.pageEntityCounts, { ARC: 1 })
+  for (const options of [{ ids: [] }, { types: [] }, { layerIds: [] }, { limit: 0 }, { ids: ['paper-point', 'erased-point'] }]) {
+    assert.deepEqual(createDrawingContext(document, options).pageEntityCounts, {})
+  }
+  const paper = createDrawingContext(document, { spaceId: document.spaces.paperSpaceIds[0] })
+  assert.deepEqual(paper.pageEntityCounts, { POINT: 1 })
+  assert.equal(Object.isFrozen(visible.pageEntityCounts), true)
+  assert.throws(() => { visible.pageEntityCounts.LINE = 9000 }, TypeError)
+  assert.equal(document.serialize(), before)
+  assert.deepEqual(document.history, history)
+})
+
+test('page entity counts are page-local, sum across exact continuations, and never count native label text as extra entities', async () => {
+  const { document } = await drawing()
+  await document.transact('An inventory-looking label is one native entity', tx => {
+    tx.createEntity('TEXT', { position: [0, 0], text: 'LINE LINE ARC POINT TEXT TEST-A TEST-B' }, { id: 'inventory-label' })
+  })
+  const seen = [], totals = new Map()
+  let offset = 0
+  for (let index = 0; index < 4; index++) {
+    const page = createDrawingContext(document, { expectedRevision: document.revision, offset, limit: 1, maxLayers: 0 })
+    assert.deepEqual(page.pageEntityCounts, exactReturnedPageCounts(page))
+    assert.equal(Object.values(page.pageEntityCounts).reduce((sum, count) => sum + count, 0), 1)
+    seen.push(...page.entities.map(entity => entity.id))
+    for (const [type, count] of Object.entries(page.pageEntityCounts)) totals.set(type, (totals.get(type) ?? 0) + count)
+    if (page.nextOffset === null) break
+    assert.ok(page.nextOffset > offset)
+    offset = page.nextOffset
+  }
+  assert.deepEqual(seen, ['line', 'arc', 'inventory-label'])
+  assert.deepEqual(Object.fromEntries(totals), { LINE: 1, ARC: 1, TEXT: 1 })
+  const exhausted = createDrawingContext(document, { expectedRevision: document.revision, offset: 3, maxLayers: 0 })
+  assert.deepEqual(exhausted.pageEntityCounts, {})
+  assert.equal(exhausted.nextOffset, null)
+})
+
+test('count key UTF-8 escaping and 9-to-10/99-to-100 growth stay inside every response budget during complete pagination', async () => {
+  const document = KJDocument.create({ documentId: '计数-🌍' })
+  await document.transact('Count budget stress', tx => {
+    for (let index = 0; index < 130; index++) tx.createEntity('POINT', { position: [index, 0] }, { id: 'point-' + index })
+    for (let index = 0; index < 30; index++) tx.createEntity('插件_🌍_"\\_' + index % 5,
+      { privateData: 'unknown-native-payload-not-exposed' }, { id: 'plugin-' + index })
+  })
+  assert.equal(document.validate().valid, true)
+  const before = document.serialize(), expectedIds = document.listEntities().map(entity => entity.id)
+  for (const maxBytes of [1024, 1025, 1050, 1100, 1279, 1536, 2048, 4096, 8192, 16384, 65536]) {
+    const seen = [], total = new Map()
+    let offset = 0
+    for (let pageNumber = 0; pageNumber < expectedIds.length; pageNumber++) {
+      const page = createDrawingContext(document, { expectedRevision: document.revision, offset, limit: 200, maxLayers: 0, maxBytes })
+      assert.ok(byteLength(page) <= maxBytes, `${maxBytes} bytes includes the actual pageEntityCounts JSON`)
+      assert.deepEqual(page.pageEntityCounts, exactReturnedPageCounts(page))
+      assert.ok(page.entities.length > 0)
+      assert.equal(Object.values(page.pageEntityCounts).reduce((sum, count) => sum + count, 0), page.entities.length)
+      seen.push(...page.entities.map(entity => entity.id))
+      for (const [type, count] of Object.entries(page.pageEntityCounts)) total.set(type, (total.get(type) ?? 0) + count)
+      if (page.nextOffset === null) break
+      assert.ok(page.nextOffset > offset)
+      offset = page.nextOffset
+    }
+    assert.deepEqual(seen, expectedIds, `complete, duplicate-free pagination at ${maxBytes} bytes`)
+    assert.equal(new Set(seen).size, expectedIds.length)
+    assert.equal(total.get('POINT'), 130)
+    assert.equal([...total.values()].reduce((sum, value) => sum + value, 0), 160)
+  }
+  assert.equal(document.serialize(), before)
+})
+
+test('a rejected next-type count is not charged to or disclosed by the returned page', async () => {
+  const document = KJDocument.create({ documentId: 'count-admission' })
+  const longType = 'CUSTOM_"\\测🌍'.repeat(20)
+  await document.transact('Long count key after small entities', tx => {
+    tx.createEntity('POINT', { position: [0, 0] }, { id: 'small-a' })
+    tx.createEntity('POINT', { position: [1, 0] }, { id: 'small-b' })
+    tx.createEntity(longType, { privateData: 'not-a-count' }, { id: 'long-type' })
+  })
+  const first = createDrawingContext(document, { expectedRevision: document.revision, maxLayers: 0, maxBytes: 1024 })
+  assert.ok(first.nextOffset !== null)
+  assert.deepEqual(first.pageEntityCounts, exactReturnedPageCounts(first))
+  assert.equal(Object.hasOwn(first.pageEntityCounts, document.getObject('long-type').type), false)
+  assert.equal(JSON.stringify(first).includes(document.getObject('long-type').type), false)
+  assert.ok(byteLength(first) <= 1024)
+  const rest = createDrawingContext(document, { expectedRevision: document.revision, offset: first.nextOffset, maxLayers: 0, maxBytes: 4096 })
+  assert.deepEqual(rest.pageEntityCounts, exactReturnedPageCounts(rest))
+  assert.deepEqual([...first.entities, ...rest.entities].map(entity => entity.id), ['small-a', 'small-b', 'long-type'])
+  assert.equal(rest.nextOffset, null)
+})
+
+test('admissible prototype-like native type names have exact own counts and never alter object prototypes', async () => {
+  const document = KJDocument.create({ documentId: 'count-own-keys' })
+  const requested = ['__proto__', 'constructor', 'toString', 'toJSON']
+  await document.transact('Unusual native type names', tx => {
+    for (const [index, type] of requested.entries()) tx.createEntity(type, { privateData: 'unsupported-native-data' }, { id: 'odd-' + index })
+  })
+  assert.equal(document.validate().valid, true)
+  const page = createDrawingContext(document, { maxLayers: 0 })
+  assert.deepEqual(page.pageEntityCounts, exactReturnedPageCounts(page))
+  assert.deepEqual(Object.keys(page.pageEntityCounts), requested.map(type => type.toUpperCase()))
+  assert.equal(Object.getPrototypeOf(page.pageEntityCounts), Object.prototype)
+  for (const entity of page.entities) {
+    assert.equal(Object.hasOwn(page.pageEntityCounts, entity.type), true)
+    assert.equal(page.pageEntityCounts[entity.type], 1)
+    assert.equal(entity.geometryOmittedReason, 'unsupported-type')
+  }
+  assert.equal(Object.hasOwn({}, '__PROTO__'), false)
+  assert.equal(Object.hasOwn({}, 'CONSTRUCTOR'), false)
+  assert.equal(JSON.stringify(page).includes('unsupported-native-data'), false)
+  assert.ok(byteLength(page) <= page.limits.maxBytes)
 })

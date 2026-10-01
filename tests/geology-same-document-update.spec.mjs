@@ -140,6 +140,13 @@ test('AI tools create source-backed geometry atomically and revise data with hum
     const read = await session.call('cad_read_geology_source', { expectedRevision: document.revision, drawingId, maxBytes: 262144 })
     assert.equal(read.ok, true, JSON.stringify(read.error))
     assert.equal(read.value.measurementsVerified, false)
+    assert.equal(read.value.units, 'millimeter', 'existing CAD units remain API-compatible')
+    assert.equal(read.value.drawingUnits, 'millimeter')
+    assert.equal(read.value.sourceUnits, 'meter', 'measured source depths are not CAD coordinates')
+    assert.equal(read.value.depthConvention, 'depth-below-collar')
+    assert.equal(read.value.sourceFieldUnits.collarElevation, 'meter')
+    assert.equal(read.value.sourceFieldUnits['strata.bottom'], 'meter')
+    assert.equal(read.value.sourceFieldUnits['observations.value'], 'observation-specific', 'blow counts are not lengths')
     const original = document.snapshot()
     const update = await session.call('cad_propose_geology_revision', { units: 'millimeter', expectedRevision: document.revision,
       drawingId, updates: [{ holeId: 'ZK01', collarElevation: 105.25 + (round + 1) * 0.1 }] })

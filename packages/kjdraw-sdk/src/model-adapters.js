@@ -1115,7 +1115,11 @@ export function createKJModelAdapter(options) {
                                 addCall(item.id, fn.name, jsonArguments(fn.arguments));
                             }
                             if (choice.finish_reason === 'tool_calls' && !calls.length) invalid('Chat finish reason requires tool calls');
-                            history.push(message);
+                            const assistantHistory = {
+                                ...message
+                            };
+                            if (!calls.length) delete assistantHistory.tool_calls;
+                            history.push(assistantHistory);
                         } else if (protocol === 'anthropic-messages') {
                             if (response.role !== 'assistant') invalid('Expected an assistant message');
                             if (![

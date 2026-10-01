@@ -692,7 +692,12 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
               // Some compatible endpoints finish valid function-call messages with stop.
               // Completeness is enforced above; call structure and IDs are still validated.
               if (choice.finish_reason === 'tool_calls' && !calls.length) invalid('Chat finish reason requires tool calls')
-              history.push(message) // Preserve provider fields such as reasoning_content verbatim.
+              // An assistant text turn has no tool_calls field on the outbound
+              // wire. Some compatible endpoints reject [] (or null) in history.
+              // Keep actual calls and provider fields such as reasoning_content.
+              const assistantHistory = { ...message }
+              if (!calls.length) delete assistantHistory.tool_calls
+              history.push(assistantHistory)
             } else if (protocol === 'anthropic-messages') {
               if (response.role !== 'assistant') invalid('Expected an assistant message')
               if (!['end_turn', 'tool_use', 'stop_sequence'].includes(String(response.stop_reason))) throw new KJModelError('KJMODEL_INCOMPLETE', 'Claude response is truncated, paused or incomplete')

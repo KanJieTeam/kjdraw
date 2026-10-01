@@ -136,6 +136,7 @@ export interface KJBlockAttributeDefinitionInput {
  * signature without weakening the SDK through an untyped escape hatch.
  */
 export interface KJCommandArguments extends Record<string, unknown> {
+    targetHistoryId?: string;
     resources?: KJEntityBatchResources;
     layout?: KJEntityBatchLayout;
     systemVariables?: {

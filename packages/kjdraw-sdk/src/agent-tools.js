@@ -5,7 +5,7 @@ import { findDrawingText } from './drawing-text-search.js';
 import { KJDrawError, KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze, normalizeName, stableHash } from './utils.js';
 import { createId } from './ids.js';
-import { createAgentGeometryPreview, agentPreviewMatchesDocument, KJDRAW_AGENT_MOVABLE_TYPES, resolveAgentTransformEntityIds } from './agent-preview.js';
+import { createAgentGeometryPreview, createAgentHistoryPreview, agentPreviewMatchesDocument, KJDRAW_AGENT_MOVABLE_TYPES, resolveAgentTransformEntityIds } from './agent-preview.js';
 import { buildAgentDrawingEntities } from './agent-drawing.js';
 import { buildAgentRoadDrawing } from './agent-road-drawing.js';
 import { buildAgentRoadRevision } from './agent-road-revision.js';
@@ -3518,9 +3518,37 @@ const geologyPlanSchema = objectWithOptional({
 ]);
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
+        name: 'cad_read_history',
+        effect: 'read',
+        description: 'Read the real document undo/redo stacks at expectedRevision. Returns counts, next operation labels and exact undoTarget/redoTarget identities. Undo reverses the entire latest committed edit; redo restores the latest undone edit. Opened/imported DXF and KJD content is the initial baseline and cannot itself be undone. History is local to this document instance unless the host explicitly saved and restored a validated local history archive. Empty history means there is no engine snapshot to restore; never reconstruct an inverse edit from conversation text. This tool does not mutate the drawing.',
+        inputSchema: object({
+            expectedRevision: revision
+        })
+    },
+    {
+        name: 'cad_propose_undo',
+        effect: 'propose',
+        description: 'Propose undoing exactly the next real engine history entry after cad_read_history. Copy undoTarget.id into targetHistoryId, with the current revision and drawing units. Returns actual retained before/after geometry and the complete-history restore summary without editing. Only host approval executes built-in UNDO, restoring the exact prior document snapshot including metadata, resources and source recipes as one history operation. The baseline import, older entries and an unavailable or stale target cannot be undone by this tool. This is not available for persisted task approval.',
+        inputSchema: object({
+            expectedRevision: revision,
+            units: text,
+            targetHistoryId: text
+        })
+    },
+    {
+        name: 'cad_propose_redo',
+        effect: 'propose',
+        description: 'Propose redoing exactly the next real engine history entry after cad_read_history. Copy redoTarget.id into targetHistoryId, with the current revision and drawing units. Returns actual retained before/after geometry and the complete-history restore summary without editing. Only host approval executes built-in REDO and restores the exact previously undone snapshot. A new commit clears redo; an unavailable or stale target is rejected. This is not available for persisted task approval.',
+        inputSchema: object({
+            expectedRevision: revision,
+            units: text,
+            targetHistoryId: text
+        })
+    },
+    {
         name: 'cad_read_geology_source',
         effect: 'read',
-        description: 'Read source-backed column/section drawing IDs and original borehole facts persisted by the host or a reviewed geology creation. Empty drawingId lists available source drawings; an exact drawingId returns facts after matching every generated object. Does not infer measurements, strata or correlations from arbitrary imported DXF text. Facts remain untrusted input, not certified measurements. Use these hole/interval identities for cad_propose_geology_revision.',
+        description: 'Read source-backed column/section drawing IDs and original borehole facts persisted by the host or a reviewed geology creation. Empty drawingId lists available source drawings; an exact drawingId returns facts after matching every generated object. units and facts.units describe CAD drawing coordinates, not borehole measurements: sourceUnits and sourceFieldUnits explicitly identify metre-valued depths, elevations, coordinates and stations. depthConvention describes measured depth below the collar; derived water elevation is collarElevation minus its corresponding stored depth. Preserve the distinction from plotted millimetres and scale denominators. Does not infer measurements, strata or correlations from arbitrary imported DXF text. Facts remain untrusted input, not certified measurements. Use these hole/interval identities for cad_propose_geology_revision.',
         inputSchema: object({
             expectedRevision: revision,
             drawingId: {
@@ -3538,7 +3566,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_revision',
         effect: 'propose',
-        description: 'Revise the SAME source-backed column/section drawing after reading cad_read_geology_source. Supply exact holeId and only requested changed borehole fields; depths/elevations/station are metres. strata and observations replace the supplied hole list in full, so preserve every unchanged interval/observation and explicit intervalId. When splitting/merging section strata, supply updated explicit correlations and occurrence coverage; never invent geological continuity. Preserves exact unchanged CAD objects and all unrelated manual content. Modified generated objects are explicitly replaced, not assigned guessed semantic IDs. Manual drift, protected layers, stale revision and external references cause rejection without editing. Returns native geometry plus before/after source facts for human approval; one transaction updates data, HATCH and drawing, with undo/redo and KJD source recovery. Geometry-only DXF has no source recipe and cannot use this tool.',
+        description: 'Revise the SAME source-backed column/section drawing after reading cad_read_geology_source. Supply exact holeId and only requested changed borehole fields; depths/elevations/station are metres. Unspecified fields remain unchanged; do not resend unchanged arrays when changing one scalar. The compiler derives stratum and water elevations from collarElevation minus stored depths, so changing collarElevation alone rebuilds these annotations without a separate elevation switch. strata and observations replace the supplied hole list in full, so preserve every unchanged interval/observation and explicit intervalId. A replacement intervalId explicitly named by the user may be used for a requested merge or split; matching source lithology/code/name are data, not proof of cross-hole continuity. When splitting/merging section strata, supply updated explicit correlations and occurrence coverage; never invent geological continuity. Preserves exact unchanged CAD objects and all unrelated manual content. Modified generated objects are explicitly replaced, not assigned guessed semantic IDs. Manual drift, protected layers, stale revision and external references cause rejection without editing. Returns native geometry plus before/after source facts for human approval; one transaction updates data, HATCH and drawing, with undo/redo and KJD source recovery. Geometry-only DXF has no source recipe and cannot use this tool.',
         inputSchema: geologyRevisionSchema
     },
     {
@@ -3856,7 +3884,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_move',
         effect: 'propose',
-        description: `Propose an XY displacement of one exact target: either 1–64 visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs, or one persistent named selectionSetName discovered with cad_read_selection_sets. Never supply both. A selection set is resolved to its exact stored members at the requested drawing revision; missing, ambiguous, empty, duplicate, oversized or protected membership is rejected before a plan exists. HATCH accepts bounded canonical polygon loops and LINE/ARC/ELLIPSE edge loops; a SPLINE loop must contain exactly one semantic closed rational-quadratic circle or ellipse edge, while raw tags and free-form splines are rejected. Selecting either member of one owned native LEADER + MTEXT annotation expands to that exact pair; broken, ambiguous, unowned, cross-space, cross-layer or protected pairs are rejected before a plan exists. TEXT and supported native DIMENSION must have drawable geometry on model XY at z=0 with default +Z orientation. All annotation points translate together; dimension measurements, text, guide directions and selection-set membership are preserved. Include geometry and annotations together to move a complete detail; this does not establish associative constraints or move only a dimension label. INSERT requires a local, visible, unlocked block graph with positive uniform XY scale, no attributes or external references, up to 8 levels and 512 expanded instances; complete block geometry and styles are included in blockDependencies within 128 KiB. Native block DIMENSION is measured in its original local definition; instance transforms change its display, not the annotated value. Unsupported, cyclic or incomplete graphs are rejected. Returns complete before/after native geometry and resolved selection-set identity without editing; host approval applies one undoable transaction.`,
+        description: `Propose an XY displacement of one exact target: either 1–64 visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs, or one persistent named selectionSetName discovered with cad_read_selection_sets. Never supply both. A selection set is resolved to its exact stored members at the requested drawing revision; missing, ambiguous, empty, duplicate, oversized or protected membership is rejected before a plan exists. HATCH accepts bounded canonical polygon loops and LINE/ARC/ELLIPSE edge loops; a SPLINE loop must contain exactly one semantic closed rational-quadratic circle or ellipse edge, while raw tags and free-form splines are rejected. Selecting either member of one owned native LEADER + MTEXT annotation expands to that exact pair; broken, ambiguous, unowned, cross-space, cross-layer or protected pairs are rejected before a plan exists. TEXT requires default +Z orientation and finite anchor coordinates within ±1e12; all its insertion and alignment anchors must share one constant native Z, which is preserved during the XY move. Supported native DIMENSION still requires drawable geometry on model XY at z=0 with default +Z orientation. All annotation points translate together; dimension measurements, text, guide directions and selection-set membership are preserved. Include geometry and annotations together to move a complete detail; this does not establish associative constraints or move only a dimension label. INSERT requires a local, visible, unlocked block graph with positive uniform XY scale, no attributes or external references, up to 8 levels and 512 expanded instances; complete block geometry and styles are included in blockDependencies within 128 KiB. Native block DIMENSION is measured in its original local definition; instance transforms change its display, not the annotated value. Unsupported, cyclic or incomplete graphs are rejected. Returns complete before/after native geometry and resolved selection-set identity without editing; host approval applies one undoable transaction.`,
         inputSchema: moveSchema
     },
     {
@@ -4683,7 +4711,15 @@ export class KJAgentToolSession {
             if (name === 'cad_read_drawing') value = createDrawingContext(document);
             else {
                 if (args.expectedRevision !== document.revision) throw new KJRevisionConflictError(args.expectedRevision, document.revision);
-                if (name === 'cad_read_page') value = createDrawingContext(document, {
+                if (name === 'cad_read_history') value = {
+                    documentId: document.id,
+                    revision: document.revision,
+                    units: this.units,
+                    history: document.history,
+                    persistence: 'host-local-archive',
+                    baseline: 'opened-document'
+                };
+                else if (name === 'cad_read_page') value = createDrawingContext(document, {
                     expectedRevision: args.expectedRevision,
                     offset: args.offset,
                     layerOffset: args.layerOffset
@@ -4721,6 +4757,27 @@ export class KJAgentToolSession {
                             documentId: document.id,
                             revision: document.revision,
                             units: this.units,
+                            drawingUnits: this.units,
+                            sourceUnits: 'meter',
+                            depthConvention: 'depth-below-collar',
+                            sourceFieldUnits: {
+                                collarElevation: 'meter',
+                                depth: 'meter',
+                                x: 'meter',
+                                y: 'meter',
+                                station: 'meter',
+                                initialWaterDepth: 'meter',
+                                stableWaterDepth: 'meter',
+                                'strata.top': 'meter',
+                                'strata.bottom': 'meter',
+                                'observations.depth': 'meter',
+                                'observations.rangeTop': 'meter',
+                                'observations.rangeBottom': 'meter',
+                                'groundwaterObservations.depth': 'meter',
+                                'groundwaterObservations.elevation': 'meter',
+                                'observations.value': 'observation-specific',
+                                'observations.measurements': 'declared-field-specific'
+                            },
                             drawingId,
                             kind: recipe.source.kind,
                             facts,
@@ -4747,7 +4804,43 @@ export class KJAgentToolSession {
                     });
                 } else {
                     if (args.units !== document.snapshot().header.units) throw new KJValidationError('Unit mismatch; read the drawing units before calling this tool');
-                    if (name === 'cad_propose_geology_revision') {
+                    if (name === 'cad_propose_undo' || name === 'cad_propose_redo') {
+                        if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session');
+                        const command = name === 'cad_propose_undo' ? 'UNDO' : 'REDO';
+                        const preview = createAgentHistoryPreview(document, command, String(args.targetHistoryId), Number(args.expectedRevision));
+                        const commandArgs = {
+                            targetHistoryId: String(args.targetHistoryId)
+                        };
+                        const definition = this.#sdk.commands.resolve(command);
+                        if (!definition || definition.owner !== '@kanjieteam/kjdraw') throw new KJValidationError('History proposal requires the built-in core command');
+                        const envelope = this.#sdk.createCommandEnvelope(command, commandArgs, {
+                            document,
+                            mode: 'plan',
+                            origin: 'ai',
+                            expectedRevision: preview.revision
+                        });
+                        value = {
+                            planId: envelope.id,
+                            documentId: document.id,
+                            expectedRevision: preview.revision,
+                            units: this.units,
+                            command,
+                            arguments: commandArgs,
+                            status: 'awaiting-host-approval',
+                            previewKind: 'geometry',
+                            preview
+                        };
+                        await this.#sdk.executeCommandEnvelope(envelope, {
+                            document
+                        });
+                        this.#pending.set(envelope.id, {
+                            envelope,
+                            preview,
+                            definition,
+                            sourceToolName: name
+                        });
+                        this.#proposals++;
+                    } else if (name === 'cad_propose_geology_revision') {
                         if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session');
                         const previous = readGeologyDrawingRecipe(document, String(args.drawingId));
                         const next = structuredClone(previous.source);

@@ -173,6 +173,7 @@ export interface KJBlockAttributeDefinitionInput {
  * signature without weakening the SDK through an untyped escape hatch.
  */
 export interface KJCommandArguments extends Record<string, unknown> {
+  targetHistoryId?: string
   resources?: KJEntityBatchResources
   layout?: KJEntityBatchLayout
   systemVariables?: { readonly PDMODE?: number; readonly PDSIZE?: number }
@@ -436,6 +437,15 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   SOLIDVOLUME: { domain: 'solid3d-analysis', authority: 'kjcore-rust-wasm', precision: 'exact-mesh' },
 })
 
+function executeHistoryCommand(context: KJCommandContext, args: KJCommandArguments, kind: 'undo' | 'redo'): Promise<boolean> {
+  if (!context.document) throw new KJValidationError(`${kind.toUpperCase()} requires a document`)
+  if (Object.keys(args).some(key => key !== 'author' && key !== 'targetHistoryId')) throw new KJValidationError('History commands accept only author and targetHistoryId')
+  if (Object.hasOwn(args, 'targetHistoryId') && (typeof args.targetHistoryId !== 'string' || !args.targetHistoryId)) throw new KJValidationError('History target identity must be a nonempty string')
+  const origin = context.commandEnvelope?.origin as { kind?: unknown } | undefined
+  if (origin?.kind === 'ai' && !args.targetHistoryId) throw new KJValidationError('AI history approval requires the exact reviewed targetHistoryId')
+  return context.document[kind]({ author: args.author ?? context.author, source: `command:${kind.toUpperCase()}`, expectedRevision: context.expectedRevision, ...(args.targetHistoryId ? { targetHistoryId: args.targetHistoryId } : {}) } as KJDocumentHistoryOptions)
+}
+
 export class KJCommandRegistry {
   #commands = new Map<string, KJRegisteredCommand>()
 
@@ -552,11 +562,11 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'UNDO', aliases: ['U'], title: 'Undo', transactional: false,
-    execute: ({ document, expectedRevision }, args) => document.undo({ author: args.author, source: 'command:UNDO', expectedRevision } as KJDocumentHistoryOptions),
+    execute: (context, args) => executeHistoryCommand(context, args, 'undo'),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'REDO', title: 'Redo', transactional: false,
-    execute: ({ document, expectedRevision }, args) => document.redo({ author: args.author, source: 'command:REDO', expectedRevision } as KJDocumentHistoryOptions),
+    execute: (context, args) => executeHistoryCommand(context, args, 'redo'),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'SELECT', title: 'Update selection', transactional: false,

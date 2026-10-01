@@ -2057,6 +2057,9 @@ async function readDXF(source, options = {}) {
     }, {
         source: 'adapter:dxf-ascii'
     });
+    await document.clearHistory({
+        expectedRevision: document.revision
+    });
     return document;
 }
 function decodeDxfTextSymbols(text) {
@@ -3163,7 +3166,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         if (p.verticalAlignment) emit(output, 74, p.verticalAlignment);
         if (p.lockPosition) emit(output, 280, 1);
         if (p.dxfAttributeExtraTags != null) {
-            attributeExtraApplications(p.dxfAttributeExtraTags);
+            attributeExtraApplications(p.dxfAttributeExtraTags, p.alignmentPoint, (p.horizontalAlignment ?? 0) === 0 && (p.verticalAlignment ?? 0) === 0);
             for (const tag of p.dxfAttributeExtraTags){
                 emit(output, tag.code, tag.value);
             }
@@ -3456,17 +3459,39 @@ function emitSingleLineText(output, p, version, resources) {
 function isDxfVersion(value) {
     return VERSIONS.includes(value);
 }
-function attributeExtraApplications(input) {
+function attributeExtraApplications(input, alignmentPoint, inactiveAlignment = false) {
     if (!Array.isArray(input) || input.length > 4096) throw new KJValidationError('Invalid opaque attribute subclass tags');
     const names = [];
+    const applicationKeys = new Set();
     let inXdata = false;
-    for (const tag of input){
+    let seenAlignmentPoint = false;
+    for(let index = 0; index < input.length; index++){
+        const tag = input[index];
         if (!tag || typeof tag.value !== 'string' || /[\r\n\0]/.test(tag.value)) throw new KJValidationError('Invalid opaque attribute subclass tags');
         if (!inXdata && [
             71,
             72
         ].includes(tag.code) && /^\s*[+-]?\d+\s*$/.test(tag.value)) continue;
+        if (!inXdata && tag.code === 11 && !seenAlignmentPoint) {
+            const pointTags = input.slice(index, index + 3);
+            const coordinatesValid = pointTags.length === 3 && pointTags.every((entry, axis)=>entry?.code === [
+                    11,
+                    21,
+                    31
+                ][axis] && typeof entry.value === 'string' && /^[ \t]*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?[ \t]*$/.test(entry.value) && Number.isFinite(Number(entry.value)));
+            const canonicalMatch = Array.isArray(alignmentPoint) && alignmentPoint.length === 3 && pointTags.every((entry, axis)=>typeof alignmentPoint[axis] === 'number' && Number.isFinite(alignmentPoint[axis]) && Number(entry?.value) === alignmentPoint[axis]);
+            const inactiveZero = alignmentPoint == null && inactiveAlignment && pointTags.every((entry)=>Number(entry?.value) === 0);
+            const valid = coordinatesValid && (canonicalMatch || inactiveZero);
+            if (valid) {
+                seenAlignmentPoint = true;
+                index += 2;
+                continue;
+            }
+        }
         if (tag.code === 1001 && tag.value.trim() && tag.value.length <= 255) {
+            const key = normalizeName(tag.value);
+            if (applicationKeys.has(key)) throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss: duplicate APPID segment');
+            applicationKeys.add(key);
             inXdata = true;
             names.push(tag.value);
             continue;
@@ -3704,17 +3729,23 @@ function writeDXF(document, options = {}) {
     emitLinetypeTable(output, linetypes, context, tableHandles.get('LTYPE'));
     emitTextStyleTable(output, textStyles, context, tableHandles.get('STYLE'));
     emitDimensionStyleTable(output, dimensionStyles, context, tableHandles.get('DIMSTYLE'));
-    const applications = new Set([
+    const applicationNames = [
         ...dimensionExports.dimensions.size ? [
             'ACAD'
         ] : [],
         ...hasDimensionAssociations ? [
             'KJDRAW'
         ] : [],
-        ...allEntities.flatMap((entity)=>entity.payload?.dxfAttributeExtraTags == null ? [] : attributeExtraApplications(entity.payload.dxfAttributeExtraTags))
-    ]);
+        ...allEntities.flatMap((entity)=>entity.payload?.dxfAttributeExtraTags == null ? [] : attributeExtraApplications(entity.payload.dxfAttributeExtraTags, entity.payload.alignmentPoint, (entity.payload.horizontalAlignment ?? 0) === 0 && (entity.payload.verticalAlignment ?? 0) === 0))
+    ];
+    const applications = new Map();
+    for (const name of applicationNames){
+        const key = normalizeName(name), previous = applications.get(key);
+        if (previous !== undefined && previous !== name) throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss: conflicting APPID spelling');
+        applications.set(key, name);
+    }
     const applicationRecords = [
-        ...applications
+        ...applications.values()
     ].map((name)=>({
             id: `dxf-appid-${name}`,
             type: 'APPID',

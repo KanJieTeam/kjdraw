@@ -1248,6 +1248,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
     }
     reportDXF(options, 'import', importCompleted, 'entities', importTotal)
   }, { source: 'adapter:dxf-ascii' })
+  await document.clearHistory({ expectedRevision: document.revision })
   return document
 }
 
@@ -1933,7 +1934,7 @@ function emitEntity(
     if (entity.type === 'ATTDEF') emit(output, 3, p.prompt)
     emit(output, 2, p.tag); emit(output, 70, p.flags ?? 0); if (p.verticalAlignment) emit(output, 74, p.verticalAlignment); if (p.lockPosition) emit(output, 280, 1)
     if (p.dxfAttributeExtraTags != null) {
-      attributeExtraApplications(p.dxfAttributeExtraTags)
+      attributeExtraApplications(p.dxfAttributeExtraTags, p.alignmentPoint, (p.horizontalAlignment ?? 0) === 0 && (p.verticalAlignment ?? 0) === 0)
       for (const tag of p.dxfAttributeExtraTags as readonly DxfTag[]) {
         // Preserve uninterpreted scalar fields in their original subclass. Never
         // guess that its 71/72 codes are AcDbText mirror/alignment properties.
@@ -2087,16 +2088,37 @@ function emitSingleLineText(output: string[], p: DxfPayload, version: DxfVersion
 
 function isDxfVersion(value: string): value is DxfVersion { return (VERSIONS as readonly string[]).includes(value) }
 
-/** Preserve a bounded attribute XDATA tail without interpreting it as text
- * alignment. Nonzero handles require a graph-aware XDATA adapter; never guess. */
-function attributeExtraApplications(input: unknown): string[] {
+/** Preserve bounded attribute scalar/XDATA tails and one redundant native
+ * alignment point only when it exactly matches the canonical alignment point.
+ * XDATA coordinates and nonzero handles still require a graph-aware adapter. */
+function attributeExtraApplications(input: unknown, alignmentPoint?: unknown, inactiveAlignment = false): string[] {
   if (!Array.isArray(input) || input.length > 4096) throw new KJValidationError('Invalid opaque attribute subclass tags')
   const names: string[] = []
+  const applicationKeys = new Set<string>()
   let inXdata = false
-  for (const tag of input as DxfTag[]) {
+  let seenAlignmentPoint = false
+  for (let index = 0; index < input.length; index++) {
+    const tag = input[index] as DxfTag
     if (!tag || typeof tag.value !== 'string' || /[\r\n\0]/.test(tag.value)) throw new KJValidationError('Invalid opaque attribute subclass tags')
     if (!inXdata && [71, 72].includes(tag.code) && /^\s*[+-]?\d+\s*$/.test(tag.value)) continue
+    if (!inXdata && tag.code === 11 && !seenAlignmentPoint) {
+      const pointTags = input.slice(index, index + 3) as DxfTag[]
+      const coordinatesValid = pointTags.length === 3 && pointTags.every((entry, axis) => entry?.code === [11, 21, 31][axis] &&
+        typeof entry.value === 'string' && /^[ \t]*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?[ \t]*$/.test(entry.value) &&
+        Number.isFinite(Number(entry.value)))
+      const canonicalMatch = Array.isArray(alignmentPoint) && alignmentPoint.length === 3 &&
+        pointTags.every((entry, axis) => typeof alignmentPoint[axis] === 'number' && Number.isFinite(alignmentPoint[axis]) && Number(entry?.value) === alignmentPoint[axis])
+      // A default left/baseline attribute may retain an unused zero point only
+      // in its attribute subclass. Do not invent a canonical alignment point
+      // or transform this inactive placeholder with the insertion coordinate.
+      const inactiveZero = alignmentPoint == null && inactiveAlignment && pointTags.every(entry => Number(entry?.value) === 0)
+      const valid = coordinatesValid && (canonicalMatch || inactiveZero)
+      if (valid) { seenAlignmentPoint = true; index += 2; continue }
+    }
     if (tag.code === 1001 && tag.value.trim() && tag.value.length <= 255) {
+      const key = normalizeName(tag.value)
+      if (applicationKeys.has(key)) throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss: duplicate APPID segment')
+      applicationKeys.add(key)
       inXdata = true; names.push(tag.value); continue
     }
     if (inXdata && [1070, 1071].includes(tag.code) && /^\s*[+-]?\d+\s*$/.test(tag.value)) {
@@ -2254,12 +2276,19 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   emitLinetypeTable(output, linetypes, context, tableHandles.get('LTYPE')!)
   emitTextStyleTable(output, textStyles, context, tableHandles.get('STYLE')!)
   emitDimensionStyleTable(output, dimensionStyles, context, tableHandles.get('DIMSTYLE')!)
-  const applications = new Set([
+  const applicationNames = [
     ...(dimensionExports.dimensions.size ? ['ACAD'] : []),
     ...(hasDimensionAssociations ? ['KJDRAW'] : []),
-    ...allEntities.flatMap(entity => entity.payload?.dxfAttributeExtraTags == null ? [] : attributeExtraApplications(entity.payload.dxfAttributeExtraTags)),
-  ])
-  const applicationRecords = [...applications].map(name => ({ id: `dxf-appid-${name}`, type: 'APPID', name, handle: context.allocateHandle(), payload: {} }))
+    ...allEntities.flatMap(entity => entity.payload?.dxfAttributeExtraTags == null ? [] : attributeExtraApplications(entity.payload.dxfAttributeExtraTags, entity.payload.alignmentPoint,
+      (entity.payload.horizontalAlignment ?? 0) === 0 && (entity.payload.verticalAlignment ?? 0) === 0)),
+  ]
+  const applications = new Map<string, string>()
+  for (const name of applicationNames) {
+    const key = normalizeName(name), previous = applications.get(key)
+    if (previous !== undefined && previous !== name) throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss: conflicting APPID spelling')
+    applications.set(key, name)
+  }
+  const applicationRecords = [...applications.values()].map(name => ({ id: `dxf-appid-${name}`, type: 'APPID', name, handle: context.allocateHandle(), payload: {} }))
   if (applicationRecords.length) emitTable(output, 'APPID', applicationRecords, context, tableHandles.get('APPID')!, (record, ownerHandle, version) => {
     emitSymbolTableRecordHeader(output, 'APPID', record, ownerHandle, version, 'AcDbRegAppTableRecord')
     emit(output, 2, record.name); emit(output, 70, 0)

@@ -691,6 +691,21 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         precision: 'exact-mesh'
     }
 });
+function executeHistoryCommand(context, args, kind) {
+    if (!context.document) throw new KJValidationError(`${kind.toUpperCase()} requires a document`);
+    if (Object.keys(args).some((key)=>key !== 'author' && key !== 'targetHistoryId')) throw new KJValidationError('History commands accept only author and targetHistoryId');
+    if (Object.hasOwn(args, 'targetHistoryId') && (typeof args.targetHistoryId !== 'string' || !args.targetHistoryId)) throw new KJValidationError('History target identity must be a nonempty string');
+    const origin = context.commandEnvelope?.origin;
+    if (origin?.kind === 'ai' && !args.targetHistoryId) throw new KJValidationError('AI history approval requires the exact reviewed targetHistoryId');
+    return context.document[kind]({
+        author: args.author ?? context.author,
+        source: `command:${kind.toUpperCase()}`,
+        expectedRevision: context.expectedRevision,
+        ...args.targetHistoryId ? {
+            targetHistoryId: args.targetHistoryId
+        } : {}
+    });
+}
 export class KJCommandRegistry {
     #commands = new Map();
     register(definition, { owner = 'application', replace = false } = {}) {
@@ -838,11 +853,7 @@ export function registerCoreCommands(registry) {
         ],
         title: 'Undo',
         transactional: false,
-        execute: ({ document, expectedRevision }, args)=>document.undo({
-                author: args.author,
-                source: 'command:UNDO',
-                expectedRevision
-            })
+        execute: (context, args)=>executeHistoryCommand(context, args, 'undo')
     }, {
         owner: '@kanjieteam/kjdraw'
     }));
@@ -850,11 +861,7 @@ export function registerCoreCommands(registry) {
         id: 'REDO',
         title: 'Redo',
         transactional: false,
-        execute: ({ document, expectedRevision }, args)=>document.redo({
-                author: args.author,
-                source: 'command:REDO',
-                expectedRevision
-            })
+        execute: (context, args)=>executeHistoryCommand(context, args, 'redo')
     }, {
         owner: '@kanjieteam/kjdraw'
     }));

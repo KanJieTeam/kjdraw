@@ -48,6 +48,17 @@ function connectionSettings({ endpoint, model, apiKey, provider = 'custom', prot
 
 function errorResult(code, message) { return { status: 'error', text: '', error: { code, message } } }
 
+/** Only selects a bounded model follow-up policy; never resolves targets or executes edits. */
+export function expectsAiDrawingProposal(request, toolNames) {
+  if (typeof request !== 'string' || !toolNames.some(name => name.startsWith('cad_propose_'))) return false
+  const text = request.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim()
+  // Negated preservation clauses about other fields do not make the entire request read-only.
+  const readOnly = /\bread[- ]only\b|\b(?:do not|don't|dont|without)\s+(?:any\s+)?(?:edit|editing|change|changing|modify|modifying)\s+(?:the\s+)?(?:drawing|document|anything)\b|只读|别改图|不改图|不要修改图纸|不修改图纸/.test(text)
+  const hypothetical = /^(?:how (?:do|can|would|should)|what (?:would|happens)|can you explain|explain|为什么|如何|怎么|如果)/.test(text)
+  if (readOnly || hypothetical) return false
+  return /\b(?:move|translate|shift|relayer|replace|edit|change|update|revise|correct|rename|set|adjust|delete|erase|remove|add|copy|duplicate|rotate|scale|offset|stretch|lengthen|trim|extend|draw|create|redraw|split|merge|undo|redo)\b|移动|平移|挪动|调层|替换|修改|更改|更新|修正|重命名|改成|设为|调整|删除|擦除|移除|添加|复制|旋转|缩放|偏移|拉伸|延长|修剪|绘制|创建|重绘|分层|合并|撤销|重做/.test(text)
+}
+
 function fitBoundsCamera(bounds, { width = 720, height = 420, padding = 38 } = {}) {
   if (!bounds) return null
   const dx = bounds[2] - bounds[0], dy = bounds[3] - bounds[1]
@@ -103,6 +114,8 @@ export function createAiChatRuntime(options = {}) {
   let disposed = false
   let committed = false
   let sourceFormat = 'blank'
+  let historyRestoreWarning = false
+  let historyStorage = null
 
   function rejectPending(reason = 'ai-new-request') {
     for (const [id, { session }] of pending) session.reject(id, reason)
@@ -148,10 +161,23 @@ export function createAiChatRuntime(options = {}) {
 
   async function exportLocalState() {
     if (disposed) throw new Error('会话已经结束。')
+    // Capture content and its archive at the same synchronous revision. A later
+    // approval must not mix a new drawing with an older saved history chain.
+    const localDocument = document.fork()
+    const localHistory = history.map(item => ({ user: item.user, assistant: item.assistant }))
+    const localCommitted = committed
+    let drawingHistory = null
+    try {
+      drawingHistory = document.exportHistory({ limit: 50, maxBytes: 16 * 1024 * 1024 })
+      historyStorage = { undoCount: drawingHistory.undo.length, redoCount: drawingHistory.redo.length,
+        limited: drawingHistory.undo.length < document.history.undoCount || drawingHistory.redo.length < document.history.redoCount }
+    }
+    catch { historyRestoreWarning = true }
     return {
-      drawing: await sdk.writeDocument(document, { format: 'KJD' }),
-      history: history.map(item => ({ user: item.user, assistant: item.assistant })),
-      committed,
+      drawing: await sdk.writeDocument(localDocument, { format: 'KJD' }),
+      drawingHistory,
+      history: localHistory,
+      committed: localCommitted,
       sourceFormat,
     }
   }
@@ -174,6 +200,13 @@ export function createAiChatRuntime(options = {}) {
         .slice(-8).map(item => ({ user: item.user.slice(0, MAX_PROMPT_LENGTH), assistant: item.assistant.slice(0, 4000) }))
       : []
     committed = state.committed === true
+    if (state.drawingHistory) {
+      try {
+        await document.restoreHistory(state.drawingHistory, { expectedRevision: document.revision })
+        historyStorage = { undoCount: document.history.undoCount, redoCount: document.history.redoCount, limited: false }
+      }
+      catch { historyRestoreWarning = true }
+    } else if (committed) historyRestoreWarning = true
   }
 
   async function send(prompt, { signal, onProgress } = {}) {
@@ -236,8 +269,14 @@ export function createAiChatRuntime(options = {}) {
         .filter(name => availableTools.has(name))
         .filter(name => document.listEntities().length === 0 ||
           !['cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_section_example'].includes(name)))]
-      const expectProposal = toolNames.includes('cad_find_text') && toolNames.length === 3 &&
-        toolNames.some(name => name === 'cad_propose_text_edit' || name === 'cad_propose_move')
+      const expectProposal = expectsAiDrawingProposal(normalized, toolNames) ||
+        (toolNames.includes('cad_read_geology_source') && toolNames.includes('cad_propose_geology_revision') &&
+          Object.keys(document.snapshot().opaquePayloads).some(key => key.startsWith('geology-drawing-recipe:')))
+      // History remains available even when the host narrows an annotation request.
+      // This exposes real tools to the model; it does not execute prompt keywords.
+      if (!capability) for (const name of ['cad_read_history', 'cad_propose_undo', 'cad_propose_redo']) {
+        if (availableTools.has(name) && !toolNames.includes(name)) toolNames.push(name)
+      }
       if (candidates.length && !capability) toolNames.push(SPATIAL_TOOL.name)
       const checkedEraseIds = new Set()
       const modelSession = {
@@ -285,21 +324,24 @@ export function createAiChatRuntime(options = {}) {
         ...(capability ? { capabilities: { registry: capability.registry, lock: capability.lock } } : {}),
         signal: controller.signal, onProgress,
       })
-      if (result.status === 'cancelled') return { status: 'cancelled', text: '已停止，图纸未修改。' }
-      if (result.status === 'failed') return errorResult(result.error?.code ?? 'AI_REQUEST_FAILED', transportError ?? result.error?.message ?? '这次请求未能完成，图纸未修改。')
-      if (result.status === 'limit-reached') return errorResult(result.error?.code ?? 'AI_LIMIT_REACHED', '本次请求达到处理上限，图纸未修改。')
+      // Opt-in trusted host diagnostics expose actual results even when the run
+      // stops immediately at a proposal. Normal UI/storage responses omit them.
+      const diagnostics = options.captureToolOutputs === true ? { toolOutputs: result.outputs } : {}
+      if (result.status === 'cancelled') return { status: 'cancelled', text: '已停止，图纸未修改。', ...diagnostics }
+      if (result.status === 'failed') return { ...errorResult(result.error?.code ?? 'AI_REQUEST_FAILED', transportError ?? result.error?.message ?? '这次请求未能完成，图纸未修改。'), ...diagnostics }
+      if (result.status === 'limit-reached') return { ...errorResult(result.error?.code ?? 'AI_LIMIT_REACHED', '本次请求达到处理上限，图纸未修改。'), ...diagnostics }
       const proposals = result.outputs.filter(output => output.result.ok && output.result.value?.status === 'awaiting-host-approval').map(output => output.result.value)
       if (proposals.length) {
         for (const proposal of proposals) pending.set(proposal.planId, { proposal, session })
         const [proposal] = proposals
         history.push({ user: normalized, assistant: result.text.slice(0, 4000) })
         history = history.slice(-8)
-        return { status: 'proposal', text: result.text || '已生成 CAD 提案，图纸尚未修改。', proposal, proposals,
+        return { status: 'proposal', text: result.text || '已生成 CAD 提案，图纸尚未修改。', proposal, proposals, ...diagnostics,
           ...(expectProposal ? { proposalRepairAttempts: result.proposalRepairAttempts } : {}) }
       }
       history.push({ user: normalized, assistant: result.text.slice(0, 4000) })
       history = history.slice(-8)
-      return { status: 'message', text: result.text,
+      return { status: 'message', text: result.text, ...diagnostics,
         ...(expectProposal ? { noProposal: true, proposalRepairAttempts: result.proposalRepairAttempts } : {}) }
     } catch {
       return errorResult('AI_REQUEST_FAILED', transportError ?? '这次请求未能完成，图纸未修改。')
@@ -367,6 +409,25 @@ export function createAiChatRuntime(options = {}) {
     return result.ok ? { status: 'rejected', text: '已放弃提案，图纸未修改。' } : errorResult('AI_REJECTION_FAILED', '提案未能放弃，请刷新会话。')
   }
 
+  async function applyHistory(kind) {
+    if (disposed) return errorResult('AI_SESSION_CLOSED', '会话已经结束。')
+    if (activeController) return errorResult('AI_BUSY', '请等待当前请求结束后再撤销或重做。')
+    if (kind !== 'undo' && kind !== 'redo') return errorResult('AI_HISTORY_INVALID', '无效的历史操作。')
+    const target = document.history[kind === 'undo' ? 'undoTarget' : 'redoTarget']
+    if (!target) return errorResult('AI_HISTORY_EMPTY', kind === 'undo' ? '没有可撤销的图纸修改。' : '没有可重做的图纸修改。')
+    const beforeRevision = document.revision
+    try {
+      const changed = await sdk.executeCommand(kind.toUpperCase(), { targetHistoryId: target.id }, {
+        document, expectedRevision: beforeRevision, author: 'ai-chat-user',
+      })
+      if (changed !== true) return errorResult('AI_HISTORY_EMPTY', '没有可恢复的图纸修改。')
+      committed = true
+      rejectPending('ai-history-changed')
+      return { status: 'applied', action: kind, revision: document.revision,
+        text: `${kind === 'undo' ? '已撤销上一次图纸修改' : '已重做图纸修改'} · REV ${document.revision}` }
+    } catch { return errorResult('AI_HISTORY_FAILED', '图纸历史已改变或无法恢复，请重新检查当前图纸。') }
+  }
+
   async function exportDocument(format = 'DXF') {
     if (!committed) throw new Error('请先审阅并应用 CAD 提案。')
     if (!['KJD', 'DXF'].includes(format)) throw new Error('请选择 DXF 导出格式。')
@@ -382,9 +443,12 @@ export function createAiChatRuntime(options = {}) {
     history = []
   }
 
-  return { send, configure, importDocument, exportLocalState, restoreLocalState, getViewerCamera, renderProposal, renderDocument, approve, reject, exportDocument, destroy,
+  return { send, configure, importDocument, exportLocalState, restoreLocalState, getViewerCamera, renderProposal, renderDocument, approve, reject, applyHistory, exportDocument, destroy,
     get configured() { return Boolean(connection) },
     get revision() { return document.revision },
     get entityCount() { return document.listEntities().length },
+    get drawingHistory() { return document.history },
+    get historyRestoreWarning() { return historyRestoreWarning },
+    get historyStorage() { return historyStorage },
   }
 }

@@ -7,6 +7,28 @@ function withoutUndefined(record) {
     for (const key of Object.keys(record))if (record[key] === undefined) delete record[key];
     return record;
 }
+function transformedAttributeAlignmentTags(payload, matrix) {
+    if (!Array.isArray(payload.dxfAttributeExtraTags) || !Array.isArray(payload.alignmentPoint) || payload.alignmentPoint.length !== 3) return {};
+    const tags = payload.dxfAttributeExtraTags;
+    for(let index = 0; index < tags.length; index++){
+        if (tags[index].code === 1001) break;
+        if (tags[index].code !== 11) continue;
+        const point = tags.slice(index, index + 3);
+        if (point.length !== 3 || !point.every((tag, axis)=>tag.code === [
+                11,
+                21,
+                31
+            ][axis] && typeof tag.value === 'string' && /^[ \t]*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?[ \t]*$/.test(tag.value) && Number.isFinite(Number(tag.value)) && Number(tag.value) === payload.alignmentPoint[axis])) return {};
+        const next = transformPoint3(matrix, payload.alignmentPoint);
+        return {
+            dxfAttributeExtraTags: tags.map((tag, tagIndex)=>tagIndex >= index && tagIndex < index + 3 ? {
+                    ...tag,
+                    value: String(next[tagIndex - index])
+                } : tag)
+        };
+    }
+    return {};
+}
 function angleOf(vector) {
     const record = vector;
     const coordinates = Array.isArray(vector) ? vector : [
@@ -163,6 +185,10 @@ export function transformEntityPayload(type, source, matrix) {
                 ...payload,
                 position: transformPoint3(matrix, payload.position),
                 alignmentPoint: payload.alignmentPoint && transformPoint3(matrix, payload.alignmentPoint),
+                ...[
+                    'ATTDEF',
+                    'ATTRIB'
+                ].includes(normalizedType) ? transformedAttributeAlignmentTags(payload, matrix) : {},
                 height: payload.height == null ? undefined : Number(payload.height) * scale(),
                 ...normalizedType === 'MTEXT' && payload.width != null ? {
                     width: Number(payload.width) * scale()

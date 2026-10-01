@@ -44,10 +44,39 @@ export function inspectBuildingCandidates(document) {
   return [...candidates.values()].sort((a,b) => b.bounds[3] - a.bounds[3] || a.center[0] - b.center[0])
 }
 
+// A tall outline can share the upper edge of a row while its center is much
+// lower. Expose edge alignment as geometry evidence, never as a semantic row
+// selector or permission to erase. The scale-relative band is anchored at an
+// extreme edge: close neighbors cannot chain into a much wider band.
+function extremeEdgeBands(candidates) {
+  if (!candidates.length) return null
+  const spanMedian = axis => {
+    const spans = candidates.map(candidate => candidate.bounds[axis + 2] - candidate.bounds[axis])
+      .filter(span => Number.isFinite(span) && span > 0).sort((a,b) => a - b)
+    const middle = Math.floor(spans.length / 2)
+    return spans.length % 2 ? spans[middle] : (spans[middle - 1] + spans[middle]) / 2
+  }
+  const band = (edge, direction, axis) => {
+    const anchor = direction === 'maximum'
+      ? Math.max(...candidates.map(candidate => candidate.bounds[edge]))
+      : Math.min(...candidates.map(candidate => candidate.bounds[edge]))
+    const tolerance = spanMedian(axis) * 0.12
+    return { edge: ['minX', 'minY', 'maxX', 'maxY'][edge], anchor, tolerance,
+      indices: candidates.flatMap((candidate, index) =>
+        Math.abs(candidate.bounds[edge] - anchor) <= tolerance ? [index] : []) }
+  }
+  return {
+    top: band(3, 'maximum', 1), bottom: band(1, 'minimum', 1),
+    left: band(0, 'minimum', 0), right: band(2, 'maximum', 0),
+    rule: 'Within 12% of the median outline span of the extreme edge; geometric hint only, not a confirmed row or ownership group.',
+  }
+}
+
 export function describeBuildingCandidates(document, limit = 32) {
   const candidates = inspectBuildingCandidates(document)
   if (!candidates.length) return ''
-  const summary = candidates.slice(0,limit).map((candidate, index) => ({
+  const boundedLimit = Number.isSafeInteger(limit) && limit >= 0 ? Math.min(limit, 32) : 32
+  const summary = candidates.slice(0,boundedLimit).map((candidate, index) => ({
     index,
     label: candidate.labels.join('/'),
     center: candidate.center.map(value => Number(value.toFixed(2))),
@@ -58,7 +87,10 @@ export function describeBuildingCandidates(document, limit = 32) {
     + 'These indices are only spatial hints, not entity IDs. Call cad_query_spatial_candidates for exact member IDs, '
     + 'then cad_query_impact before any structural edit. The model must choose targets from the user request; '
     + 'ask for clarification only if the target is genuinely ambiguous. Candidate centers and bounds use native drawing coordinates: '
-    + JSON.stringify(summary)
+    + JSON.stringify({ total: candidates.length, returned: summary.length, truncated: summary.length < candidates.length,
+      indexOrder: 'Descending maxY, then ascending centerX. This is not left-to-right row order.',
+      coordinateAxes: 'Increasing X is right; increasing Y is up. Centers and upper/lower edges are distinct evidence.',
+      extremeEdgeBands: extremeEdgeBands(candidates), candidates: summary })
 }
 
 /** Read-only spatial index exposed to the model. It never chooses an action or edits. */
@@ -76,7 +108,9 @@ export function queryBuildingCandidates(document, { expectedRevision, indices } 
     return { ok: false, error: { code: 'CAD_INVALID_QUERY', message: 'Candidate index is outside the current spatial index.' } }
   }
   return { ok: true, value: {
-    expectedRevision, total: all.length, candidates: indices.map(index => {
+    expectedRevision, total: all.length, returned: indices.length,
+    completeInventory: indices.length === all.length,
+    extremeEdgeBands: extremeEdgeBands(all), candidates: indices.map(index => {
       const candidate = all[index]
       return {
         index, label: candidate.labels.join('/'), center: candidate.center,
