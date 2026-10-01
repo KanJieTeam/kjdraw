@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
-  <meta name="theme-color" content="#f7f8f5">
+  <meta name="theme-color" content="#ffffff">
   <meta name="description" content="KJDraw AI：用自然语言创建和修改可审阅的工程图纸。">
   <title>KJDraw AI — 对话式工程绘图</title>
   <link rel="icon" href="../docs/assets/mark.svg" type="image/svg+xml">
@@ -62,7 +62,7 @@
       </section>
 
       <div class="composer-wrap">
-        <input id="drawing-file" data-testid="drawing-file" class="sr-only" type="file" accept=".kjd,.kjp,.dxf" aria-label="选择 KJD、KJP 或 DXF 图纸">
+        <input id="drawing-file" data-testid="drawing-file" class="sr-only" type="file" accept=".dxf,.kjd,.kjp" aria-label="选择 DXF 图纸">
         <p class="import-error" id="import-error" role="alert" hidden></p>
         <details class="drawing-context" id="drawing-context" data-testid="drawing-context" hidden>
           <summary><span id="drawing-name"></span><small id="drawing-meta"></small></summary>

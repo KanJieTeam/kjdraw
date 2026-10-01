@@ -3,7 +3,7 @@ import { openKjpPackage } from '../../../packages/kjdraw-sdk/src/project-package
 import { KJAgentToolSession } from '../../../packages/kjdraw-sdk/src/agent-tools.js'
 import { runKJAgentTask } from '../../../packages/kjdraw-sdk/src/agent-runner.js'
 import { KJCanvasRenderer } from '../../../packages/kjdraw-sdk/src/canvas-renderer.js'
-import { displayedEntityBounds } from '../../../packages/kjdraw-sdk/src/selection-geometry.js'
+import { displayedEntityBounds, isEntitySelectable } from '../../../packages/kjdraw-sdk/src/selection-geometry.js'
 import { createChatModelAdapter, readChatModelResponse } from '../chat-model-settings.js'
 import { getChatModelAdapterOptions } from '../chat-model-presets.js'
 import { getKJDrawChatCapabilityForRequest, getKJDrawChatToolNamesForRequest } from '../agent-chat.js'
@@ -48,23 +48,44 @@ function connectionSettings({ endpoint, model, apiKey, provider = 'custom', prot
 
 function errorResult(code, message) { return { status: 'error', text: '', error: { code, message } } }
 
-/** Fit real CAD preview geometry, including single-axis and point-like bounds. */
-export function computeAiProposalCamera(document, preview, engineeringEvidence, { width = 720, height = 420 } = {}) {
-  let bounds = null
-  const include = candidate => {
-    if (!Array.isArray(candidate) || candidate.length !== 4 || !candidate.every(Number.isFinite) || candidate[2] < candidate[0] || candidate[3] < candidate[1]) return
-    bounds = bounds ? [Math.min(bounds[0],candidate[0]),Math.min(bounds[1],candidate[1]),Math.max(bounds[2],candidate[2]),Math.max(bounds[3],candidate[3])] : candidate
-  }
-  include(engineeringEvidence?.bounds)
-  for (const entity of [...preview.before, ...preview.after]) include(displayedEntityBounds(document, entity))
+function fitBoundsCamera(bounds, { width = 720, height = 420, padding = 38 } = {}) {
   if (!bounds) return null
   const dx = bounds[2] - bounds[0], dy = bounds[3] - bounds[1]
   const minimumSpan = Math.max(1, dx, dy) * 0.12
   return {
     centerX: (bounds[0] + bounds[2]) / 2,
     centerY: (bounds[1] + bounds[3]) / 2,
-    scale: Math.max(1e-7, Math.min(1e7, Math.min((width - 76) / Math.max(dx, minimumSpan), (height - 76) / Math.max(dy, minimumSpan)))),
+    scale: Math.max(1e-7, Math.min(1e7, Math.min(Math.max(1, width - padding * 2) / Math.max(dx, minimumSpan), Math.max(1, height - padding * 2) / Math.max(dy, minimumSpan)))),
   }
+}
+
+function mergeViewerBounds(bounds, candidate) {
+  if (!Array.isArray(candidate) || candidate.length !== 4 || !candidate.every(Number.isFinite) || candidate[2] < candidate[0] || candidate[3] < candidate[1]) return bounds
+  return bounds ? [Math.min(bounds[0], candidate[0]), Math.min(bounds[1], candidate[1]), Math.max(bounds[2], candidate[2]), Math.max(bounds[3], candidate[3])] : candidate
+}
+
+function viewerCamera(camera) {
+  if (!camera || ![camera.centerX, camera.centerY, camera.scale].every(Number.isFinite) || camera.scale <= 0) return null
+  return { centerX: camera.centerX, centerY: camera.centerY, scale: Math.max(1e-7, Math.min(1e7, camera.scale)) }
+}
+
+/** Fit visible live model geometry without unrelated DXF paper/layout extents. */
+export function computeAiDocumentCamera(document, options = {}) {
+  let bounds = null
+  const cache = new WeakMap()
+  for (const entity of document.listEntities({ ownerId: document.spaces.modelSpaceId })) {
+    if (isEntitySelectable(document, entity, { includeLocked: true })) bounds = mergeViewerBounds(bounds, displayedEntityBounds(document, entity, cache))
+  }
+  return fitBoundsCamera(bounds, { ...options, padding: 30 })
+}
+
+/** Fit real CAD preview geometry, including single-axis and point-like bounds. */
+export function computeAiProposalCamera(document, preview, engineeringEvidence, { width = 720, height = 420 } = {}) {
+  let bounds = null
+  const include = candidate => { bounds = mergeViewerBounds(bounds, candidate) }
+  include(engineeringEvidence?.bounds)
+  for (const entity of [...preview.before, ...preview.after]) include(displayedEntityBounds(document, entity))
+  return fitBoundsCamera(bounds, { width, height })
 }
 
 /**
@@ -288,17 +309,24 @@ export function createAiChatRuntime(options = {}) {
     }
   }
 
-  function renderProposal(canvas, planId, { width = 720, height = 420 } = {}) {
+  function getViewerCamera({ mode = 'document', planId, width = 720, height = 420 } = {}) {
+    if (mode === 'proposal') {
+      const entry = pending.get(planId)
+      if (!entry || entry.proposal.expectedRevision !== document.revision) throw new Error('提案已失效，请重新生成。')
+      return computeAiProposalCamera(document, entry.proposal.preview, entry.proposal.engineeringEvidence, { width, height })
+        ?? computeAiDocumentCamera(document, { width, height }) ?? { centerX: 50, centerY: 40, scale: 4 }
+    }
+    return computeAiDocumentCamera(document, { width, height }) ?? { centerX: 50, centerY: 40, scale: 4 }
+  }
+
+  function renderProposal(canvas, planId, { width = 720, height = 420, camera, pixelRatio } = {}) {
     const entry = pending.get(planId)
     if (!entry || entry.proposal.expectedRevision !== document.revision) throw new Error('提案已失效，请重新生成。')
-    const { preview, engineeringEvidence } = entry.proposal
-    const renderer = new KJCanvasRenderer(canvas, { document, theme: 'light', grid: false, background: '#fff', pixelRatio: 1, padding: 38 })
+    const { preview } = entry.proposal
+    const renderer = new KJCanvasRenderer(canvas, { document, theme: 'light', grid: false, background: '#fff', pixelRatio, padding: 38 })
     try {
       renderer.resize(width, height)
-      // A new drawing has no committed entities for renderer.fit().
-      const camera = computeAiProposalCamera(document, preview, engineeringEvidence, { width, height })
-      if (camera) Object.assign(renderer.camera, camera)
-      else renderer.fit()
+      Object.assign(renderer.camera, viewerCamera(camera) ?? getViewerCamera({ mode: 'proposal', planId, width, height }))
       const report = renderer.render()
       if (preview.before.length) renderer.drawPreview(preview.before, '#d97706', [0, 0], preview.resources)
       if (preview.after.length) renderer.drawPreview(preview.after, '#2563eb', [0, 0], preview.resources)
@@ -306,11 +334,11 @@ export function createAiChatRuntime(options = {}) {
     } finally { renderer.dispose() }
   }
 
-  function renderDocument(canvas, { width = 720, height = 420 } = {}) {
-    const renderer = new KJCanvasRenderer(canvas, { document, theme: 'light', grid: false, background: '#fff', pixelRatio: 1, padding: 30 })
+  function renderDocument(canvas, { width = 720, height = 420, camera, pixelRatio } = {}) {
+    const renderer = new KJCanvasRenderer(canvas, { document, theme: 'light', grid: false, background: '#fff', pixelRatio, padding: 30 })
     try {
       renderer.resize(width, height)
-      renderer.fit()
+      Object.assign(renderer.camera, viewerCamera(camera) ?? getViewerCamera({ width, height }))
       return renderer.render()
     } finally { renderer.dispose() }
   }
@@ -354,7 +382,7 @@ export function createAiChatRuntime(options = {}) {
     history = []
   }
 
-  return { send, configure, importDocument, exportLocalState, restoreLocalState, renderProposal, renderDocument, approve, reject, exportDocument, destroy,
+  return { send, configure, importDocument, exportLocalState, restoreLocalState, getViewerCamera, renderProposal, renderDocument, approve, reject, exportDocument, destroy,
     get configured() { return Boolean(connection) },
     get revision() { return document.revision },
     get entityCount() { return document.listEntities().length },

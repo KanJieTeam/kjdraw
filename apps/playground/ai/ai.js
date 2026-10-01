@@ -1,6 +1,7 @@
 import { createAiChatRuntime } from './runtime.js'
 import { loadLocalHistory, saveLocalHistory } from './local-history.js'
 import { geologySourceChanges } from './geology-source-changes.js'
+import { createDrawingViewer } from './drawing-viewer.js'
 import { CHAT_MODEL_PROVIDER_PRESETS, getChatModelProviderPreset, formatChatModelUpstreamEndpoint } from '../chat-model-presets.js'
 
 const copy = {
@@ -22,7 +23,8 @@ const copy = {
     proposal:'CAD 修改提案',proposalPending:'待审核',proposalApproved:'已应用',proposalRejected:'已放弃',proposalExpired:'已失效',
     noProposal:'尚未生成可确认的修改，图纸未改变。',
     previewMissing:'暂时无法绘制预览，请检查提案详情。',reviewDetails:'查看提案详情',approve:'审核并应用',reject:'放弃提案',
-    download:'下载 DXF 图纸',openEditor:'打开编辑器',applied:'修改已应用。可下载 DXF 图纸，在 CAD 软件中继续编辑。',
+    download:'下载 DXF 图纸',openEditor:'打开编辑器',applied:'修改已应用。可在线查看，或下载 DXF 图纸继续编辑。',
+    currentDrawing:'当前图纸',viewDrawing:'放大查看',zoomIn:'放大',zoomOut:'缩小',fitDrawing:'全图',closeViewer:'关闭查看',viewerHint:'滚轮缩放 · 拖动平移',
     emptyResponse:'模型没有返回可显示的内容。',retry:'请重试或检查模型设置。',newConversation:'新对话',
     failedDownload:'导出图纸失败。',editorHint:'编辑器会在新标签页打开。请使用“打开文件”导入刚下载的 DXF 图纸。',
     unsafeDxfWarning:'图纸已打开，但部分视口关联数据暂不能安全保留。可在当前会话查看和编辑，暂不能导出 DXF。原始文件未改动；请先在 CAD 软件中检查相关数据，再重新打开。',
@@ -50,7 +52,8 @@ const copy = {
     proposal:'CAD change proposal',proposalPending:'Awaiting review',proposalApproved:'Applied',proposalRejected:'Discarded',proposalExpired:'Expired',
     noProposal:'No reviewable change was created. The drawing is unchanged.',
     previewMissing:'Preview could not be rendered. Review the proposal details.',reviewDetails:'View proposal details',approve:'Review and apply',reject:'Discard proposal',
-    download:'Download DXF drawing',openEditor:'Open editor',applied:'Change applied. Download the DXF drawing to continue editing in CAD software.',
+    download:'Download DXF drawing',openEditor:'Open editor',applied:'Change applied. View it here, or download the DXF drawing to continue editing.',
+    currentDrawing:'Current drawing',viewDrawing:'Expand drawing',zoomIn:'Zoom in',zoomOut:'Zoom out',fitDrawing:'Fit drawing',closeViewer:'Close viewer',viewerHint:'Scroll to zoom · Drag to pan',
     emptyResponse:'The model returned no displayable content.',retry:'Try again or check your model settings.',newConversation:'New chat',
     failedDownload:'Could not export drawing.',editorHint:'The editor opens in a new tab. Use Open file to import the downloaded DXF drawing.',
     unsafeDxfWarning:'Drawing opened, but some viewport-linked data cannot yet be preserved safely. You can view and edit it in this conversation, but DXF export is unavailable. The original file is unchanged. Check the linked data in your CAD software before reopening it.',
@@ -104,7 +107,20 @@ let persistRequested = false
 let persistSerial = Promise.resolve()
 let initialLoad
 let historyAction = null
+const drawingViewers = new Set()
+let contextViewer = null
+let renderVersion = 0
 const t = key => copy[language][key] ?? key
+function viewerLabels(title) {
+  return { title, zoomIn:t('zoomIn'), zoomOut:t('zoomOut'), fit:t('fitDrawing'), enlarge:t('viewDrawing'),
+    close:t('closeViewer'), hint:t('viewerHint'), unavailable:t('previewMissing') }
+}
+function disposeDrawingViewers() {
+  for (const viewer of drawingViewers) viewer.destroy()
+  drawingViewers.clear()
+  contextViewer = null
+  if (!ui.drawingCanvas.isConnected) ui.drawingContext.append(ui.drawingCanvas)
+}
 for (const preset of CHAT_MODEL_PROVIDER_PRESETS) {
   const option = document.createElement('option')
   option.value = preset.id
@@ -308,6 +324,8 @@ function openHistoryAction(action,session) {
   if (action === 'rename') ui.historyTitleInput.select()
 }
 function render() {
+  disposeDrawingViewers()
+  const version = ++renderVersion
   renderSidebar()
   const source = active?.source
   let exportWarning = document.querySelector('[data-testid="drawing-export-warning"]')
@@ -323,7 +341,7 @@ function render() {
   if (source) {
     ui.drawingName.textContent = source.name
     ui.drawingMeta.textContent = `${source.entityCount} ${t('entities')} · ${source.units}`
-    if (ui.drawingContext.open) requestAnimationFrame(()=>renderDrawingContext(active))
+    if (ui.drawingContext.open) requestAnimationFrame(()=>{ if (version === renderVersion) renderDrawingContext(active) })
   }
   const messages = active?.messages ?? []
   document.body.classList.toggle('chat-empty', messages.length === 0)
@@ -353,8 +371,18 @@ function render() {
 }
 function renderDrawingContext(session) {
   if (session !== active || !ui.drawingContext.open || !ui.drawingCanvas.isConnected) return
-  try { session.runtime.renderDocument(ui.drawingCanvas,{width:760,height:190}) }
-  catch { ui.drawingContext.open = false }
+  if (contextViewer) { contextViewer.refresh(); return }
+  let mount = byId('drawing-viewer-mount')
+  if (!mount) {
+    mount = element('div')
+    mount.id = 'drawing-viewer-mount'
+    ui.drawingContext.append(mount)
+  }
+  try {
+    contextViewer = createDrawingViewer({ container:mount, canvas:ui.drawingCanvas, runtime:session.runtime,
+      mode:'document', labels:viewerLabels(session.source?.name ?? t('currentDrawing')) })
+    drawingViewers.add(contextViewer)
+  } catch { mount.replaceChildren(element('p','proposal-preview-fallback',t('previewMissing'))) }
 }
 function createProposalCard(session, proposal) {
   const card = element('section','proposal-card')
@@ -362,25 +390,23 @@ function createProposalCard(session, proposal) {
   card.setAttribute('aria-label',t('proposal'))
   const header = element('div','proposal-head')
   const titleGroup = element('div')
-  titleGroup.append(element('h3','proposal-title',t('proposal')),element('p','proposal-subtitle',`REV ${proposal.expectedRevision ?? '?'} · ${proposal.command ?? ''}`))
   const state = proposal.uiState ?? 'pending'
+  titleGroup.append(element('h3','proposal-title',t(state === 'approved' ? 'currentDrawing' : 'proposal')),
+    element('p','proposal-subtitle',`REV ${state === 'approved' ? session.runtime.revision : proposal.expectedRevision ?? '?'} · ${proposal.command ?? ''}`))
   const tag = element('span','proposal-tag '+(state === 'approved' ? 'approved' : state === 'rejected' ? 'rejected' : ''),t(state === 'approved' ? 'proposalApproved' : state === 'rejected' ? 'proposalRejected' : state === 'expired' ? 'proposalExpired' : 'proposalPending'))
   header.append(titleGroup,tag)
   const preview = element('div','proposal-preview')
-  if (state === 'pending') {
-    const canvas = element('canvas')
-    canvas.setAttribute('aria-label',t('proposal'))
-    preview.append(canvas)
+  let viewer = null
+  if (state === 'pending' || state === 'approved') {
     requestAnimationFrame(()=>{
-      if (!canvas.isConnected) return
-      try { session.runtime.renderProposal(canvas,proposal.planId,{width:640,height:255}) }
-      catch { preview.replaceChildren(element('div','proposal-preview-fallback',t('previewMissing'))) }
+      if (!preview.isConnected || session !== active) return
+      try {
+        viewer = createDrawingViewer({ container:preview, runtime:session.runtime,
+          mode:state === 'pending' ? 'proposal' : 'document', planId:proposal.planId,
+          labels:viewerLabels(t(state === 'approved' ? 'currentDrawing' : 'proposal')) })
+        drawingViewers.add(viewer)
+      } catch { preview.replaceChildren(element('div','proposal-preview-fallback',t('previewMissing'))) }
     })
-  } else if (state === 'approved') {
-    const canvas = element('canvas')
-    canvas.setAttribute('aria-label',t('drawingLoaded'))
-    preview.append(canvas)
-    requestAnimationFrame(()=>{ if(canvas.isConnected) try { session.runtime.renderDocument(canvas,{width:640,height:255}) } catch {} })
   } else preview.append(element('div','proposal-preview-fallback',t(state === 'rejected' ? 'proposalRejected' : 'proposalExpired')))
   const details = element('details','proposal-details')
   details.append(element('summary','',t('reviewDetails')))
@@ -420,13 +446,11 @@ function createProposalCard(session, proposal) {
     download.type = 'button'
     download.dataset.testid = 'drawing-download'
     download.addEventListener('click',()=>downloadDrawing(session))
-    const editor = element('button','',t('openEditor'))
-    editor.type = 'button'
-    editor.addEventListener('click',async()=>{
-      const ok = await downloadDrawing(session)
-      if (ok) { window.open('../','_blank','noopener'); session.messages.push({role:'assistant',text:t('editorHint')}); if(active===session) render() }
-    })
-    actions.append(download,editor)
+    const expand = element('button','',t('viewDrawing'))
+    expand.type = 'button'
+    expand.dataset.testid = 'drawing-expand'
+    expand.addEventListener('click',()=>viewer?.enlarge())
+    actions.append(download,expand)
   }
   const changes = geologySourceChanges(proposal.engineeringEvidence)
   const sourceReview = element('div','source-review')
@@ -515,7 +539,10 @@ async function submitPrompt() {
     const result = await session.runtime.send(prompt,{signal:activeRequest.signal})
     const index = session.messages.indexOf(waiting)
     if (index >= 0) session.messages.splice(index,1)
-    if (result.status === 'proposal') session.messages.push({role:'assistant',text:result.text,proposals:(result.proposals?.length ? result.proposals : [result.proposal]).map(proposal => ({...proposal, uiState:'pending'}))})
+    if (result.status === 'proposal') {
+      session.messages.push({role:'assistant',text:result.text,proposals:(result.proposals?.length ? result.proposals : [result.proposal]).map(proposal => ({...proposal, uiState:'pending'}))})
+      if (active === session) ui.drawingContext.open = false
+    }
     else if (result.status === 'message') session.messages.push({role:'assistant',text:result.text,...(result.noProposal ? {status:'not-proposed'} : {})})
     else if (result.status === 'cancelled') {
       session.messages.push({role:'assistant',text:t('stopped')})
