@@ -39,6 +39,7 @@ async function connect(page) {
   await page.getByTestId('settings-model').fill('mock-geology-protocol')
   await page.getByTestId('settings-key').fill('synthetic-key-not-a-real-credential')
   await page.getByTestId('settings-save').click()
+  await expect(page.locator('#settings-dialog')).not.toBeVisible()
 }
 
 async function send(page, text) {

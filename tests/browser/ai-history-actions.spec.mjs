@@ -75,6 +75,10 @@ async function connectMock(page) {
   await page.getByTestId('settings-model').fill('history-protocol-fixture')
   // No credentials and no real model/provider access are required.
   await page.getByTestId('settings-save').click()
+  // Connecting now waits for the real IndexedDB transaction to complete.
+  // Do not fill the inert composer while the connection dialog is still open.
+  await expect(page.locator('#settings-dialog')).not.toBeVisible()
+  await expect(page.getByTestId('settings-open')).toContainText('Connection settings')
 }
 
 async function openDrawing(page, fixture) {

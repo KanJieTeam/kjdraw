@@ -325,6 +325,7 @@ test('imported DXF geology edits disclose missing source facts instead of exposi
   await page.getByTestId('settings-model').fill('browser-fixture')
   await page.getByTestId('settings-key').fill('browser-test-key')
   await page.getByTestId('settings-save').click()
+  await expect(page.locator('#settings-dialog')).not.toBeVisible()
   await page.getByTestId('chat-input').fill('把 ZK01 第三层改成砂层并重绘剖面图')
   await page.getByTestId('chat-send').click()
   await expect(page.locator('.message.assistant .message-content').last()).toContainText('原始分层表')

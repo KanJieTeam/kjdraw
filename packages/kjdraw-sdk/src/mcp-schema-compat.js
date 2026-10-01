@@ -31,6 +31,9 @@ export function portableMcpInputSchema(schema) {
             ],
             ...schema.additionalProperties === false ? {
                 additionalProperties: false
+            } : {},
+            ...schema.additionalProperties && typeof schema.additionalProperties === 'object' ? {
+                additionalProperties: portableMcpInputSchema(schema.additionalProperties)
             } : {}
         };
     }
@@ -120,6 +123,7 @@ export function assertPortableMcpInputSchema(schema, path = 'inputSchema') {
     if (schema.type === 'object') {
         if (!schema.properties || !Array.isArray(schema.required)) throw new Error(`${path} must declare object properties and required`);
         for (const [name, child] of Object.entries(schema.properties))assertPortableMcpInputSchema(child, `${path}.properties.${name}`);
+        if (schema.additionalProperties && typeof schema.additionalProperties === 'object') assertPortableMcpInputSchema(schema.additionalProperties, `${path}.additionalProperties`);
     }
     if (schema.type === 'array') {
         if (!schema.items) throw new Error(`${path} must declare array items`);

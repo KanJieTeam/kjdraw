@@ -55,6 +55,7 @@ test('unsupported viewport links are disclosed on import and failed DXF export i
   await page.getByTestId('settings-model').fill('mock-protocol')
   await page.getByTestId('settings-key').fill('not-a-real-key')
   await page.getByTestId('settings-save').click()
+  await expect(page.locator('#settings-dialog')).not.toBeVisible()
   await page.getByTestId('chat-input').fill('Change the text PUBLIC LABEL to REVIEWED LABEL; edit its text only.')
   await page.getByTestId('chat-send').click()
   await page.getByTestId('proposal-approve').click()

@@ -106,7 +106,7 @@ test('explicit manufacturing requests on an empty millimeter drawing send only t
     assert.equal(result.status,'awaiting-approval')
   }
   const {document}=fixture()
-  assert.equal(getKJDrawChatToolNamesForRequest(document,'Draw a plate outline.'),KJDRAW_CHAT_TOOL_NAMES)
+  assert.equal(getKJDrawChatToolNamesForRequest(document,'Draw a plate outline.'),getKJDrawChatToolNames(document))
   await document.transact('existing geometry',tx=>tx.createEntity('LINE',{start:[0,0,0],end:[1,0,0]}))
   assert.equal(getKJDrawChatToolNamesForRequest(document,'Create a manufacturing drawing for a fixture plate.'),KJDRAW_CHAT_TOOL_NAMES)
 })
@@ -251,7 +251,9 @@ test('chat discovers selection sets only in drawings containing them and keeps e
   await document.transact('Create a named detail',tx=>tx.createEntity('LINE',{start:[0,0,0],end:[20,0,0]},{id:'detail-edge'}))
   await sdk.getSelectionManager(document.id).saveNamed('Detail',{ids:['detail-edge']})
   const names=getKJDrawChatToolNames(document)
-  assert.ok(Object.isFrozen(names)); assert.equal(names.length,emptyPolicy.length+1)
+  assert.ok(Object.isFrozen(names)); assert.equal(names.length,KJDRAW_CHAT_TOOL_NAMES.length+1)
+  assert.equal(names.includes('cad_propose_geology_column'),false)
+  assert.equal(names.includes('cad_propose_geology_section'),false)
   assert.equal(emptyPolicy.includes('cad_read_selection_sets'),false)
   const result=await runKJAgentTask({session,prompt:'Inspect the named detail.',toolNames:names,model:{createConversation({tools}){
     assert.ok(tools.some(tool=>tool.name==='cad_read_selection_sets'))
@@ -327,7 +329,8 @@ test('meter workbench exposes the road tool and retains the complete native prop
 
 test('road advertisement follows current document units and non-meter dispatch is refused', async () => {
   const {document,session}=fixture()
-  assert.equal(getKJDrawChatToolNames(document),KJDRAW_CHAT_TOOL_NAMES)
+  const blankPolicy=getKJDrawChatToolNames(document)
+  assert.equal(blankPolicy.includes('cad_propose_road_drawing'),false)
   const result=await runKJAgentTask({session,prompt:'Request a road in an incompatible document.',toolNames:getKJDrawChatToolNames(document),
     model:modelCall('cad_propose_road_drawing',{...createRoadDesignFixture(),...roadDrawingFixtureOptions,expectedRevision:0})})
   assert.equal(result.status,'failed');assert.equal(result.error.code,'KJAGENT_TOOL_NOT_ALLOWED');assert.equal(result.toolCalls,0)
@@ -335,7 +338,7 @@ test('road advertisement follows current document units and non-meter dispatch i
   await document.transact('host chooses meter document units',tx=>tx.setHeader('units','meter'))
   assert.ok(getKJDrawChatToolNames(document).includes('cad_propose_road_drawing'))
   await document.transact('host restores millimeter units',tx=>tx.setHeader('units','millimeter'))
-  assert.equal(getKJDrawChatToolNames(document),KJDRAW_CHAT_TOOL_NAMES)
+  assert.equal(getKJDrawChatToolNames(document),blankPolicy)
 })
 
 async function retainedSourcePolicyFixture() {

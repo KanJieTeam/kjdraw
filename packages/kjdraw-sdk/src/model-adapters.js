@@ -840,6 +840,7 @@ export function createKJModelAdapter(options) {
             const schema = jsonCopy(definitions, historyBytes);
             const history = [];
             let pending = [];
+            let pendingChatInvalidIds = new Set(), pendingChatHistoryIndex = -1, chatArgumentRecoveries = 0;
             let started = false, busy = false, ended = false, turnNumber = 0;
             let textContinuationAvailable = false, textContinuations = 0;
             const geminiIds = new Map();
@@ -945,12 +946,53 @@ export function createKJModelAdapter(options) {
                                     call_id: item.id,
                                     output: JSON.stringify(item.result)
                                 })));
-                            else if (protocol === 'chat-completions') history.push(...results.map((item)=>({
-                                    role: 'tool',
-                                    tool_call_id: item.id,
-                                    content: JSON.stringify(item.result)
-                                })));
-                            else if (protocol === 'anthropic-messages') history.push({
+                            else if (protocol === 'chat-completions') {
+                                if (pendingChatInvalidIds.size) {
+                                    const rejected = results.filter((item)=>pendingChatInvalidIds.has(item.id));
+                                    if (rejected.some((item)=>item.result.ok !== false)) invalid('Non-object tool arguments require an actual failed tool result before wire recovery');
+                                    if (chatArgumentRecoveries >= 2) invalid('Chat invalid-argument wire recovery budget exhausted');
+                                    chatArgumentRecoveries++;
+                                    const assistant = record(history[pendingChatHistoryIndex]);
+                                    const validCalls = array(assistant.tool_calls).filter((raw)=>!pendingChatInvalidIds.has(identifier(record(raw).id)));
+                                    if (validCalls.length) history[pendingChatHistoryIndex] = {
+                                        ...assistant,
+                                        tool_calls: validCalls
+                                    };
+                                    else if (typeof assistant.content === 'string' && assistant.content.trim()) {
+                                        const textOnly = {
+                                            ...assistant
+                                        };
+                                        delete textOnly.tool_calls;
+                                        history[pendingChatHistoryIndex] = textOnly;
+                                    } else history.splice(pendingChatHistoryIndex, 1);
+                                    history.push(...results.filter((item)=>!pendingChatInvalidIds.has(item.id)).map((item)=>({
+                                            role: 'tool',
+                                            tool_call_id: item.id,
+                                            content: JSON.stringify(item.result)
+                                        })));
+                                    const firstRejection = rejected[0].result;
+                                    history.push({
+                                        role: 'user',
+                                        content: JSON.stringify({
+                                            ok: false,
+                                            error: {
+                                                code: firstRejection.ok === false ? firstRejection.error.code.slice(0, 128) : 'KJMODEL_ARGUMENTS_REJECTED',
+                                                message: 'CAD validation rejected tool arguments that were not a plain object before execution.'
+                                            },
+                                            rejectedCalls: rejected.map((item)=>({
+                                                    id: item.id,
+                                                    name: item.name,
+                                                    errorCode: item.result.ok === false ? item.result.error.code.slice(0, 128) : ''
+                                                })),
+                                            instruction: 'Generate new tool calls with valid JSON object arguments using the published schema and actual prior receipts. Do not repair or repeat the malformed text. No rejected call was executed. Preserve unrequested facts; proposals still require host approval.'
+                                        })
+                                    });
+                                } else history.push(...results.map((item)=>({
+                                        role: 'tool',
+                                        tool_call_id: item.id,
+                                        content: JSON.stringify(item.result)
+                                    })));
+                            } else if (protocol === 'anthropic-messages') history.push({
                                 role: 'user',
                                 content: results.map((item)=>({
                                         type: 'tool_result',
@@ -1109,16 +1151,20 @@ export function createKJModelAdapter(options) {
                             if (message.refusal) throw new KJModelError('KJMODEL_REFUSED', 'The model refused this request');
                             if (message.content !== null && message.content !== undefined && typeof message.content !== 'string') invalid('Only text and function-call chat messages are supported');
                             text = typeof message.content === 'string' ? message.content : '';
+                            pendingChatInvalidIds = new Set();
                             for (const raw of array(message.tool_calls ?? [])){
                                 const item = record(raw), fn = record(item.function);
                                 if (item.type !== 'function') invalid('Unsupported chat tool type');
-                                addCall(item.id, fn.name, jsonArguments(fn.arguments));
+                                const args = jsonArguments(fn.arguments);
+                                addCall(item.id, fn.name, args);
+                                if (!args || typeof args !== 'object' || Array.isArray(args)) pendingChatInvalidIds.add(identifier(item.id));
                             }
                             if (choice.finish_reason === 'tool_calls' && !calls.length) invalid('Chat finish reason requires tool calls');
                             const assistantHistory = {
                                 ...message
                             };
                             if (!calls.length) delete assistantHistory.tool_calls;
+                            pendingChatHistoryIndex = history.length;
                             history.push(assistantHistory);
                         } else if (protocol === 'anthropic-messages') {
                             if (response.role !== 'assistant') invalid('Expected an assistant message');
@@ -1156,7 +1202,7 @@ export function createKJModelAdapter(options) {
                                     const call = record(part.functionCall);
                                     const id = call.id === undefined ? `kj-gemini-${turnNumber}-${index}` : identifier(call.id);
                                     if (call.id !== undefined) geminiIds.set(id, identifier(call.id));
-                                    addCall(id, call.name, call.args ?? {});
+                                    addCall(id, call.name, call.args === undefined ? {} : call.args);
                                 } else if (typeof part.text === 'string') {
                                     if (part.thought !== true) text += part.text;
                                 } else invalid('Unsupported Gemini part');

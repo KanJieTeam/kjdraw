@@ -264,7 +264,9 @@ test('source/series/date/layout product gaps are demonstrated by actual schemas 
   for (const field of ['horizontalScaleDenominator', 'verticalScaleDenominator', 'datumElevation']) assert.equal(Object.hasOwn(revision.properties, field), false)
   const hole = revision.properties.updates.items.properties
   for (const field of ['startDate', 'endDate']) assert.equal(Object.hasOwn(hole, field), false)
-  for (const field of ['rangeTop', 'rangeBottom', 'measurements']) assert.equal(Object.hasOwn(hole.observations.items.properties, field), false)
+  for (const field of ['rangeTop', 'rangeBottom', 'measurements']) assert.equal(Object.hasOwn(hole.observations.items.properties, field), true)
+  assert.equal(hole.observations.items.properties.measurements.additionalProperties.type, 'number')
+  assert.equal(hole.observations.items.properties.measurements.maxProperties, 16)
   const fixture = await buildRound3ScenarioFixture(direct('investigation-preparation.layer-thickness-audit'))
   try {
     const input = clone(fixture.source.input)

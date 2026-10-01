@@ -46,9 +46,10 @@ async function publicScripts(root, directory) {
 
 /** Parse, but never execute, the complete static browser module graph. */
 export async function auditBrowserModuleGraph({ root = repositoryRoot, entryPoints, publishedPaths } = {}) {
-  const entries = entryPoints ?? [
+  const entries = entryPoints ?? [...new Set([
+    'apps/playground/ai/ai.js', 'apps/playground/app.js', 'docs/latest/app.js',
     ...await publicScripts(root, 'apps/playground'), ...await publicScripts(root, 'docs/latest'),
-  ]
+  ])]
   const queue = [...entries], visited = new Set(), missing = [], parseErrors = [], edges = []
   const knownPublication = publishedPaths == null ? null : new Set(publishedPaths)
   while (queue.length) {

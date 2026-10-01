@@ -32,7 +32,7 @@ const copy = {
     unsafeDxfExport:'为避免丢失视口关联数据，本次 DXF 导出已阻止。当前图纸仍保留在会话中，原始文件未改动。请先在 CAD 软件中检查相关数据，再重新打开。',
     openDrawing:'打开图纸',dropDrawing:'松开以打开图纸',importFailed:'图纸未导入，请检查文件格式。',
     importBusy:'请等待当前请求结束后再打开图纸。',drawingLoaded:'已打开图纸',entities:'个对象',
-    storageFailed:'本地会话保存失败。请先下载 DXF 图纸，并检查浏览器存储空间。',
+    storageFailed:'本地会话保存失败。请先下载 DXF 图纸，并检查浏览器存储空间。',proposalUnsaved:'未保存',
     historyEmpty:'没有找到对话',busyHistory:'请先停止当前请求，再管理这段对话。',
     undoDrawing:'撤销',redoDrawing:'重做',historyRestored:'图纸历史',
     historyUnavailable:'当前图纸已恢复，但旧会话或超出保存容量的撤销历史不可用。新的修改仍可撤销。',
@@ -64,7 +64,7 @@ const copy = {
     unsafeDxfExport:'DXF export was blocked to avoid losing viewport-linked data. The current drawing remains in this conversation and the original file is unchanged. Check the linked data in your CAD software before reopening it.',
     openDrawing:'Open drawing',dropDrawing:'Drop to open drawing',importFailed:'Drawing not opened. Check the file format.',
     importBusy:'Wait for the current request before opening a drawing.',drawingLoaded:'Drawing opened',entities:'entities',
-    storageFailed:'Could not save this conversation locally. Download the DXF drawing and check browser storage.',
+    storageFailed:'Could not save this conversation locally. Download the DXF drawing and check browser storage.',proposalUnsaved:'Not saved',
     historyEmpty:'No conversations found',busyHistory:'Stop the current request before managing this conversation.',
     undoDrawing:'Undo',redoDrawing:'Redo',historyRestored:'Drawing history',
     historyUnavailable:'The current drawing was restored, but undo history from an older session or beyond storage limits is unavailable. New edits can still be undone.',
@@ -112,8 +112,12 @@ let busy = false
 let activeRequest = null
 let importing = false
 let hydrated = false
-let persistRequested = false
 let persistSerial = Promise.resolve()
+let pendingImport = null
+const savingMessages = new WeakSet()
+const unsavedMessages = new WeakSet()
+const savingProposals = new WeakSet()
+const unsavedProposals = new WeakSet()
 let initialLoad
 let historyAction = null
 const drawingViewers = new Set()
@@ -186,16 +190,21 @@ function updateConnection() {
   ui.pill.querySelector('[data-text]').textContent = t(settings ? 'connected' : 'notConnected')
   ui.settingsOpen.querySelector('[data-text]').textContent = t(settings ? 'manage' : 'connect')
 }
-function createSession({ runtime = createAiChatRuntime(settings ?? {}), source = null } = {}) {
+function sessionRecord(runtime, source) {
+  return { id: crypto.randomUUID(), title:source?.name ?? t('newConversation'), messages:[], runtime, source, updatedAt:Date.now() }
+}
+function activateSession(session) {
   if (active && !active.messages.length && !active.source) {
     active.runtime.destroy()
     sessions = sessions.filter(item => item !== active)
   }
-  const session = { id: crypto.randomUUID(), title:source?.name ?? t('newConversation'), messages:[], runtime, source, updatedAt:Date.now() }
   sessions.unshift(session)
   active = session
   render()
   return session
+}
+function createSession({ runtime = createAiChatRuntime(settings ?? {}), source = null } = {}) {
+  return activateSession(sessionRecord(runtime, source))
 }
 function hasUnsupportedDxfMetadata(state) {
   try { return JSON.parse(state.drawing)?.opaquePayloads?.['dxf:viewport-metadata-unsupported:v1'] != null }
@@ -209,15 +218,16 @@ function drawingExportError(error) {
   }
   return error?.message ?? t('failedDownload')
 }
-function queuePersist() {
-  if (!hydrated || persistRequested) return
-  persistRequested = true
-  persistSerial = persistSerial.catch(() => {}).then(async () => {
-    persistRequested = false
+function queuePersist({ extraSession = null } = {}) {
+  // Every awaited barrier is a new serial write, never an older coalesced save.
+  // Imports remain staged until their own transaction completes; background
+  // renders cannot overwrite the candidate or report it opened prematurely.
+  if (!hydrated || pendingImport && !extraSession) return Promise.resolve(false)
+  const operation = persistSerial.catch(() => {}).then(async () => {
     const saved = []
-    for (const session of sessions.filter(item => item.messages.length || item.source)) {
-      const state = await session.runtime.exportLocalState()
-      saved.push({
+    const included = extraSession ? [...sessions, extraSession] : sessions
+    for (const session of included.filter(item => item.messages.length || item.source)) {
+      const record = {
         id: session.id, title: session.title, source: session.source, updatedAt: session.updatedAt,
         messages: session.messages.filter(message => message.status !== 'pending').map(message => ({
           role: message.role, text: message.text, status: message.status,
@@ -226,18 +236,49 @@ function queuePersist() {
             preview: proposal.preview, engineeringEvidence: proposal.engineeringEvidence, uiState: proposal.uiState,
           })) } : {}),
         })),
-        state,
-      })
+      }
+      const state = await session.runtime.exportLocalState()
+      saved.push({ ...record, state })
     }
     await saveLocalHistory({
-      version: 1, activeId: active?.id ?? null, sessions: saved,
+      version: 1, activeId: extraSession?.id ?? active?.id ?? null, sessions: saved,
       connection: settings ? {
         endpoint: settings.endpoint, model: settings.model, apiKey: settings.apiKey,
         provider: settings.provider, protocol: settings.protocol,
       } : null,
     })
     updateHistoryStorageNotice()
-  }).catch(() => showImportError(t('storageFailed')))
+    return true
+  })
+  persistSerial = operation
+  // Background writes still surface errors; callers receive the rejection and
+  // must not turn it into a successful completion indication.
+  operation.catch(() => showImportError(t('storageFailed')))
+  return operation
+}
+async function persistTerminal(session, messages, proposals = []) {
+  for (const message of messages) savingMessages.add(message)
+  for (const proposal of proposals) savingProposals.add(proposal)
+  try {
+    if (!await queuePersist()) throw new Error('Local history is unavailable')
+    for (const message of messages) unsavedMessages.delete(message)
+    for (const proposal of proposals) unsavedProposals.delete(proposal)
+    return true
+  } catch {
+    for (const message of messages) {
+      unsavedMessages.add(message)
+      for (const proposal of message.proposals ?? []) if (proposal.uiState === 'pending') {
+        session.runtime.reject(proposal.planId)
+        proposal.uiState = 'expired'
+      }
+    }
+    for (const proposal of proposals) unsavedProposals.add(proposal)
+    showImportError(t('storageFailed'))
+    return false
+  } finally {
+    for (const message of messages) savingMessages.delete(message)
+    for (const proposal of proposals) savingProposals.delete(proposal)
+  }
 }
 async function restoreSessions() {
   let loaded = false
@@ -367,25 +408,27 @@ function render() {
   ui.messages.hidden = messages.length === 0
   ui.messages.replaceChildren()
   for (const message of messages) {
-    const wrapper = element('article','message '+message.role+(message.status === 'error' ? ' error' : ''))
-    wrapper.dataset.testid = message.status === 'error' ? 'chat-error' : 'chat-message'
+    const saving = savingMessages.has(message), unsaved = unsavedMessages.has(message)
+    const wrapper = element('article','message '+message.role+(message.status === 'error' || unsaved ? ' error' : ''))
+    wrapper.dataset.testid = message.status === 'error' || unsaved ? 'chat-error' : 'chat-message'
     const avatar = element('span','message-avatar',message.role === 'user' ? 'U' : 'K')
     avatar.setAttribute('aria-hidden','true')
     const body = element('div','message-body')
     body.append(element('div','message-role',t(message.role === 'user' ? 'you' : 'assistant')))
-    if (message.status === 'pending') body.append(element('div','message-progress',t('working')))
+    if (message.status === 'pending' || saving) body.append(element('div','message-progress',t('working')))
+    else if (unsaved) body.append(element('div','message-content',t('storageFailed')))
     else {
       const content = element('div', 'message-content')
       if (message.role === 'user') content.textContent = message.text || t('emptyResponse')
       else renderMessageMarkdown(content, message.text || t('emptyResponse'))
       body.append(content)
     }
-    if (message.status === 'not-proposed') {
+    if (message.status === 'not-proposed' && !saving && !unsaved) {
       const notice = element('div','message-progress',t('noProposal'))
       notice.dataset.testid = 'chat-no-proposal'
       body.append(notice)
     }
-    if (message.proposals?.length) for (const proposal of message.proposals) body.append(createProposalCard(active,proposal))
+    if (!saving && message.proposals?.length) for (const proposal of message.proposals) body.append(createProposalCard(active,proposal))
     wrapper.append(avatar,body)
     ui.messages.append(wrapper)
   }
@@ -420,14 +463,14 @@ function createProposalCard(session, proposal) {
   card.setAttribute('aria-label',t('proposal'))
   const header = element('div','proposal-head')
   const titleGroup = element('div')
-  const state = proposal.uiState ?? 'pending'
+  const state = savingProposals.has(proposal) ? 'saving' : unsavedProposals.has(proposal) ? 'unsaved' : proposal.uiState ?? 'pending'
   titleGroup.append(element('h3','proposal-title',t(state === 'approved' ? 'currentDrawing' : 'proposal')),
     element('p','proposal-subtitle',`REV ${state === 'approved' ? session.runtime.revision : proposal.expectedRevision ?? '?'} · ${proposal.command ?? ''}`))
-  const tag = element('span','proposal-tag '+(state === 'approved' ? 'approved' : state === 'rejected' ? 'rejected' : ''),t(state === 'approved' ? 'proposalApproved' : state === 'rejected' ? 'proposalRejected' : state === 'expired' ? 'proposalExpired' : 'proposalPending'))
+  const tag = element('span','proposal-tag '+(state === 'approved' ? 'approved' : state === 'rejected' ? 'rejected' : ''),t(state === 'approved' ? 'proposalApproved' : state === 'rejected' ? 'proposalRejected' : state === 'expired' ? 'proposalExpired' : state === 'saving' ? 'working' : state === 'unsaved' ? 'proposalUnsaved' : 'proposalPending'))
   header.append(titleGroup,tag)
   const preview = element('div','proposal-preview')
   let viewer = null
-  if (state === 'pending' || state === 'approved') {
+  if (state === 'pending' || state === 'approved' || state === 'unsaved') {
     requestAnimationFrame(()=>{
       if (!preview.isConnected || session !== active) return
       try {
@@ -450,28 +493,43 @@ function createProposalCard(session, proposal) {
     approve.dataset.testid = 'proposal-approve'
     reject.dataset.testid = 'proposal-reject'
     approve.addEventListener('click',async()=>{
+      if (busy || importing) return
+      busy = true
+      savingProposals.add(proposal)
       approve.disabled = reject.disabled = true
-      const result = await session.runtime.approve(proposal.planId)
+      let result
+      try { result = await session.runtime.approve(proposal.planId) }
+      catch { result = { status:'error', error:{message:t('retry')} } }
+      let message
       if (result.status === 'applied') {
         proposal.uiState = 'approved'
         if (session.source) session.source.entityCount = session.runtime.entityCount
         for (const message of session.messages) for (const other of message.proposals ?? []) if (other !== proposal && other.uiState === 'pending') other.uiState = 'expired'
-        session.messages.push({role:'assistant',text:result.text})
+        message = {role:'assistant',text:result.text}
       } else {
         approve.disabled = reject.disabled = false
-        session.messages.push({role:'assistant',status:'error',text:result.error?.message ?? t('retry')})
+        message = {role:'assistant',status:'error',text:result.error?.message ?? t('retry')}
       }
+      session.messages.push(message)
+      await persistTerminal(session, [message], [proposal])
+      busy = false
       if (active === session) render()
     })
-    reject.addEventListener('click',()=>{
+    reject.addEventListener('click',async()=>{
+      if (busy || importing) return
+      busy = true
       const result = session.runtime.reject(proposal.planId)
-      if (result.status === 'rejected') {proposal.uiState = 'rejected';session.messages.push({role:'assistant',text:result.text})}
-      else session.messages.push({role:'assistant',status:'error',text:result.error?.message ?? t('retry')})
+      const message = result.status === 'rejected' ? {role:'assistant',text:result.text}
+        : {role:'assistant',status:'error',text:result.error?.message ?? t('retry')}
+      if (result.status === 'rejected') proposal.uiState = 'rejected'
+      session.messages.push(message)
+      await persistTerminal(session, [message], [proposal])
+      busy = false
       if (active === session) render()
     })
     actions.append(approve,reject)
   }
-  if (state === 'approved') {
+  if (state === 'approved' || state === 'unsaved') {
     const download = element('button','',t('download'))
     download.type = 'button'
     download.dataset.testid = 'drawing-download'
@@ -549,7 +607,7 @@ function refreshKeyPlaceholder() {
 async function submitPrompt() {
   await initialLoad
   const prompt = ui.input.value.trim()
-  if (!prompt || busy) return
+  if (!prompt || busy || importing) return
   if (!settings) { showSettings(true); return }
   const session = currentSession()
   if (settings) session.runtime.configure(settings)
@@ -588,6 +646,8 @@ async function submitPrompt() {
     session.messages.push({role:'assistant',status:'error',text:error?.message ?? t('retry')})
     if (!ui.input.value) ui.input.value = prompt
   } finally {
+    const terminal = session.messages.filter(message => message !== waiting && message.role === 'assistant').at(-1)
+    if (terminal) await persistTerminal(session, [terminal])
     busy = false
     activeRequest = null
     ui.stop.hidden = true
@@ -611,15 +671,21 @@ async function openDrawing(file) {
   try {
     const source = await runtime.importDocument(file)
     source.exportRestricted = hasUnsupportedDxfMetadata(await runtime.exportLocalState())
-    createSession({ runtime, source })
+    const candidate = sessionRecord(runtime, source)
+    pendingImport = candidate
+    if (!await queuePersist({ extraSession: candidate })) throw new Error(t('storageFailed'))
+    pendingImport = null
+    activateSession(candidate)
     ui.importError.hidden = true
     ui.drawingContext.open = true
     render()
     ui.input.focus()
   } catch (error) {
+    pendingImport = null
     runtime.destroy()
     showImportError(error?.message ?? t('importFailed'))
   } finally {
+    pendingImport = null
     importing = false
     ui.openDrawing.disabled = ui.attachDrawing.disabled = false
     ui.drawingFile.value = ''
@@ -643,7 +709,11 @@ async function applyDrawingHistory(kind) {
       session.messages.push({ role:'assistant', text:result.text })
       session.updatedAt = Date.now()
     } else session.messages.push({ role:'assistant', status:'error', text:result.error?.message ?? t('retry') })
+  } catch (error) {
+    session.messages.push({ role:'assistant', status:'error', text:error?.message ?? t('retry') })
   } finally {
+    const terminal = session.messages.filter(message => message.role === 'assistant').at(-1)
+    if (terminal) await persistTerminal(session, [terminal])
     busy = false
     if (active === session) render()
     else queuePersist()
@@ -707,8 +777,9 @@ ui.protocol.addEventListener('change',()=>{
   }
   refreshKeyPlaceholder()
 })
-ui.settingsForm.addEventListener('submit',event=>{
+ui.settingsForm.addEventListener('submit',async event=>{
   event.preventDefault()
+  if (busy || importing) {ui.settingsError.textContent=t('importBusy');ui.settingsError.hidden=false;return}
   const endpoint=ui.endpoint.value.trim(), model=ui.model.value.trim()
   const provider=ui.provider.value, protocol=ui.protocol.value
   const apiKey=ui.key.value.trim() || (canReuseKey(endpoint,provider,protocol) ? settings.apiKey : '')
@@ -721,9 +792,11 @@ ui.settingsForm.addEventListener('submit',event=>{
   } catch(error) {ui.settingsError.textContent=error?.message && error.message !== 'Invalid URL' ? error.message : t('invalidEndpoint');ui.settingsError.hidden=false;return}
   settings={endpoint,model,apiKey,provider,protocol}
   const shouldSend=pendingSend
+  try {
+    if (!await queuePersist()) throw new Error('Local history is unavailable')
+  } catch {ui.settingsError.textContent=t('storageFailed');ui.settingsError.hidden=false;return}
   hideSettings()
   updateConnection()
-  queuePersist()
   if(shouldSend) submitPrompt()
 })
 byId('settings-close').addEventListener('click',hideSettings)
@@ -761,7 +834,9 @@ document.querySelectorAll('[data-prompt]').forEach(button=>button.addEventListen
 ui.menu.addEventListener('click',()=>{ui.sidebar.classList.add('open');ui.scrim.hidden=false;ui.menu.setAttribute('aria-expanded','true')})
 byId('sidebar-close').addEventListener('click',closeSidebar)
 ui.scrim.addEventListener('click',closeSidebar)
-window.addEventListener('pagehide',()=>{ui.key.value='';queuePersist()})
+// Completed turns and approvals are durable before their terminal UI appears;
+// do not pretend an asynchronous write started at pagehide can finish reliably.
+window.addEventListener('pagehide',()=>{ui.key.value=''})
 window.addEventListener('pageshow',event=>{if(event.persisted)location.reload()})
 setLanguage(language)
 initialLoad = restoreSessions()

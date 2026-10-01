@@ -1711,7 +1711,10 @@ export class KJCanvasRenderer {
                 context.transform(m[0], -m[1], -m[2], m[3], origin[0], origin[1]);
                 context.textBaseline = 'alphabetic';
                 context.textAlign = 'left';
-                if ('lines' in layout) for (const line of layout.lines)context.fillText(line.text, line.left * this.camera.scale, -line.baseline * this.camera.scale);
+                if ('lines' in layout) for (const line of layout.lines)for (const run of line.runs){
+                    font(layout.height, run.family);
+                    context.fillText(run.text, run.left * this.camera.scale, -line.baseline * this.camera.scale);
+                }
                 else context.fillText(layout.text, layout.left * this.camera.scale, -layout.bottom * this.camera.scale);
                 this.#textDrawCount++;
                 this.#drawnTextTypes.add(entity.type);

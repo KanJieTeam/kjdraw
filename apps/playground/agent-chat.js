@@ -17,9 +17,13 @@ export const KJDRAW_CHAT_TOOL_NAMES = Object.freeze([
   'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_set_circle_radius', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet',
   'cad_propose_architecture_plan', 'cad_propose_cartesian_chart', 'cad_read_geology_source', 'cad_propose_geology_revision',
 ])
+// Creation is offered by document state, never by a hard-coded instruction.
+// Imported geometry and retained geology recipes keep their existing edit policy.
+const blankMillimeterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES,
+  'cad_propose_geology_column', 'cad_propose_geology_section'])
 const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['cad_propose_manufacturing_sheet','cad_propose_architecture_plan','cad_propose_cartesian_chart','cad_read_geology_source','cad_propose_geology_revision'].includes(name)), 'cad_propose_site_plan', 'cad_propose_road_drawing'])
 const roadRevisionToolNames = Object.freeze([...meterToolNames, 'cad_propose_road_revision'])
-const selectionToolNames = new Map([KJDRAW_CHAT_TOOL_NAMES,meterToolNames,roadRevisionToolNames].map(names=>[names,Object.freeze([...names,'cad_read_selection_sets'])]))
+const selectionToolNames = new Map([KJDRAW_CHAT_TOOL_NAMES,blankMillimeterToolNames,meterToolNames,roadRevisionToolNames].map(names=>[names,Object.freeze([...names,'cad_read_selection_sets'])]))
 const moveToolNames = Object.freeze(['cad_propose_move'])
 // The host supplies document revision/units. For annotation-only edits, search
 // complete text and inspect exact IDs/local bounds instead of loading a whole
@@ -29,7 +33,11 @@ const textEditToolNames = Object.freeze(['cad_find_text', 'cad_query_drawing', '
 const builtinCapabilityRegistry = createKJDrawBuiltinCapabilityRegistry()
 /** Host policy only: SDK defaults and explicitly selected/locked tools remain unchanged. */
 export function getKJDrawChatToolNames(document,roadDrawingIds=[]) {
-  const names=document.snapshot().header.units === 'meter' ? roadDrawingIds.length?roadRevisionToolNames:meterToolNames : KJDRAW_CHAT_TOOL_NAMES
+  const snapshot=document.snapshot()
+  const isBlankMillimeter=snapshot.header.units==='millimeter'&&document.listEntities().length===0&&
+    !Object.keys(snapshot.opaquePayloads).some(key=>key.startsWith('geology-drawing-recipe:'))
+  const names=snapshot.header.units === 'meter' ? roadDrawingIds.length?roadRevisionToolNames:meterToolNames :
+    isBlankMillimeter?blankMillimeterToolNames:KJDRAW_CHAT_TOOL_NAMES
   return document.listObjects({kind:'group',type:'SELECTION_SET'}).length?selectionToolNames.get(names):names
 }
 
