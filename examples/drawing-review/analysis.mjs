@@ -139,6 +139,7 @@ export function captureDrawing(document, inputOptions) {
       typeCounts: countBy(entities, entity => entity.type), unsupported, ignoredOpaquePayloads: ignoredRaw,
       normalization: { limitNodes: options.maxNormalizationNodes, consumedNodes: options.maxNormalizationNodes - sharedBudget.nodes, exhausted: sharedBudget.exhausted, maxDepth: 40, policy: 'shared per-drawing budget; unknown results excluded from confident matching and duplicate checks' },
       opaqueDocumentPayloadKeys: Object.keys(state.opaquePayloads), resourcesCompared: 'named native records only; external binaries/fonts/opaque payloads are not compared',
+      excludedResourceFields: ['entityIds', 'viewportIds', 'tabOrder'], resourceOrdering: 'Stored resource membership lists, member order and layout tab order are not compared; entity ownership is compared separately.',
       geometryChecks: ['exact-zero-length-LINE', 'exact-semantic-duplicate-LINE-CIRCLE-ARC-LWPOLYLINE'],
       unimplementedChecks: ['gaps', 'self-intersection', 'cutting suitability', 'GD&T', 'dimension correctness', 'block-instance expansion', 'font fidelity'] } }
 }

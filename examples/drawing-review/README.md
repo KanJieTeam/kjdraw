@@ -37,6 +37,8 @@ Implemented checks are **exact zero-length LINE** and **exact native duplicate L
 
 Diffing uses normalized native payloads and extensions, resolves table/block/layout references through logical names, and excludes runtime UUIDs, handles, import source and raw DXF tags. Named native resource changes are reported separately. Unsupported native identity, proxies, ignored opaque tags and document payloads stay explicit. Unmatched records can represent additions/removals **or** changes that cannot be paired safely. No deletion/addition conclusion is inferred from an unmatched record alone.
 
+Resource comparison excludes `entityIds`, `viewportIds` and `tabOrder`: stored resource membership lists and their ordering, and layout tab order, are not compared. Native entity ownership is compared separately. This is not a complete object-graph preservation audit.
+
 The page escapes CAD strings, uses generated filenames and a restrictive Content Security Policy with an exact script hash. It loads no network resource. Inputs, native object graphs, revisions and original plot setups remain unchanged; preview plot settings are applied only to detached document forks.
 
 ## Scope of this contribution

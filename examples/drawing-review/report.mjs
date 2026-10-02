@@ -130,15 +130,20 @@ function inlineSvg(svg, prefix) {
 const SCRIPT = `const rows=JSON.parse(document.getElementById('review-data').textContent);
 const selected=[];const views=new Map();document.querySelectorAll('svg').forEach(svg=>views.set(svg,svg.getAttribute('viewBox')));
 function clear(){for(const el of selected)el.classList.remove('selected');selected.length=0;document.querySelectorAll('.focus-marker').forEach(el=>el.remove());for(const [svg,view] of views)svg.setAttribute('viewBox',view);}
-function focus(row){clear();let first=null;let found=0;
-for(const target of row.targets){for(const panel of document.querySelectorAll('[data-side]')){if(panel.dataset.side!==target.side)continue;
-for(const el of panel.querySelectorAll('[data-entity-id]')){if(!target.ids.includes(el.getAttribute('data-entity-id')))continue;el.classList.add('selected');selected.push(el);found++;if(!first)first=el;}}}
+function focus(row){clear();let first=null;const matched=new Set();const groupsBySvg=new Map();
+for(const target of row.targets){const targetIds=new Set(target.ids);for(const panel of document.querySelectorAll('[data-side]')){if(panel.dataset.side!==target.side)continue;
+for(const el of panel.querySelectorAll('[data-entity-id]')){if(!targetIds.has(el.getAttribute('data-entity-id'))||matched.has(el))continue;matched.add(el);el.classList.add('selected');selected.push(el);if(!first)first=el;const svg=el.ownerSVGElement;if(svg){const groups=groupsBySvg.get(svg)||[];groups.push(el);groupsBySvg.set(svg,groups);}}}}
+const found=selected.length;
 document.getElementById('focus-status').textContent=found?'Highlighted '+found+' rendered groups.':'No rendered group in the selected previews; check coverage, hidden layers and preview window.';
-if(first){first.closest('.preview').scrollIntoView({block:'nearest'});try{const svg=first.ownerSVGElement;const box=first.getBBox();const transform=svg.getScreenCTM().inverse().multiply(first.getScreenCTM());
+for(const [svg,groups] of groupsBySvg){let minimumX=Infinity,minimumY=Infinity,maximumX=-Infinity,maximumY=-Infinity;const zeroPoints=[];
+for(const el of groups){try{const box=el.getBBox();const transform=svg.getScreenCTM().inverse().multiply(el.getScreenCTM());
 const corners=[[box.x,box.y],[box.x+box.width,box.y],[box.x,box.y+box.height],[box.x+box.width,box.y+box.height]].map(p=>new DOMPoint(...p).matrixTransform(transform));
-const x=Math.min(...corners.map(p=>p.x)),y=Math.min(...corners.map(p=>p.y)),w=Math.max(...corners.map(p=>p.x))-x,h=Math.max(...corners.map(p=>p.y))-y,margin=Math.max(w,h,5)*0.4;
-if(Number.isFinite(x+y+w+h)){svg.setAttribute('viewBox',[x-margin,y-margin,w+2*margin,h+2*margin].join(' '));
-if(w+h===0){const marker=document.createElementNS('http://www.w3.org/2000/svg','circle');marker.classList.add('focus-marker');marker.setAttribute('cx',x);marker.setAttribute('cy',y);marker.setAttribute('r','1');marker.setAttribute('fill','#ef7c00');svg.append(marker);}}}catch{}}}
+if(!corners.every(point=>Number.isFinite(point.x)&&Number.isFinite(point.y)))continue;
+const x=Math.min(...corners.map(p=>p.x)),y=Math.min(...corners.map(p=>p.y)),right=Math.max(...corners.map(p=>p.x)),bottom=Math.max(...corners.map(p=>p.y));
+minimumX=Math.min(minimumX,x);minimumY=Math.min(minimumY,y);maximumX=Math.max(maximumX,right);maximumY=Math.max(maximumY,bottom);if(right===x&&bottom===y)zeroPoints.push([x,y]);}catch{}}
+if(Number.isFinite(minimumX+minimumY+maximumX+maximumY)){const w=maximumX-minimumX,h=maximumY-minimumY,margin=Math.max(w,h,5)*0.4;svg.setAttribute('viewBox',[minimumX-margin,minimumY-margin,w+2*margin,h+2*margin].join(' '));
+for(const [x,y] of zeroPoints){const marker=document.createElementNS('http://www.w3.org/2000/svg','circle');marker.classList.add('focus-marker');marker.setAttribute('cx',x);marker.setAttribute('cy',y);marker.setAttribute('r','1');marker.setAttribute('fill','#ef7c00');svg.append(marker);}}}
+if(first)first.closest('.preview').scrollIntoView({block:'nearest'});}
 document.querySelectorAll('[data-row]').forEach(button=>button.addEventListener('click',()=>focus(rows[Number(button.dataset.row)])));
 document.getElementById('reset').addEventListener('click',()=>{clear();document.getElementById('focus-status').textContent='Preview reset.';});
 document.getElementById('filter').addEventListener('input',event=>{const term=event.target.value.toLowerCase();document.querySelectorAll('tbody tr').forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(term));});`
