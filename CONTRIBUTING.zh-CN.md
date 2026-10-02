@@ -6,6 +6,16 @@
 
 感谢你帮助建设开放的 CAD 基础。任何行业的技术员、工程师和开发者都可以参与，不必先修改 CAD 内核。一个小型合成 DXF、可复现的日常任务、一条数据规则，或输入输出明确的领域 planner，都是合适的起点。无需先找 UUID 或写代码：提供自然需求、可公开示意／范围和预期，由实施者通过原生读取绑定 ID；需求模糊时先确认，不猜你的数据。
 
+## 三步贡献第一个行业包
+
+**行业包**就是一个 `skills/kjdraw-<行业-任务>/` 目录，里面是工作流，按需带模板、规则和辅助脚本。先复用现有 CAD 工具；现有工具不够时，才另提 planner 或引擎 PR。
+
+1. 从[行业包认领清单](docs/industry-skill-tasks.md)选择一个重复的、参数驱动的二维任务，也欢迎提出自己的任务。
+2. 按[三步技能包指南](docs/contributing-skills.zh-CN.md)建立目录。首次 PR 可以只交中文或英文 README，维护者帮助补译，不需要你先学会所有术语。
+3. 添加 `tests/community-<topic>.spec.mjs`，然后运行 `npm run check:skill -- skills/kjdraw-<topic>`，提交小型 PR。
+
+只贡献技能包时，从这条聚焦检查开始；修改 SDK 或界面时，再运行下方对应检查。[图框与标题栏样例](skills/kjdraw-sheet-template/README.zh-CN.md)展示如何让真实工具消费模板和规则。详细[边界与审核要求](docs/skill-review-boundaries.zh-CN.md)仍会在审核时检查。
+
 ## 从一个真实任务开始
 
 1. 新建[领域贡献 Issue](https://github.com/KanJieTeam/kjdraw/issues/new?template=domain_contribution.yml)（[表单源码](.github/ISSUE_TEMPLATE/domain_contribution.yml)），写清日常任务、已提供的事实及单位、预期结果、不得改变的内容，以及应拒绝或询问的条件。可以先提交文字说明或合成示意图，不要求客户文件或 API Key。
@@ -28,7 +38,7 @@
 | 行业模板、规则或输入契约 | [技能包开发指南](docs/contributing-skills.zh-CN.md)、[skills/](skills/README.md) | 明确行业／任务范围、有版本的字段与单位、有授权的资源、实际消费它们的工具／helper，以及正例与拒绝例。资源文件不等于新加载器或经过认证的工程规范；缺少运行时接入时另行审阅。 |
 | 勘察数据规则／知识包 | [geology-core.ts](packages/kjdraw-sdk/src/knowledge-packs/geology-core.ts)、[知识包指南](docs/site/pages/knowledge-packs.md)、[geology-engineering.ts](packages/kjdraw-sdk/src/geology-engineering.ts) | 有授权、有版本、有出处的规则；区分实测与合成事实；单位／连续性／非法数据测试；独立预期几何。编译器或 API 变更需要维护者审阅。 |
 | 绘图版式、文字或花纹映射 | [curated-geology-sheets.mjs](examples/curated-geology-sheets.mjs)、[hatch-pattern-catalog.ts](packages/kjdraw-sdk/src/hatch-pattern-catalog.ts)、[浏览器测试](tests/browser/) | 源数据明确的合成样本、几何／比例断言、可再分发的原创花纹数据、未修改对象和资源检查；可见页面变更还需浏览器证据。截图不能单独证明几何正确。 |
-| 独立 Skill 或 Agent 工作流 | [技能包开发指南](docs/contributing-skills.zh-CN.md)、[文字核对样例](skills/kjdraw-text-audit/README.zh-CN.md)、[机械孔阵列](skills/kjdraw-hole-pattern/README.zh-CN.md) | 单独的 `skills/kjdraw-<topic>/`、支持的运行时／工具、输入产物契约、短指引、中英人读 README 与可复现验收。复用现有工具无需修改内核；新图元或安装器变更另行审阅。 |
+| 独立 Skill 或 Agent 工作流 | [技能包开发指南](docs/contributing-skills.zh-CN.md)、[文字核对样例](skills/kjdraw-text-audit/README.zh-CN.md)、[机械孔阵列](skills/kjdraw-hole-pattern/README.zh-CN.md) | 单独的 `skills/kjdraw-<topic>/`、支持的运行时／工具、输入产物契约、短指引、中文或英文人读 README 与可复现验收；维护者帮助补译。复用现有工具无需修改内核；新图元或安装器变更另行审阅。 |
 | 文档或翻译 | [docs/](docs/)、本指南及[英文镜像](CONTRIBUTING.md) | 可用路径与命令、准确能力边界；中英文保持语义一致。 |
 
 [planner starter](examples/domain-planner-starter/README.md) 可通过 `node --test tests/domain-planner-starter.spec.mjs` 运行。其示例输入为 `center: [0, 0]`、`pitchDiameter: 90`、`holeDiameter: 10`、`count: 6`，所有长度采用宿主明确的图纸单位；输出六个圆的绘图意图，分布半径为 45，孔半径为 5。公开插件适配器一次事务完成绘制；测试包含非法输入、对象数量、revision、真实 undo/redo 与 KJD/DXF 重开。它是贡献模式，不是经过工程认证的设计，也不会自动装进每个 Agent。

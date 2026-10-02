@@ -29,7 +29,8 @@
     "format:pilot:write": "prettier --write scripts/audits/verify-published-agent-first-use.mjs scripts/benchmarks/aggregate-multiround-correctness.mjs tests/multiround-correctness-scoring.spec.mjs tests/dxf-untouched-validator.spec.mjs tests/dxf-reference-scorer.spec.mjs examples/plugin-starter/src/index.ts examples/domain-planner-starter/*.mjs tests/domain-planner-starter.spec.mjs",
     "audit:dxf": "node scripts/audit-dxf-corpus.mjs",
     "audit:distribution": "node scripts/audits/distribution-status.mjs",
-    "check": "node scripts/check.mjs"
+    "check": "node scripts/check.mjs",
+    "check:skill": "node scripts/check-community-skill.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

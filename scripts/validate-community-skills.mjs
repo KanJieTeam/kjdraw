@@ -13,10 +13,11 @@ import { fileURLToPath } from 'node:url'
  * URLs are not requested; local lexical and real paths must remain in the pack.
  */
 export const COMMUNITY_SKILLS_CONTRACT = Object.freeze({
-  version: 'community-skills-structure-v1', structuralOnly: true,
+  version: 'community-skills-structure-v2', structuralOnly: true,
   namePattern: 'kjdraw- followed by lowercase letters, digits or hyphens; max 63 characters',
   reservedNames: Object.freeze(['kjdraw-cad']),
-  requiredFiles: Object.freeze(['SKILL.md', 'README.md', 'README.zh-CN.md']),
+  requiredFiles: Object.freeze(['SKILL.md']),
+  humanReadmeAnyOf: Object.freeze(['README.md', 'README.zh-CN.md']),
   acceptanceReferenceOptional: true,
   behavioralValidationPerformed: false, externalLinksProbed: false,
 })
@@ -135,13 +136,19 @@ async function markdownFiles(directory) {
 }
 
 export async function validateCommunitySkills(options = {}) {
-  if (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some(key => key !== 'root') ||
-    options.root !== undefined && (typeof options.root !== 'string' || !options.root.trim())) throw new TypeError('Use only a nonempty root path')
+  if (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some(key => !['root', 'pack'].includes(key)) ||
+    options.root !== undefined && (typeof options.root !== 'string' || !options.root.trim()) ||
+    options.pack !== undefined && !nameValid(options.pack)) throw new TypeError('Use only a nonempty root path and optional valid pack name')
   const root = resolve(options.root ?? defaultRoot), errors = [], packs = [], discoveredNames = new Map()
   const error = (pack, file, code) => errors.push({ ...(pack ? { pack } : {}), ...(file ? { file } : {}), code })
   let entries
   try { if (!(await stat(root)).isDirectory()) throw Error(); entries = await readdir(root, { withFileTypes: true }) }
   catch { return { ok: false, structuralOnly: true, behavioralValidationPerformed: false, packs, errors: [{ code: 'SKILLS_ROOT_NOT_DIRECTORY' }] } }
+  if (options.pack !== undefined) {
+    entries = entries.filter(entry => entry.name === options.pack && (entry.isDirectory() || entry.isSymbolicLink()))
+    if (!entries.length) return { ok: false, structuralOnly: true, behavioralValidationPerformed: false, packs,
+      errors: [{ pack: options.pack, code: 'SKILL_PACK_NOT_FOUND' }] }
+  }
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     if (!entry.isDirectory() && !entry.isSymbolicLink()) continue // e.g. skills/README.md is an index, not a pack.
     const name = entry.name, boundary = join(root, name), before = errors.length
@@ -151,15 +158,25 @@ export async function validateCommunitySkills(options = {}) {
     if (COMMUNITY_SKILLS_CONTRACT.reservedNames.includes(name)) error(name, undefined, 'RESERVED_FOUNDATION_SKILL_NAME')
     if (entry.isSymbolicLink()) { error(name, undefined, 'PACK_SYMLINK_NOT_ALLOWED'); continue }
     const packReal = await realpath(boundary), content = new Map()
-    for (const file of COMMUNITY_SKILLS_CONTRACT.requiredFiles) {
+    for (const file of [...COMMUNITY_SKILLS_CONTRACT.requiredFiles, ...COMMUNITY_SKILLS_CONTRACT.humanReadmeAnyOf]) {
+      const required = COMMUNITY_SKILLS_CONTRACT.requiredFiles.includes(file)
+      let present = false
       try {
-        const path = join(boundary, file), actual = await realpath(path)
+        const path = join(boundary, file)
+        await lstat(path); present = true
+        const actual = await realpath(path)
         if (!inside(packReal, actual)) { error(name, file, 'RESOURCE_ESCAPES_PACK'); continue }
         if (!(await stat(actual)).isFile()) { error(name, file, 'REQUIRED_MARKDOWN_NOT_FILE'); continue }
         const text = await readFile(path, 'utf8'); content.set(file, text)
         if (file !== 'SKILL.md' && !meaningful(text)) error(name, file, 'EMPTY_OR_PLACEHOLDER_DOCUMENT')
-      } catch { error(name, file, 'MISSING_REQUIRED_FILE') }
+      } catch (cause) {
+        if (!required && !present && cause.code === 'ENOENT') continue
+        error(name, file, required ? 'MISSING_REQUIRED_FILE' : 'UNREADABLE_HUMAN_README')
+      }
     }
+    pack.humanReadmes = COMMUNITY_SKILLS_CONTRACT.humanReadmeAnyOf.filter(file => content.has(file))
+    pack.translationNeeded = COMMUNITY_SKILLS_CONTRACT.humanReadmeAnyOf.filter(file => !content.has(file))
+    if (!pack.humanReadmes.length) error(name, undefined, 'HUMAN_README_REQUIRED')
     if (content.has('SKILL.md')) {
       const frontmatter = parseCommunitySkillFrontmatter(content.get('SKILL.md'))
       frontmatter.errors.forEach(code => error(name, 'SKILL.md', code))

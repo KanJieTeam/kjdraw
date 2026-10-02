@@ -33,7 +33,8 @@ test('contract is structural-only, zero external probing, and reserves the found
   assert.equal(COMMUNITY_SKILLS_CONTRACT.behavioralValidationPerformed, false)
   assert.deepEqual(COMMUNITY_SKILLS_CONTRACT.reservedNames, ['kjdraw-cad'])
   assert.equal(COMMUNITY_SKILLS_CONTRACT.acceptanceReferenceOptional, true)
-  assert.deepEqual(COMMUNITY_SKILLS_CONTRACT.requiredFiles, ['SKILL.md', 'README.md', 'README.zh-CN.md'])
+  assert.deepEqual(COMMUNITY_SKILLS_CONTRACT.requiredFiles, ['SKILL.md'])
+  assert.deepEqual(COMMUNITY_SKILLS_CONTRACT.humanReadmeAnyOf, ['README.md', 'README.zh-CN.md'])
 })
 test('valid independent pack passes with bilingual human docs and acceptance, not a model pass', async t => {
   const { root } = await fixture(t)
@@ -46,6 +47,30 @@ test('valid independent pack passes with bilingual human docs and acceptance, no
 test('root index README is not mistaken for a skill', async t => {
   const { root } = await fixture(t); await writeFile(join(root, 'README.md'), '# Community index\n')
   assert.equal((await validateCommunitySkills({ root })).packs.length, 1)
+})
+for (const missing of ['README.md', 'README.zh-CN.md'])
+  test('first contribution accepts either human documentation language: missing ' + missing, async t => {
+    const { root } = await fixture(t, 'kjdraw-text-audit', { [missing]: null })
+    const result = await validateCommunitySkills({ root })
+    assert.equal(result.ok, true, JSON.stringify(result.errors))
+    assert.deepEqual(result.packs[0].translationNeeded, [missing])
+    assert.equal(result.packs[0].humanReadmes.length, 1)
+  })
+test('a human README in at least one language remains mandatory', async t => {
+  const { root } = await fixture(t, 'kjdraw-text-audit', { 'README.md': null, 'README.zh-CN.md': null })
+  assert.ok(codes(await validateCommunitySkills({ root })).includes('HUMAN_README_REQUIRED'))
+})
+test('an included empty translation is not ignored because another language exists', async t => {
+  const { root } = await fixture(t, 'kjdraw-text-audit', { 'README.md': '# Translation\n\nTODO\n' })
+  assert.ok(codes(await validateCommunitySkills({ root })).includes('EMPTY_OR_PLACEHOLDER_DOCUMENT'))
+})
+test('selected package validation is exact and a missing package never passes vacuously', async t => {
+  const { root } = await fixture(t)
+  assert.equal((await validateCommunitySkills({ root, pack: 'kjdraw-text-audit' })).ok, true)
+  const missing = await validateCommunitySkills({ root, pack: 'kjdraw-not-here' })
+  assert.equal(missing.ok, false)
+  assert.ok(codes(missing).includes('SKILL_PACK_NOT_FOUND'))
+  await assert.rejects(validateCommunitySkills({ root, pack: '../outside' }), /valid pack name/)
 })
 test('short self-contained three-file skill needs no references directory', async t => {
   const { root, pack } = await fixture(t, 'kjdraw-text-audit', {
@@ -182,7 +207,7 @@ test('CLI --root has actual exit success/failure and no hidden install or behavi
   const { root, pack } = await fixture(t), before = await readFile(join(pack, 'SKILL.md'))
   const run = args => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' })
   const good = run(['--root', root]); assert.equal(good.status, 0); assert.equal(JSON.parse(good.stdout).behavioralValidationPerformed, false)
-  await rm(join(pack, 'README.zh-CN.md'))
+  await rm(join(pack, 'README.zh-CN.md')); await rm(join(pack, 'README.md'))
   const bad = run(['--root', root]); assert.equal(bad.status, 1); assert.equal(JSON.parse(bad.stdout).ok, false)
   assert.equal(run(['--unknown']).status, 1); assert.equal(run(['--root']).status, 1)
   assert.equal(run(['--help']).status, 0)

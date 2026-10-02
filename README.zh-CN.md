@@ -55,7 +55,7 @@ npx skills add KanJieTeam/kjdraw -g
 | 能力 | 当前范围 |
 | --- | --- |
 | **读懂现有图纸** | 已提供：对支持的对象进行分页读取、空间与属性查询、在线图档/KJD 内稳定的对象 ID、图层、块引用、拓扑和修改影响分析；DXF 重新导入可能生成新的内部 ID |
-| **高层工程成图** | 示例工作流：机械加工图、建筑平面图、场地与管线图、道路平纵横、柱状图、地质剖面图和统计图；完整生产流程仍在验证 |
+| **高层工程成图** | 示例工作流：机械加工图、建筑平面图、场地与管线图、道路平纵横、钻孔柱状图、地质剖面图、统计柱状图／条形图和折线图；完整生产流程仍在验证 |
 | **多轮改图** | 已提供部分命令：对支持的对象及组合进行定位、移动、复制、旋转、缩放、偏移、拉伸、延长、改文字、换图层和删除；真实模型多轮任务仍需验证 |
 | **审核与修订** | 已提供：绑定图纸版本的修改提案、真人审批、单事务提交、撤销，以及在支持范围内保存和重开检查 |
 | **嵌入你的产品** | 已提供：同一引擎的 TypeScript/JavaScript SDK、React、Vue、完整编辑器、CLI、MCP 和本地文件工作流 |
@@ -167,7 +167,7 @@ sequenceDiagram
 
 ## 参与贡献
 
-欢迎**任何行业**的开发者贡献技能包。共用同一个 CAD 引擎，按需附带模板、规则或辅助脚本。
+**贡献你所在行业的技能包。** 从[技能目录](skills/README.md)和[中文开发指南](docs/contributing-skills.zh-CN.md)开始。行业包就是一个 `skills/kjdraw-<行业-任务>/` 目录，包含工作流及按需提供的模板、规则和辅助脚本。
 
 **Fork → 新建 `skills/kjdraw-<topic>/` → 测试工作流 → 提交 PR。**
 
@@ -175,18 +175,17 @@ sequenceDiagram
 
 写清输入、产物和验收方式。复用已有操作通常不需要修改内核；缺失的 planner、插件或内核能力请单独提案。
 
-新技能包至少包含 `SKILL.md`、`README.md` 和 `README.zh-CN.md`，然后在仓库根目录执行：
+新技能包提供 `SKILL.md` 和**中文或英文任选一份 README** 即可，维护者可帮助补译。添加 `tests/community-<topic>.spec.mjs` 工作流测试后，在仓库根目录只需执行：
 
 ```sh
-node scripts/validate-community-skills.mjs
-node --test tests/community-skills.spec.mjs
+npm run check:skill
 ```
 
-这两条检查包结构；还需为自己的工作流添加使用公开合成输入的行为测试，并更新[技能目录](skills/README.md)。
+这条命令检查包结构并运行合成输入工作流测试，不代表真实模型验收。只检查自己的包时，追加 `-- skills/kjdraw-your-topic`，将目录名换成你的实际名称。最后更新[技能目录](skills/README.md)。
 
 现在最有价值的贡献：
 
-- **一个可安装的领域 Skill。** 参考[只读文字核对](skills/kjdraw-text-audit/README.zh-CN.md)或[机械孔阵列](skills/kjdraw-hole-pattern/README.zh-CN.md)，保留自己的短 `SKILL.md` 与必要资源，添加验证实际工作流的测试。
+- **一个可安装的领域 Skill。** 参考[只读文字核对](skills/kjdraw-text-audit/README.zh-CN.md)、[机械孔阵列](skills/kjdraw-hole-pattern/README.zh-CN.md)或[图纸模板与图层规则](skills/kjdraw-sheet-template/README.zh-CN.md)，保留自己的短 `SKILL.md` 与必要资源，添加验证实际工作流的测试。
 - **一个可复现的图纸问题。** 提交小型合成 DXF 或有权公开的最小样例，写明操作指令和预期结果；不要上传客户私有图纸。
 - **一个可复用的工程工作流。** 有明确输入、可编辑 CAD 产物，以及修改、撤销、DXF 重开的测试。从[领域规划器示例](examples/domain-planner-starter/README.md)开始。
 - **在你用的 AI 客户端里试用并反馈**，尤其是生成失败或多轮修改出错的案例。
@@ -199,7 +198,7 @@ npm ci --ignore-scripts
 npm run dev          # http://localhost:4173
 ```
 
-提交 PR 前请运行 `npm run typecheck` 和 `npm test`（界面修改还需 `npm run test:browser`）。较大改动请先 [开 Issue](https://github.com/KanJieTeam/kjdraw/issues) 讨论。参见 [贡献指南](CONTRIBUTING.md) · [治理规则](GOVERNANCE.md) · [路线图](docs/roadmap.md) · [获取支持](SUPPORT.md)。
+浏览器打开 <http://localhost:4173>。只贡献技能包时运行 `npm run check:skill`；修改 SDK 或界面时，再按[中文贡献指南](CONTRIBUTING.zh-CN.md)执行对应检查。可从[行业包认领清单](docs/industry-skill-tasks.md)选择任务并[留言认领](https://github.com/KanJieTeam/kjdraw/issues/4)，也欢迎提出自己的任务。参见 [治理规则](GOVERNANCE.md) · [路线图](docs/roadmap.md) · [获取支持](SUPPORT.md)。
 
 ## Star History
 

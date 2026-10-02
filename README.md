@@ -167,7 +167,7 @@ Unsupported content is rejected rather than silently dropped. Full boundaries: [
 
 ## Contributing
 
-Contributions are welcome from **any industry**. Share a Skill that reuses the CAD engine, with templates, rules or helpers only when needed.
+**Contribute a Skill for your industry.** Start with the [Skill catalog](skills/README.md) and [developer guide](docs/contributing-skills.md). An industry pack is one `skills/kjdraw-<industry-task>/` directory containing a workflow and any useful templates, rules or helpers.
 
 **Fork → add `skills/kjdraw-<topic>/` → test your workflow → open a PR.**
 
@@ -175,18 +175,17 @@ Contributions are welcome from **any industry**. Share a Skill that reuses the C
 
 Define the inputs, outputs and acceptance checks. Reusing existing operations normally does not require a kernel change; propose missing planner, plugin or engine capabilities separately.
 
-For a new Skill, include `SKILL.md`, `README.md` and `README.zh-CN.md` in its folder, then run from the repository root:
+For a new Skill, include `SKILL.md` and a human README in **English or Chinese**; maintainers can help with the translation. Add a focused `tests/community-<topic>.spec.mjs`, then run one command from the repository root:
 
 ```sh
-node scripts/validate-community-skills.mjs
-node --test tests/community-skills.spec.mjs
+npm run check:skill
 ```
 
-These check package structure. Also add a focused test of your workflow using public synthetic inputs, and list the Skill in [the catalog](skills/README.md).
+This checks package structure and runs workflow tests with public synthetic inputs; it does not certify model behavior. To check only your pack, append `-- skills/kjdraw-your-topic`. List the Skill in [the catalog](skills/README.md).
 
 The most useful contributions right now:
 
-- **An installable domain Skill.** Start from [read-only text audit](skills/kjdraw-text-audit/README.md) or [mechanical hole patterns](skills/kjdraw-hole-pattern/README.md), keep its own short `SKILL.md` and useful resources, and add tests for your actual workflow.
+- **An installable domain Skill.** Start from [read-only text audit](skills/kjdraw-text-audit/README.md), [mechanical hole patterns](skills/kjdraw-hole-pattern/README.md) or [drawing templates and layer rules](skills/kjdraw-sheet-template/README.md); keep its own short `SKILL.md` and useful resources, and add tests for your actual workflow.
 - **A reproducible drawing problem.** Share a small synthetic DXF or a reduced example you are authorized to publish, with the request and expected result. Do not upload private customer drawings.
 - **A reusable engineering workflow.** Explicit inputs, editable CAD output, and tests for changes, undo and DXF reopening. Start from the [domain planner example](examples/domain-planner-starter/README.md).
 - **Try it in your AI client and report back**, especially failed generations or multi-turn edits that go wrong.
@@ -199,7 +198,7 @@ npm ci --ignore-scripts
 npm run dev          # http://localhost:4173
 ```
 
-Before opening a PR, run `npm run typecheck` and `npm test` (plus `npm run test:browser` for UI changes). For larger changes, please [open an issue](https://github.com/KanJieTeam/kjdraw/issues) first. See [Contributing](CONTRIBUTING.md) · [Governance](GOVERNANCE.md) · [Roadmap](docs/roadmap.md) · [Support](SUPPORT.md).
+Open the editor at <http://localhost:4173>. For a Skill-only PR, use `npm run check:skill`; SDK or UI changes also need the checks in [Contributing](CONTRIBUTING.md). Choose a task from the [industry-pack claim list](docs/industry-skill-tasks.md) and [claim it here](https://github.com/KanJieTeam/kjdraw/issues/4), or propose your own. See [Governance](GOVERNANCE.md) · [Roadmap](docs/roadmap.md) · [Support](SUPPORT.md).
 
 ## Star History
 
