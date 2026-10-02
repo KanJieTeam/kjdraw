@@ -23,6 +23,8 @@ The result gives a `.kjdraw/proposals/` ledger and says `awaiting-host-approval`
 kjdraw-review --workspace <absolute-workspace-path> --ledger <returned-ledger-path> --sequence 1 --candidate reviewed.kjd --approve
 ```
 
+The current source reviewer also accepts `DESIGNCREATE` / `DESIGNUPDATE` proposals from `cad_propose_design_bind` / `cad_propose_design_update`. Candidates containing parameter relations require the reviewer to explicitly add `--flatten-design-relations`: KJD retains the relations for later edits; DXF exports supported geometry without them. Check the installed `kjdraw-review --help`; source support does not establish an npm or pinned-installer release. See the [two-hole revision workflow](../skills/kjdraw-hole-revision/README.zh-CN.md).
+
 The reviewer writes independently checked KJD/DXF candidates without overwriting the source. `kjdraw agent tools <name>` provides the live argument schema; the Skill should use a high-level drawing tool rather than emit hundreds of primitives.
 
 After approval, verify both files from the same test workspace:

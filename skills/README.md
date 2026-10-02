@@ -8,6 +8,7 @@ Independent, cross-industry workflows built on the same KJDraw CAD runtime. Each
 | --- | --- | --- |
 | [kjdraw-text-audit](kjdraw-text-audit/README.md) | Read-only literal text inventory, duplicate strings and caller-required label checks. | [中文说明](kjdraw-text-audit/README.zh-CN.md), [acceptance](kjdraw-text-audit/references/acceptance.md). |
 | [kjdraw-hole-pattern](kjdraw-hole-pattern/README.md) | Mechanical circular hole patterns from explicit dimensions, with a native proposal and authorized review. | [中文说明](kjdraw-hole-pattern/README.zh-CN.md), [acceptance](kjdraw-hole-pattern/references/acceptance.md). |
+| [kjdraw-hole-revision](kjdraw-hole-revision/README.zh-CN.md) | Bind two caller-confirmed native holes to diameter/spacing parameters and revise them through separate local host review. | [输入与验收](kjdraw-hole-revision/references/acceptance.md); requires compatible design review and explicit DXF flattening. |
 | [kjdraw-sheet-template](kjdraw-sheet-template/README.md) | Original A4/parameterized frame and title-block resources with executable layer/symbol rules and native review. | [中文说明](kjdraw-sheet-template/README.zh-CN.md), [acceptance](kjdraw-sheet-template/references/acceptance.md); not a certified standard. |
 
 The existing [kjdraw-cad](../packages/kjdraw-sdk/skills/kjdraw-cad/SKILL.md) is the general CAD foundation, shipped with the SDK. Community directories here are distributed as Git Skills, not automatically bundled into an npm runtime release.
