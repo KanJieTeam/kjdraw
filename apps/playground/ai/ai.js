@@ -377,9 +377,9 @@ function openHistoryAction(action,session) {
 function updateComposerAvailability() {
   ui.send.disabled = busy || importing
   ui.form.setAttribute('aria-busy', String(busy || importing))
-  ui.send.title = importing ? t('importingDrawing') : ''
+  ui.send.title = importing ? t('importingDrawing') : busy ? t('working') : ''
   ui.send.querySelector('[data-text="send"]').textContent = t(importing ? 'importingDrawing' : 'send')
-  ui.form.querySelector('[data-text="composerHint"]').textContent = t(importing ? 'importingDrawing' : 'composerHint')
+  ui.form.querySelector('[data-text="composerHint"]').textContent = t(importing ? 'importingDrawing' : busy ? 'working' : 'composerHint')
 }
 function render() {
   updateComposerAvailability()
@@ -503,6 +503,7 @@ function createProposalCard(session, proposal) {
     approve.addEventListener('click',async()=>{
       if (busy || importing) return
       busy = true
+      updateComposerAvailability()
       savingProposals.add(proposal)
       approve.disabled = reject.disabled = true
       let result
@@ -526,6 +527,8 @@ function createProposalCard(session, proposal) {
     reject.addEventListener('click',async()=>{
       if (busy || importing) return
       busy = true
+      updateComposerAvailability()
+      approve.disabled = reject.disabled = true
       const result = session.runtime.reject(proposal.planId)
       const message = result.status === 'rejected' ? {role:'assistant',text:result.text}
         : {role:'assistant',status:'error',text:result.error?.message ?? t('retry')}
