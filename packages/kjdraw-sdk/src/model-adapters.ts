@@ -38,6 +38,8 @@ export interface KJModelRequest {
 }
 /** Bounded OpenAI-compatible request fields used by domestic model profiles. Reserved CAD/tool fields cannot be overridden. */
 export interface KJChatRequestExtensions {
+  /** Explicit host opt-in for compatible providers. Valid JSON is not evidence of answer correctness. */
+  readonly response_format?: { readonly type: 'json_object' }
   readonly thinking?: { readonly type: 'enabled' | 'disabled'; readonly keep?: 'all' | null }
   readonly reasoning_effort?: 'low' | 'high' | 'max'
   readonly enable_thinking?: boolean
@@ -82,12 +84,22 @@ export class KJModelError extends KJDrawError {
 }
 
 function invalid(message: string): never { throw new KJModelError('KJMODEL_PROTOCOL', message) }
-const CHAT_EXTENSION_KEYS = new Set(['thinking', 'reasoning_effort', 'enable_thinking', 'tool_choice', 'parallel_tool_calls', 'prompt_cache_key', 'safety_identifier'])
+const CHAT_EXTENSION_KEYS = new Set(['response_format', 'thinking', 'reasoning_effort', 'enable_thinking', 'tool_choice', 'parallel_tool_calls', 'prompt_cache_key', 'safety_identifier'])
 function chatExtensions(value: KJChatRequestExtensions | undefined): Readonly<Record<string, unknown>> {
   if (value === undefined) return Object.freeze({})
   if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Chat request extensions must be an object')
   const input = value as Record<string, unknown>
   if (Object.keys(input).some(key => !CHAT_EXTENSION_KEYS.has(key))) invalid('Unsupported or reserved Chat request extension')
+  if (Object.hasOwn(input, 'response_format')) {
+    const descriptor = Object.getOwnPropertyDescriptor(input, 'response_format')
+    if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) invalid('Chat response format must be an enumerable data property')
+    const format: unknown = descriptor.value
+    if (!format || typeof format !== 'object' || Array.isArray(format) ||
+      ![Object.prototype, null].includes(Object.getPrototypeOf(format)) ||
+      Reflect.ownKeys(format).length !== 1 || !Object.hasOwn(format, 'type')) invalid('Unsupported Chat response format')
+    const type = Object.getOwnPropertyDescriptor(format, 'type')
+    if (!type || !Object.hasOwn(type, 'value') || !type.enumerable || type.value !== 'json_object') invalid('Unsupported Chat response format')
+  }
   if (input.thinking !== undefined) {
     if (!input.thinking || typeof input.thinking !== 'object' || Array.isArray(input.thinking)) invalid('Invalid Chat thinking configuration')
     const thinking = input.thinking as Record<string, unknown>

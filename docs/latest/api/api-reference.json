@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:e3dbc42f098d7d1f1257ffca32e2516ac1fe0defc219ae41177d70ae9c83326a",
+  "sourceDigest": "sha256:5575101b86b730a338f4bba1e88939ecb023d2f8e755a1edfd87af4e44493898",
   "modules": [
     {
       "exportPath": "./agent-skill-json",
@@ -491,7 +491,7 @@
         {
           "name": "KJChatRequestExtensions",
           "kind": "interface",
-          "declaration": "export interface KJChatRequestExtensions {\n    readonly thinking?: {\n        readonly type: 'enabled' | 'disabled';\n        readonly keep?: 'all' | null;\n    };\n    readonly reasoning_effort?: 'low' | 'high' | 'max';\n    readonly enable_thinking?: boolean;\n    readonly tool_choice?: 'auto' | 'none' | 'required';\n    readonly parallel_tool_calls?: boolean;\n    readonly prompt_cache_key?: string;\n    readonly safety_identifier?: string;\n}",
+          "declaration": "export interface KJChatRequestExtensions {\n    /** Explicit host opt-in for compatible providers. Valid JSON is not evidence of answer correctness. */\n    readonly response_format?: {\n        readonly type: 'json_object';\n    };\n    readonly thinking?: {\n        readonly type: 'enabled' | 'disabled';\n        readonly keep?: 'all' | null;\n    };\n    readonly reasoning_effort?: 'low' | 'high' | 'max';\n    readonly enable_thinking?: boolean;\n    readonly tool_choice?: 'auto' | 'none' | 'required';\n    readonly parallel_tool_calls?: boolean;\n    readonly prompt_cache_key?: string;\n    readonly safety_identifier?: string;\n}",
           "source": "model-adapters.d.ts",
           "anchor": "model-adapters-interface-kjchatrequestextensions"
         },
@@ -668,7 +668,7 @@
         {
           "name": "KJAgentRunOptions",
           "kind": "interface",
-          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Explicit host-supplied drawing images; the selected model must support vision. */\n    images?: readonly KJModelImage[];\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */\n    capabilities?: {\n        registry: KJAgentCapabilityRegistry;\n        lock: readonly KJAgentCapabilityLockEntry[];\n    };\n    maxTurns?: number;\n    maxToolCalls?: number;\n    /** Model turns following failed tool batches or missing-proposal correction; default 2, range 0–32. Does not retry transport or approvals. */\n    maxRepairAttempts?: number;\n    /** Explicit edit intent from the host. After a successful read, allow at most one missing-proposal correction within the shared repair/turn budgets. Defaults to false; never applies a change. */\n    expectProposal?: boolean;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n    /** Host UI progress; contains no drawing payload or model reasoning. */\n    onProgress?: (progress: Readonly<KJAgentRunProgress>) => void;\n}",
+          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Explicit host-supplied drawing images; the selected model must support vision. */\n    images?: readonly KJModelImage[];\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */\n    capabilities?: {\n        registry: KJAgentCapabilityRegistry;\n        lock: readonly KJAgentCapabilityLockEntry[];\n    };\n    maxTurns?: number;\n    maxToolCalls?: number;\n    /** Model turns following failed tool batches or missing-proposal correction; default 2, range 0–32. Does not retry transport or approvals. */\n    maxRepairAttempts?: number;\n    /** Explicit edit intent from the host. After a successful read, allow at most one missing-proposal correction within the shared repair/turn budgets. Defaults to false; never applies a change. */\n    expectProposal?: boolean;\n    /** Explicit drawing-read intent from the host. Requires at least one successful selected read tool before completion; allows one missing-read correction within the existing shared budgets. Default false. This does not verify target completeness, pagination or answer correctness. */\n    expectReadEvidence?: boolean;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n    /** Host UI progress; contains no drawing payload or model reasoning. */\n    onProgress?: (progress: Readonly<KJAgentRunProgress>) => void;\n}",
           "source": "agent-runner.d.ts",
           "anchor": "agent-runner-interface-kjagentrunoptions"
         },
@@ -682,7 +682,7 @@
         {
           "name": "KJAgentRunResult",
           "kind": "interface",
-          "declaration": "export interface KJAgentRunResult {\n    readonly status: 'responded' | 'awaiting-approval' | 'limit-reached' | 'cancelled' | 'failed';\n    /** Untrusted model text, not evidence of CAD success. Never render as unsanitized HTML. */\n    readonly text: string;\n    readonly turns: number;\n    readonly toolCalls: number;\n    readonly repairAttempts: number;\n    /** Present only when the host requests a proposal. Counts attempted missing-proposal correction turns (0 or 1). */\n    readonly proposalRepairAttempts?: number;\n    /** Tool errors and explicit cad_check_geometry failures, including ok:true/passed:false. */\n    readonly failedToolCalls: number;\n    readonly outputs: readonly KJModelToolOutput[];\n    readonly proposalIds: readonly string[];\n    readonly measurements: KJAgentRunMeasurements;\n    readonly error?: {\n        readonly code: string;\n        readonly message: string;\n    };\n}",
+          "declaration": "export interface KJAgentRunResult {\n    readonly status: 'responded' | 'awaiting-approval' | 'limit-reached' | 'cancelled' | 'failed';\n    /** Untrusted model text, not evidence of CAD success. Never render as unsanitized HTML. */\n    readonly text: string;\n    readonly turns: number;\n    readonly toolCalls: number;\n    readonly repairAttempts: number;\n    /** Present only when the host requests a proposal. Counts attempted missing-proposal correction turns (0 or 1). */\n    readonly proposalRepairAttempts?: number;\n    /** Present only for expectReadEvidence. Counts the single allowed missing-read correction (0 or 1). */\n    readonly readRepairAttempts?: number;\n    /** Tool errors and explicit cad_check_geometry failures, including ok:true/passed:false. */\n    readonly failedToolCalls: number;\n    readonly outputs: readonly KJModelToolOutput[];\n    readonly proposalIds: readonly string[];\n    readonly measurements: KJAgentRunMeasurements;\n    readonly error?: {\n        readonly code: string;\n        readonly message: string;\n    };\n}",
           "source": "agent-runner.d.ts",
           "anchor": "agent-runner-interface-kjagentrunresult"
         },
@@ -761,7 +761,7 @@
         {
           "name": "default",
           "kind": "type",
-          "declaration": "export type { KJAgentInputAssetDescriptor, KJAgentInputAssetReference, KJAgentInputAssetRegistration } from './input-assets.js';\nexport type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js';\nexport type { KJAgentRoadDrawingInput } from './agent-road-drawing.js';\nexport type { KJAgentTopologyQuery } from './agent-topology-context.js';\nexport type { KJEraseImpact, KJEraseImpactBlocker, KJEraseImpactQuery } from './erase-impact.js';\nexport type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';\nexport type { KJAgentCompactDrawingInput } from './agent-drawing-compact.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';",
+          "declaration": "export type { KJNativeCurveQueryOptions, KJNativeCurveNeighborhoodOptions, KJNativeCurveBoundsPage, KJNativeCurveNeighborhoodPage } from './agent-native-geometry-query.js';\nexport type { KJAgentInputAssetDescriptor, KJAgentInputAssetReference, KJAgentInputAssetRegistration } from './input-assets.js';\nexport type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js';\nexport type { KJAgentRoadDrawingInput } from './agent-road-drawing.js';\nexport type { KJAgentTopologyQuery } from './agent-topology-context.js';\nexport type { KJEraseImpact, KJEraseImpactBlocker, KJEraseImpactQuery } from './erase-impact.js';\nexport type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';\nexport type { KJAgentCompactDrawingInput } from './agent-drawing-compact.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-type-default"
         },
@@ -785,6 +785,20 @@
           "declaration": "export interface KJAgentGeologyColumnKnowledgeBinding {\n    pack: unknown;\n    sha256: string;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-interface-kjagentgeologycolumnknowledgebinding"
+        },
+        {
+          "name": "KJAgentGeologyScalarRevisionInput",
+          "kind": "interface",
+          "declaration": "export interface KJAgentGeologyScalarRevisionInput {\n    expectedRevision: number;\n    units: 'millimeter';\n    drawingId: string;\n    updates: KJAgentGeologyScalarRevisionUpdate[];\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-interface-kjagentgeologyscalarrevisioninput"
+        },
+        {
+          "name": "KJAgentGeologyScalarRevisionUpdate",
+          "kind": "type",
+          "declaration": "export type KJAgentGeologyScalarRevisionUpdate = Partial<Pick<KJGeologyColumnInput['hole'], typeof geologyScalarRevisionHoleFields[number]>> & {\n    holeId: string;\n    clearFields?: ('initialWaterDepth' | 'stableWaterDepth')[];\n};",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-type-kjagentgeologyscalarrevisionupdate"
         },
         {
           "name": "KJAgentGeologySectionKnowledgeBinding",
@@ -836,6 +850,13 @@
           "anchor": "agent-tools-interface-kjagenttooldefinition"
         },
         {
+          "name": "KJAgentToolProfile",
+          "kind": "type",
+          "declaration": "export type KJAgentToolProfile = 'full' | 'geology-scalars-v1';",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-type-kjagenttoolprofile"
+        },
+        {
           "name": "KJAgentToolResult",
           "kind": "type",
           "declaration": "export type KJAgentToolResult = {\n    readonly ok: true;\n    readonly value: unknown;\n} | {\n    readonly ok: false;\n    readonly error: {\n        readonly code: string;\n        readonly message: string;\n    };\n};",
@@ -845,16 +866,23 @@
         {
           "name": "KJAgentToolSchema",
           "kind": "interface",
-          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';\n    readonly description?: string;\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n    readonly enum?: readonly (string | number)[];\n}",
+          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';\n    readonly description?: string;\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false | KJAgentToolSchema;\n    readonly propertyNames?: KJAgentToolSchema;\n    readonly maxProperties?: number;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n    readonly pattern?: string;\n    readonly enum?: readonly (string | number)[];\n}",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-interface-kjagenttoolschema"
         },
         {
           "name": "KJAgentToolSession",
           "kind": "class",
-          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Read-only identity used to bind persisted tasks to this exact drawing. */\n    get documentId(): string;\n    get revision(): number;\n    get units(): string;\n    get geologyColumnKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    /** Exact instance/SDK attachment check for trusted host orchestration. */\n    get geologySectionKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    isBoundTo(document: KJDocument): boolean;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument, options?: {\n        geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n        geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n    });\n    /** Trusted host operation: verify saved parameters against all current generated objects.\n     * Registration is bound to this exact document revision and is not model-callable. */\n    registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;\n    /** Host-only registration of explicitly selected data. Assets belong to this\n     * exact session/document instance; they are never loaded by model paths or URLs. */\n    registerInputAsset(input: unknown): Promise<ReadonlyDeep<KJAgentInputAssetDescriptor>>;\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Bind one in-memory reviewed proposal to the exact persisted running task. Host-only. */\n    bindTaskProposal(planId: string, input: KJAgentTaskProposalBinding): void;\n    /** Approve an exact task-bound mutation; geometry, checks and task receipt commit atomically. */\n    approveTask(planId: string, reviewerId: string, at: string): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
+          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Read-only identity used to bind persisted tasks to this exact drawing. */\n    get documentId(): string;\n    get revision(): number;\n    get units(): string;\n    /** Immutable constructor policy. It narrows tools, not read-evidence or caller-intent guarantees. */\n    get toolProfile(): KJAgentToolProfile;\n    get geologyColumnKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    /** Exact instance/SDK attachment check for trusted host orchestration. */\n    get geologySectionKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    isBoundTo(document: KJDocument): boolean;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument, options?: KJAgentToolSessionOptions);\n    /** Trusted host operation: verify saved parameters against all current generated objects.\n     * Registration is bound to this exact document revision and is not model-callable. */\n    registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;\n    /** Host-only registration of explicitly selected data. Assets belong to this\n     * exact session/document instance; they are never loaded by model paths or URLs. */\n    registerInputAsset(input: unknown): Promise<ReadonlyDeep<KJAgentInputAssetDescriptor>>;\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Bind one in-memory reviewed proposal to the exact persisted running task. Host-only. */\n    bindTaskProposal(planId: string, input: KJAgentTaskProposalBinding): void;\n    /** Approve an exact task-bound mutation; geometry, checks and task receipt commit atomically. */\n    approveTask(planId: string, reviewerId: string, at: string): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-class-kjagenttoolsession"
+        },
+        {
+          "name": "KJAgentToolSessionOptions",
+          "kind": "interface",
+          "declaration": "export interface KJAgentToolSessionOptions {\n    /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */\n    toolProfile?: KJAgentToolProfile;\n    geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n    geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-interface-kjagenttoolsessionoptions"
         },
         {
           "name": "KJDRAW_AGENT_TOOLS",
@@ -862,6 +890,13 @@
           "declaration": "export declare const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[];",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-const-kjdraw-agent-tools"
+        },
+        {
+          "name": "KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES: readonly string[];",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-const-kjdraw-geology-scalar-tool-names"
         },
         {
           "name": "KJDRAW_ROAD_INPUT_ASSET_SCHEMA",
@@ -6088,6 +6123,13 @@
           "anchor": "root-function-applygeologydrawingrevision"
         },
         {
+          "name": "applyGeologySectionLinkChanges",
+          "kind": "function",
+          "declaration": "export declare function applyGeologySectionLinkChanges(before: ReadonlyDeep<KJGeologySectionInput>, changes: KJGeologySectionLinkChanges): KJGeologySectionInput;",
+          "source": "geology-link-changes.d.ts",
+          "anchor": "root-function-applygeologysectionlinkchanges"
+        },
+        {
           "name": "ArcDefinition",
           "kind": "interface",
           "declaration": "export interface ArcDefinition {\n    startAngle?: number;\n    endAngle?: number;\n    clockwise?: boolean;\n    fullCircle?: boolean;\n    [property: string]: unknown;\n}",
@@ -6748,7 +6790,7 @@
         {
           "name": "default",
           "kind": "type",
-          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';\nexport type { KJAgentInputAssetDescriptor, KJAgentInputAssetReference, KJAgentInputAssetRegistration } from './input-assets.js';\nexport type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js';\nexport type { KJAgentRoadDrawingInput } from './agent-road-drawing.js';\nexport type { KJAgentTopologyQuery } from './agent-topology-context.js';\nexport type { KJEraseImpact, KJEraseImpactBlocker, KJEraseImpactQuery } from './erase-impact.js';\nexport type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';\nexport type { KJAgentCompactDrawingInput } from './agent-drawing-compact.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';\nexport type { KJDxfPlotSettings } from './plot-settings.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
+          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';\nexport type { KJNativeCurveQueryOptions, KJNativeCurveNeighborhoodOptions, KJNativeCurveBoundsPage, KJNativeCurveNeighborhoodPage } from './agent-native-geometry-query.js';\nexport type { KJAgentInputAssetDescriptor, KJAgentInputAssetReference, KJAgentInputAssetRegistration } from './input-assets.js';\nexport type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js';\nexport type { KJAgentRoadDrawingInput } from './agent-road-drawing.js';\nexport type { KJAgentTopologyQuery } from './agent-topology-context.js';\nexport type { KJEraseImpact, KJEraseImpactBlocker, KJEraseImpactQuery } from './erase-impact.js';\nexport type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';\nexport type { KJAgentCompactDrawingInput } from './agent-drawing-compact.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';\nexport type { KJDxfPlotSettings } from './plot-settings.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
           "source": "editor.d.ts",
           "anchor": "root-type-default"
         },
@@ -7642,6 +7684,20 @@
           "anchor": "root-interface-kjagentgeologyplaninput"
         },
         {
+          "name": "KJAgentGeologyScalarRevisionInput",
+          "kind": "interface",
+          "declaration": "export interface KJAgentGeologyScalarRevisionInput {\n    expectedRevision: number;\n    units: 'millimeter';\n    drawingId: string;\n    updates: KJAgentGeologyScalarRevisionUpdate[];\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-interface-kjagentgeologyscalarrevisioninput"
+        },
+        {
+          "name": "KJAgentGeologyScalarRevisionUpdate",
+          "kind": "type",
+          "declaration": "export type KJAgentGeologyScalarRevisionUpdate = Partial<Pick<KJGeologyColumnInput['hole'], typeof geologyScalarRevisionHoleFields[number]>> & {\n    holeId: string;\n    clearFields?: ('initialWaterDepth' | 'stableWaterDepth')[];\n};",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-type-kjagentgeologyscalarrevisionupdate"
+        },
+        {
           "name": "KJAgentGeologySectionKnowledgeBinding",
           "kind": "interface",
           "declaration": "export interface KJAgentGeologySectionKnowledgeBinding {\n    pack: unknown;\n    sha256: string;\n}",
@@ -7770,7 +7826,7 @@
         {
           "name": "KJAgentRunOptions",
           "kind": "interface",
-          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Explicit host-supplied drawing images; the selected model must support vision. */\n    images?: readonly KJModelImage[];\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */\n    capabilities?: {\n        registry: KJAgentCapabilityRegistry;\n        lock: readonly KJAgentCapabilityLockEntry[];\n    };\n    maxTurns?: number;\n    maxToolCalls?: number;\n    /** Model turns following failed tool batches or missing-proposal correction; default 2, range 0–32. Does not retry transport or approvals. */\n    maxRepairAttempts?: number;\n    /** Explicit edit intent from the host. After a successful read, allow at most one missing-proposal correction within the shared repair/turn budgets. Defaults to false; never applies a change. */\n    expectProposal?: boolean;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n    /** Host UI progress; contains no drawing payload or model reasoning. */\n    onProgress?: (progress: Readonly<KJAgentRunProgress>) => void;\n}",
+          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Explicit host-supplied drawing images; the selected model must support vision. */\n    images?: readonly KJModelImage[];\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */\n    capabilities?: {\n        registry: KJAgentCapabilityRegistry;\n        lock: readonly KJAgentCapabilityLockEntry[];\n    };\n    maxTurns?: number;\n    maxToolCalls?: number;\n    /** Model turns following failed tool batches or missing-proposal correction; default 2, range 0–32. Does not retry transport or approvals. */\n    maxRepairAttempts?: number;\n    /** Explicit edit intent from the host. After a successful read, allow at most one missing-proposal correction within the shared repair/turn budgets. Defaults to false; never applies a change. */\n    expectProposal?: boolean;\n    /** Explicit drawing-read intent from the host. Requires at least one successful selected read tool before completion; allows one missing-read correction within the existing shared budgets. Default false. This does not verify target completeness, pagination or answer correctness. */\n    expectReadEvidence?: boolean;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n    /** Host UI progress; contains no drawing payload or model reasoning. */\n    onProgress?: (progress: Readonly<KJAgentRunProgress>) => void;\n}",
           "source": "agent-runner.d.ts",
           "anchor": "root-interface-kjagentrunoptions"
         },
@@ -7784,7 +7840,7 @@
         {
           "name": "KJAgentRunResult",
           "kind": "interface",
-          "declaration": "export interface KJAgentRunResult {\n    readonly status: 'responded' | 'awaiting-approval' | 'limit-reached' | 'cancelled' | 'failed';\n    /** Untrusted model text, not evidence of CAD success. Never render as unsanitized HTML. */\n    readonly text: string;\n    readonly turns: number;\n    readonly toolCalls: number;\n    readonly repairAttempts: number;\n    /** Present only when the host requests a proposal. Counts attempted missing-proposal correction turns (0 or 1). */\n    readonly proposalRepairAttempts?: number;\n    /** Tool errors and explicit cad_check_geometry failures, including ok:true/passed:false. */\n    readonly failedToolCalls: number;\n    readonly outputs: readonly KJModelToolOutput[];\n    readonly proposalIds: readonly string[];\n    readonly measurements: KJAgentRunMeasurements;\n    readonly error?: {\n        readonly code: string;\n        readonly message: string;\n    };\n}",
+          "declaration": "export interface KJAgentRunResult {\n    readonly status: 'responded' | 'awaiting-approval' | 'limit-reached' | 'cancelled' | 'failed';\n    /** Untrusted model text, not evidence of CAD success. Never render as unsanitized HTML. */\n    readonly text: string;\n    readonly turns: number;\n    readonly toolCalls: number;\n    readonly repairAttempts: number;\n    /** Present only when the host requests a proposal. Counts attempted missing-proposal correction turns (0 or 1). */\n    readonly proposalRepairAttempts?: number;\n    /** Present only for expectReadEvidence. Counts the single allowed missing-read correction (0 or 1). */\n    readonly readRepairAttempts?: number;\n    /** Tool errors and explicit cad_check_geometry failures, including ok:true/passed:false. */\n    readonly failedToolCalls: number;\n    readonly outputs: readonly KJModelToolOutput[];\n    readonly proposalIds: readonly string[];\n    readonly measurements: KJAgentRunMeasurements;\n    readonly error?: {\n        readonly code: string;\n        readonly message: string;\n    };\n}",
           "source": "agent-runner.d.ts",
           "anchor": "root-interface-kjagentrunresult"
         },
@@ -8139,6 +8195,13 @@
           "anchor": "root-interface-kjagenttooldefinition"
         },
         {
+          "name": "KJAgentToolProfile",
+          "kind": "type",
+          "declaration": "export type KJAgentToolProfile = 'full' | 'geology-scalars-v1';",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-type-kjagenttoolprofile"
+        },
+        {
           "name": "KJAgentToolResult",
           "kind": "type",
           "declaration": "export type KJAgentToolResult = {\n    readonly ok: true;\n    readonly value: unknown;\n} | {\n    readonly ok: false;\n    readonly error: {\n        readonly code: string;\n        readonly message: string;\n    };\n};",
@@ -8148,16 +8211,23 @@
         {
           "name": "KJAgentToolSchema",
           "kind": "interface",
-          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';\n    readonly description?: string;\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n    readonly enum?: readonly (string | number)[];\n}",
+          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';\n    readonly description?: string;\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false | KJAgentToolSchema;\n    readonly propertyNames?: KJAgentToolSchema;\n    readonly maxProperties?: number;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n    readonly pattern?: string;\n    readonly enum?: readonly (string | number)[];\n}",
           "source": "agent-tools.d.ts",
           "anchor": "root-interface-kjagenttoolschema"
         },
         {
           "name": "KJAgentToolSession",
           "kind": "class",
-          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Read-only identity used to bind persisted tasks to this exact drawing. */\n    get documentId(): string;\n    get revision(): number;\n    get units(): string;\n    get geologyColumnKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    /** Exact instance/SDK attachment check for trusted host orchestration. */\n    get geologySectionKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    isBoundTo(document: KJDocument): boolean;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument, options?: {\n        geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n        geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n    });\n    /** Trusted host operation: verify saved parameters against all current generated objects.\n     * Registration is bound to this exact document revision and is not model-callable. */\n    registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;\n    /** Host-only registration of explicitly selected data. Assets belong to this\n     * exact session/document instance; they are never loaded by model paths or URLs. */\n    registerInputAsset(input: unknown): Promise<ReadonlyDeep<KJAgentInputAssetDescriptor>>;\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Bind one in-memory reviewed proposal to the exact persisted running task. Host-only. */\n    bindTaskProposal(planId: string, input: KJAgentTaskProposalBinding): void;\n    /** Approve an exact task-bound mutation; geometry, checks and task receipt commit atomically. */\n    approveTask(planId: string, reviewerId: string, at: string): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
+          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Read-only identity used to bind persisted tasks to this exact drawing. */\n    get documentId(): string;\n    get revision(): number;\n    get units(): string;\n    /** Immutable constructor policy. It narrows tools, not read-evidence or caller-intent guarantees. */\n    get toolProfile(): KJAgentToolProfile;\n    get geologyColumnKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    /** Exact instance/SDK attachment check for trusted host orchestration. */\n    get geologySectionKnowledge(): Readonly<{\n        id: string;\n        version: string;\n        sha256: string;\n    }> | undefined;\n    isBoundTo(document: KJDocument): boolean;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument, options?: KJAgentToolSessionOptions);\n    /** Trusted host operation: verify saved parameters against all current generated objects.\n     * Registration is bound to this exact document revision and is not model-callable. */\n    registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;\n    /** Host-only registration of explicitly selected data. Assets belong to this\n     * exact session/document instance; they are never loaded by model paths or URLs. */\n    registerInputAsset(input: unknown): Promise<ReadonlyDeep<KJAgentInputAssetDescriptor>>;\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Bind one in-memory reviewed proposal to the exact persisted running task. Host-only. */\n    bindTaskProposal(planId: string, input: KJAgentTaskProposalBinding): void;\n    /** Approve an exact task-bound mutation; geometry, checks and task receipt commit atomically. */\n    approveTask(planId: string, reviewerId: string, at: string): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "root-class-kjagenttoolsession"
+        },
+        {
+          "name": "KJAgentToolSessionOptions",
+          "kind": "interface",
+          "declaration": "export interface KJAgentToolSessionOptions {\n    /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */\n    toolProfile?: KJAgentToolProfile;\n    geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n    geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-interface-kjagenttoolsessionoptions"
         },
         {
           "name": "KJAgentTurnUsage",
@@ -8267,7 +8337,7 @@
         {
           "name": "KJChatRequestExtensions",
           "kind": "interface",
-          "declaration": "export interface KJChatRequestExtensions {\n    readonly thinking?: {\n        readonly type: 'enabled' | 'disabled';\n        readonly keep?: 'all' | null;\n    };\n    readonly reasoning_effort?: 'low' | 'high' | 'max';\n    readonly enable_thinking?: boolean;\n    readonly tool_choice?: 'auto' | 'none' | 'required';\n    readonly parallel_tool_calls?: boolean;\n    readonly prompt_cache_key?: string;\n    readonly safety_identifier?: string;\n}",
+          "declaration": "export interface KJChatRequestExtensions {\n    /** Explicit host opt-in for compatible providers. Valid JSON is not evidence of answer correctness. */\n    readonly response_format?: {\n        readonly type: 'json_object';\n    };\n    readonly thinking?: {\n        readonly type: 'enabled' | 'disabled';\n        readonly keep?: 'all' | null;\n    };\n    readonly reasoning_effort?: 'low' | 'high' | 'max';\n    readonly enable_thinking?: boolean;\n    readonly tool_choice?: 'auto' | 'none' | 'required';\n    readonly parallel_tool_calls?: boolean;\n    readonly prompt_cache_key?: string;\n    readonly safety_identifier?: string;\n}",
           "source": "model-adapters.d.ts",
           "anchor": "root-interface-kjchatrequestextensions"
         },
@@ -9315,6 +9385,13 @@
           "anchor": "root-const-kjdraw-geology-plan-version"
         },
         {
+          "name": "KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES: readonly string[];",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-const-kjdraw-geology-scalar-tool-names"
+        },
+        {
           "name": "KJDRAW_KNOWLEDGE_PACK_SCHEMA",
           "kind": "const",
           "declaration": "export declare const KJDRAW_KNOWLEDGE_PACK_SCHEMA: 'kjdraw.knowledge-pack.v1';",
@@ -10358,6 +10435,13 @@
           "anchor": "root-interface-kjgeologyintervaldepthtextstyle"
         },
         {
+          "name": "KJGeologyIntervalLink",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyIntervalLink {\n    fromHoleId: string;\n    toHoleId: string;\n    fromIntervalId: string;\n    toIntervalId: string;\n}",
+          "source": "geology-link-changes.d.ts",
+          "anchor": "root-interface-kjgeologyintervallink"
+        },
+        {
           "name": "KJGeologyMajorGroupValueStyle",
           "kind": "interface",
           "declaration": "export interface KJGeologyMajorGroupValueStyle {\n    anchor: 'major-group-midpoint';\n    layerNumber: KJGeologyFieldHeaderTextPlacement;\n    layerName: KJGeologyFieldHeaderTextPlacement;\n    baseElevation: KJGeologyFieldHeaderTextPlacement;\n    thickness: KJGeologyFieldHeaderTextPlacement;\n    /** Optional semantic override for the group touching the body top boundary. */\n    topBoundary?: {\n        layerName: KJGeologyFieldHeaderTextPlacement;\n    };\n    /** Physical radius used only with the explicit circular layer-number style. */\n    layerNumberCircleRadius?: number;\n}",
@@ -10547,6 +10631,13 @@
           "anchor": "root-interface-kjgeologysectioninput"
         },
         {
+          "name": "KJGeologySectionLinkChanges",
+          "kind": "interface",
+          "declaration": "export interface KJGeologySectionLinkChanges {\n    correlations?: {\n        add?: readonly KJGeologyIntervalLink[];\n        remove?: readonly KJGeologyIntervalLink[];\n    };\n    uncorrelatedOccurrences?: {\n        add?: readonly KJGeologyUncorrelatedOccurrence[];\n        remove?: readonly KJGeologyUncorrelatedOccurrence[];\n    };\n}",
+          "source": "geology-link-changes.d.ts",
+          "anchor": "root-interface-kjgeologysectionlinkchanges"
+        },
+        {
           "name": "KJGeologySectionObservationSymbolStyle",
           "kind": "interface",
           "declaration": "export interface KJGeologySectionObservationSymbolStyle {\n    sample: {\n        centerOffset: [number, number];\n        radius: number;\n        fill: 'solid' | 'none';\n        labelPlacement?: KJGeologyFieldHeaderTextPlacement;\n    };\n    spt: {\n        topRightOffset: [number, number];\n        width: number;\n        height: number;\n        labelPlacement: KJGeologySectionTextPlacement;\n        labelOverrides?: {\n            holeId: string;\n            observationId: string;\n            placement: KJGeologySectionTextPlacement;\n        }[];\n    };\n    groundwater?: {\n        insertOffset: [number, number];\n        lineSegments: [[number, number], [number, number]][];\n        markerPolygon: [number, number][];\n        fill: 'solid' | 'none';\n        labelPlacement?: KJGeologyFieldHeaderTextPlacement;\n        labelFormat?: 'role-depth' | 'depth-elevation';\n        labelPrecision?: 0 | 1 | 2 | 3 | 4;\n        labelOverrides?: {\n            holeId: string;\n            observationRole: 'stable-water';\n            depth: number;\n            elevation: number;\n            placement: KJGeologyFieldHeaderTextPlacement;\n        }[];\n    };\n}",
@@ -10594,6 +10685,13 @@
           "declaration": "export interface KJGeologyTitleTextStyle {\n    anchor: 'frame-left-top';\n    placement: KJGeologyFieldHeaderTextPlacement;\n    rotationDegrees: number;\n}",
           "source": "geology-engineering.d.ts",
           "anchor": "root-interface-kjgeologytitletextstyle"
+        },
+        {
+          "name": "KJGeologyUncorrelatedOccurrence",
+          "kind": "interface",
+          "declaration": "export interface KJGeologyUncorrelatedOccurrence {\n    holeId: string;\n    adjacentHoleId: string;\n    intervalId: string;\n}",
+          "source": "geology-link-changes.d.ts",
+          "anchor": "root-interface-kjgeologyuncorrelatedoccurrence"
         },
         {
           "name": "KJGeometryBackend",

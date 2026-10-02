@@ -13,6 +13,7 @@ function invalid(message) {
     throw new KJModelError('KJMODEL_PROTOCOL', message);
 }
 const CHAT_EXTENSION_KEYS = new Set([
+    'response_format',
     'thinking',
     'reasoning_effort',
     'enable_thinking',
@@ -26,6 +27,17 @@ function chatExtensions(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Chat request extensions must be an object');
     const input = value;
     if (Object.keys(input).some((key)=>!CHAT_EXTENSION_KEYS.has(key))) invalid('Unsupported or reserved Chat request extension');
+    if (Object.hasOwn(input, 'response_format')) {
+        const descriptor = Object.getOwnPropertyDescriptor(input, 'response_format');
+        if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) invalid('Chat response format must be an enumerable data property');
+        const format = descriptor.value;
+        if (!format || typeof format !== 'object' || Array.isArray(format) || ![
+            Object.prototype,
+            null
+        ].includes(Object.getPrototypeOf(format)) || Reflect.ownKeys(format).length !== 1 || !Object.hasOwn(format, 'type')) invalid('Unsupported Chat response format');
+        const type = Object.getOwnPropertyDescriptor(format, 'type');
+        if (!type || !Object.hasOwn(type, 'value') || !type.enumerable || type.value !== 'json_object') invalid('Unsupported Chat response format');
+    }
     if (input.thinking !== undefined) {
         if (!input.thinking || typeof input.thinking !== 'object' || Array.isArray(input.thinking)) invalid('Invalid Chat thinking configuration');
         const thinking = input.thinking;

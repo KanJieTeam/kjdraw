@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:e3dbc42f098d7d1f1257ffca32e2516ac1fe0defc219ae41177d70ae9c83326a",
+  "sourceDigest": "sha256:5575101b86b730a338f4bba1e88939ecb023d2f8e755a1edfd87af4e44493898",
   "entries": [
     {
       "name": "buildCadSkillJsonContract",
@@ -482,7 +482,7 @@
       "module": "@kanjieteam/kjdraw/model-adapters",
       "href": "./api/reference/#model-adapters-interface-kjchatrequestextensions",
       "anchor": "model-adapters-interface-kjchatrequestextensions",
-      "summary": "export interface KJChatRequestExtensions { readonly thinking?: { readonly type: 'enabled' | 'disabled'; readonly keep?: 'all' | null; }; readonly reasoning_effort?: 'low' | 'high' | 'max'; readonly enable_thinking?: bool"
+      "summary": "export interface KJChatRequestExtensions { /** Explicit host opt-in for compatible providers. Valid JSON is not evidence of answer correctness. */ readonly response_format?: { readonly type: 'json_object'; }; readonly th"
     },
     {
       "name": "KJModelAdapterOptions",
@@ -754,7 +754,7 @@
       "module": "@kanjieteam/kjdraw/agent-tools",
       "href": "./api/reference/#agent-tools-type-default",
       "anchor": "agent-tools-type-default",
-      "summary": "export type { KJAgentInputAssetDescriptor, KJAgentInputAssetReference, KJAgentInputAssetRegistration } from './input-assets.js'; export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-re"
+      "summary": "export type { KJNativeCurveQueryOptions, KJNativeCurveNeighborhoodOptions, KJNativeCurveBoundsPage, KJNativeCurveNeighborhoodPage } from './agent-native-geometry-query.js'; export type { KJAgentInputAssetDescriptor, KJAg"
     },
     {
       "name": "KJAgentAnnotatedDrawingInput",
@@ -779,6 +779,22 @@
       "href": "./api/reference/#agent-tools-interface-kjagentgeologycolumnknowledgebinding",
       "anchor": "agent-tools-interface-kjagentgeologycolumnknowledgebinding",
       "summary": "export interface KJAgentGeologyColumnKnowledgeBinding { pack: unknown; sha256: string; }"
+    },
+    {
+      "name": "KJAgentGeologyScalarRevisionInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-interface-kjagentgeologyscalarrevisioninput",
+      "anchor": "agent-tools-interface-kjagentgeologyscalarrevisioninput",
+      "summary": "export interface KJAgentGeologyScalarRevisionInput { expectedRevision: number; units: 'millimeter'; drawingId: string; updates: KJAgentGeologyScalarRevisionUpdate[]; }"
+    },
+    {
+      "name": "KJAgentGeologyScalarRevisionUpdate",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-type-kjagentgeologyscalarrevisionupdate",
+      "anchor": "agent-tools-type-kjagentgeologyscalarrevisionupdate",
+      "summary": "export type KJAgentGeologyScalarRevisionUpdate = Partial<Pick<KJGeologyColumnInput['hole'], typeof geologyScalarRevisionHoleFields[number]>> & { holeId: string; clearFields?: ('initialWaterDepth' | 'stableWaterDepth')[];"
     },
     {
       "name": "KJAgentGeologySectionKnowledgeBinding",
@@ -837,6 +853,14 @@
       "summary": "export interface KJAgentToolDefinition { readonly name: string; readonly description: string; /** JSON Schema; provider adapters must preserve validation semantics. */ readonly inputSchema: KJAgentToolSchema; readonly ef"
     },
     {
+      "name": "KJAgentToolProfile",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-type-kjagenttoolprofile",
+      "anchor": "agent-tools-type-kjagenttoolprofile",
+      "summary": "export type KJAgentToolProfile = 'full' | 'geology-scalars-v1';"
+    },
+    {
       "name": "KJAgentToolResult",
       "kind": "type",
       "module": "@kanjieteam/kjdraw/agent-tools",
@@ -858,7 +882,15 @@
       "module": "@kanjieteam/kjdraw/agent-tools",
       "href": "./api/reference/#agent-tools-class-kjagenttoolsession",
       "anchor": "agent-tools-class-kjagenttoolsession",
-      "summary": "export declare class KJAgentToolSession { #private; /** Read-only identity used to bind persisted tasks to this exact drawing. */ get documentId(): string; get revision(): number; get units(): string; get geologyColumnKn"
+      "summary": "export declare class KJAgentToolSession { #private; /** Read-only identity used to bind persisted tasks to this exact drawing. */ get documentId(): string; get revision(): number; get units(): string; /** Immutable const"
+    },
+    {
+      "name": "KJAgentToolSessionOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-interface-kjagenttoolsessionoptions",
+      "anchor": "agent-tools-interface-kjagenttoolsessionoptions",
+      "summary": "export interface KJAgentToolSessionOptions { /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */ toolProfile?: KJAgentToolProfile; geologyColumnKnowledge?:"
     },
     {
       "name": "KJDRAW_AGENT_TOOLS",
@@ -867,6 +899,14 @@
       "href": "./api/reference/#agent-tools-const-kjdraw-agent-tools",
       "anchor": "agent-tools-const-kjdraw-agent-tools",
       "summary": "export declare const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[];"
+    },
+    {
+      "name": "KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-const-kjdraw-geology-scalar-tool-names",
+      "anchor": "agent-tools-const-kjdraw-geology-scalar-tool-names",
+      "summary": "export declare const KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES: readonly string[];"
     },
     {
       "name": "KJDRAW_ROAD_INPUT_ASSET_SCHEMA",
@@ -6693,6 +6733,14 @@
       "summary": "export declare function applyGeologyDrawingRevision(document: KJDocument, previous: ReadonlyDeep<KJGeologyDrawingRecipe>, next: KJGeologyDrawingSource, options: KJGeologyDrawingRevisionOptions): Promise<ReadonlyDeep<KJGe"
     },
     {
+      "name": "applyGeologySectionLinkChanges",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-applygeologysectionlinkchanges",
+      "anchor": "root-function-applygeologysectionlinkchanges",
+      "summary": "export declare function applyGeologySectionLinkChanges(before: ReadonlyDeep<KJGeologySectionInput>, changes: KJGeologySectionLinkChanges): KJGeologySectionInput;"
+    },
+    {
       "name": "ArcDefinition",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -7450,7 +7498,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-type-default",
       "anchor": "root-type-default",
-      "summary": "export type { KJWorkbenchLayout } from './workbench.js'; export type { KJAgentInputAssetDescriptor, KJAgentInputAssetReference, KJAgentInputAssetRegistration } from './input-assets.js'; export type { KJAgentRoadRevisionI"
+      "summary": "export type { KJWorkbenchLayout } from './workbench.js'; export type { KJNativeCurveQueryOptions, KJNativeCurveNeighborhoodOptions, KJNativeCurveBoundsPage, KJNativeCurveNeighborhoodPage } from './agent-native-geometry-q"
     },
     {
       "name": "DEFAULT_TOLERANCE",
@@ -8469,6 +8517,22 @@
       "summary": "export interface KJAgentGeologyPlanInput { version: typeof KJDRAW_GEOLOGY_PLAN_VERSION; expectedRevision: number; units: 'meter'; locale?: 'zh-CN' | 'en'; drawingId: string; title?: string; revision?: string; scale: Scal"
     },
     {
+      "name": "KJAgentGeologyScalarRevisionInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentgeologyscalarrevisioninput",
+      "anchor": "root-interface-kjagentgeologyscalarrevisioninput",
+      "summary": "export interface KJAgentGeologyScalarRevisionInput { expectedRevision: number; units: 'millimeter'; drawingId: string; updates: KJAgentGeologyScalarRevisionUpdate[]; }"
+    },
+    {
+      "name": "KJAgentGeologyScalarRevisionUpdate",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjagentgeologyscalarrevisionupdate",
+      "anchor": "root-type-kjagentgeologyscalarrevisionupdate",
+      "summary": "export type KJAgentGeologyScalarRevisionUpdate = Partial<Pick<KJGeologyColumnInput['hole'], typeof geologyScalarRevisionHoleFields[number]>> & { holeId: string; clearFields?: ('initialWaterDepth' | 'stableWaterDepth')[];"
+    },
+    {
       "name": "KJAgentGeologySectionKnowledgeBinding",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -9037,6 +9101,14 @@
       "summary": "export interface KJAgentToolDefinition { readonly name: string; readonly description: string; /** JSON Schema; provider adapters must preserve validation semantics. */ readonly inputSchema: KJAgentToolSchema; readonly ef"
     },
     {
+      "name": "KJAgentToolProfile",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjagenttoolprofile",
+      "anchor": "root-type-kjagenttoolprofile",
+      "summary": "export type KJAgentToolProfile = 'full' | 'geology-scalars-v1';"
+    },
+    {
       "name": "KJAgentToolResult",
       "kind": "type",
       "module": "@kanjieteam/kjdraw",
@@ -9058,7 +9130,15 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-class-kjagenttoolsession",
       "anchor": "root-class-kjagenttoolsession",
-      "summary": "export declare class KJAgentToolSession { #private; /** Read-only identity used to bind persisted tasks to this exact drawing. */ get documentId(): string; get revision(): number; get units(): string; get geologyColumnKn"
+      "summary": "export declare class KJAgentToolSession { #private; /** Read-only identity used to bind persisted tasks to this exact drawing. */ get documentId(): string; get revision(): number; get units(): string; /** Immutable const"
+    },
+    {
+      "name": "KJAgentToolSessionOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagenttoolsessionoptions",
+      "anchor": "root-interface-kjagenttoolsessionoptions",
+      "summary": "export interface KJAgentToolSessionOptions { /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */ toolProfile?: KJAgentToolProfile; geologyColumnKnowledge?:"
     },
     {
       "name": "KJAgentTurnUsage",
@@ -9186,7 +9266,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjchatrequestextensions",
       "anchor": "root-interface-kjchatrequestextensions",
-      "summary": "export interface KJChatRequestExtensions { readonly thinking?: { readonly type: 'enabled' | 'disabled'; readonly keep?: 'all' | null; }; readonly reasoning_effort?: 'low' | 'high' | 'max'; readonly enable_thinking?: bool"
+      "summary": "export interface KJChatRequestExtensions { /** Explicit host opt-in for compatible providers. Valid JSON is not evidence of answer correctness. */ readonly response_format?: { readonly type: 'json_object'; }; readonly th"
     },
     {
       "name": "KJClockConstructor",
@@ -10381,6 +10461,14 @@
       "summary": "export declare const KJDRAW_GEOLOGY_PLAN_VERSION: '1.0.0';"
     },
     {
+      "name": "KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kjdraw-geology-scalar-tool-names",
+      "anchor": "root-const-kjdraw-geology-scalar-tool-names",
+      "summary": "export declare const KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES: readonly string[];"
+    },
+    {
       "name": "KJDRAW_KNOWLEDGE_PACK_SCHEMA",
       "kind": "const",
       "module": "@kanjieteam/kjdraw",
@@ -11573,6 +11661,14 @@
       "summary": "export interface KJGeologyIntervalDepthTextStyle { fieldRole: 'depth'; principal: KJGeologyFieldHeaderTextPlacement; lens: KJGeologyFieldHeaderTextPlacement; }"
     },
     {
+      "name": "KJGeologyIntervalLink",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyintervallink",
+      "anchor": "root-interface-kjgeologyintervallink",
+      "summary": "export interface KJGeologyIntervalLink { fromHoleId: string; toHoleId: string; fromIntervalId: string; toIntervalId: string; }"
+    },
+    {
       "name": "KJGeologyMajorGroupValueStyle",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -11789,6 +11885,14 @@
       "summary": "export interface KJGeologySectionInput { /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */ locale?: 'zh-CN' | 'en'; holes: KJGeologyBorehole[]; /** Only explicitly correlated"
     },
     {
+      "name": "KJGeologySectionLinkChanges",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologysectionlinkchanges",
+      "anchor": "root-interface-kjgeologysectionlinkchanges",
+      "summary": "export interface KJGeologySectionLinkChanges { correlations?: { add?: readonly KJGeologyIntervalLink[]; remove?: readonly KJGeologyIntervalLink[]; }; uncorrelatedOccurrences?: { add?: readonly KJGeologyUncorrelatedOccurr"
+    },
+    {
       "name": "KJGeologySectionObservationSymbolStyle",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -11843,6 +11947,14 @@
       "href": "./api/reference/#root-interface-kjgeologytitletextstyle",
       "anchor": "root-interface-kjgeologytitletextstyle",
       "summary": "export interface KJGeologyTitleTextStyle { anchor: 'frame-left-top'; placement: KJGeologyFieldHeaderTextPlacement; rotationDegrees: number; }"
+    },
+    {
+      "name": "KJGeologyUncorrelatedOccurrence",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologyuncorrelatedoccurrence",
+      "anchor": "root-interface-kjgeologyuncorrelatedoccurrence",
+      "summary": "export interface KJGeologyUncorrelatedOccurrence { holeId: string; adjacentHoleId: string; intervalId: string; }"
     },
     {
       "name": "KJGeometryBackend",

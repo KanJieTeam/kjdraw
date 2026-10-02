@@ -17,6 +17,7 @@ const same = (a, b) => canonicalStringify(a) === canonicalStringify(b)
 const project = record => ({ id: record.id, type: record.type, payload: clone(record.payload) })
 const sorted = records => records.map(project).sort((a, b) => a.id.localeCompare(b.id))
 const revisionSchema = KJDRAW_AGENT_TOOLS.find(tool => tool.name === 'cad_propose_geology_revision').inputSchema
+const publicReadTools = new Set(KJDRAW_AGENT_TOOLS.filter(tool => tool.effect === 'read').map(tool => tool.name))
 const layoutFields = ['horizontalScaleDenominator', 'verticalScaleDenominator']
 const provenance = 'caller-declared-public-synthetic-not-measurement-certified'
 
@@ -43,8 +44,8 @@ export const ROUND3_ORACLE_SCENARIO_IDS = Object.freeze(corpus.scenarios.filter(
   descriptors.has(scenario.expected.intent)).map(scenario => scenario.id))
 
 export const ROUND3_PRODUCT_GAPS = Object.freeze([
-  { fields: ['observations.rangeTop', 'observations.rangeBottom', 'observations.measurements'], status: 'agent-schema-missing',
-    reason: 'Native source types support these facts, but the agent observation schema does not. No source-edit acceptance is claimed.' },
+  { fields: ['observations.measurements not rendered by the declared field grid'], status: 'compiler-rejects-source-only-updates',
+    reason: 'Revision exposes bounded sample ranges and numerical measurement maps. A source-only change with no supported drawing difference is still rejected; no source-only editing acceptance is claimed.' },
   { fields: ['section.holes[].groundwaterObservations'], status: 'compiler-rejects',
     reason: 'The section compiler explicitly rejects dated down-hole groundwater observations. Summary stableWaterDepth is not a series substitute.' },
   { fields: ['startDate', 'endDate'], status: 'revision-schema-missing',
@@ -276,7 +277,7 @@ function exactCommittedState(actualDocument, referenceState) {
 }
 
 /** Score collected native evidence, never execute user prose or approve a plan. */
-export function evaluateRound3ScenarioOracle(value, fixture, evidence) {
+export function evaluateRound3ScenarioOracle(value, fixture, evidence, { answerContractVersion = 'v3' } = {}) {
   const scenario = resolveScenario(value), descriptor = round3ScenarioDescriptor(scenario)
   if (assessRound3ScenarioReadiness(scenario).status !== 'runnable') return { status: 'not-evaluated', scenarioPassed: null, reason: 'scenario-not-ready' }
   if (!evidence || !['real-model', 'fixture-oracle-selftest'].includes(evidence.origin) || !evidence.afterDocument ||
@@ -301,9 +302,27 @@ export function evaluateRound3ScenarioOracle(value, fixture, evidence) {
       call.args?.expectedRevision === fixture.initialRevision && call.result?.ok === true &&
       call.result.value?.documentId === fixture.document.id && call.result.value?.revision === fixture.initialRevision &&
       same(call.result.value.drawingIds, [fixture.drawingId]) && call.result.value.sourceBacked === true)
-    check('exact-retained-source-actually-read', drift ? !!listed && !!driftRead : !!sourceRead)
-    check('native-read-evidence-only', calls.every(call => ['cad_read_drawing', 'cad_read_page', 'cad_query_drawing', 'cad_find_text', 'cad_read_geology_source'].includes(call.name) &&
-      (call === driftRead || call.result?.ok === true && call.result.value?.documentId === fixture.document.id && call.result.value?.revision === fixture.initialRevision)))
+    if (answerContractVersion === 'v5') {
+      // The public validator rejects a drifted recipe before returning facts.
+      // Bind EACH such rejection to the actual retained recipe, revision and
+      // generated conflict identity. Do not require an unrelated listing call,
+      // or excuse any other failed read merely because the task is read-only.
+      const actualDriftRead = call => drift && call.name === 'cad_read_geology_source' &&
+        call.args?.drawingId === fixture.drawingId && call.args?.expectedRevision === fixture.initialRevision &&
+        call.result?.ok === false && call.result.error?.code === 'KJDOCUMENT_INVALID' &&
+        fixture.oracleDriftedEntityIds.some(id => call.result.error.message ===
+          `Geology drawing update: generated object changed: ${id}; reconcile manual edits before rebuilding`)
+      check('exact-retained-source-actually-read', drift ? calls.some(actualDriftRead) : !!sourceRead)
+      check('native-read-evidence-only', calls.every(call => publicReadTools.has(call.name) &&
+        (actualDriftRead(call) || call.result?.ok === true &&
+          call.result.value?.documentId === fixture.document.id && call.result.value?.revision === fixture.initialRevision &&
+          (call.name === 'cad_read_drawing' || call.args?.expectedRevision === fixture.initialRevision))))
+      check('no-pending-plan-or-approval-in-read-only-task', !evidence.proposal && !evidence.approval && !evidence.approvalReceipt)
+    } else {
+      check('exact-retained-source-actually-read', drift ? !!listed && !!driftRead : !!sourceRead)
+      check('native-read-evidence-only', calls.every(call => ['cad_read_drawing', 'cad_read_page', 'cad_query_drawing', 'cad_find_text', 'cad_read_geology_source'].includes(call.name) &&
+        (call === driftRead || call.result?.ok === true && call.result.value?.documentId === fixture.document.id && call.result.value?.revision === fixture.initialRevision)))
+    }
     check('read-only-state-unchanged', fixtureStateSignature(evidence.afterDocument) === fixture.initialState)
     check('exact-complete-answer-from-source-and-caller-tables', same(normalizeAnswer(evidence.answer), normalizeAnswer(expectedRound3ScenarioAnswer(scenario, fixture))))
     if (descriptor.intent === 'geological-presentation.unsupported-existing-scale-edit') check('actual-schema-has-no-requested-layout-fields',

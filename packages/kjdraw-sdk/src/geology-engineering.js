@@ -4053,8 +4053,22 @@ function validateSectionOccurrenceCoverage(input, holes, byId) {
         if (coverage.get(identity) != null) throw new KJValidationError('Geology: duplicate or conflicting interval occurrence declaration');
         coverage.set(identity, status);
     };
-    for (const link of input.correlations){
-        if (!link.fromIntervalId || !link.toIntervalId || link.fromStratumCode || link.toStratumCode) throw new KJValidationError('Geology: complete occurrence map requires exact interval-ID correlations');
+    for (const [index, link] of input.correlations.entries()){
+        if (!link.fromIntervalId || !link.toIntervalId || link.fromStratumCode || link.toStratumCode) {
+            const legacy = [
+                'fromStratumCode',
+                'toStratumCode'
+            ].filter((field)=>link[field]);
+            const missing = [
+                'fromIntervalId',
+                'toIntervalId'
+            ].filter((field)=>!link[field]);
+            const problems = [
+                legacy.length ? `remove legacy selector fields ${legacy.join(', ')}; keep the actual source interval IDs` : '',
+                missing.length ? `missing interval-ID fields ${missing.join(', ')}; read the actual source interval IDs; never guess them` : ''
+            ].filter(Boolean).join('; ');
+            throw new KJValidationError(`Geology: complete occurrence map requires exact interval-ID correlations: correlations[${index}] ${problems}. Allowed exact correlation fields: fromHoleId, toHoleId, fromIntervalId, toIntervalId.`);
+        }
         mark(link.fromHoleId, link.toHoleId, link.fromIntervalId, 'linked');
         mark(link.toHoleId, link.fromHoleId, link.toIntervalId, 'linked');
     }

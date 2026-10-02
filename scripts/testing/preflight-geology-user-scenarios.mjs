@@ -7,8 +7,31 @@ import { PUBLIC_FIXTURE_IDS, BUILDABLE_PREREQUISITES, buildPublicScenarioFixture
 import { NEXT_SCENARIO_DESCRIPTORS, NEXT_ORACLE_SCENARIO_IDS, assessNextScenarioReadiness, nextScenarioDescriptor,
   buildNextScenarioFixture, nextScenarioFixtureInputBindings, nextScenarioAnswerFrame, expectedNextScenarioAnswer,
   expectedNextScenarioOutcome, evaluateNextScenarioOracle } from './helpers/geology-next-scenario-oracles.mjs'
+import { ROUND3_SCENARIO_DESCRIPTORS, ROUND3_ORACLE_SCENARIO_IDS, assessRound3ScenarioReadiness, round3ScenarioDescriptor,
+  buildRound3ScenarioFixture, round3ScenarioFixtureInputBindings, round3ScenarioAnswerFrame, expectedRound3ScenarioAnswer,
+  expectedRound3ScenarioOutcome, evaluateRound3ScenarioOracle } from './helpers/geology-round3-scenario-oracles.mjs'
+import { HISTORY_SCENARIO_DESCRIPTORS, HISTORY_ORACLE_SCENARIO_IDS, assessHistoryScenarioReadiness, historyScenarioDescriptor,
+  buildHistoryScenarioFixture, historyScenarioInputBindings, historyScenarioAnswerFrame, expectedHistoryScenarioAnswer,
+  expectedHistoryScenarioOutcome, evaluateHistoryScenarioOracle } from './helpers/geology-history-scenario-oracles.mjs'
+import { ROUND4_NATIVE_DESCRIPTORS, ROUND4_NATIVE_SCENARIO_IDS, assessRound4NativeReadiness, round4NativeDescriptor,
+  buildRound4NativeFixture, round4NativeInputBindings, round4NativeAnswerFrame, expectedRound4NativeAnswer,
+  expectedRound4NativeOutcome, evaluateRound4NativeOracle } from './helpers/geology-round4-native-oracles.mjs'
+import { ROUND5_INVENTORY_DESCRIPTORS, ROUND5_INVENTORY_SCENARIO_IDS, assessRound5InventoryReadiness, round5InventoryDescriptor,
+  buildRound5InventoryFixture, round5InventoryInputBindings, round5InventoryAnswerFrame, expectedRound5InventoryAnswer,
+  expectedRound5InventoryOutcome, evaluateRound5InventoryOracle } from './helpers/geology-round5-inventory-oracles.mjs'
+import { SUPPLIED_CREATION_DESCRIPTORS, SUPPLIED_CREATION_SCENARIO_IDS, assessSuppliedCreationReadiness, suppliedCreationDescriptor,
+  buildSuppliedCreationFixture, suppliedCreationInputBindings, expectedSuppliedCreationOutcome,
+  evaluateSuppliedCreationOracle } from './helpers/geology-supplied-creation-oracles.mjs'
+import { ROUND6_SOURCE_WORKFLOW_DESCRIPTORS, ROUND6_SOURCE_WORKFLOW_SCENARIO_IDS,
+  assessRound6SourceWorkflowReadiness, round6SourceWorkflowDescriptor, buildRound6SourceWorkflowFixture,
+  round6SourceWorkflowInputBindings, expectedRound6SourceWorkflowOutcome,
+  evaluateRound6SourceWorkflowOracle } from './helpers/geology-round6-source-workflow-oracles.mjs'
+import { ROUND7_POINT_PLAN_DESCRIPTORS, ROUND7_POINT_PLAN_SCENARIO_IDS, assessRound7PointPlanReadiness,
+  round7PointPlanDescriptor, buildRound7PointPlanFixture, round7PointPlanInputBindings,
+  expectedRound7PointPlanOutcome, evaluateRound7PointPlanOracle } from './helpers/geology-round7-point-plan-oracles.mjs'
 import { canonicalStringify } from '../../packages/kjdraw-sdk/src/utils.js'
 import { readGeologyDrawingRecipe, prepareGeologyDrawingRevision } from '../../packages/kjdraw-sdk/src/geology-drawing-update.js'
+import { isGeologyAnswerContractV4Scenario, geologyAnswerContractV4Frame, evaluateGeologyAnswerContractV4 } from './helpers/geology-answer-contract-v4.mjs'
 
 const frozen = JSON.parse(await readFile(FIXTURE_URL, 'utf8'))
 validateGeologyUserScenarios(frozen)
@@ -48,12 +71,20 @@ const NEXT_INTENTS = Object.freeze([
   'source-strata.complete-strata-replacement', 'source-observation.replace-observation-list',
   'source-query.read-missing-source-fields', 'source-query.source-cad-unit-separation',
 ])
-export const NEXT_BATCH_SCENARIO_IDS = Object.freeze([...NEXT_INTENTS, ...NEXT_SCENARIO_DESCRIPTORS.map(item => item.intent)]
+const extensionDescriptors = Object.freeze([
+  ...NEXT_SCENARIO_DESCRIPTORS, ...ROUND3_SCENARIO_DESCRIPTORS, ...HISTORY_SCENARIO_DESCRIPTORS,
+  ...ROUND4_NATIVE_DESCRIPTORS, ...ROUND5_INVENTORY_DESCRIPTORS, ...SUPPLIED_CREATION_DESCRIPTORS,
+  ...ROUND6_SOURCE_WORKFLOW_DESCRIPTORS,
+  ...ROUND7_POINT_PLAN_DESCRIPTORS,
+])
+const extensionIntents = extensionDescriptors.map(item => item.intent)
+export const NEXT_BATCH_SCENARIO_IDS = Object.freeze([...NEXT_INTENTS, ...extensionIntents]
   .map(intent => frozen.scenarios.find(item => item.expected.intent === intent && item.interaction === 'direct' && item.language === 'zh-CN').id))
-const verifiedIntents = new Set([...INITIAL_INTENTS, ...NEXT_INTENTS, ...NEXT_SCENARIO_DESCRIPTORS.map(item => item.intent)])
+const verifiedIntents = new Set([...INITIAL_INTENTS, ...NEXT_INTENTS, ...extensionIntents])
 export const VERIFIED_SCENARIO_IDS = Object.freeze(frozen.scenarios.filter(item => !item.sequence && verifiedIntents.has(item.expected.intent)).map(item => item.id))
 const verifiedScenarios = new Set(VERIFIED_SCENARIO_IDS)
-const prerequisites = new Set([...BUILDABLE_PREREQUISITES, ...NEXT_SCENARIO_DESCRIPTORS.flatMap(item => item.supportedPrerequisites)])
+const prerequisites = new Set([...BUILDABLE_PREREQUISITES,
+  ...extensionDescriptors.flatMap(item => item.supportedPrerequisites)])
 const readProfiles = new Map([
   ['cad-query.inventory', { id: 'native-inventory-v1', answerKind: 'entity-counts', tools: ['cad_query_drawing', 'cad_read_page'] }],
   ['cad-query.exact-hole-label', { id: 'exact-native-label-v1', answerKind: 'exact-label-matches', tools: ['cad_find_text'] }],
@@ -98,9 +129,14 @@ const failClosedProfiles = new Map([
 ])
 export const FAIL_CLOSED_ANSWER_FRAME = '{"documentId":"current native document ID","revision":0,"decision":"blocked or clarification-required","issue":{"field":"source field name or exact source interval path","suppliedValue":"actual supplied invalid value or structured values","constraint":{"minimum":0,"maximum":0,"relation":"symbolic source-field relation","unique":false,"mutuallyExclusive":["operation names"],"units":"source units"}},"missingFields":["native schema field path"],"questions":[{"field":"native schema field path","question":"question"}]} (choose the actual decision after reading; issue may be null if no invalid value was supplied. Include only applicable constraint keys. Use cad_propose_geology_revision native field paths such as updates[].initialWaterDepth or updates[].strata[].bottom, never invented verdict names. Preserve actual JSON value types.)'
 /** Output protocol only: placeholders never supply an expected decision or target. */
-export function scenarioAnswerFrame(value) {
+export function scenarioAnswerFrame(value, { answerContractVersion = 'v3' } = {}) {
   const scenario = resolveScenario(value), profile = readProfiles.get(scenario.expected.intent)
+  if (['v4', 'v5'].includes(answerContractVersion) && isGeologyAnswerContractV4Scenario(scenario)) return geologyAnswerContractV4Frame(scenario)
   if (nextScenarioDescriptor(scenario)) return nextScenarioAnswerFrame(scenario)
+  if (round3ScenarioDescriptor(scenario)) return round3ScenarioAnswerFrame(scenario)
+  if (historyScenarioDescriptor(scenario)) return historyScenarioAnswerFrame(scenario)
+  if (round4NativeDescriptor(scenario)) return round4NativeAnswerFrame(scenario)
+  if (round5InventoryDescriptor(scenario)) return round5InventoryAnswerFrame(scenario)
   if (failClosedProfiles.has(scenario.expected.intent)) return FAIL_CLOSED_ANSWER_FRAME
   if (profile?.kind === 'source-read') return ({
     'list-source-recipes': '{"drawingIds":["actual retained drawing ID"],"sourceBacked":false}',
@@ -150,6 +186,13 @@ export const IMPLEMENTED_ORACLE_CHECKS = Object.freeze([
   'complete-array-replacement-preserves-unrequested-items', 'complete-observation-array-not-partial-patch',
   'optional-missing-fields-remain-absent', 'source-metres-cad-millimetres-separated',
   ...NEXT_SCENARIO_DESCRIPTORS.flatMap(descriptor => descriptor.checks),
+  ...ROUND3_SCENARIO_DESCRIPTORS.flatMap(descriptor => descriptor.checks),
+  ...HISTORY_SCENARIO_DESCRIPTORS.flatMap(descriptor => descriptor.checks),
+  ...ROUND4_NATIVE_DESCRIPTORS.flatMap(descriptor => descriptor.checks),
+  ...ROUND5_INVENTORY_DESCRIPTORS.flatMap(descriptor => descriptor.checks),
+  ...SUPPLIED_CREATION_DESCRIPTORS.flatMap(descriptor => descriptor.checks),
+  ...ROUND6_SOURCE_WORKFLOW_DESCRIPTORS.flatMap(descriptor => descriptor.checks),
+  ...ROUND7_POINT_PLAN_DESCRIPTORS.flatMap(descriptor => descriptor.checks),
 ])
 const mappedChecks = new Set(IMPLEMENTED_ORACLE_CHECKS)
 const preservedByExactState = new Set(['untargeted-native-entities', 'untargeted-layers', 'native-handles-and-references', 'drawing-units-and-owner-spaces',
@@ -164,7 +207,7 @@ function resolveScenario(value) {
   return scenario
 }
 
-function oracleProfile(intent) { return readProfiles.get(intent) ?? mutationProfiles.get(intent) ?? failClosedProfiles.get(intent) ?? nextScenarioDescriptor(intent) }
+function oracleProfile(intent) { return readProfiles.get(intent) ?? mutationProfiles.get(intent) ?? failClosedProfiles.get(intent) ?? nextScenarioDescriptor(intent) ?? round3ScenarioDescriptor(intent) ?? historyScenarioDescriptor(intent) ?? round4NativeDescriptor(intent) ?? round5InventoryDescriptor(intent) ?? suppliedCreationDescriptor(intent) ?? round6SourceWorkflowDescriptor(intent) ?? round7PointPlanDescriptor(intent) }
 
 function fixtureIdFor(scenario) {
   return scenario.prerequisites.findLast(item => PUBLIC_FIXTURE_IDS.some(id => item === `fixture:${id}`))?.slice(8) ?? null
@@ -208,6 +251,35 @@ export function assessScenarioReadiness(value, { availableActions = BASE_ACTIONS
     reasons.push({ code: 'prerequisite-branch-not-built', items: assessNextScenarioReadiness(scenario).unsupportedPrerequisites ?? [],
       message: 'The additive next oracle does not implement these scenario-specific prerequisite branches.' })
   }
+  if (round3ScenarioDescriptor(scenario) && assessRound3ScenarioReadiness(scenario).status !== 'runnable') {
+    const readiness = assessRound3ScenarioReadiness(scenario)
+    reasons.push({ code: 'prerequisite-branch-not-built', items: readiness.unsupportedPrerequisites ?? [],
+      message: readiness.reason ?? 'The round3 native oracle does not implement these scenario-specific prerequisites.' })
+  }
+  if (historyScenarioDescriptor(scenario) && assessHistoryScenarioReadiness(scenario).status !== 'runnable') {
+    reasons.push({ code: 'prerequisite-branch-not-built', items: assessHistoryScenarioReadiness(scenario).unsupportedPrerequisites ?? [],
+      message: 'The history driver requires actual reviewed native history prerequisites.' })
+  }
+  if (round4NativeDescriptor(scenario) && assessRound4NativeReadiness(scenario).status !== 'runnable') {
+    reasons.push({ code: 'prerequisite-branch-not-built', items: assessRound4NativeReadiness(scenario).unsupportedPrerequisites ?? [],
+      message: 'The round4 driver requires an actually exported and reopened native DXF fixture.' })
+  }
+  if (round5InventoryDescriptor(scenario) && assessRound5InventoryReadiness(scenario).status !== 'runnable') {
+    reasons.push({ code: 'prerequisite-branch-not-built', items: assessRound5InventoryReadiness(scenario).unsupportedPrerequisites ?? [],
+      message: 'The round5 driver requires actually reopened native layer, selection or historical-note inputs.' })
+  }
+  if (suppliedCreationDescriptor(scenario) && assessSuppliedCreationReadiness(scenario).status !== 'runnable') {
+    reasons.push({ code: 'prerequisite-branch-not-built', items: assessSuppliedCreationReadiness(scenario).unsupportedPrerequisites ?? [],
+      message: 'The creation driver requires a real blank millimetre document and complete caller-declared source facts.' })
+  }
+  if (round6SourceWorkflowDescriptor(scenario) && assessRound6SourceWorkflowReadiness(scenario).status !== 'runnable') {
+    reasons.push({ code: 'prerequisite-branch-not-built', items: assessRound6SourceWorkflowReadiness(scenario).unsupportedPrerequisites ?? [],
+      message: 'This source workflow requires complete caller-declared facts and its actual blank or reopened native document.' })
+  }
+  if (round7PointPlanDescriptor(scenario) && assessRound7PointPlanReadiness(scenario).status !== 'runnable') {
+    reasons.push({ code: 'prerequisite-branch-not-built', items: assessRound7PointPlanReadiness(scenario).unsupportedPrerequisites ?? [],
+      message: 'Point-plan creation requires an actual blank millimetre host and complete caller-declared metre point, route and scale facts.' })
+  }
   return {
     id: scenario.id, intent: scenario.expected.intent, status: reasons.length ? 'not-ready' : 'runnable', reasons,
     readiness: { fixtureBuilder: { ready: fixtureReady, fixtureId, actualProbePerformed: fixtureProbes !== null },
@@ -222,6 +294,13 @@ export function assessScenarioReadiness(value, { availableActions = BASE_ACTIONS
 export async function buildScenarioFixture(value) {
   const scenario = resolveScenario(value), fixtureId = fixtureIdFor(scenario)
   if (nextScenarioDescriptor(scenario)) return buildNextScenarioFixture(scenario)
+  if (round3ScenarioDescriptor(scenario)) return buildRound3ScenarioFixture(scenario)
+  if (historyScenarioDescriptor(scenario)) return buildHistoryScenarioFixture(scenario)
+  if (round4NativeDescriptor(scenario)) return buildRound4NativeFixture(scenario)
+  if (round5InventoryDescriptor(scenario)) return buildRound5InventoryFixture(scenario)
+  if (suppliedCreationDescriptor(scenario)) return buildSuppliedCreationFixture(scenario)
+  if (round6SourceWorkflowDescriptor(scenario)) return buildRound6SourceWorkflowFixture(scenario)
+  if (round7PointPlanDescriptor(scenario)) return buildRound7PointPlanFixture(scenario)
   const missing = scenario.prerequisites.filter(item => !prerequisites.has(item))
   if (missing.length) throw new Error(`Unimplemented prerequisite branches: ${missing.join(', ')}`)
   if (!fixtureId) throw new Error('No implemented fixture builder')
@@ -229,6 +308,13 @@ export async function buildScenarioFixture(value) {
 }
 
 export function scenarioFixtureInputBindings(fixture) {
+  if (fixture.suppliedCreationOracleId) return suppliedCreationInputBindings(fixture)
+  if (fixture.round6SourceWorkflowOracleId) return round6SourceWorkflowInputBindings(fixture)
+  if (fixture.round7PointPlanOracleId) return round7PointPlanInputBindings(fixture)
+  if (fixture.round5InventoryOracleId) return round5InventoryInputBindings(fixture)
+  if (fixture.round4NativeOracleId) return round4NativeInputBindings(fixture)
+  if (fixture.historyOracleId) return historyScenarioInputBindings(fixture)
+  if (fixture.round3OracleDescriptorId) return round3ScenarioFixtureInputBindings(fixture)
   return fixture.nextOracleDescriptorId ? nextScenarioFixtureInputBindings(fixture) : baseScenarioFixtureInputBindings(fixture)
 }
 
@@ -253,6 +339,10 @@ export function expectedScenarioAnswer(value, fixture) {
   const scenario = resolveScenario(value)
   if (!verifiedScenarios.has(scenario.id)) throw new Error('Exact answer oracle is not verified for this scenario')
   if (nextScenarioDescriptor(scenario)) return expectedNextScenarioAnswer(scenario, fixture)
+  if (round3ScenarioDescriptor(scenario)) return expectedRound3ScenarioAnswer(scenario, fixture)
+  if (historyScenarioDescriptor(scenario)) return expectedHistoryScenarioAnswer(scenario, fixture)
+  if (round4NativeDescriptor(scenario)) return expectedRound4NativeAnswer(scenario, fixture)
+  if (round5InventoryDescriptor(scenario)) return expectedRound5InventoryAnswer(scenario, fixture)
   const profile = readProfiles.get(scenario.expected.intent)
   if (failClosedProfiles.has(scenario.expected.intent)) {
     const detail = ({
@@ -336,6 +426,13 @@ function compileExpectedSourceOutcome(fixture, beforeSource, afterSource) {
 export function expectedScenarioOutcome(value, fixture) {
   const scenario = resolveScenario(value), profile = mutationProfiles.get(scenario.expected.intent)
   if (nextScenarioDescriptor(scenario)) return expectedNextScenarioOutcome(scenario, fixture)
+  if (round3ScenarioDescriptor(scenario)) return expectedRound3ScenarioOutcome(scenario, fixture)
+  if (historyScenarioDescriptor(scenario)) return expectedHistoryScenarioOutcome(scenario, fixture)
+  if (round4NativeDescriptor(scenario)) return expectedRound4NativeOutcome(scenario, fixture)
+  if (round5InventoryDescriptor(scenario)) return expectedRound5InventoryOutcome(scenario, fixture)
+  if (suppliedCreationDescriptor(scenario)) return expectedSuppliedCreationOutcome(scenario, fixture)
+  if (round6SourceWorkflowDescriptor(scenario)) return expectedRound6SourceWorkflowOutcome(scenario, fixture)
+  if (round7PointPlanDescriptor(scenario)) return expectedRound7PointPlanOutcome(scenario, fixture)
   if (!verifiedScenarios.has(scenario.id) || !profile) return { kind: 'read-only', answer: expectedScenarioAnswer(scenario, fixture) }
   if (profile.kind === 'cad') {
     const before = profile.targets.map(alias => projectEntity(fixture.initialEntities.find(entity => entity.id === fixture.identityAliases[alias].nativeId)))
@@ -516,10 +613,18 @@ function evaluateMutationOracle(scenario, fixture, evidence, profile) {
  * and the actual post-run KJDocument. Missing evidence yields not-evaluated.
  * Fixture self-tests can exercise this oracle, but never count as model scenario passes.
  */
-export function evaluateScenarioOracle(value, fixture, evidence) {
+export function evaluateScenarioOracle(value, fixture, evidence, { answerContractVersion = 'v3', context } = {}) {
   const scenario = resolveScenario(value), readiness = assessScenarioReadiness(scenario)
   if (readiness.status !== 'runnable') return { status: 'not-evaluated', scenarioPassed: null, reason: 'scenario-not-ready', reasons: readiness.reasons }
+  if (['v4', 'v5'].includes(answerContractVersion) && isGeologyAnswerContractV4Scenario(scenario)) return evaluateGeologyAnswerContractV4({ scenario, fixture, evidence, context })
   if (nextScenarioDescriptor(scenario)) return evaluateNextScenarioOracle(scenario, fixture, evidence)
+  if (round3ScenarioDescriptor(scenario)) return evaluateRound3ScenarioOracle(scenario, fixture, evidence, { answerContractVersion })
+  if (historyScenarioDescriptor(scenario)) return evaluateHistoryScenarioOracle(scenario, fixture, evidence)
+  if (round4NativeDescriptor(scenario)) return evaluateRound4NativeOracle(scenario, fixture, evidence)
+  if (round5InventoryDescriptor(scenario)) return evaluateRound5InventoryOracle(scenario, fixture, evidence)
+  if (suppliedCreationDescriptor(scenario)) return evaluateSuppliedCreationOracle(scenario, fixture, evidence)
+  if (round6SourceWorkflowDescriptor(scenario)) return evaluateRound6SourceWorkflowOracle(scenario, fixture, evidence)
+  if (round7PointPlanDescriptor(scenario)) return evaluateRound7PointPlanOracle(scenario, fixture, evidence)
   const mutationProfile = mutationProfiles.get(scenario.expected.intent)
   if (mutationProfile) return evaluateMutationOracle(scenario, fixture, evidence, mutationProfile)
   if (!evidence || !['real-model', 'fixture-oracle-selftest'].includes(evidence.origin) || !evidence.afterDocument || !Array.isArray(evidence.toolCalls) || !evidence.toolCalls.length || !evidence.answer) {
@@ -618,7 +723,21 @@ export async function runGeologyScenarioPreflight({ corpus = frozen, availableAc
     try {
       const nextScenario = branch && frozen.scenarios.find(scenario => NEXT_ORACLE_SCENARIO_IDS.includes(scenario.id) &&
         fixtureIdFor(scenario) === fixtureId && nextScenarioDescriptor(scenario)?.fixtureBranch === branch)
-      fixture = nextScenario ? await buildNextScenarioFixture(nextScenario) :
+      const round3Scenario = branch && frozen.scenarios.find(scenario => ROUND3_ORACLE_SCENARIO_IDS.includes(scenario.id) &&
+        fixtureIdFor(scenario) === fixtureId && round3ScenarioDescriptor(scenario)?.fixtureBranch === branch)
+      const historyScenario = branch && frozen.scenarios.find(scenario => HISTORY_ORACLE_SCENARIO_IDS.includes(scenario.id) &&
+        fixtureIdFor(scenario) === fixtureId && historyScenarioDescriptor(scenario)?.fixtureBranch === branch)
+      const round4Scenario = branch && frozen.scenarios.find(scenario => ROUND4_NATIVE_SCENARIO_IDS.includes(scenario.id) &&
+        fixtureIdFor(scenario) === fixtureId && round4NativeDescriptor(scenario)?.fixtureBranch === branch)
+      const round5Scenario = branch && frozen.scenarios.find(scenario => ROUND5_INVENTORY_SCENARIO_IDS.includes(scenario.id) &&
+        fixtureIdFor(scenario) === fixtureId && round5InventoryDescriptor(scenario)?.fixtureBranch === branch)
+      const creationScenario = branch && frozen.scenarios.find(scenario => SUPPLIED_CREATION_SCENARIO_IDS.includes(scenario.id) &&
+        fixtureIdFor(scenario) === fixtureId && suppliedCreationDescriptor(scenario)?.fixtureBranch === branch)
+      const round6Scenario = branch && frozen.scenarios.find(scenario => ROUND6_SOURCE_WORKFLOW_SCENARIO_IDS.includes(scenario.id) &&
+        fixtureIdFor(scenario) === fixtureId && round6SourceWorkflowDescriptor(scenario)?.fixtureBranch === branch)
+      const round7Scenario = branch && frozen.scenarios.find(scenario => ROUND7_POINT_PLAN_SCENARIO_IDS.includes(scenario.id) &&
+        fixtureIdFor(scenario) === fixtureId && round7PointPlanDescriptor(scenario)?.fixtureBranch === branch)
+      fixture = round7Scenario ? await buildRound7PointPlanFixture(round7Scenario) : round6Scenario ? await buildRound6SourceWorkflowFixture(round6Scenario) : creationScenario ? await buildSuppliedCreationFixture(creationScenario) : round5Scenario ? await buildRound5InventoryFixture(round5Scenario) : round4Scenario ? await buildRound4NativeFixture(round4Scenario) : historyScenario ? await buildHistoryScenarioFixture(historyScenario) : round3Scenario ? await buildRound3ScenarioFixture(round3Scenario) : nextScenario ? await buildNextScenarioFixture(nextScenario) :
         await buildPublicScenarioFixture(fixtureId, { branch, prerequisites: branchPrerequisites })
       fixtureProbes.push({ fixtureId, ...(branch ? { branch } : {}), status: 'built-and-validated', actualReadFormat: fixture.artifact.format,
         entityCount: fixture.document.listEntities().length, sourceRecipePresent: fixture.sourceRecipePresent,

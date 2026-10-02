@@ -137,7 +137,7 @@ test('genuine missing source requirements survive one correction as clarificatio
   } finally { chat.destroy() }
 })
 
-test('source clarification without a successful read is not retried or transformed into a proposal', async () => {
+test('online source clarification without a successful read fails after one bounded read reminder and never creates a proposal', async () => {
   const fixture = await sourceColumnFixture()
   let requests = 0
   const question = 'Please provide the new measured water depth; the drawing is unchanged.'
@@ -146,16 +146,63 @@ test('source clarification without a successful read is not retried or transform
   })
   try {
     await loadSource(chat, fixture)
-    const before = (await chat.exportLocalState()).drawing
+    const before = await chat.exportLocalState()
     const result = await chat.send('Revise borehole PUBLIC-A stable groundwater depth to the value I have not supplied yet.')
-    assert.equal(result.status, 'message')
-    assert.equal(result.text, question)
-    assert.equal(result.proposalRepairAttempts, 0)
-    assert.equal(result.noProposal, true)
-    assert.equal(requests, 1)
+    assert.equal(result.status, 'error')
+    assert.equal(result.error.code, 'KJAGENT_READ_REQUIRED')
+    assert.equal(result.text, '', 'Unverified provider prose is not presented as a successful current-document result')
+    assert.equal(result.proposal, undefined)
+    assert.equal(result.receipt, undefined)
+    assert.equal(requests, 2, 'One read-evidence reminder only; no host-dispatched read or extended budget')
     assert.equal(Object.hasOwn(result, 'toolOutputs'), false)
-    assert.equal((await chat.exportLocalState()).drawing, before)
+    const after = await chat.exportLocalState()
+    assert.equal(after.drawing, before.drawing)
+    assert.deepEqual(after.drawingHistory, before.drawingHistory)
     assert.equal(chat.drawingHistory.canUndo, false)
+  } finally { chat.destroy() }
+})
+
+test('online source clarification after a real successful source read preserves missing facts and never guesses a replacement value', async () => {
+  const fixture = await sourceColumnFixture(), requests = []
+  const question = 'Please provide the new measured water depth; the drawing is unchanged.'
+  const chat = createAiChatRuntime({ endpoint: 'https://source-fixture.invalid/chat/completions', model: 'fixture-model', captureToolOutputs: true,
+    fetchImpl: async (_url, request) => {
+      const body = JSON.parse(request.body)
+      requests.push(body)
+      if (requests.length === 1) return wire('cad_read_geology_source',
+        { expectedRevision: fixture.document.revision, drawingId: fixture.drawingId, maxBytes: 262144 }, 'actual-source-before-clarification')
+      if (requests.length === 2) {
+        const actual = JSON.parse(body.messages.at(-1).content)
+        assert.equal(actual.ok, true)
+        assert.equal(actual.value.documentId, fixture.document.id)
+        assert.equal(actual.value.revision, fixture.document.revision)
+        assert.equal(actual.value.facts.hole.stableWaterDepth, 4, 'The existing fact is not permission to invent a new measured replacement')
+      } else {
+        assert.equal(requests.length, 3)
+        assert.match(body.messages.at(-1).content, /requirements are genuinely missing/)
+      }
+      return wire(null, null, null, question)
+    },
+  })
+  try {
+    await loadSource(chat, fixture)
+    const before = await chat.exportLocalState()
+    const result = await chat.send('Revise borehole PUBLIC-A stable groundwater depth to the value I have not supplied yet.')
+    assert.equal(result.status, 'message', JSON.stringify(result.error))
+    assert.equal(result.text, question)
+    assert.equal(result.noProposal, true)
+    assert.equal(result.proposalRepairAttempts, 1)
+    assert.equal(requests.length, 3)
+    assert.equal(result.proposal, undefined)
+    assert.equal(result.receipt, undefined)
+    assert.equal(result.toolOutputs.length, 1)
+    assert.equal(result.toolOutputs[0].name, 'cad_read_geology_source')
+    assert.equal(result.toolOutputs[0].result.ok, true)
+    const after = await chat.exportLocalState()
+    assert.equal(after.drawing, before.drawing)
+    assert.deepEqual(after.drawingHistory, before.drawingHistory)
+    assert.equal(chat.drawingHistory.canUndo, false)
+    assert.equal((await chat.approve('not-a-missing-facts-proposal')).error.code, 'AI_PROPOSAL_MISSING')
   } finally { chat.destroy() }
 })
 
