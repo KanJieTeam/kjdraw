@@ -152,6 +152,7 @@ export function createAiChatRuntime(options = {}) {
   let history = []
   let disposed = false
   let committed = false
+  let hasImportedDocument = false
   let sourceFormat = 'blank'
   let historyRestoreWarning = false
   let historyStorage = null
@@ -192,6 +193,7 @@ export function createAiChatRuntime(options = {}) {
     const previous = document
     sdk.attachDocument(imported)
     document = imported
+    hasImportedDocument = true
     sourceFormat = extension
     if (previous.id !== imported.id) sdk.closeDocument(previous.id)
     return {
@@ -235,7 +237,10 @@ export function createAiChatRuntime(options = {}) {
     const previous = document
     sdk.attachDocument(restored)
     document = restored
-    sourceFormat = ['DXF', 'KJD', 'KJP', 'blank'].includes(state.sourceFormat) ? state.sourceFormat : 'KJD'
+    // Preserve explicit caller-file provenance across local recovery. Unknown
+    // provenance stays blank so saving it again cannot grant import status.
+    hasImportedDocument = ['DXF', 'KJD', 'KJP'].includes(state.sourceFormat)
+    sourceFormat = hasImportedDocument ? state.sourceFormat : 'blank'
     if (previous.id !== restored.id) sdk.closeDocument(previous.id)
     history = Array.isArray(state.history)
       ? state.history.filter(item => typeof item?.user === 'string' && typeof item?.assistant === 'string')
@@ -483,7 +488,10 @@ export function createAiChatRuntime(options = {}) {
   }
 
   async function exportDocument(format = 'DXF') {
-    if (!committed) throw new Error('请先审阅并应用 CAD 提案。')
+    if (disposed) throw new Error('会话已经结束。')
+    // A validated caller baseline needs no model approval. Pending proposals
+    // never replace this live document, and SDK export safety still applies.
+    if (!committed && !hasImportedDocument) throw new Error('请先审阅并应用 CAD 提案。')
     if (!['KJD', 'DXF'].includes(format)) throw new Error('请选择 DXF 导出格式。')
     return sdk.writeDocument(document, { format })
   }

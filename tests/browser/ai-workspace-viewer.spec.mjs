@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/index.js'
 
 const endpoint = 'https://workspace-viewer.invalid/v1/chat/completions'
@@ -91,6 +92,57 @@ test('workspace persistent desktop viewer compares current and proposal with the
   await expect.poll(() => camera(canvas)).toEqual(initial)
   await screenshot(page, 'desktop-approved-workspace.png')
   expect(requests).toHaveLength(2)
+  expect(errors).toEqual([])
+})
+
+test('workspace clean imported DXF downloads the current drawing without model approval and reopens exact native geometry', async ({ page }) => {
+  const errors = [], modelRequests = []
+  page.on('pageerror', error => errors.push(error.message))
+  await page.route('**/*', route => {
+    if (route.request().method() === 'POST') {
+      modelRequests.push(route.request().url())
+      return route.abort('blockedbyclient')
+    }
+    return route.continue()
+  })
+  const sdk = createKJDrawSDK(), source = await fixture()
+  const dxf = await sdk.writeDocument(source.drawing, { format: 'DXF' })
+  await page.goto('/ai/')
+  await page.getByTestId('drawing-file').setInputFiles({ name: 'clean-import.dxf', mimeType: 'application/dxf', buffer: Buffer.from(dxf) })
+  await expect(page.locator('#drawing-name')).toHaveText('clean-import.dxf')
+  await expect(page.locator('#workspace-viewer .drawing-viewer')).toHaveAttribute('data-viewer-rendered', '3')
+  const saved = () => page.evaluate(async () => {
+    const record = await (await import('/apps/playground/ai/local-history.js')).loadLocalHistory()
+    return record?.sessions.find(session => session.id === record.activeId)
+  })
+  await expect.poll(async () => (await saved())?.source?.entityCount).toBe(3)
+  const before = await saved()
+  expect(before.state.committed).toBe(false)
+  expect(before.source.exportRestricted).toBe(false)
+  await expect(page.locator('#workspace-download')).toBeEnabled()
+  const downloadPromise = page.waitForEvent('download')
+  await page.locator('#workspace-download').click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe('clean-import.dxf')
+  expect(await download.failure()).toBeNull()
+  const path = test.info().outputPath('clean-import-downloaded.dxf')
+  await download.saveAs(path)
+  const reopened = await sdk.readDocument(new Uint8Array(await readFile(path)), { format: 'DXF' })
+  expect(reopened.validate().valid).toBe(true)
+  expect(reopened.snapshot().header.units).toBe('millimeter')
+  expect(reopened.listEntities()).toHaveLength(3)
+  expect(reopened.listEntities({ type: 'LINE' })[0].payload).toMatchObject({ start: [5, 10, 0], end: [45, 10, 0], trueColor: 0xcc2633 })
+  expect(reopened.listEntities({ type: 'CIRCLE' })[0].payload).toMatchObject({ center: [145, 80, 0], radius: 18, trueColor: 0x255bc8 })
+  expect(reopened.listEntities({ type: 'LWPOLYLINE' })[0].payload).toMatchObject({
+    vertices: [[0, 0, 0], [180, 0, 0], [180, 110, 0], [0, 110, 0]].map(point => ({ point, bulge: 0, startWidth: 0, endWidth: 0 })),
+    closed: true, elevation: 0, trueColor: 0x209054,
+  })
+  const after = await saved()
+  expect(after.id).toBe(before.id)
+  expect(after.state).toEqual(before.state)
+  expect(after.source).toEqual(before.source)
+  expect(after.messages).toEqual(before.messages)
+  expect(modelRequests).toEqual([])
   expect(errors).toEqual([])
 })
 
