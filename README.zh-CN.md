@@ -9,13 +9,17 @@
 模型只需表达工程意图，KJDraw 负责把它编译为<br/>
 可编辑、可验证、可撤销、可保存重开的真实 CAD 图纸。
 
-[**快速开始**](#-快速开始) · [**AI 绘图**](https://kanjieteam.github.io/kjdraw/ai/) · [**在线编辑器**](https://kanjieteam.github.io/kjdraw/) · [**文档**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [English](README.md)
+[**快速开始**](#-快速开始) · [**AI 绘图**](https://kanjieteam.github.io/kjdraw/ai/) · [**在线编辑器**](https://kanjieteam.github.io/kjdraw/) · [**文档**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [**贡献技能包**](docs/contributing-skills.zh-CN.md) · [English](README.md)
 
 [![GitHub release](https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0)](https://github.com/KanJieTeam/kjdraw/releases)
 [![npm next](https://img.shields.io/npm/v/@kanjieteam/kjdraw/next?style=flat-square&label=npm&labelColor=30363d&color=2863f0)](https://www.npmjs.com/package/@kanjieteam/kjdraw)
 [![License](https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d)](LICENSE)
 
 </div>
+
+### 贡献你所在行业的技能包
+
+Fork → 新建 `skills/kjdraw-<topic>/` → 测试工作流 → 提交 PR。共用同一个 CAD 引擎，按需附带模板、规则或辅助脚本。先看[开发指南](docs/contributing-skills.zh-CN.md)、[只读文字核对](skills/kjdraw-text-audit/README.zh-CN.md)或[机械孔阵列](skills/kjdraw-hole-pattern/README.zh-CN.md)。不限行业，不必从修改内核开始。
 
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/">
@@ -169,9 +173,13 @@ sequenceDiagram
 
 **我们的使命：让 KJDraw 成为 AI 时代首选的开源 CAD 引擎。**
 
+[贡献独立技能包](docs/contributing-skills.zh-CN.md) · [技能目录与样例](skills/README.md) · [其他贡献类型](CONTRIBUTING.zh-CN.md) · [English Skill guide](docs/contributing-skills.md)。不限勘察：在 `skills/kjdraw-<topic>/` 中复用同一 CAD 运行时，贡献自己行业的工作流，定义输入、产物与验收，再提交一个小型 PR。复用已有操作通常不需要修改内核；缺失能力另提 planner／插件或内核变更。
+
 现在最有价值的贡献：
 
-- **一张能让 KJDraw 出错的图纸。** 打不开或显示不对的真实 DXF 文件，是改进兼容性最快的方式。
+- **一个可安装的领域 Skill。** 参考[只读文字核对](skills/kjdraw-text-audit/README.zh-CN.md)或[机械孔阵列](skills/kjdraw-hole-pattern/README.zh-CN.md)，保留自己的短 `SKILL.md` 与必要资源，添加验证实际工作流的测试。
+- **一个可复现的图纸问题。** 提交小型合成 DXF 或有权公开的最小样例，写明操作指令和预期结果；不要上传客户私有图纸。
+- **一个可复用的工程工作流。** 有明确输入、可编辑 CAD 产物，以及修改、撤销、DXF 重开的测试。从[领域规划器示例](examples/domain-planner-starter/README.md)开始。
 - **在你用的 AI 客户端里试用并反馈**，尤其是生成失败或多轮修改出错的案例。
 - **编辑工具、成图类型、性能、无障碍和文档。**
 
