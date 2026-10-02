@@ -2,7 +2,7 @@
 
 Link the issue/RFC and describe one user-visible problem and the resulting behavior. See [contributing guidance](https://github.com/KanJieTeam/kjdraw/blob/main/CONTRIBUTING.md) / [中文贡献指南](https://github.com/KanJieTeam/kjdraw/blob/main/CONTRIBUTING.zh-CN.md).
 
-For a domain contribution, state the module boundary and where it lives: task/fixture, planner/plugin, data rule/knowledge pack, drawing layout, or independent Skill. For a new Skill, follow the [Skill developer guide](https://github.com/KanJieTeam/kjdraw/blob/main/docs/contributing-skills.md) and include the package directory and acceptance tests. New public APIs, tool/profile exposure, installer/distribution mechanisms and large format/geometry changes need prior maintainer agreement; reusing existing tools in a Skill does not itself require a core change.
+For a domain contribution from any industry, state the users, module boundary and where it lives: task/fixture, planner/plugin, data rule/knowledge pack, drawing layout, or independent Skill. For a new Skill, follow the [Skill developer guide](https://github.com/KanJieTeam/kjdraw/blob/main/docs/contributing-skills.md) and include the package directory, actual runtime/tool requirements and acceptance tests. Domain resources need a versioned contract and an existing consumer or separately reviewed host; do not assume a universal loader. New public APIs, tool/profile exposure, installer/distribution mechanisms and large format/geometry changes need prior maintainer agreement; reusing existing tools in a Skill does not itself require a core change.
 
 ## Inputs and acceptance
 

@@ -1,12 +1,12 @@
 name: Domain task, rule or reusable module / 领域贡献
-description: Propose a public-safe surveying task, fixture, planner, drawing rule or Skill workflow
+description: Propose a public-safe task, fixture, planner, drawing rule or Skill workflow from any industry
 title: "[Domain]: "
 body:
   - type: markdown
     attributes:
       value: |
         Start with one daily task and explicit input/output boundaries. You do not need to develop the CAD kernel.
-        从一个日常任务开始，写清输入与产物；不要求修改 CAD 内核。
+        不限行业。从一个日常任务开始，写清输入与产物；不要求修改 CAD 内核。
         No UUID lookup or coding is needed first: describe the natural task, public-safe sketch/range and expected result; the implementer binds IDs through native reads and clarifies ambiguity, never guesses your data.
         无需先找 UUID 或写代码：提供自然需求、可公开示意／范围和预期；实施者通过原生读取绑定 ID，模糊需求先确认，不猜数据。
         Read [English contributing guidance](https://github.com/KanJieTeam/kjdraw/blob/main/CONTRIBUTING.md) or [中文贡献指南](https://github.com/KanJieTeam/kjdraw/blob/main/CONTRIBUTING.zh-CN.md).
@@ -25,12 +25,20 @@ body:
         - Documentation or translation / 文档或翻译
     validations:
       required: true
+  - type: input
+    id: industry
+    attributes:
+      label: Industry or workflow / 行业或工作流
+      description: Any industry is welcome; this is not a supported-industry certification or a fixed allowlist.
+      placeholder: "Mechanical hole pattern, electrical tag audit, interior layout, or your own domain / 机械孔阵列、电气标签核对、室内排布或其他行业"
+    validations:
+      required: true
   - type: textarea
     id: daily_task
     attributes:
       label: Daily task and users / 日常任务与使用者
       description: Describe one real workflow in your own words; do not start with an implementation or a large bundle.
-      placeholder: "Change only the selected hole label; this is not a borehole source-data rename. / 只改指定孔号文字，不修改钻孔原始数据。"
+      placeholder: "Create six holes from supplied pitch and hole diameters; or audit caller-required tag strings without editing. / 按给定分布圆及孔径生成六孔；或只读核对指定标签。"
     validations:
       required: true
   - type: textarea
@@ -38,7 +46,7 @@ body:
     attributes:
       label: Supplied facts, units and source / 已提供事实、单位与来源
       description: State drawing/source units, scale, owner/space, exact targets, field meanings and synthetic/redistributable provenance. Mark missing facts explicitly; do not infer them from DXF labels.
-      placeholder: "Synthetic millimeter model-space DXF; TEXT label-a at [10,20,0], height 3; old text ZK01, new text ZK02; no retained geology recipe."
+      placeholder: "Synthetic millimeter model-space drawing; caller supplies center [0,0], pitchDiameter 90, holeDiameter 10, count 6 and startAngle 0; no inferred tolerances or engineering certification."
     validations:
       required: true
   - type: textarea
@@ -64,7 +72,7 @@ body:
     id: module_scope
     attributes:
       label: Proposed module boundary / 拟贡献模块边界
-      description: Optional package name/path, input/output contract, bounded output, dependencies and license. Independent Skills use skills/kjdraw-<topic>; planners can start from examples/domain-planner-starter. New tools or installer changes need maintainer agreement; Skills must be merged into the default source before its shorthand install command can discover them.
+      description: Optional package name/path, versioned input/output schema, bounded output, runtime/tool requirements, dependencies and license. Independent Skills use skills/kjdraw-<topic>; planners can start from examples/domain-planner-starter. Existing geology knowledge schemas are not universal loaders for other industries. New tools or installer changes need maintainer agreement; Skills must be merged into the default source before its shorthand install command can discover them.
   - type: textarea
     id: verification
     attributes:

@@ -169,11 +169,11 @@ Unsupported content is rejected rather than silently dropped. Full boundaries: [
 
 **Our mission: make KJDraw the default open-source CAD engine for the AI era.**
 
-[Build an independent Skill](docs/contributing-skills.md) · [Skill catalog and sample](skills/README.md) · [All contribution types](CONTRIBUTING.md) · [中文技能包指南](docs/contributing-skills.zh-CN.md). Reuse the existing CAD runtime in `skills/kjdraw-<topic>/`; define inputs, outputs and acceptance, then submit a focused PR. A new workflow normally does not need a kernel change.
+[Build an independent Skill](docs/contributing-skills.md) · [Skill catalog and samples](skills/README.md) · [All contribution types](CONTRIBUTING.md) · [中文技能包指南](docs/contributing-skills.zh-CN.md). Contributions are not limited to geology: reuse the same CAD runtime in `skills/kjdraw-<topic>/` for your industry's workflow; define inputs, outputs and acceptance, then submit a focused PR. Reusing existing operations normally does not need a kernel change; missing capabilities need a separate planner/plugin or engine proposal.
 
 The most useful contributions right now:
 
-- **An installable domain Skill.** Start from the [text-audit sample](skills/kjdraw-text-audit/README.md), keep its own short `SKILL.md` and useful resources, and add tests for your actual workflow.
+- **An installable domain Skill.** Start from [read-only text audit](skills/kjdraw-text-audit/README.md) or [mechanical hole patterns](skills/kjdraw-hole-pattern/README.md), keep its own short `SKILL.md` and useful resources, and add tests for your actual workflow.
 - **A reproducible drawing problem.** Share a small synthetic DXF or a reduced example you are authorized to publish, with the request and expected result. Do not upload private customer drawings.
 - **A reusable engineering workflow.** Explicit inputs, editable CAD output, and tests for changes, undo and DXF reopening. Start from the [domain planner example](examples/domain-planner-starter/README.md).
 - **Try it in your AI client and report back**, especially failed generations or multi-turn edits that go wrong.

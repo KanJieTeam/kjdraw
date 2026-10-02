@@ -169,11 +169,11 @@ sequenceDiagram
 
 **我们的使命：让 KJDraw 成为 AI 时代首选的开源 CAD 引擎。**
 
-[贡献独立技能包](docs/contributing-skills.zh-CN.md) · [技能目录与样例](skills/README.md) · [其他贡献类型](CONTRIBUTING.zh-CN.md) · [English Skill guide](docs/contributing-skills.md)。在 `skills/kjdraw-<topic>/` 中复用已有 CAD 运行时，定义输入、产物与验收，再提交一个小型 PR。新工作流通常不需要修改内核。
+[贡献独立技能包](docs/contributing-skills.zh-CN.md) · [技能目录与样例](skills/README.md) · [其他贡献类型](CONTRIBUTING.zh-CN.md) · [English Skill guide](docs/contributing-skills.md)。不限勘察：在 `skills/kjdraw-<topic>/` 中复用同一 CAD 运行时，贡献自己行业的工作流，定义输入、产物与验收，再提交一个小型 PR。复用已有操作通常不需要修改内核；缺失能力另提 planner／插件或内核变更。
 
 现在最有价值的贡献：
 
-- **一个可安装的领域 Skill。** 参考[文字核对样例](skills/kjdraw-text-audit/README.zh-CN.md)，保留自己的短 `SKILL.md` 与必要资源，添加验证实际工作流的测试。
+- **一个可安装的领域 Skill。** 参考[只读文字核对](skills/kjdraw-text-audit/README.zh-CN.md)或[机械孔阵列](skills/kjdraw-hole-pattern/README.zh-CN.md)，保留自己的短 `SKILL.md` 与必要资源，添加验证实际工作流的测试。
 - **一个可复现的图纸问题。** 提交小型合成 DXF 或有权公开的最小样例，写明操作指令和预期结果；不要上传客户私有图纸。
 - **一个可复用的工程工作流。** 有明确输入、可编辑 CAD 产物，以及修改、撤销、DXF 重开的测试。从[领域规划器示例](examples/domain-planner-starter/README.md)开始。
 - **在你用的 AI 客户端里试用并反馈**，尤其是生成失败或多轮修改出错的案例。

@@ -2,18 +2,22 @@
 
 [English](contributing-skills.md) | 简体中文
 
-本指南面向想贡献独立、可发现、可安装工作流的开发者，不只是提交图纸 Bug。用小型 Skill 复用已有 KJDraw 工具；新增技能通常不需要修改 SDK 或已有 CAD Skill。
+任何行业都可以贡献独立、可发现、可安装的工作流。入口不设行业白名单：复用同一个 CAD 核心与真实工具，不要求为每个行业 fork 核心或注册 MCP。小型 Skill 可直接复用能力，通常无需修改 SDK 或已有 CAD Skill。
 
 ## 先明确模块边界
 
 | 层次 | 职责 | 参考 |
 | --- | --- | --- |
-| Skill | 行业流程、适用场景、必需输入、产物与限制。 | 现有基础技能 [kjdraw-cad](../packages/kjdraw-sdk/skills/kjdraw-cad/SKILL.md)；[社区索引](../skills/README.md)，目录 `skills/kjdraw-<topic>/`。 |
-| CAD runtime | 真正读取、确定性几何、提案、宿主审批、undo/redo 与文件读写。 | [Agent 契约](agent.md)；查看已安装运行时的实际工具 schema。 |
-| 知识包 | 有授权、有版本的声明式行业规则；项目事实单独输入。 | [知识包指南](site/pages/knowledge-packs.md)、[geology-core.ts](../packages/kjdraw-sdk/src/knowledge-packs/geology-core.ts)。 |
-| SDK／插件 | 真正缺少的 CAD 图元或确定性编译器，不是提示词变通。 | [planner starter](../examples/domain-planner-starter/README.md)、[plugin starter](../examples/plugin-starter/README.md)；先约定独立小型 API／插件 PR 与发行。 |
+| 共享 CAD 核心 | 原生几何、对象 ID、图层、事务、审核、undo/redo 与受支持的 KJD/DXF 读写；跨行业复用。 | [Agent 契约](agent.md)；查看已安装运行时的实际工具 schema。 |
+| 独立行业工作流包 | Skill 指令、触发场景、输入与产物；按需附带有授权的规则、模板、数据契约及确定性辅助脚本。 | [kjdraw-cad](../packages/kjdraw-sdk/skills/kjdraw-cad/SKILL.md)、[社区索引](../skills/README.md)；目录 `skills/kjdraw-<topic>/`。 |
+| 行业知识与项目事实 | 每个行业都应将有版本的规则和调用方的测量／模型事实分开，分别声明契约。 | [知识包指南](site/pages/knowledge-packs.md)介绍当前格式；核对实际 schema，它不是任意行业的通用规则引擎。 |
+| 上层编译器／插件 | 现有工作流工具不能表达该编译时，将明确行业事实转换为受支持的 CAD 命令。 | [planner starter](../examples/domain-planner-starter/README.md)、[plugin starter](../examples/plugin-starter/README.md)。 |
 
-现有工具能完成时，只贡献 Skill 及必要资源／测试。用文字描述不支持的操作，不能增加几何能力；不要用关键词执行或第二套绘图引擎替代 SDK。
+三条路线任选其一：（1）现有工具足够：只贡献工作流 Skill 与必要资源；（2）缺少上层确定性编译器：独立提出插件或范围明确的 SDK 扩展；（3）缺少原生图元：提出小型引擎 PR，单独说明验证与兼容契约。文字描述不能增加不支持的操作。共享能力不预设地质图层、样式或坐标；这些路线不承诺 3D、BIM 或 DWG 支持。
+
+[文字审计](../skills/kjdraw-text-audit/README.zh-CN.md)是只读参考样例。独立的[机械孔阵列 Skill](../skills/kjdraw-hole-pattern/README.zh-CN.md)展示非地质工作流如何使用明确事实和同一 CAD 运行时；范围与验证证据以它自身的契约为准。
+
+每个行业可以拥有声明 schema、版本与授权的资源，由其 Skill／辅助脚本读取。只有已安装 loader 支持的格式才能走 SDK 知识加载；其他格式需明确的宿主／插件／API 适配。不能把电气、机械或其他资源硬塞进地质 schema。
 
 ## 新建一个独立目录
 
@@ -58,7 +62,8 @@ description: Inspect caller-selected CAD layers and report native visibility or 
 
 ## 输入、证据与权限边界
 
-- 写清输入格式、图纸／源数据单位、目标范围、已提供事实和产物。缺失、确认空值与零有不同含义；导入 DXF 不会从孔号文字还原钻孔原始事实。
+- 写清输入格式、图纸／源数据单位、目标范围、已提供事实和产物。缺失、确认空值与零不同；任何行业的图纸标签或导入 DXF 都不能证明缺失的源数据／模型事实。
+- 接受调用方提供的图层、符号、样式、坐标与规则映射，明确单位和来源。不能根据行业名称猜测认证标准、推断隐藏事实，或让其他行业套用地质约定。授权模板／规则包是可选资源，应声明适用范围。
 - 只读技能应保留源文件字节、文档状态、revision 和 history，不产生提案或审批。明确分页／覆盖边界；查询未完整时报告限制，不声称整图结论。
 - 修改技能使用原生提案和精确预览，由授权宿主／人审核，不允许 AI 自批准。测试审批前原图不变、未改对象／资源保留、真正提交后的 undo/redo 与 KJD/DXF 重开。不要声称 DXF 保存审批账本或会话历史。
 - 任务需要尺寸解释时才应确认未知单位；精确只读文字清单可如实报告原生 unitless／未知单位元数据。请求对象不支持、目标歧义、revision 过期或缺必要事实时停止或询问，不部分修改。不能靠丢弃参数、猜测测量或自动审批隐藏失败。
@@ -66,7 +71,7 @@ description: Inspect caller-selected CAD layers and report native visibility or 
 
 ## Fork、验证与提交
 
-1. 聚焦的[领域贡献 Issue](https://github.com/KanJieTeam/kjdraw/issues/new?template=domain_contribution.yml)是可选项，适合较大主题先对齐。简单复用现有工具的 Skill 可以直接提 PR；新 SDK／API 工具、插件或发行变化仍需与维护者明确范围，不自动注册一整个大包。
+1. 聚焦的[领域贡献 Issue](https://github.com/KanJieTeam/kjdraw/issues/new?template=domain_contribution.yml)是较大主题的可选入口。复用现有工具的 Skill 可以直接提 PR；编译器／插件、新图元或发行变化应单独讨论范围，不要求行业专属注册大包。
 2. Fork 仓库，将 `YOUR_ACCOUNT` 替换为你的账号：
 
 ```sh
@@ -90,7 +95,7 @@ node --test tests/community-skills.spec.mjs
 node --test tests/community-text-audit.spec.mjs
 ```
 
-还应执行新增辅助脚本及其行为测试，在 PR 中写出精确命令、结果与跳过项。结构／发现检查不能单独证明 CAD 行为或真实模型正确。若修改 SDK、几何或 UI，另按[通用贡献检查](../CONTRIBUTING.zh-CN.md#开发与验证)执行生成 JS／声明和相关浏览器测试。
+执行新增辅助脚本及聚焦行为测试，记录精确命令、结果与跳过项。结构／发现检查不能证明 CAD 行为或模型正确。SDK、几何或 UI 改动另按[通用贡献检查](../CONTRIBUTING.zh-CN.md#开发与验证)验证。当前固定源码安装器直接执行已提交 JS，已安装运行时加载缓存核心；TS 改动必须包含匹配的生成 JS／声明。移除它们需要协调安装器／包迁移。
 
 5. 提交最小 PR：Skill、中英人读 README、真正需要的资源及测试，并在 `skills/README.md` 添加名称、用途与契约链接。说明运行时兼容、授权与可观察验收；未执行安装测试或模型运行时不要宣称通过。
 
@@ -98,7 +103,7 @@ node --test tests/community-text-audit.spec.mjs
 
 技能安装与 CAD runtime 是两件事。宿主有本地终端时，纯 Skill 无需注册 MCP；用户仍需兼容的本地 KJDraw runtime。缺少运行时或必要工具时说明限制，不保存凭据，不静默改客户端／运行时配置。
 
-当前 Skills CLI 使用 Node.js 22.20+；CAD 运行时的版本要求另行核对。
+当前 Skills CLI 使用 Node.js 22.20+；CAD 运行时要求另行核对。本地候选检出、安装器固定的运行时、npm 发行版与仓库默认 `main` 可能不同；查询实际工具 schema，分别记录所用版本／SHA。
 
 以下针对仓库的 [kjdraw-text-audit 参考样例](../skills/kjdraw-text-audit/README.zh-CN.md)，不是上面的 `kjdraw-layer-audit` 编写示例；先使用 [Skills CLI](https://github.com/vercel-labs/skills) 的不修改配置的发现选项：
 
@@ -118,8 +123,18 @@ npx skills add ./skills/kjdraw-text-audit
 npx skills add KanJieTeam/kjdraw --skill kjdraw-text-audit
 ```
 
-合并前不能保证这条命令可从默认来源取得技能。你也可以从自己的仓库分发，或提 PR 收录到本仓库。分别记录测试的 Skill revision 与 runtime 版本；Git 技能更新不是 npm CAD runtime 发行。
+合并前，本地／候选检出可用不代表默认 `main` 可用。你可以从自己的仓库分发，或提 PR 收录。分别记录测试的 Skill 与 runtime 版本；Git 技能更新不是 npm CAD runtime 发行。
 
-## 可贡献示例方向
+## 建议的行业贡献方向
 
-这些是新主题方向，不是已支持／可安装名录：根据明确公差审核机械尺寸；勘察观测／单位检查或源数据明确的岩性规则；依据调用方明确表格检查道路桩号／标高。一次选择一个流程，复用真实工具；缺能力时说明，不编造资料或工具名。
+下表是建议贡献方向，**不是已支持名录**。共享 CAD 一栏仅指所选运行时实际提供的能力。行业含义由独立工作流包负责，新增行业本身不要求编译器；缺编译能力走路线 2，缺图元走路线 3。
+
+| 行业／建议工作流 | 调用方必需事实 | 复用共享 CAD | 行业语义或图元边界 |
+| --- | --- | --- | --- |
+| 机械／孔阵列、尺寸审核 | 单位、尺寸、中心、数量、公差及图层／样式映射 | 圆、几何读取、标注、事务与审核 | 配合／GD&T 含义需明确规则；缺标注图元走路线 3。 |
+| 建筑／室内／平面标注 | 已提供的平面几何、单位、房间／洞口事实与符号 | 几何、图层、文字及受支持的块 | 建筑规范、房间语义需工作流包／编译器，不推断 BIM。 |
+| 道路／市政／桩号标高检查 | 线形／桩号表、标高、基准、单位及剖面映射 | 受支持的线／曲线、测量及标注 | 线形、管网、排水语义需明确契约；缺编译能力走路线 2。 |
+| 电气／仪表／原理图审核 | 连接表、设备／端子 ID 及授权符号映射 | 受支持的几何、符号、文字与原生 ID | 线条不能证明电路连通；声明拓扑／检查规则，缺编译能力走路线 2。 |
+| 工艺／P&ID／带标签流程图 | 工艺连接、设备／管线标签及明确的符号／规则映射 | 受支持的块、线、图层与标注 | 工艺拓扑、工程检查需明确契约，不推断额定参数。 |
+| 测绘／地质／源数据支撑的绘图 | 观测／日志、单位、CRS／基准及提供的规则／样式映射 | 几何、测量、标注及受支持的填充 | 测绘转换／岩性规则需声明知识和源数据事实。 |
+| 图形／排版／图纸整理 | 页面尺寸、单位、布局意图及授权字体／素材 | 几何、图层、文字及受支持的交换／导出 | 字体／排版规则需工作流包；不支持的形状／字体需声明边界。 |

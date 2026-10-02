@@ -4,7 +4,7 @@
 
 **想贡献其他可安装的 Skill？** 先看[技能包开发指南](docs/contributing-skills.zh-CN.md)和[独立样例／技能目录](skills/README.md)。复用已有 CAD 工具时，新增工作流目录与聚焦测试即可，不必修改通用 CAD Skill 或引擎。
 
-感谢你帮助建设开放的 CAD 基础。勘察技术员、工程同事和开发者都可以参与，不必先修改 CAD 内核。一个小型合成 DXF、可复现的日常任务、一条数据规则，或输入输出明确的领域 planner，都是合适的起点。无需先找 UUID 或写代码：提供自然需求、可公开示意／范围和预期，由实施者通过原生读取绑定 ID；需求模糊时先确认，不猜你的数据。
+感谢你帮助建设开放的 CAD 基础。任何行业的技术员、工程师和开发者都可以参与，不必先修改 CAD 内核。一个小型合成 DXF、可复现的日常任务、一条数据规则，或输入输出明确的领域 planner，都是合适的起点。无需先找 UUID 或写代码：提供自然需求、可公开示意／范围和预期，由实施者通过原生读取绑定 ID；需求模糊时先确认，不猜你的数据。
 
 ## 从一个真实任务开始
 
@@ -15,6 +15,8 @@
 
 可复用贡献应是边界清晰的独立模块：文档化输入、有界产物、授权来源、测试和窄宿主适配器。一个大包、自动注册所有工具，或仅新增 Skill 目录，都不能替代这些契约。
 
+引擎跨行业共用，工作流、模板、规则及输入数据契约放在独立行业包中。优先复用已有操作；缺高层编译器时单独贡献 planner／插件，缺基础图元时再提小范围内核变更。[跨行业指南](docs/contributing-skills.zh-CN.md)列的是贡献方向，不是已完成的行业产品。其他行业不要继承勘察专属的数据字段、图层名或工程假设。
+
 ## 选择合适的贡献入口
 
 下表列的是现有参考位置，不代表一个 PR 应同时修改所有模块。
@@ -23,17 +25,18 @@
 | --- | --- | --- |
 | 日常任务或兼容性样本 | [tests/fixtures/](tests/fixtures/)、[tests/](tests/)、[SDK 测试](packages/kjdraw-sdk/test/) | 可公开的最小文件或生成器、来源说明、调用方事实与单位、预期／实际结果、正例与拒绝例。 |
 | 领域 planner 或宿主插件 | [examples/domain-planner-starter/](examples/domain-planner-starter/README.md)、[examples/plugin-starter/](examples/plugin-starter/README.md) | 纯“事实→绘图意图”planner、输入输出契约与限额、权限 manifest、宿主控制的适配器、确定性测试。优先独立示例／模块或外部包，不新增第二套文档引擎。 |
+| 行业模板、规则或输入契约 | [技能包开发指南](docs/contributing-skills.zh-CN.md)、[skills/](skills/README.md) | 明确行业／任务范围、有版本的字段与单位、有授权的资源、实际消费它们的工具／helper，以及正例与拒绝例。资源文件不等于新加载器或经过认证的工程规范；缺少运行时接入时另行审阅。 |
 | 勘察数据规则／知识包 | [geology-core.ts](packages/kjdraw-sdk/src/knowledge-packs/geology-core.ts)、[知识包指南](docs/site/pages/knowledge-packs.md)、[geology-engineering.ts](packages/kjdraw-sdk/src/geology-engineering.ts) | 有授权、有版本、有出处的规则；区分实测与合成事实；单位／连续性／非法数据测试；独立预期几何。编译器或 API 变更需要维护者审阅。 |
 | 绘图版式、文字或花纹映射 | [curated-geology-sheets.mjs](examples/curated-geology-sheets.mjs)、[hatch-pattern-catalog.ts](packages/kjdraw-sdk/src/hatch-pattern-catalog.ts)、[浏览器测试](tests/browser/) | 源数据明确的合成样本、几何／比例断言、可再分发的原创花纹数据、未修改对象和资源检查；可见页面变更还需浏览器证据。截图不能单独证明几何正确。 |
-| 独立 Skill 或 Agent 工作流 | [技能包开发指南](docs/contributing-skills.zh-CN.md)、[skills/](skills/README.md)、[文字核对样例](skills/kjdraw-text-audit/README.zh-CN.md) | 单独的 `skills/kjdraw-<topic>/`、支持的运行时／工具、输入产物契约、短指引、中英人读 README 与可复现验收。复用现有工具无需修改内核；新图元或安装器变更另行审阅。 |
+| 独立 Skill 或 Agent 工作流 | [技能包开发指南](docs/contributing-skills.zh-CN.md)、[文字核对样例](skills/kjdraw-text-audit/README.zh-CN.md)、[机械孔阵列](skills/kjdraw-hole-pattern/README.zh-CN.md) | 单独的 `skills/kjdraw-<topic>/`、支持的运行时／工具、输入产物契约、短指引、中英人读 README 与可复现验收。复用现有工具无需修改内核；新图元或安装器变更另行审阅。 |
 | 文档或翻译 | [docs/](docs/)、本指南及[英文镜像](CONTRIBUTING.md) | 可用路径与命令、准确能力边界；中英文保持语义一致。 |
 
 [planner starter](examples/domain-planner-starter/README.md) 可通过 `node --test tests/domain-planner-starter.spec.mjs` 运行。其示例输入为 `center: [0, 0]`、`pitchDiameter: 90`、`holeDiameter: 10`、`count: 6`，所有长度采用宿主明确的图纸单位；输出六个圆的绘图意图，分布半径为 45，孔半径为 5。公开插件适配器一次事务完成绘制；测试包含非法输入、对象数量、revision、真实 undo/redo 与 KJD/DXF 重开。它是贡献模式，不是经过工程认证的设计，也不会自动装进每个 Agent。
 
 ## 工程事实与安全边界
 
-- KJDraw 通过公开 SDK 命令修改自己的图纸及导入 DXF。打开 DXF 不会自动恢复钻孔测量、原始地层、水位观测或生成图形的源 recipe。不能从文字、坐标或参考图片猜测缺失的工程事实。
-- 可复用知识包保存有授权、有版本的语义和绘图规则，不保存私有项目测量数据。source recipe 保存特定生成图纸的调用方原始事实，参见 [geology-drawing-update.ts](packages/kjdraw-sdk/src/geology-drawing-update.ts)。源数据修订必须有实际保留的 recipe 或明确提供的源输入。修改显示孔号不等于修改源数据中的钻孔身份。
+- KJDraw 通过公开 SDK 命令修改自己的图纸及导入 DXF。打开 DXF 不会自动恢复设计意图、制造公差、电路拓扑、钻孔测量或生成图形的源 recipe。不能从文字、坐标或参考图片猜测缺失的工程事实。
+- 行业资源保存有授权、有版本的语义和绘图规则，不保存私有项目测量数据；应说明实际消费资源的已安装工具或 helper，现有勘察知识包格式不是通用行业加载器。source recipe 保存特定生成图纸的调用方原始事实，[geology-drawing-update.ts](packages/kjdraw-sdk/src/geology-drawing-update.ts)是其中一个领域样例。源数据修订必须有实际保留的 recipe 或明确提供的源输入。修改显示设备标签或孔号，不等于修改其源身份和关联关系。
 - 源数据单位与图纸单位不同时应分别说明，并写清比例、owner／空间、精确目标身份、可选字段语义和上下界。缺失、已确认空值与数值零不能混同。按契约保留未请求记录、ID、handle、资源和顺序。
 - 禁止通过提示词关键词直接执行 CAD、编造测量、静默补值、近似执行不支持的操作或在导出时丢对象。渲染器只是投影，不是第二套文档数据库；UI、插件和 Agent 宿主应共用公开 SDK 命令。
 - AI 可以读取和提案，由授权宿主／审核者查看精确预览后批准。提案不是完成修改。禁止模型自批准、宿主偷偷改写模型参数；未经支持和测试，不能宣称会话提案重启后仍可审批。
@@ -44,16 +47,16 @@
 把下面任务粘贴到领域 Issue 表单，或按自己的合成日常任务调整。它不需要私有图纸或付费模型：
 
 ```text
-标题：只改一个合成孔号文字，不改变工程事实
+标题：只改一个合成标签，不改变工程事实
 类型：任务／夹具回归
 来源：原创公开合成数据；非客户项目；Apache-2.0
-图纸单位：millimeter；model space；没有保留的勘察源 recipe
+图纸单位：millimeter；model space；没有保留的源 recipe
 输入：
-  TEXT id=label-a, text="ZK01", position=[10,20,0], height=3
-  TEXT id=label-b, text="ZK01", position=[40,20,0], height=3
+  TEXT id=label-a, text="TAG-A", position=[10,20,0], height=3
+  TEXT id=label-b, text="TAG-A", position=[40,20,0], height=3
   LINE id=boundary, start=[0,0,0], end=[100,0,0]
-调用方要求：只将 label-a 的原文 "ZK01" 改成 "ZK02"。
-预期产物：一个经过审核的文字修改；label-b 仍为 "ZK01"。
+调用方要求：只将 label-a 的原文 "TAG-A" 改成 "TAG-B"。
+预期产物：一个经过审核的文字修改；label-b 仍为 "TAG-A"。
 必须保留：label-a 位置／高度／样式／身份；label-b 与 boundary
   完整记录；无关资源；若提供了源数据，其事实也不得改变。
 审批之前：原图序列化、revision 和 history 均不变。
@@ -64,12 +67,12 @@ Undo：恢复实际原文及几何；redo：恢复已批准结果。
   ID／handle 按各格式实际支持的保留契约检查。
 拒绝／询问：缺精确目标、单位未知／不支持、revision 过期，或
   expectedText 与原文不符；不得部分修改或自动批准。
-未要求：修改源数据的钻孔身份、地层或水位资料。
+未要求：修改源身份、拓扑或工程测量数据。
 ```
 
 代码 PR 应在上述目录添加小生成器／夹具与聚焦测试。可参考 [agent-text-edit.test.mjs](packages/kjdraw-sdk/test/agent-text-edit.test.mjs) 的原生读取／提案／批准及保留断言。检查几何和未修改对象完整记录，不只检查新文字是否出现。DXF 重开按已声明格式边界比较原生语义；不要声称 DXF 携带会话审批账本或 undo archive。
 
-其他适合首个 Issue 的内容：米／毫米不匹配时必须拒绝且原图不变的合成样本；或一条有授权的岩性→花纹规则，明确源岩性、合法边界和不支持值的拒绝测试。不能根据标签猜岩性，也不能复制专有花纹库。首个 PR 保持一个任务或一条规则。
+其他适合首个 Issue 的内容：米／毫米不匹配时必须拒绝且原图不变的合成样本、按调用方参数生成的孔阵列，或有授权的符号／花纹映射，明确源值、合法边界和不支持值的拒绝测试。不能根据标签猜设计事实，也不能复制专有素材库。首个 PR 保持一个任务或一条规则。
 
 ## 开发与验证
 

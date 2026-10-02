@@ -2,18 +2,22 @@
 
 English | [简体中文](contributing-skills.zh-CN.md)
 
-This guide is for developers who want to contribute a separately discoverable, installable workflow—not merely report a drawing bug. Reuse available KJDraw tools in a small Skill; a new Skill does not normally need changes to the SDK or the existing CAD Skill.
+Contribute a separately discoverable, installable workflow for any industry. The entry has no industry allowlist: use the same CAD core and actual tools without a per-industry core fork or mandatory MCP registration. A small Skill can reuse capabilities without changing the SDK or the existing CAD Skill.
 
 ## Choose the right boundary
 
 | Layer | Responsibility | Reference |
 | --- | --- | --- |
-| Skill | Domain workflow, when to apply it, required inputs, deliverables and limits. | Existing foundation: [kjdraw-cad](../packages/kjdraw-sdk/skills/kjdraw-cad/SKILL.md); [community index](../skills/README.md), directories `skills/kjdraw-<topic>/`. |
-| CAD runtime | Actual reads, deterministic geometry, proposals, host approval, undo/redo and file I/O. | [Agent contract](agent.md); inspect the installed runtime's actual tool schemas. |
-| Knowledge pack | Licensed, versioned declarative domain rules; project facts remain separate. | [Knowledge-pack guide](site/pages/knowledge-packs.md), [geology-core.ts](../packages/kjdraw-sdk/src/knowledge-packs/geology-core.ts). |
-| SDK / plugin | A genuinely missing CAD primitive or deterministic compiler, not a prompt workaround. | [Planner starter](../examples/domain-planner-starter/README.md), [plugin starter](../examples/plugin-starter/README.md); agree a separate small API/plugin PR and release first. |
+| Shared CAD core | Native geometry, object IDs, layers, transactions, review, undo/redo and supported KJD/DXF I/O; reusable across industries. | [Agent contract](agent.md); inspect the installed runtime's actual tool schemas. |
+| Independent domain bundle | Skill instructions, task triggers, inputs and outputs; optional licensed rules, templates, data contracts and deterministic helpers. | [kjdraw-cad](../packages/kjdraw-sdk/skills/kjdraw-cad/SKILL.md), [community index](../skills/README.md); directory `skills/kjdraw-<topic>/`. |
+| Domain knowledge and project facts | Versioned rules separate from the caller's measured/model facts in every industry; declare both contracts. | [Knowledge-pack guide](site/pages/knowledge-packs.md) describes the current format; check its actual schema, which is not an arbitrary-domain rule engine. |
+| Higher-level compiler / plugin | Convert explicit domain facts to supported CAD commands when the current workflow tools cannot express that compilation. | [Planner starter](../examples/domain-planner-starter/README.md), [plugin starter](../examples/plugin-starter/README.md). |
 
-If existing tools can do the work, contribute only the Skill and its useful resources/tests. A Skill cannot add geometry authority by describing an unsupported operation. Do not replace SDK operations with keyword execution or a second drawing engine.
+Choose one of three routes: (1) existing tools suffice: contribute a workflow-only Skill and useful resources; (2) a higher-level deterministic compiler is missing: propose a separate plugin or scoped SDK addition; (3) a native primitive is missing: propose a narrow engine PR with its own validation and compatibility contract. A Skill cannot add an unsupported operation by describing it. Reuse shared capabilities without assuming geology layers, styles or coordinates; these routes make no 3D, BIM or DWG support claim.
+
+The [text audit](../skills/kjdraw-text-audit/README.md) is a read-only reference. The separate [mechanical hole-pattern Skill](../skills/kjdraw-hole-pattern/README.md) shows a non-geology workflow using explicit facts and the same CAD runtime; its scope and verification evidence belong to its own contract.
+
+An industry can own resources with declared schema, version and license, read by its Skill/helpers. Use SDK knowledge loading only for a format the installed loader supports; another format needs an explicit host/plugin/API adapter. Do not force electrical, mechanical or other resources into a geology schema.
 
 ## Make one independent directory
 
@@ -58,7 +62,8 @@ The human READMEs document installation, runtime/tool prerequisites, a small pub
 
 ## Inputs, evidence and permission boundaries
 
-- Name the input format, drawing/source units, target scope, supplied facts and output artifact. Missing data, confirmed empty data and zero have different meanings. Imported DXF does not reconstruct borehole source facts from labels.
+- Name the input format, drawing/source units, target scope, supplied facts and output artifact. Missing data, confirmed empty data and zero differ. In every domain, drawing labels or imported DXF do not establish missing source/model facts.
+- Accept caller-supplied layer, symbol, style, coordinate and rule mappings with explicit units and provenance. Do not guess a certified standard from an industry name, infer hidden facts, or force a geology convention on another workflow. A licensed template or rule pack is optional and its applicability must be declared.
 - Read-only Skills must preserve source bytes, document state, revision and history, with no proposal or approval. Bound pagination/coverage and report an incomplete query instead of claiming a whole-drawing result.
 - For a mutating Skill, use native proposals and exact previews, then authorized host/human review—not AI self-approval. Test unchanged state before approval, untouched objects/resources, actual undo/redo and KJD/DXF reopen after a real commit. Do not claim DXF carries the approval ledger or session history.
 - Clarify unknown units when the task requires dimensional interpretation; an exact read-only text inventory may report native unitless/unknown-unit metadata. Unsupported requested objects, ambiguous targets, stale revision or missing necessary facts must stop or clarify without partial mutation. Never hide failures by stripping arguments, guessing measurements or auto-approving.
@@ -66,7 +71,7 @@ The human READMEs document installation, runtime/tool prerequisites, a small pub
 
 ## Fork, validate and submit
 
-1. A focused [domain contribution issue](https://github.com/KanJieTeam/kjdraw/issues/new?template=domain_contribution.yml) is optional and useful for aligning a larger topic. A simple Skill reusing existing tools can go straight to a PR; new SDK/API tools, plugins or release changes still need scoped maintainer agreement, not a large automatic registration bundle.
+1. A focused [domain contribution issue](https://github.com/KanJieTeam/kjdraw/issues/new?template=domain_contribution.yml) is optional for a larger topic. A Skill reusing existing tools can go straight to a PR; a compiler/plugin, new primitive or release change needs a separate scoped discussion. No industry-specific registration bundle is required.
 2. Fork the repository, then replace `YOUR_ACCOUNT` with your account:
 
 ```sh
@@ -90,7 +95,7 @@ Check the reference sample's native CLI read-only and pagination behavior separa
 node --test tests/community-text-audit.spec.mjs
 ```
 
-Also run your new helpers and their focused behavioral tests; document exact commands/results/skips in the PR. Structure/discovery checks alone do not prove CAD behavior or real-model correctness. SDK, geometry or UI changes additionally use the [main contribution checks](../CONTRIBUTING.md#development-and-verification), including generated JS/declarations and browser checks where applicable.
+Run new helpers and focused behavioral tests; document exact commands/results/skips. Structure/discovery checks do not prove CAD behavior or model correctness. SDK, geometry or UI changes also use the [main contribution checks](../CONTRIBUTING.md#development-and-verification). The current pinned-source installer executes committed JS and the installed runtime loads its cached core; TS changes must include matching generated JS/declarations. Removing them needs a coordinated installer/package migration.
 
 5. Open a minimal PR containing the Skill, human READMEs, only needed resources and tests; add its name, purpose and contract link to `skills/README.md`. Explain runtime compatibility, licenses and observable acceptance. Do not claim an installer test or model run that did not execute.
 
@@ -98,7 +103,7 @@ Also run your new helpers and their focused behavioral tests; document exact com
 
 Skill installation and the CAD runtime are separate. A pure Skill needs no MCP registration when its host has a local terminal; the user still needs a compatible local KJDraw runtime. If it is absent or lacks a required tool, report that limitation. Do not store credentials or silently change client/runtime settings.
 
-Use Node.js 22.20+ for the current Skills CLI; check the CAD runtime's requirements separately.
+Use Node.js 22.20+ for the current Skills CLI; check the CAD runtime's requirements separately. A local candidate checkout, the installer-pinned runtime, the npm release and repository default `main` may differ; inspect the tool schemas and record each version/SHA used.
 
 For the repository's [kjdraw-text-audit reference sample](../skills/kjdraw-text-audit/README.md)—not the `kjdraw-layer-audit` authoring example above—first use the [Skills CLI](https://github.com/vercel-labs/skills) non-mutating discovery option:
 
@@ -118,8 +123,18 @@ Use your own directory for a new topic. Installing instructions is not a CAD exe
 npx skills add KanJieTeam/kjdraw --skill kjdraw-text-audit
 ```
 
-Before merge, that command does not promise availability from the default source. You may distribute from your own repository instead, or contribute a PR for inclusion here. Record the tested Skill revision and runtime version separately; a Git Skill update is not an npm CAD runtime release.
+Before merge, local/candidate availability does not promise availability from default `main`. You may distribute from your own repository or contribute a PR here. Record tested Skill and runtime versions separately; a Git Skill update is not an npm CAD runtime release.
 
-## Possible contribution directions
+## Suggested industry contribution directions
 
-These are new-topic ideas, not a supported/installable inventory: mechanical dimension review from supplied tolerances; surveying observation/unit checks or source-backed lithology rules; road station/elevation checks from an explicit caller table. Pick one workflow, reuse actual tools, and declare missing capabilities instead of inventing data or new tool names.
+This matrix suggests contributions; it is **not a supported catalog**. The shared CAD column refers only to capabilities present in the selected runtime. Domain meaning belongs to the independent bundle; a new industry does not itself require a compiler. Follow route 2 for missing compilation or route 3 for a missing primitive.
+
+| Industry / suggested workflow | Required caller facts | Reuse shared CAD | Semantics or primitive boundary |
+| --- | --- | --- | --- |
+| Mechanical / hole patterns, dimension review | Units, dimensions, centers, counts, tolerances and layer/style mapping | Circles, geometry reads, annotations, transactions and review | Fit/GD&T meaning needs explicit rules; absent annotation primitives need route 3. |
+| Architecture / interiors / plan annotation | Supplied plan geometry, units, room/opening facts and symbols | Geometry, layers, text and supported blocks | Building-code rules and room semantics need a bundle/compiler; no BIM inference. |
+| Roads / municipal / station-elevation checks | Alignment/station table, elevations, datum, units and profile mapping | Supported lines/curves, measurements and annotations | Alignment, network and drainage semantics need explicit contracts; missing compilation follows route 2. |
+| Electrical / instrumentation / schematic audit | Connectivity table, equipment/terminal IDs and licensed symbol mapping | Supported geometry, symbols, text and native IDs | Lines do not establish circuit connectivity; declare topology/checking rules; missing compilation follows route 2. |
+| Process / P&ID / tagged diagram | Process connections, equipment/line tags and declared symbol/rule mapping | Supported blocks, lines, layers and annotations | Process topology and engineering checks need explicit contracts; no inferred ratings. |
+| Survey / geology / source-backed drawing | Observations/logs, units, CRS/datum and supplied rule/style mapping | Geometry, measurements, annotations and supported hatches | Survey transforms/lithology rules need declared knowledge and source facts. |
+| Graphics / layout / drawing cleanup | Page size, units, layout intent and licensed fonts/assets | Geometry, layers, text and supported exchange/export | Typography/layout rules need a bundle; unsupported shapes/fonts need a declared boundary. |
