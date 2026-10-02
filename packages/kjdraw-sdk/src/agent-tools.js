@@ -12,6 +12,7 @@ import { buildAgentRoadRevision } from './agent-road-revision.js';
 import { restoreRoadDrawingRecipe } from './road-drawing-recipe.js';
 import { readGeologyDrawingRecipe, prepareGeologyDrawingRevision, applyGeologyDrawingRevision } from './geology-drawing-update.js';
 import { applyGeologyObservationChanges } from './geology-observation-changes.js';
+import { applyGeologySectionLinkChanges } from './geology-link-changes.js';
 import { createAgentInputAsset } from './input-assets.js';
 export { KJDRAW_ROAD_INPUT_ASSET_SCHEMA } from './input-assets.js';
 import { buildAgentAnnotationEntities } from './agent-annotations.js';
@@ -2359,6 +2360,51 @@ const geologyRevisionClearFields = [
     'observations',
     'groundwaterObservations'
 ];
+const geologyExactLinkSchema = object({
+    fromHoleId: {
+        ...text,
+        maxLength: 64
+    },
+    toHoleId: {
+        ...text,
+        maxLength: 64
+    },
+    fromIntervalId: {
+        ...text,
+        maxLength: 64
+    },
+    toIntervalId: {
+        ...text,
+        maxLength: 64
+    }
+});
+const geologyLinkDeltaGroup = (items)=>objectWithOptional({
+        add: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 256,
+            items
+        },
+        remove: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 256,
+            items
+        }
+    }, [
+        'add',
+        'remove'
+    ]);
+const geologyLinkChangesSchema = {
+    ...objectWithOptional({
+        correlations: geologyLinkDeltaGroup(geologyExactLinkSchema),
+        uncorrelatedOccurrences: geologyLinkDeltaGroup(geologySectionSchema.properties.uncorrelatedOccurrences.items)
+    }, [
+        'correlations',
+        'uncorrelatedOccurrences'
+    ]),
+    description: 'Incremental source links only, with updates:[] on an existing complete-occurrence-map section. Require 1–256 total explicit add/remove operations, resolving exact hole/interval identities against the same BEFORE source. No codes, indices, legacy selectors, inferred partners or reversed endpoints. To unlink a correlation remove it and explicitly add BOTH endpoint uncorrelated occurrences; to connect add the link and explicitly remove BOTH prior uncorrelated occurrences. Surviving declarations retain source order; additions append in caller order. Do not combine with top-level full correlations/uncorrelatedOccurrences lists or nonempty hole updates. Unknown, repeated, already-existing or add-and-remove-same identities fail without a proposal; final complete coverage and compiler topology rules remain mandatory.'
+};
 const geologyRevisionSchema = objectWithOptional({
     expectedRevision: revision,
     units: {
@@ -2372,7 +2418,7 @@ const geologyRevisionSchema = objectWithOptional({
         type: 'array',
         minItems: 0,
         maxItems: 24,
-        description: 'Changed hole fields only; do not resend unchanged holes. For a links-only revision of a complete source-backed section, supply updates:[] plus explicit correlations and/or uncorrelatedOccurrences. Columns and requests with no actual supported change still require nonempty hole updates or are rejected.',
+        description: 'Changed hole fields only; do not resend unchanged holes. For a links-only revision of a complete source-backed section, supply updates:[] plus linkChanges for an exact incremental add/remove, or explicit complete correlations and/or uncorrelatedOccurrences replacement lists. linkChanges cannot accompany hole updates or full replacement lists. Columns and requests with no actual supported change still require nonempty hole updates or are rejected.',
         items: objectWithOptional({
             holeId: {
                 ...text,
@@ -2409,10 +2455,12 @@ const geologyRevisionSchema = objectWithOptional({
         ])
     },
     correlations: geologySectionSchema.properties.correlations,
-    uncorrelatedOccurrences: geologySectionSchema.properties.uncorrelatedOccurrences
+    uncorrelatedOccurrences: geologySectionSchema.properties.uncorrelatedOccurrences,
+    linkChanges: geologyLinkChangesSchema
 }, [
     'correlations',
-    'uncorrelatedOccurrences'
+    'uncorrelatedOccurrences',
+    'linkChanges'
 ]);
 function geologySectionExampleIntent(args) {
     const locale = args.locale === 'en' ? 'en' : 'zh-CN';
@@ -3691,7 +3739,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_revision',
         effect: 'propose',
-        description: 'Revise the SAME source-backed column/section drawing after reading cad_read_geology_source. Supply exact holeId and only requested changed borehole fields; depths/elevations/station are metres. Unspecified fields remain unchanged; do not resend unchanged arrays when changing one scalar. For selected observation edits use updates[].observationChanges with explicit add/update/remove operations. An update/remove target is exact kind+id+expectedDepth from the BEFORE source snapshot, so repeated IDs at different depths remain distinct. Update set contains only requested depth/value/displayLabel/sampleMarker/rangeTop/rangeBottom; all unspecified records and laboratory facts remain unchanged. No inferred records, implicit range movement or laboratory-map patches. Never combine observationChanges with observations or clearFields:[observations]. For a links-only edit to a complete source-backed section, use updates:[] and the changed correlations and/or uncorrelatedOccurrences lists, without resending unchanged hole facts. These lists replace their source lists in full: preserve every unchanged declaration. For every station-adjacent pair, all intervals on BOTH holes must be explicitly covered by an exact interval-ID correlation or a holeId/adjacentHoleId/intervalId uncorrelatedOccurrence. An interval in a middle hole has an independent occurrence toward each neighbour; do not infer coverage or continuity from equal names, lithology or codes. The compiler derives stratum and water elevations from collarElevation minus stored depths, so changing collarElevation alone rebuilds these annotations without a separate elevation switch. strata and observations are complete-array replacements, NOT patches: preserve EVERY unchanged interval, observation, optional range/measurement fact and explicit identity; omitted records are deleted. observations:[] means the caller confirmed no records; clearFields:[observations] removes the field and means unknown, so never interchange them or use null to clear. Sample rangeTop/rangeBottom are measured metres, must both be supplied, contain depth, remain in the hole, span at most 5 metres and not overlap. Sample measurements retain direct numeric laboratory values and caller-declared field-grid units, never inferred units or guessed conversions. A replacement intervalId explicitly named by the user may be used for a requested merge or split; matching source lithology/code/name are data, not proof of cross-hole continuity. When splitting/merging section strata, supply updated explicit correlations and occurrence coverage; never invent geological continuity. Preserves exact unchanged CAD objects and all unrelated manual content. Modified generated objects are explicitly replaced, not assigned guessed semantic IDs. Manual drift, protected layers, stale revision and external references cause rejection without editing. Returns native geometry plus before/after source facts for human approval; one transaction updates data, HATCH and drawing, with undo/redo and KJD source recovery. Geometry-only DXF has no source recipe and cannot use this tool.',
+        description: 'Revise the SAME source-backed column/section drawing after reading cad_read_geology_source. Supply exact holeId and only requested changed borehole fields; depths/elevations/station are metres. Unspecified fields remain unchanged; do not resend unchanged arrays when changing one scalar. For selected observation edits use updates[].observationChanges with explicit add/update/remove operations. An update/remove target is exact kind+id+expectedDepth from the BEFORE source snapshot, so repeated IDs at different depths remain distinct. Update set contains only requested depth/value/displayLabel/sampleMarker/rangeTop/rangeBottom; all unspecified records and laboratory facts remain unchanged. No inferred records, implicit range movement or laboratory-map patches. Never combine observationChanges with observations or clearFields:[observations]. For a links-only edit to a complete source-backed section, use updates:[] and linkChanges for exact incremental correlations/uncorrelatedOccurrences add/remove operations, without resending unchanged hole facts or declarations. Delta targets use the same BEFORE source interval IDs, never legacy stratum-code selectors. Explicitly remove BOTH prior uncorrelated occurrences when adding a link; explicitly add BOTH uncorrelated endpoints when removing a link. Surviving source declarations retain order and additions append in caller order. Never mix linkChanges with nonempty updates or top-level full replacement lists. The existing correlations and/or uncorrelatedOccurrences lists remain complete replacements: preserve every unchanged declaration when explicitly using that API. For every station-adjacent pair, all intervals on BOTH holes must be explicitly covered by an exact interval-ID correlation or a holeId/adjacentHoleId/intervalId uncorrelatedOccurrence. An interval in a middle hole has an independent occurrence toward each neighbour; do not infer coverage or continuity from equal names, lithology or codes. The compiler derives stratum and water elevations from collarElevation minus stored depths, so changing collarElevation alone rebuilds these annotations without a separate elevation switch. strata and observations are complete-array replacements, NOT patches: preserve EVERY unchanged interval, observation, optional range/measurement fact and explicit identity; omitted records are deleted. observations:[] means the caller confirmed no records; clearFields:[observations] removes the field and means unknown, so never interchange them or use null to clear. Sample rangeTop/rangeBottom are measured metres, must both be supplied, contain depth, remain in the hole, span at most 5 metres and not overlap. Sample measurements retain direct numeric laboratory values and caller-declared field-grid units, never inferred units or guessed conversions. A replacement intervalId explicitly named by the user may be used for a requested merge or split; matching source lithology/code/name are data, not proof of cross-hole continuity. When splitting/merging section strata, supply updated explicit correlations and occurrence coverage; never invent geological continuity. Preserves exact unchanged CAD objects and all unrelated manual content. Modified generated objects are explicitly replaced, not assigned guessed semantic IDs. Manual drift, protected layers, stale revision and external references cause rejection without editing. Returns native geometry plus before/after source facts for human approval; one transaction updates data, HATCH and drawing, with undo/redo and KJD source recovery. Geometry-only DXF has no source recipe and cannot use this tool.',
         inputSchema: geologyRevisionSchema
     },
     {
@@ -4978,7 +5026,12 @@ export class KJAgentToolSession {
                         if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session');
                         const previous = readGeologyDrawingRecipe(document, String(args.drawingId));
                         const updates = args.updates;
-                        if (!updates.length && (previous.source.kind !== 'section' || !Object.hasOwn(args, 'correlations') && !Object.hasOwn(args, 'uncorrelatedOccurrences'))) throw new KJValidationError('Empty geology updates require an explicit section links-only revision');
+                        const linkChangesDescriptor = Object.getOwnPropertyDescriptor(input, 'linkChanges');
+                        const hasLinkChanges = linkChangesDescriptor !== undefined;
+                        if (hasLinkChanges && !linkChangesDescriptor.enumerable) throw new KJValidationError('Geology linkChanges must be enumerable plain data; hidden operations are never discarded');
+                        if (hasLinkChanges && (updates.length || Object.hasOwn(input, 'correlations') || Object.hasOwn(input, 'uncorrelatedOccurrences'))) throw new KJValidationError('Geology linkChanges requires updates:[] and cannot be combined with complete link replacement lists');
+                        if (hasLinkChanges && previous.source.kind !== 'section') throw new KJValidationError('Geology linkChanges belongs to complete source-backed sections only');
+                        if (!updates.length && (previous.source.kind !== 'section' || !Object.hasOwn(args, 'correlations') && !Object.hasOwn(args, 'uncorrelatedOccurrences') && !hasLinkChanges)) throw new KJValidationError('Empty geology updates require an explicit section links-only revision');
                         if (!updates.length && previous.source.kind === 'section' && previous.source.input.sourceFactMode !== 'complete-occurrence-map') throw new KJValidationError('Links-only revision requires a complete source-backed adjacent-hole occurrence map; do not infer missing declarations');
                         const next = structuredClone(previous.source);
                         const holes = next.kind === 'column' ? [
@@ -5000,6 +5053,7 @@ export class KJAgentToolSession {
                         }
                         if (next.kind === 'column' && (args.correlations !== undefined || args.uncorrelatedOccurrences !== undefined)) throw new KJValidationError('Cross-hole links belong to sections only');
                         if (next.kind === 'section') {
+                            if (hasLinkChanges) next.input = applyGeologySectionLinkChanges(previous.source.input, linkChangesDescriptor.value);
                             if (args.correlations !== undefined) next.input.correlations = structuredClone(args.correlations);
                             if (args.uncorrelatedOccurrences !== undefined) next.input.uncorrelatedOccurrences = structuredClone(args.uncorrelatedOccurrences);
                         }

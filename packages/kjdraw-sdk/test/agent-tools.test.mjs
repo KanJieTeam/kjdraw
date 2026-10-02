@@ -31,7 +31,7 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
       : tool.name === 'cad_read_components'
         ? ['query', 'category', 'locale', 'limit', 'cursor']
         : tool.name === 'cad_propose_geology_revision'
-          ? ['correlations', 'uncorrelatedOccurrences']
+          ? ['correlations', 'uncorrelatedOccurrences', 'linkChanges']
         : tool.name === 'cad_find_text'
           ? ['match', 'caseSensitive', 'spaceId', 'includeHidden', 'offset', 'limit', 'maxBytes']
         : tool.name === 'cad_propose_component_insert'

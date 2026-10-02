@@ -208,12 +208,22 @@ test('a raw imported DXF cannot fabricate a measured geology source recipe', asy
   let requests = 0
   await page.route(endpoint, route => {
     const body = route.request().postDataJSON()
-    const user = body.messages.findLast(message => message.role === 'user').content
+    // Bind every follow-up to the original authoritative request, never a
+    // later host protocol reminder. A real read precedes the source refusal.
+    const user = body.messages.find(message => message.role === 'user' && message.content.startsWith('Host context: document ')).content
     expect(user).toContain('This imported DXF is graphics, not a verified borehole source table')
     const names = body.tools.map(tool => tool.function.name)
     expect(names).not.toContain('cad_propose_geology_column')
     requests++
     if (requests === 1) {
+      return route.fulfill({ json: { choices: [{ message: { role: 'assistant', content: '', tool_calls: [{
+        id: 'actual-graphics-read', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' },
+      }] }, finish_reason: 'tool_calls' }] } })
+    }
+    if (requests === 2) {
+      const read = JSON.parse(body.messages.findLast(message => message.role === 'tool').content)
+      expect(read).toMatchObject({ ok: true, value: { documentId: imported.id, revision: imported.revision, units: 'millimeter' } })
+      expect(read.value.entities.length).toBeGreaterThan(0)
       // Even if a model attempts to use a guessed recipe ID, the engine must
       // refuse it. A prompt warning or a hidden button is not the safeguard.
       const revision = Number(user.match(/revision (\d+)/)[1])
@@ -233,7 +243,7 @@ test('a raw imported DXF cannot fabricate a measured geology source recipe', asy
   await connect(page)
   await send(page, '把 ZK-BROWSER 钻孔稳定水位改成 6 米并重新分层重绘。')
   await expect(page.locator('.message.assistant .message-content').last()).toContainText('缺少原始钻孔数据')
-  expect(requests).toBe(2)
+  expect(requests).toBe(3)
   await expect(page.getByTestId('proposal-approve')).toHaveCount(0)
   await expect(page.getByTestId('drawing-download')).toHaveCount(0)
   const after = await storedDrawing(page)

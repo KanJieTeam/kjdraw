@@ -135,7 +135,12 @@ async function mockProvider(page) {
         ...context, eraseIds: removedIds, tolerance: 0.01, maxBytes: 262144,
       }, '**Review the removal** before applying it.')
     }
-    if (control.action === 'prose') return textResponse(route, 'Undo is a drawing history operation. The earlier removal remains applied.')
+    if (control.action === 'prose') {
+      if (!result) return toolResponse(route, 'cad_read_history', { expectedRevision: context.expectedRevision })
+      expect(result).toMatchObject({ ok: true, value: { revision: context.expectedRevision,
+        history: { canUndo: true, canRedo: false } } })
+      return textResponse(route, 'Undo is a drawing history operation. The earlier removal remains applied.')
+    }
     if (!result) return toolResponse(route, 'cad_read_history', { expectedRevision: context.expectedRevision })
     expect(result.ok).toBe(true)
     const value = result.value
