@@ -50,7 +50,8 @@ async function mockMove(page, revision) {
     const output = body.messages.findLast(message => message.role === 'tool')
     if (!output) return route.fulfill({ json: { choices: [{ message: { role: 'assistant', content: '', tool_calls: [{
       id: 'viewer-read', type: 'function', function: { name: 'cad_query_drawing', arguments: JSON.stringify({
-        expectedRevision: revision, filters: { ids: ['moving-edge'] }, limit: 1, maxBytes: 10240,
+        expectedRevision: revision, filters: { ids: ['moving-edge'] }, offset: 0, limit: 1,
+        layerOffset: 0, maxLayers: 1, maxBytes: 10240,
       }) },
     }] }, finish_reason: 'tool_calls' }] } })
     const result = JSON.parse(output.content)
