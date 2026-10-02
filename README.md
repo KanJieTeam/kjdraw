@@ -9,7 +9,7 @@
 The model describes engineering intent. KJDraw compiles it into real CAD drawings<br/>
 that stay editable, verifiable, undoable, and reopenable.
 
-[**Quick start**](#-quick-start) · [**Try with AI**](https://kanjieteam.github.io/kjdraw/ai/) · [**Live editor**](https://kanjieteam.github.io/kjdraw/) · [**Docs**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [简体中文](README.zh-CN.md)
+[**Quick start**](#-quick-start) · [**Try with AI**](https://kanjieteam.github.io/kjdraw/ai/) · [**Live editor**](https://kanjieteam.github.io/kjdraw/) · [**Docs**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [**Contribute Skills**](docs/contributing-skills.md) · [简体中文](README.zh-CN.md)
 
 [![GitHub release](https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0)](https://github.com/KanJieTeam/kjdraw/releases)
 [![npm next](https://img.shields.io/npm/v/@kanjieteam/kjdraw/next?style=flat-square&label=npm&labelColor=30363d&color=2863f0)](https://www.npmjs.com/package/@kanjieteam/kjdraw)
@@ -169,9 +169,13 @@ Unsupported content is rejected rather than silently dropped. Full boundaries: [
 
 **Our mission: make KJDraw the default open-source CAD engine for the AI era.**
 
+[Build an independent Skill](docs/contributing-skills.md) · [Skill catalog and sample](skills/README.md) · [All contribution types](CONTRIBUTING.md) · [中文技能包指南](docs/contributing-skills.zh-CN.md). Reuse the existing CAD runtime in `skills/kjdraw-<topic>/`; define inputs, outputs and acceptance, then submit a focused PR. A new workflow normally does not need a kernel change.
+
 The most useful contributions right now:
 
-- **A drawing that breaks KJDraw.** Real DXF files that fail to open or render correctly are the fastest way to improve compatibility.
+- **An installable domain Skill.** Start from the [text-audit sample](skills/kjdraw-text-audit/README.md), keep its own short `SKILL.md` and useful resources, and add tests for your actual workflow.
+- **A reproducible drawing problem.** Share a small synthetic DXF or a reduced example you are authorized to publish, with the request and expected result. Do not upload private customer drawings.
+- **A reusable engineering workflow.** Explicit inputs, editable CAD output, and tests for changes, undo and DXF reopening. Start from the [domain planner example](examples/domain-planner-starter/README.md).
 - **Try it in your AI client and report back**, especially failed generations or multi-turn edits that go wrong.
 - **Editing tools, drawing types, performance, accessibility and docs.**
 
