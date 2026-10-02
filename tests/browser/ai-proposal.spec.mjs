@@ -309,6 +309,8 @@ test('building edits are chosen by model tools, impact-checked, and never inferr
   await page.getByTestId('drawing-file').setInputFiles({
     name:'six-buildings.kjd',mimeType:'application/json',buffer:Buffer.from(await sdk.writeDocument(source,{format:'KJD'})),
   })
+  await expect(page.locator('#drawing-name')).toHaveText('six-buildings.kjd')
+  await expect(page.getByTestId('chat-send')).toBeEnabled()
   await page.getByTestId('chat-input').fill('删掉顶部三个楼')
   await page.getByTestId('chat-send').click()
   await expect(page.locator('#settings-dialog')).toBeVisible()

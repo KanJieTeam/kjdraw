@@ -31,7 +31,7 @@ const copy = {
     unsafeDxfWarning:'图纸已打开，但部分视口关联数据暂不能安全保留。可在当前会话查看和编辑，暂不能导出 DXF。原始文件未改动；请先在 CAD 软件中检查相关数据，再重新打开。',
     unsafeDxfExport:'为避免丢失视口关联数据，本次 DXF 导出已阻止。当前图纸仍保留在会话中，原始文件未改动。请先在 CAD 软件中检查相关数据，再重新打开。',
     openDrawing:'打开图纸',dropDrawing:'松开以打开图纸',importFailed:'图纸未导入，请检查文件格式。',
-    importBusy:'请等待当前请求结束后再打开图纸。',drawingLoaded:'已打开图纸',entities:'个对象',
+    importBusy:'请等待当前请求结束后再打开图纸。',importingDrawing:'正在打开图纸，请稍候…',drawingLoaded:'已打开图纸',entities:'个对象',
     storageFailed:'本地会话保存失败。请先下载 DXF 图纸，并检查浏览器存储空间。',proposalUnsaved:'未保存',
     historyEmpty:'没有找到对话',busyHistory:'请先停止当前请求，再管理这段对话。',
     undoDrawing:'撤销',redoDrawing:'重做',historyRestored:'图纸历史',
@@ -63,7 +63,7 @@ const copy = {
     unsafeDxfWarning:'Drawing opened, but some viewport-linked data cannot yet be preserved safely. You can view and edit it in this conversation, but DXF export is unavailable. The original file is unchanged. Check the linked data in your CAD software before reopening it.',
     unsafeDxfExport:'DXF export was blocked to avoid losing viewport-linked data. The current drawing remains in this conversation and the original file is unchanged. Check the linked data in your CAD software before reopening it.',
     openDrawing:'Open drawing',dropDrawing:'Drop to open drawing',importFailed:'Drawing not opened. Check the file format.',
-    importBusy:'Wait for the current request before opening a drawing.',drawingLoaded:'Drawing opened',entities:'entities',
+    importBusy:'Wait for the current request before opening a drawing.',importingDrawing:'Opening drawing. Please wait…',drawingLoaded:'Drawing opened',entities:'entities',
     storageFailed:'Could not save this conversation locally. Download the DXF drawing and check browser storage.',proposalUnsaved:'Not saved',
     historyEmpty:'No conversations found',busyHistory:'Stop the current request before managing this conversation.',
     undoDrawing:'Undo',redoDrawing:'Redo',historyRestored:'Drawing history',
@@ -374,7 +374,15 @@ function openHistoryAction(action,session) {
   ui.historyDialog.showModal()
   if (action === 'rename') ui.historyTitleInput.select()
 }
+function updateComposerAvailability() {
+  ui.send.disabled = busy || importing
+  ui.form.setAttribute('aria-busy', String(busy || importing))
+  ui.send.title = importing ? t('importingDrawing') : ''
+  ui.send.querySelector('[data-text="send"]').textContent = t(importing ? 'importingDrawing' : 'send')
+  ui.form.querySelector('[data-text="composerHint"]').textContent = t(importing ? 'importingDrawing' : 'composerHint')
+}
 function render() {
+  updateComposerAvailability()
   disposeDrawingViewers()
   const version = ++renderVersion
   renderSidebar()
@@ -667,6 +675,7 @@ async function openDrawing(file) {
   if (busy || importing) { showImportError(t('importBusy')); return }
   importing = true
   ui.openDrawing.disabled = ui.attachDrawing.disabled = true
+  updateComposerAvailability()
   const runtime = createAiChatRuntime(settings ?? {})
   try {
     const source = await runtime.importDocument(file)
@@ -688,6 +697,7 @@ async function openDrawing(file) {
     pendingImport = null
     importing = false
     ui.openDrawing.disabled = ui.attachDrawing.disabled = false
+    updateComposerAvailability()
     ui.drawingFile.value = ''
     ui.dropOverlay.hidden = true
   }
