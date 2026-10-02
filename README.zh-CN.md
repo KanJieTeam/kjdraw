@@ -40,13 +40,13 @@ npm install -g @kanjieteam/kjdraw@next
 npx skills add KanJieTeam/kjdraw -g
 ```
 
-第一条安装 CAD 引擎；第二条让你选择把 Skill 加到哪个智能体。重启智能体后，直接说：
+第一条安装 CAD 引擎；第二条中选择 `kjdraw-cad` 和你使用的智能体。重启智能体后，直接说：
 
 ```text
 用 KJDraw 画一个半径 5 毫米的圆。
 ```
 
-检查修改提案，批准后导出为 **DXF** 图纸。Skill 使用本地 CAD 引擎，**无需注册 MCP**。[审核与导出步骤](docs/try-in-ai.zh-CN.md#skill-优先的本地-cli)。
+检查修改提案，批准后导出为 **DXF** 图纸。Skill 通过 `kjdraw agent` 调用本地 CAD 引擎，**无需注册 MCP**。[审核与导出步骤](docs/try-in-ai.zh-CN.md#skill-优先的本地-cli)。
 
 不想安装？打开[AI 绘图](https://kanjieteam.github.io/kjdraw/ai/)，在浏览器中连接自己的模型。请求和所需图纸上下文会发给所选服务商；对话、图纸和密钥保存在此浏览器。共用电脑请清除本站数据。[连接要求与其他智能体](docs/try-in-ai.zh-CN.md)。
 

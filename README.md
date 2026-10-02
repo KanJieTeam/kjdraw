@@ -40,13 +40,13 @@ npm install -g @kanjieteam/kjdraw@next
 npx skills add KanJieTeam/kjdraw -g
 ```
 
-The first command installs the CAD engine; the second lets you choose which agent receives the Skill. Restart your agent, then ask:
+The first command installs the CAD engine. In the second, select `kjdraw-cad` and your agent. Restart your agent, then ask:
 
 ```text
 Use KJDraw to draw a circle with a radius of 5 mm.
 ```
 
-Review the proposed change, approve it, then export the drawing as **DXF**. The Skill uses the local CAD engine; **MCP registration is optional**. [Approval and export guide](docs/try-in-ai.md#skill-first-local-cli).
+Review the proposed change, approve it, then export the drawing as **DXF**. The Skill calls the local CAD engine through `kjdraw agent`; **MCP registration is optional**. [Approval and export guide](docs/try-in-ai.md#skill-first-local-cli).
 
 Prefer not to install? [Try with AI](https://kanjieteam.github.io/kjdraw/ai/) in your browser and connect your model. Your requests and drawing context go to that provider; conversations, drawings and the key stay saved in this browser. Clear site data on shared devices. [Connection requirements and other agents](docs/try-in-ai.md).
 
