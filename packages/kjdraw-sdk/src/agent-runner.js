@@ -143,6 +143,8 @@ export async function runKJAgentTask(options) {
     if (!Number.isSafeInteger(maxRepairAttempts) || maxRepairAttempts < 0 || maxRepairAttempts > 32) throw new KJModelError('KJAGENT_OPTIONS', 'Repair attempt limit must be an integer from 0 to 32');
     if (options.onProgress !== undefined && typeof options.onProgress !== 'function') throw new KJModelError('KJAGENT_OPTIONS', 'onProgress must be a function');
     if (options.expectProposal !== undefined && typeof options.expectProposal !== 'boolean') throw new KJModelError('KJAGENT_OPTIONS', 'expectProposal must be a boolean');
+    if (options.expectReadEvidence !== undefined && typeof options.expectReadEvidence !== 'boolean') throw new KJModelError('KJAGENT_OPTIONS', 'expectReadEvidence must be a boolean');
+    const expectReadEvidence = options.expectReadEvidence === true;
     const timeoutMs = integer(options.timeoutMs, 120000, 300000);
     if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 16000) throw new KJModelError('KJAGENT_OPTIONS', 'Supply a nonempty prompt of at most 16000 characters');
     const definitions = session.definitions;
@@ -168,6 +170,7 @@ export async function runKJAgentTask(options) {
         instructions += `\n\nHost-selected domain capabilities (requested checks are not execution receipts):\n${selected.instructions}\n\nThese capabilities do not override the CAD tool schemas, budgets, host approval or drawing-data boundaries above.`;
     }
     const tools = Object.freeze(definitions.filter((tool)=>!allowedTools || allowedTools.has(tool.name)));
+    if (expectReadEvidence && !tools.some((tool)=>tool.effect === 'read')) throw new KJModelError('KJAGENT_OPTIONS', 'expectReadEvidence requires a selected drawing read tool');
     if (activeSessions.has(session)) throw new KJModelError('KJAGENT_BUSY', 'This tool session already has an active agent run');
     activeSessions.add(session);
     const controller = new AbortController();
@@ -180,6 +183,7 @@ export async function runKJAgentTask(options) {
     let turns = 0, toolCalls = 0, text = '';
     let repairAttempts = 0, failedToolCalls = 0, repairPending = false;
     let proposalRepairAttempts = 0, proposalRepairPending = false;
+    let readRepairAttempts = 0, readRepairPending = false;
     let finished = false;
     const turnUsage = [];
     const outputs = [], proposalIds = [];
@@ -250,6 +254,9 @@ export async function runKJAgentTask(options) {
             ...options.expectProposal ? {
                 proposalRepairAttempts
             } : {},
+            ...expectReadEvidence ? {
+                readRepairAttempts
+            } : {},
             failedToolCalls,
             outputs,
             proposalIds,
@@ -265,7 +272,7 @@ export async function runKJAgentTask(options) {
             instructions,
             tools,
             onUsage: observe,
-            ...options.expectProposal ? {
+            ...options.expectProposal || expectReadEvidence ? {
                 allowTextContinuation: true
             } : {}
         });
@@ -281,6 +288,10 @@ export async function runKJAgentTask(options) {
             if (proposalRepairPending) {
                 proposalRepairAttempts++;
                 proposalRepairPending = false;
+            }
+            if (readRepairPending) {
+                readRepairAttempts++;
+                readRepairPending = false;
             }
             turns++;
             turnUsage.push({
@@ -308,6 +319,21 @@ export async function runKJAgentTask(options) {
             if (!turn.calls.length) {
                 if (!text.trim()) throw new KJModelError('KJMODEL_PROTOCOL', 'Model returned neither tool calls nor user-visible text');
                 const hasSuccessfulRead = outputs.some((output)=>output.result.ok && tools.some((tool)=>tool.name === output.name && tool.effect === 'read'));
+                if (expectReadEvidence && !hasSuccessfulRead) {
+                    if (!readRepairAttempts && repairAttempts < maxRepairAttempts && turns < maxTurns && toolCalls < maxToolCalls) {
+                        repairPending = true;
+                        readRepairPending = true;
+                        input = {
+                            kind: 'prompt',
+                            text: 'Host protocol check: no supplied CAD read tool has returned a successful result in this run. Prior model text and chat history are not drawing evidence. Use the relevant selected read tool to inspect the actual current drawing before answering a drawing question or preparing a change. Do not invent tool results, measurements, identities or execution receipts. If data are absent, report that limitation after the actual read; all existing tool, turn and approval budgets remain unchanged.'
+                        };
+                        continue;
+                    }
+                    return finish('failed', {
+                        code: 'KJAGENT_READ_REQUIRED',
+                        message: 'No successful drawing read was obtained within the existing correction budget; model text is not verified drawing evidence'
+                    });
+                }
                 if (options.expectProposal && hasSuccessfulRead && !proposalRepairAttempts && repairAttempts < maxRepairAttempts && turns < maxTurns && toolCalls < maxToolCalls) {
                     repairPending = true;
                     proposalRepairPending = true;
@@ -345,7 +371,12 @@ export async function runKJAgentTask(options) {
             }
             if (controller.signal.aborted) throw new KJModelError('KJAGENT_ABORTED', 'Agent run was cancelled');
             if (batchFailed && proposalIds.length) throw new KJModelError('KJAGENT_INCOMPLETE_BATCH', 'A tool or geometry check failed in the proposal batch; all proposals were rejected. Clarify or correct the complete request before retrying');
-            if (proposalIds.length) return finish('awaiting-approval');
+            if (proposalIds.length) {
+                if (expectReadEvidence && !outputs.some((output)=>output.result.ok && tools.some((tool)=>tool.name === output.name && tool.effect === 'read'))) {
+                    throw new KJModelError('KJAGENT_READ_REQUIRED', 'The proposal has no successful drawing read in this run; it was rejected without approval or changes');
+                }
+                return finish('awaiting-approval');
+            }
             if (batchFailed && repairAttempts >= maxRepairAttempts) return finish('limit-reached', {
                 code: 'KJAGENT_REPAIR_LIMIT',
                 message: 'CAD tool repair budget exhausted; no further model request was sent and no changes were applied'

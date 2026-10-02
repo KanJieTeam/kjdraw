@@ -20,7 +20,7 @@ export const KJDRAW_CHAT_TOOL_NAMES = Object.freeze([
 // Creation is offered by document state, never by a hard-coded instruction.
 // Imported geometry and retained geology recipes keep their existing edit policy.
 const blankMillimeterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES,
-  'cad_propose_geology_column', 'cad_propose_geology_section'])
+  'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_plan'])
 const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['cad_propose_manufacturing_sheet','cad_propose_architecture_plan','cad_propose_cartesian_chart','cad_read_geology_source','cad_propose_geology_revision'].includes(name)), 'cad_propose_site_plan', 'cad_propose_road_drawing'])
 const roadRevisionToolNames = Object.freeze([...meterToolNames, 'cad_propose_road_revision'])
 const selectionToolNames = new Map([KJDRAW_CHAT_TOOL_NAMES,blankMillimeterToolNames,meterToolNames,roadRevisionToolNames].map(names=>[names,Object.freeze([...names,'cad_read_selection_sets'])]))

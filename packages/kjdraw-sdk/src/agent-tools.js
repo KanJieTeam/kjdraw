@@ -4935,7 +4935,9 @@ export class KJAgentToolSession {
                         maxBytes: query.maxBytes
                     });
                 } else {
-                    if (args.units !== document.snapshot().header.units) throw new KJValidationError('Unit mismatch; read the drawing units before calling this tool');
+                    const drawingUnits = document.snapshot().header.units;
+                    const metrePointPlan = name === 'cad_propose_geology_plan' && args.units === 'meter' && (drawingUnits === 'meter' || drawingUnits === 'millimeter');
+                    if (!metrePointPlan && args.units !== drawingUnits) throw new KJValidationError('Unit mismatch; read the drawing units before calling this tool');
                     if (name === 'cad_propose_undo' || name === 'cad_propose_redo') {
                         if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session');
                         const command = name === 'cad_propose_undo' ? 'UNDO' : 'REDO';
