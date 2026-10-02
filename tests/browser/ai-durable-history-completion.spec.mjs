@@ -147,7 +147,11 @@ for (const action of ['approve', 'reject']) {
     const requests = []
     await page.route(endpoint, route => {
       requests.push(route.request().postDataJSON())
-      if (requests.length > 1) return route.fulfill({ json: { choices: [{ message: {
+      if (requests.length === 2) return route.fulfill({ json: { choices: [{ message: {
+        role: 'assistant', content: '', tool_calls: [{ id: 'actual-followup-drawing-read', type: 'function',
+          function: { name: 'cad_read_drawing', arguments: '{}' } }],
+      }, finish_reason: 'tool_calls' }] } })
+      if (requests.length > 2) return route.fulfill({ json: { choices: [{ message: {
         role: 'assistant', content: 'The previous review finished. This follow-up did not modify the drawing.',
       }, finish_reason: 'stop' }] } })
       return route.fulfill({ json: { choices: [{ message: { role: 'assistant', content: '', tool_calls: [{
@@ -193,7 +197,9 @@ for (const action of ['approve', 'reject']) {
     await page.getByTestId('chat-send').click()
     await expect(page.locator('.message.user').last()).toContainText(draft)
     await expect(page.locator('.message.assistant .message-content').last()).toContainText('This follow-up did not modify the drawing')
-    expect(requests).toHaveLength(2)
+    expect(requests).toHaveLength(3)
+    const receipt = JSON.parse(requests.at(-1).messages.findLast(message => message.role === 'tool').content)
+    expect(receipt.ok).toBe(true)
     await page.reload()
     await expect(page.locator('.message.user').last()).toContainText(draft)
     expect(await entities(page, sdk)).toHaveLength(action === 'approve' ? 1 : 0)
