@@ -13,6 +13,31 @@
   <script type="module" src="../apps/playground/ai/ai.js"></script>
 </head>
 <body>
+  <svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+    <symbol id="icon-panel-left" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+    <symbol id="icon-panel-right" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+    <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="icon-arrow-up-right" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10"/></symbol>
+    <symbol id="icon-arrow-down" viewBox="0 0 24 24"><path d="M12 4v16m-6-6 6 6 6-6"/></symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="icon-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Zm0 0v6h6M8 13h8M8 17h5"/></symbol>
+    <symbol id="icon-editor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 9v12m4-4 2-4 3 4"/></symbol>
+    <symbol id="icon-send" viewBox="0 0 24 24"><path d="M12 20V4m-6 6 6-6 6 6"/></symbol>
+    <symbol id="icon-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+    <symbol id="icon-undo" viewBox="0 0 24 24"><path d="M9 6 4 11l5 5M4 11h10a6 6 0 0 1 6 6v2"/></symbol>
+    <symbol id="icon-redo" viewBox="0 0 24 24"><path d="m15 6 5 5-5 5m5-5H10a6 6 0 0 0-6 6v2"/></symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></symbol>
+    <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></symbol>
+    <symbol id="icon-chat" viewBox="0 0 24 24"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-1 1V11.5a8.5 8.5 0 1 1 18 0ZM7 8h10M7 12h7"/></symbol>
+    <symbol id="icon-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="icon-pin" viewBox="0 0 24 24"><path d="m16 3 5 5-4 1-2 5-5 1-7 7m7-7-2-2 1-5 5-2Z"/></symbol>
+    <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
+    <symbol id="icon-edit" viewBox="0 0 24 24"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15Zm0 0h16"/></symbol>
+    <symbol id="icon-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  </svg>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar" aria-label="会话">
       <div class="sidebar-top">
@@ -20,15 +45,16 @@
           <img src="../docs/assets/mark.svg" width="28" height="28" alt="">
           <span>KJDraw</span>
         </a>
-        <button class="icon-button sidebar-close" id="sidebar-close" type="button" aria-label="关闭侧栏">×</button>
+        <button class="icon-button sidebar-toggle" id="sidebar-toggle" type="button" aria-label="收起侧栏" aria-controls="sidebar" aria-expanded="true"><svg class="ui-icon" aria-hidden="true"><use href="#icon-panel-left"/></svg></button>
+        <button class="icon-button sidebar-close" id="sidebar-close" type="button" aria-label="关闭侧栏"><svg class="ui-icon" aria-hidden="true"><use href="#icon-close"/></svg></button>
       </div>
-      <button class="new-chat" id="new-chat" type="button"><span aria-hidden="true">＋</span><span data-text="newChat">新建对话</span></button>
-      <label class="history-search"><span aria-hidden="true">⌕</span><input id="history-search" type="search" autocomplete="off" data-placeholder="searchHistory" placeholder="搜索对话" aria-label="搜索对话"></label>
+      <button class="new-chat" id="new-chat" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"/></svg><span data-text="newChat">新建对话</span></button>
+      <label class="history-search"><svg class="ui-icon" aria-hidden="true"><use href="#icon-search"/></svg><input id="history-search" type="search" autocomplete="off" data-placeholder="searchHistory" placeholder="搜索对话" aria-label="搜索对话"></label>
       <div class="history-heading"><span data-text="recent">最近对话</span><span class="history-count" id="history-count">0</span></div>
       <nav class="conversation-list" id="conversation-list" aria-label="最近对话"></nav>
       <div class="sidebar-bottom">
-        <a href="../" class="editor-link"><span aria-hidden="true">▦</span><span data-text="editor">打开 CAD 编辑器</span><span aria-hidden="true">↗</span></a>
-        <a href="../docs/latest/" class="docs-link" data-text="docs">使用文档 ↗</a>
+        <a href="../" class="editor-link"><svg class="ui-icon" aria-hidden="true"><use href="#icon-editor"/></svg><span data-text="editor">打开 CAD 编辑器</span><svg class="ui-icon external-icon" aria-hidden="true"><use href="#icon-arrow-up-right"/></svg></a>
+        <a href="../docs/latest/" class="docs-link"><span data-text="docs">使用文档</span><svg class="ui-icon external-icon" aria-hidden="true"><use href="#icon-arrow-up-right"/></svg></a>
       </div>
     </aside>
 
@@ -36,18 +62,25 @@
     <main class="main-panel">
       <header class="topbar">
         <div class="topbar-left">
-          <button class="icon-button menu-button" id="menu-button" type="button" aria-label="打开侧栏" aria-controls="sidebar" aria-expanded="false">☰</button>
+          <button class="icon-button menu-button" id="menu-button" type="button" aria-label="打开侧栏" aria-controls="sidebar" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#icon-panel-left"/></svg></button>
           <span class="topbar-title">KJDraw AI</span>
           <span class="topbar-badge" data-text="beta">预览版</span>
         </div>
         <div class="topbar-actions">
-          <button class="topbar-button" id="open-drawing" data-testid="drawing-open" type="button" data-text="openDrawing">打开图纸</button>
+          <button class="topbar-button" id="open-drawing" data-testid="drawing-open" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-file"/></svg><span data-text="openDrawing">打开图纸</span></button>
+          <button class="topbar-button workspace-toggle" id="workspace-toggle" type="button" aria-controls="drawing-panel" aria-expanded="false"><svg class="ui-icon" aria-hidden="true"><use href="#icon-panel-right"/></svg><span data-text="drawingWorkspace">图纸工作区</span></button>
           <span class="connection-pill" id="connection-pill"><span class="connection-dot"></span><span data-text="notConnected">未连接模型</span></span>
           <button class="topbar-button" id="settings-open" type="button" aria-haspopup="dialog" data-testid="settings-open"><span data-text="connect">连接模型</span></button>
           <button class="lang-button" id="language-button" type="button" aria-label="Switch to English">EN</button>
         </div>
       </header>
 
+      <div class="workspace-tabs" id="workspace-tabs" role="tablist" aria-label="工作区视图">
+        <button class="workspace-tab active" id="tab-chat" type="button" role="tab" aria-controls="chat-panel" aria-selected="true"><svg class="ui-icon" aria-hidden="true"><use href="#icon-chat"/></svg><span data-text="chatTab">对话</span></button>
+        <button class="workspace-tab" id="tab-drawing" type="button" role="tab" aria-controls="drawing-panel" aria-selected="false"><svg class="ui-icon" aria-hidden="true"><use href="#icon-file"/></svg><span data-text="drawingTab">图纸</span></button>
+      </div>
+      <div class="workspace-body" id="workspace-body" data-mobile-view="chat">
+      <section class="chat-panel" id="chat-panel" aria-label="对话工作区">
       <section class="conversation" id="conversation" aria-label="聊天消息">
         <div class="empty-state" id="empty-state" data-testid="chat-empty">
           <h1 data-text="heroTitle">今天想画什么图？</h1>
@@ -60,30 +93,56 @@
         </div>
         <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions" hidden></div>
       </section>
+      <button class="jump-latest" id="jump-latest" type="button" aria-label="跳到最新消息" hidden><svg class="ui-icon" aria-hidden="true"><use href="#icon-arrow-down"/></svg><span data-text="jumpLatest">最新消息</span></button>
 
       <div class="composer-wrap">
         <div class="drawing-history-actions" id="drawing-history-actions" hidden aria-label="图纸历史">
-          <button class="topbar-button" id="drawing-undo" data-testid="drawing-undo" type="button" disabled><span aria-hidden="true">↶</span><span data-text="undoDrawing">撤销</span></button>
-          <button class="topbar-button" id="drawing-redo" data-testid="drawing-redo" type="button" disabled><span aria-hidden="true">↷</span><span data-text="redoDrawing">重做</span></button>
+          <button class="topbar-button" id="drawing-undo" data-testid="drawing-undo" type="button" disabled><svg class="ui-icon" aria-hidden="true"><use href="#icon-undo"/></svg><span data-text="undoDrawing">撤销</span></button>
+          <button class="topbar-button" id="drawing-redo" data-testid="drawing-redo" type="button" disabled><svg class="ui-icon" aria-hidden="true"><use href="#icon-redo"/></svg><span data-text="redoDrawing">重做</span></button>
           <small id="drawing-history-status"></small>
         </div>
         <p class="import-error" id="drawing-history-warning" role="status" hidden></p>
         <input id="drawing-file" data-testid="drawing-file" class="sr-only" type="file" accept=".dxf,.kjd,.kjp" aria-label="选择 DXF 图纸">
         <p class="import-error" id="import-error" role="alert" hidden></p>
         <details class="drawing-context" id="drawing-context" data-testid="drawing-context" hidden>
-          <summary><span id="drawing-name"></span><small id="drawing-meta"></small></summary>
+          <summary><svg class="ui-icon" aria-hidden="true"><use href="#icon-file"/></svg><span id="drawing-name"></span><small id="drawing-meta"></small><svg class="ui-icon disclosure-icon" aria-hidden="true"><use href="#icon-chevron-down"/></svg></summary>
           <canvas id="drawing-canvas" aria-label="当前图纸预览"></canvas>
         </details>
         <form class="composer" id="chat-form">
           <label class="sr-only" for="chat-input" data-text="promptLabel">描述你想绘制或修改的图纸</label>
           <textarea id="chat-input" data-testid="chat-input" rows="2" maxlength="12000" placeholder="描述你想绘制或修改的图纸…" aria-keyshortcuts="Enter Shift+Enter"></textarea>
           <div class="composer-footer">
-            <div class="composer-tools"><button id="attach-drawing" class="attach-drawing" type="button" data-text="openDrawing">打开图纸</button><span class="composer-hint" data-text="composerHint">Enter 发送 · Shift + Enter 换行</span></div>
-            <button class="stop-button" id="chat-stop" data-testid="chat-stop" type="button" hidden><span data-text="stop">停止生成</span><span aria-hidden="true">■</span></button>
-            <button class="send-button" id="chat-send" data-testid="chat-send" type="submit" aria-label="发送消息"><span data-text="send">发送</span><span aria-hidden="true">↗</span></button>
+            <div class="composer-tools"><button id="attach-drawing" class="attach-drawing" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"/></svg><span data-text="openDrawing">打开图纸</span></button><span class="composer-hint" data-text="composerHint">Enter 发送 · Shift + Enter 换行</span></div>
+            <button class="stop-button" id="chat-stop" data-testid="chat-stop" type="button" hidden><span data-text="stop">停止生成</span><svg class="ui-icon" aria-hidden="true"><use href="#icon-stop"/></svg></button>
+            <button class="send-button" id="chat-send" data-testid="chat-send" type="submit" aria-label="发送消息"><span data-text="send">发送</span><svg class="ui-icon" aria-hidden="true"><use href="#icon-send"/></svg></button>
           </div>
         </form>
-        <p class="disclaimer" data-text="disclaimer">对话、图纸及模型密钥保存在此浏览器；请求会发送给所选模型服务商。共用电脑可清除本站数据，工程图须由你审核。</p>
+        <details class="privacy-disclosure">
+          <summary><svg class="ui-icon" aria-hidden="true"><use href="#icon-lock"/></svg><span data-text="privacySummary">本地保存与模型发送说明</span><svg class="ui-icon disclosure-icon" aria-hidden="true"><use href="#icon-chevron-down"/></svg></summary>
+          <p class="disclaimer" data-text="disclaimer">对话、图纸及模型密钥保存在此浏览器；请求会发送给所选模型服务商。共用电脑可清除本站数据，工程图须由你审核。</p>
+        </details>
+      </div>
+      </section>
+      <div class="workspace-divider" id="workspace-divider" role="separator" aria-orientation="vertical" aria-label="调整图纸工作区宽度" aria-controls="drawing-panel" tabindex="0" hidden></div>
+      <section class="drawing-panel" id="drawing-panel" aria-label="CAD 图纸工作区" hidden>
+        <header class="workspace-head">
+          <div class="workspace-heading"><h2 id="workspace-title">图纸工作区</h2><small id="workspace-meta"></small></div>
+          <button class="icon-button" id="workspace-close" type="button" aria-label="关闭图纸工作区"><svg class="ui-icon" aria-hidden="true"><use href="#icon-close"/></svg></button>
+        </header>
+        <div class="workspace-view-tabs" role="tablist" aria-label="图纸版本">
+          <button class="workspace-view-tab active" id="view-current" type="button" role="tab" aria-selected="true"><span data-text="currentDrawing">当前图纸</span></button>
+          <button class="workspace-view-tab" id="view-proposal" type="button" role="tab" aria-selected="false"><span data-text="proposalDrawing">提案预览</span></button>
+        </div>
+        <div class="workspace-viewer" id="workspace-viewer"></div>
+        <section class="workspace-review" id="workspace-review" aria-label="提案审核" hidden></section>
+        <footer class="workspace-footer">
+          <div class="workspace-history">
+            <button class="workspace-action" id="workspace-undo" type="button" disabled><svg class="ui-icon" aria-hidden="true"><use href="#icon-undo"/></svg><span data-text="undoDrawing">撤销</span></button>
+            <button class="workspace-action" id="workspace-redo" type="button" disabled><svg class="ui-icon" aria-hidden="true"><use href="#icon-redo"/></svg><span data-text="redoDrawing">重做</span></button>
+          </div>
+          <button class="workspace-action workspace-download" id="workspace-download" type="button" disabled><svg class="ui-icon" aria-hidden="true"><use href="#icon-download"/></svg><span data-text="downloadDrawing">下载图纸</span></button>
+        </footer>
+      </section>
       </div>
       <div class="drawing-drop-overlay" id="drawing-drop-overlay" hidden><span data-text="dropDrawing">松开以打开图纸</span><small>KJD · KJP · DXF</small></div>
     </main>
@@ -93,7 +152,7 @@
     <form id="settings-form" method="dialog" novalidate>
       <div class="dialog-header">
         <div><div class="dialog-eyebrow" data-text="connectionSettings">模型连接</div><h2 id="settings-title" data-text="connectModel">连接你的模型</h2></div>
-        <button class="icon-button" id="settings-close" type="button" aria-label="关闭设置">×</button>
+        <button class="icon-button" id="settings-close" type="button" aria-label="关闭设置"><svg class="ui-icon" aria-hidden="true"><use href="#icon-close"/></svg></button>
       </div>
       <p class="dialog-intro" data-text="settingsIntro">选择常用模型或自定义接口。请求直接发给所选服务商；连接配置和密钥保存在此浏览器，清除本站数据即可移除。</p>
       <div class="settings-pair">
@@ -102,7 +161,7 @@
       </div>
       <label for="settings-key" data-text="apiKey">API 密钥</label>
       <input id="settings-key" data-testid="settings-key" type="password" autocomplete="off" spellcheck="false" placeholder="输入服务商 API 密钥">
-      <details class="connection-details" id="settings-details" open>
+      <details class="connection-details" id="settings-details">
         <summary data-text="connectionDetails">连接详情与自定义</summary>
         <label for="settings-endpoint" data-text="endpoint">API 地址</label>
         <input id="settings-endpoint" data-testid="settings-endpoint" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://api.example.com/v1">

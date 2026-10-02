@@ -17,7 +17,14 @@ export function panViewerCamera(camera, dx, dy) {
   return { ...camera, centerX: camera.centerX - dx / camera.scale, centerY: camera.centerY + dy / camera.scale }
 }
 
-/** A view-only camera over the runtime's actual CAD document or pending preview. */
+/**
+ * A view-only camera over the runtime's actual CAD document or pending preview.
+ * refresh({ preserveCamera: true }) retains an existing camera across revision,
+ * mode and plan changes, including a layout resize in that refresh; initial
+ * rendering and explicit fit still fit the drawing. Independent viewport/full-
+ * screen resizing retains relative-to-fit zoom. Without this opt-in, refresh
+ * retains its reset behavior.
+ */
 export function createDrawingViewer({ container, runtime, mode = 'document', planId, canvas: suppliedCanvas, labels = {} }) {
   if (!container?.ownerDocument || !runtime?.renderDocument || !runtime?.renderProposal || !runtime?.getViewerCamera) {
     throw new TypeError('Drawing viewer requires a container and CAD runtime')
@@ -84,9 +91,11 @@ export function createDrawingViewer({ container, runtime, mode = 'document', pla
   let frame = null
   let destroyed = false
   let dialog = null
+  let dialogTitle = null
   let returnFocus = null
   let pointer = null
   let failed = false
+  let preserveRefreshCamera = false
   const requestFrame = window?.requestAnimationFrame?.bind(window) ?? (callback => setTimeout(callback, 16))
   const cancelFrame = window?.cancelAnimationFrame?.bind(window) ?? clearTimeout
 
@@ -114,16 +123,17 @@ export function createDrawingViewer({ container, runtime, mode = 'document', pla
     if (width < 1 || height < 1) return
     const resized = width !== viewport.width || height !== viewport.height
     try {
-      if (!camera || resized && fitted) {
+      if (!camera || resized && fitted && !preserveRefreshCamera) {
         camera = runtime.getViewerCamera({ mode, planId, width, height })
         fittedScale = camera.scale
-      } else if (resized) {
+      } else if (resized && !preserveRefreshCamera) {
         const nextFit = runtime.getViewerCamera({ mode, planId, width, height })
         // Preserve the user's zoom relative to fit while enlarging the viewport.
         camera = { ...camera, scale: Math.min(MAX_SCALE, Math.max(MIN_SCALE, camera.scale * nextFit.scale / fittedScale)) }
         fittedScale = nextFit.scale
       }
       viewport = { width, height }
+      preserveRefreshCamera = false
       failed = false
       updateMetadata()
       const options = { width, height, camera, pixelRatio: Math.max(1, window?.devicePixelRatio || 1) }
@@ -131,7 +141,12 @@ export function createDrawingViewer({ container, runtime, mode = 'document', pla
       shell.dataset.viewerRendered = String(report?.rendered ?? 0)
       delete shell.dataset.viewerError
     } catch {
+      preserveRefreshCamera = false
       failed = true
+      // Never leave old document/proposal pixels visible as a failed preview.
+      // Resetting the bitmap also works when no rendering context is available.
+      canvas.width = canvas.width
+      shell.dataset.viewerRendered = '0'
       shell.dataset.viewerError = 'true'
       status.textContent = text.unavailable
       buttons.get('zoom-in').disabled = true
@@ -147,10 +162,14 @@ export function createDrawingViewer({ container, runtime, mode = 'document', pla
     if (destroyed) return
     const nextMode = next.mode ?? mode
     const nextPlan = next.planId ?? planId
-    if (nextMode !== mode || nextPlan !== planId || runtime.revision !== revision || next.fit === true) {
+    const changed = nextMode !== mode || nextPlan !== planId || runtime.revision !== revision
+    if (next.fit === true || changed && next.preserveCamera !== true) {
       camera = null
       fitted = true
     }
+    // Review controls can resize the same pane in the very refresh that changes
+    // its mode. Do not compare the new proposal fit with the old document fit.
+    preserveRefreshCamera = Boolean(camera && next.preserveCamera === true && next.fit !== true)
     mode = nextMode
     planId = nextPlan
     revision = runtime.revision
@@ -160,6 +179,14 @@ export function createDrawingViewer({ container, runtime, mode = 'document', pla
       shell.setAttribute('aria-label', text.title)
       stage.setAttribute('aria-label', text.title)
       canvas.setAttribute('aria-label', text.title)
+      for (const [action, key] of [['zoom-in', 'zoomIn'], ['zoom-out', 'zoomOut'], ['fit', 'fit'], ['enlarge', 'enlarge'], ['close', 'close']]) {
+        const control = buttons.get(action)
+        if (!control) continue
+        control.setAttribute('aria-label', text[key])
+        control.title = text[key]
+        if (action === 'fit' || action === 'enlarge') control.textContent = text[key]
+      }
+      if (dialogTitle) dialogTitle.textContent = text.title
     }
     schedule()
   }
@@ -167,6 +194,7 @@ export function createDrawingViewer({ container, runtime, mode = 'document', pla
   function fit() {
     camera = null
     fitted = true
+    preserveRefreshCamera = false
     schedule()
   }
 
@@ -209,11 +237,11 @@ export function createDrawingViewer({ container, runtime, mode = 'document', pla
     if (!dialog) {
       dialog = make('dialog', 'drawing-viewer-dialog')
       const head = make('div', 'drawing-viewer-dialog-head')
-      const title = make('h2', '', text.title)
-      title.id = `drawing-viewer-title-${viewerId}`
-      dialog.setAttribute('aria-labelledby', title.id)
+      dialogTitle = make('h2', '', text.title)
+      dialogTitle.id = `drawing-viewer-title-${viewerId}`
+      dialog.setAttribute('aria-labelledby', dialogTitle.id)
       const closeButton = button('close', text.close, '×', close)
-      head.append(title, closeButton)
+      head.append(dialogTitle, closeButton)
       dialog.append(head, make('div', 'drawing-viewer-dialog-body'))
       document.body.append(dialog)
       listen(dialog, 'cancel', event => { event.preventDefault(); close() })

@@ -83,7 +83,11 @@ async function importDrawing(page, name, content) {
     name, mimeType: name.endsWith('.dxf') ? 'application/dxf' : 'application/json', buffer: Buffer.from(content),
   })
   await expect(page.locator('#drawing-name')).toHaveText(name)
-  await expect(page.getByTestId('drawing-context').locator('.drawing-viewer-stage canvas')).toBeVisible()
+  const context = page.getByTestId('drawing-context')
+  // The persistent workspace is the primary preview; its optional inline
+  // counterpart starts collapsed and is opened explicitly for these controls.
+  if (!await context.evaluate(node => node.open)) await context.locator('summary').click()
+  await expect(context.locator('.drawing-viewer-stage canvas')).toBeVisible()
 }
 
 async function camera(canvas) {
