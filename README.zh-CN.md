@@ -17,10 +17,6 @@
 
 </div>
 
-### 贡献你所在行业的技能包
-
-Fork → 新建 `skills/kjdraw-<topic>/` → 测试工作流 → 提交 PR。共用同一个 CAD 引擎，按需附带模板、规则或辅助脚本。先看[开发指南](docs/contributing-skills.zh-CN.md)、[只读文字核对](skills/kjdraw-text-audit/README.zh-CN.md)或[机械孔阵列](skills/kjdraw-hole-pattern/README.zh-CN.md)。不限行业，不必从修改内核开始。
-
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/">
     <img src="docs/media/kjdraw-workflow.gif" alt="KJDraw 工作台：打开图纸、审核改动、绘制并标注零件" width="100%" />
@@ -44,17 +40,15 @@ npm install -g @kanjieteam/kjdraw@next
 npx skills add KanJieTeam/kjdraw -g
 ```
 
-第一条安装 CAD 引擎；简短的第二条让你选择把 Skill 加到哪个智能体。重启智能体后，直接说：
+第一条安装 CAD 引擎；第二条让你选择把 Skill 加到哪个智能体。重启智能体后，直接说：
 
 ```text
 用 KJDraw 画一个半径 5 毫米的圆。
 ```
 
-Skill 在本地调用 `kjdraw agent`，**不用注册 MCP，也不用把模型 API Key 给 KJDraw**。修改会先生成待审提案，须由真人批准。[其他智能体与可选 MCP 接入](docs/try-in-ai.zh-CN.md)。
+检查修改提案，批准后导出为 **DXF** 图纸。Skill 使用本地 CAD 引擎，**无需注册 MCP**。[审核与导出步骤](docs/try-in-ai.zh-CN.md#skill-优先的本地-cli)。
 
-想试一张更像工程图的图纸，可以说：“用 KJDraw 画一张毫米单位的六孔法兰图：外径 120、内孔 40、厚 20、螺栓孔中心圆直径 90、六个孔直径 10；标题为‘六孔法兰’，图号 DEMO-FLANGE。”已发布的 rc.3 工具会先生成待审提案，**不是自动批准的成品**。[审核并重开 KJD/DXF 候选文件](docs/try-in-ai.zh-CN.md#skill-优先的本地-cli)。
-
-想直接在浏览器里试？[AI 绘图](https://kanjieteam.github.io/kjdraw/ai/)是独立对话页面。填入自己的 API Key 和允许浏览器跨域请求的模型接口；密钥仅留在当前页面内存中，CAD 修改须由你确认才应用。
+不想安装？打开[AI 绘图](https://kanjieteam.github.io/kjdraw/ai/)，在浏览器中连接自己的模型。请求和所需图纸上下文会发给所选服务商；对话、图纸和密钥保存在此浏览器。共用电脑请清除本站数据。[连接要求与其他智能体](docs/try-in-ai.zh-CN.md)。
 
 ## 核心能力
 
@@ -155,15 +149,17 @@ sequenceDiagram
 - [Agent 接入说明](docs/agent.md)：给编程 Agent 使用的接入指南
 - [命令示例](examples/agent-command.mjs)：无需模型或 API Key，验证提议、批准和撤销
 
-## 目前能做什么
+## 文件格式与边界
+
+使用 **DXF** 与其他 CAD 软件交换图纸。KJD、KJP 是可选的原生格式，用于保留 KJDraw 图档和工程状态。
 
 | 方面 | 状态 |
 | --- | --- |
-| **KJD** 原生图纸 | ✅ 读写、校验、事务、版本、撤销/重做 |
-| **KJP** 工程包 | ✅ 一个包内多张图纸，含快照、哈希和命令日志 |
 | **DXF**（ASCII） | ✅ 有明确说明的子集，R14–2024 版本标签，见 [兼容范围](docs/dxf-compatibility.md) |
 | 二进制 DXF | ❌ 不支持 |
 | **DWG** | ❌ 不在 1.0 范围内，请先转换为 DXF（例如使用 ODA File Converter） |
+| **KJD** 原生图纸 | ✅ 读写、校验、事务、版本、撤销/重做 |
+| **KJP** 工程包 | ✅ 一个包内多张图纸，含快照、哈希和命令日志 |
 | **3D** | 🧪 实验性：网格、基本体和盒体布尔运算 |
 | 命令行 | ✅ 无界面检查、校验和转换 KJD、KJP、DXF，见 [文件指南](https://kanjieteam.github.io/kjdraw/docs/latest/files/) |
 
@@ -171,9 +167,22 @@ sequenceDiagram
 
 ## 参与贡献
 
-**我们的使命：让 KJDraw 成为 AI 时代首选的开源 CAD 引擎。**
+欢迎**任何行业**的开发者贡献技能包。共用同一个 CAD 引擎，按需附带模板、规则或辅助脚本。
 
-[贡献独立技能包](docs/contributing-skills.zh-CN.md) · [技能目录与样例](skills/README.md) · [其他贡献类型](CONTRIBUTING.zh-CN.md) · [English Skill guide](docs/contributing-skills.md)。不限勘察：在 `skills/kjdraw-<topic>/` 中复用同一 CAD 运行时，贡献自己行业的工作流，定义输入、产物与验收，再提交一个小型 PR。复用已有操作通常不需要修改内核；缺失能力另提 planner／插件或内核变更。
+**Fork → 新建 `skills/kjdraw-<topic>/` → 测试工作流 → 提交 PR。**
+
+[技能包开发指南](docs/contributing-skills.zh-CN.md) · [技能目录与样例](skills/README.md) · [其他贡献类型](CONTRIBUTING.zh-CN.md) · [English Skill guide](docs/contributing-skills.md)。
+
+写清输入、产物和验收方式。复用已有操作通常不需要修改内核；缺失的 planner、插件或内核能力请单独提案。
+
+新技能包至少包含 `SKILL.md`、`README.md` 和 `README.zh-CN.md`，然后在仓库根目录执行：
+
+```sh
+node scripts/validate-community-skills.mjs
+node --test tests/community-skills.spec.mjs
+```
+
+这两条检查包结构；还需为自己的工作流添加使用公开合成输入的行为测试，并更新[技能目录](skills/README.md)。
 
 现在最有价值的贡献：
 

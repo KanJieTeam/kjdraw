@@ -17,10 +17,6 @@ that stay editable, verifiable, undoable, and reopenable.
 
 </div>
 
-### Contribute a Skill for your industry
-
-Fork → add `skills/kjdraw-<topic>/` → test your workflow → open a PR. Reuse the same CAD engine; include templates, rules or helpers only when needed. Start with the [developer guide](docs/contributing-skills.md), [read-only text audit](skills/kjdraw-text-audit/README.md) or [mechanical hole pattern](skills/kjdraw-hole-pattern/README.md). Contributions are welcome from any industry.
-
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/">
     <img src="docs/media/kjdraw-workflow.gif" alt="KJDraw workbench: open a drawing, review a change, draw and dimension a part" width="100%" />
@@ -44,17 +40,15 @@ npm install -g @kanjieteam/kjdraw@next
 npx skills add KanJieTeam/kjdraw -g
 ```
 
-The first command installs the CAD engine; the short second command lets you choose where to add its Skill. Restart your agent, then ask:
+The first command installs the CAD engine; the second lets you choose which agent receives the Skill. Restart your agent, then ask:
 
 ```text
 Use KJDraw to draw a circle with a radius of 5 mm.
 ```
 
-The Skill calls `kjdraw agent` locally; **no MCP registration or model API key is needed by KJDraw**. Edits remain proposals until a human approves them. [Other agents and optional MCP setup](docs/try-in-ai.md).
+Review the proposed change, approve it, then export the drawing as **DXF**. The Skill uses the local CAD engine; **MCP registration is optional**. [Approval and export guide](docs/try-in-ai.md#skill-first-local-cli).
 
-For a more representative first drawing, ask: “Use KJDraw to draw a six-hole flange in millimeters: outer diameter 120, bore 40, thickness 20, bolt circle 90, holes diameter 10; title it Six-hole flange and use drawing ID DEMO-FLANGE.” The published rc.4 tool produces a review proposal, not an automatically approved drawing. [Review it and reopen the KJD/DXF candidates](docs/try-in-ai.md#skill-first-local-cli).
-
-Prefer the browser? [Try with AI](https://kanjieteam.github.io/kjdraw/ai/) is a separate chat page. Bring your own API key and a model endpoint that permits browser CORS requests; conversations, drawings and the key are saved in this browser. Clear the site's data to remove them, especially on shared devices. CAD changes remain proposals until you approve them.
+Prefer not to install? [Try with AI](https://kanjieteam.github.io/kjdraw/ai/) in your browser and connect your model. Your requests and drawing context go to that provider; conversations, drawings and the key stay saved in this browser. Clear site data on shared devices. [Connection requirements and other agents](docs/try-in-ai.md).
 
 ## What you can build
 
@@ -157,13 +151,15 @@ Each proposal is bound to the revision it was made against, can be used only onc
 
 ## Formats and scope
 
+Use **DXF** to exchange drawings with other CAD tools. KJD and KJP are optional native formats for KJDraw document and project state.
+
 | Area | Status |
 | --- | --- |
-| **KJD** native drawings | ✅ Read/write, validation, transactions, revisions, undo/redo |
-| **KJP** projects | ✅ Multiple drawings in one package with snapshots, hashes and command journals |
 | **DXF** (ASCII) | ✅ Documented subset, R14–2024 version labels — [compatibility details](docs/dxf-compatibility.md) |
 | Binary DXF | ❌ Not supported |
 | **DWG** | ❌ Not in 1.0 — convert to DXF first (for example with ODA File Converter) |
+| **KJD** native drawings | ✅ Read/write, validation, transactions, revisions, undo/redo |
+| **KJP** projects | ✅ Multiple drawings in one package with snapshots, hashes and command journals |
 | **3D** | 🧪 Experimental meshes, primitives and box booleans |
 | CLI | ✅ Inspect, validate and convert KJD, KJP and DXF headless — [file guide](https://kanjieteam.github.io/kjdraw/docs/latest/files/) |
 
@@ -171,9 +167,22 @@ Unsupported content is rejected rather than silently dropped. Full boundaries: [
 
 ## Contributing
 
-**Our mission: make KJDraw the default open-source CAD engine for the AI era.**
+Contributions are welcome from **any industry**. Share a Skill that reuses the CAD engine, with templates, rules or helpers only when needed.
 
-[Build an independent Skill](docs/contributing-skills.md) · [Skill catalog and samples](skills/README.md) · [All contribution types](CONTRIBUTING.md) · [中文技能包指南](docs/contributing-skills.zh-CN.md). Contributions are not limited to geology: reuse the same CAD runtime in `skills/kjdraw-<topic>/` for your industry's workflow; define inputs, outputs and acceptance, then submit a focused PR. Reusing existing operations normally does not need a kernel change; missing capabilities need a separate planner/plugin or engine proposal.
+**Fork → add `skills/kjdraw-<topic>/` → test your workflow → open a PR.**
+
+[Skill developer guide](docs/contributing-skills.md) · [Skill catalog and samples](skills/README.md) · [All contribution types](CONTRIBUTING.md) · [中文技能包指南](docs/contributing-skills.zh-CN.md).
+
+Define the inputs, outputs and acceptance checks. Reusing existing operations normally does not require a kernel change; propose missing planner, plugin or engine capabilities separately.
+
+For a new Skill, include `SKILL.md`, `README.md` and `README.zh-CN.md` in its folder, then run from the repository root:
+
+```sh
+node scripts/validate-community-skills.mjs
+node --test tests/community-skills.spec.mjs
+```
+
+These check package structure. Also add a focused test of your workflow using public synthetic inputs, and list the Skill in [the catalog](skills/README.md).
 
 The most useful contributions right now:
 
