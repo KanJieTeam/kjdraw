@@ -1,8 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { KJAgentToolSession, KJDRAW_AGENT_TOOLS } from '../src/agent-tools.js'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { createAgentGeometryPreview } from '../src/agent-preview.js'
+import { canonicalStringify } from '../src/utils.js'
 
 function fixture(options = {}) {
   const sdk = createKJDrawSDK(options)
@@ -15,7 +17,10 @@ const circleArgs = (revision = 0) => ({ expectedRevision: revision, units: 'mill
 function value(result) { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 
 test('tool definitions are frozen serializable schemas with no approval or arbitrary execution tool', () => {
-  assert.equal(KJDRAW_AGENT_TOOLS.length, 53)
+  assert.equal(KJDRAW_AGENT_TOOLS.length, 55)
+  const previousDefinitions = KJDRAW_AGENT_TOOLS.filter(tool => !['cad_query_curve_bounds', 'cad_query_curve_neighborhood'].includes(tool.name))
+  assert.equal(previousDefinitions.length, 53)
+  assert.equal(createHash('sha256').update(canonicalStringify(previousDefinitions)).digest('hex'), 'a60751347e747475e5499146e379bf7f4b92649490f46fe3bf248e2e3cfb3d20')
   assert.ok(KJDRAW_AGENT_TOOLS.every(tool => ['read', 'propose'].includes(tool.effect)))
   assert.deepEqual(JSON.parse(JSON.stringify(KJDRAW_AGENT_TOOLS)), KJDRAW_AGENT_TOOLS)
   for (const tool of KJDRAW_AGENT_TOOLS) {

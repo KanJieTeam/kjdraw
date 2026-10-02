@@ -1,6 +1,7 @@
 import type { KJDrawSDK } from './sdk.js';
 import type { KJDocument } from './document.js';
 import { type KJDrawingContextOptions } from './drawing-context.js';
+export type { KJNativeCurveQueryOptions, KJNativeCurveNeighborhoodOptions, KJNativeCurveBoundsPage, KJNativeCurveNeighborhoodPage } from './agent-native-geometry-query.js';
 import { type KJAgentRoadDrawingInput } from './agent-road-drawing.js';
 import { type KJRestoredRoadDrawingRecipe } from './road-drawing-recipe.js';
 import { type KJAgentInputAssetDescriptor, type KJAgentInputAssetReference } from './input-assets.js';

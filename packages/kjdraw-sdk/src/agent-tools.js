@@ -2,6 +2,7 @@
 import { createCommandReceipt } from './product-contract.js';
 import { createDrawingContext, createLayoutContext } from './drawing-context.js';
 import { findDrawingText } from './drawing-text-search.js';
+import { queryNativeCurveBounds, queryNativeCurveNeighborhood } from './agent-native-geometry-query.js';
 import { KJDrawError, KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze, normalizeName, stableHash } from './utils.js';
 import { createId } from './ids.js';
@@ -170,6 +171,81 @@ const queryFilters = {
     }),
     required: []
 };
+const nativeCurveQueryProperties = {
+    documentId: text,
+    expectedRevision: revision,
+    ownerId: text,
+    units: text,
+    ownerPolicy: {
+        type: 'string',
+        enum: [
+            'model-space-only'
+        ]
+    },
+    visibility: {
+        type: 'string',
+        enum: [
+            'include-hidden',
+            'visible-only'
+        ]
+    },
+    typeScope: {
+        type: 'string',
+        enum: [
+            'all-owner-entities',
+            'finite-line-circle-only'
+        ]
+    },
+    unsupportedPolicy: {
+        type: 'string',
+        enum: [
+            'reject',
+            'diagnostics'
+        ]
+    },
+    offset: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 4096
+    },
+    limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 200
+    },
+    maxEntities: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 4096
+    },
+    maxBytes: {
+        type: 'integer',
+        minimum: 1024,
+        maximum: 262144
+    }
+};
+const nativeCurveBoundsSchema = object(nativeCurveQueryProperties);
+const nativeCurveNeighborhoodSchema = object({
+    ...nativeCurveQueryProperties,
+    anchorId: text,
+    radius: {
+        type: 'number',
+        exclusiveMinimum: 0,
+        maximum: 1e12
+    },
+    metric: {
+        type: 'string',
+        enum: [
+            'text-insertion-to-finite-native-xy-curve'
+        ]
+    },
+    boundary: {
+        type: 'string',
+        enum: [
+            'inclusive'
+        ]
+    }
+});
 const nonnegative = {
     ...number,
     minimum: 0
@@ -4374,6 +4450,18 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
                 maximum: 262144
             }
         })
+    },
+    {
+        name: 'cad_query_curve_bounds',
+        effect: 'read',
+        description: 'Read native analytic model-owner XY centerline bounds of finite LINE and CIRCLE curves, not displayed glyph/stroke bounds, full-drawing extents or XYZ extents. Supply every explicit documentId, expectedRevision, exact native ownerId and units, model-space-only ownerPolicy, visibility, typeScope, unsupportedPolicy, pagination and resource limit. No owner, units or scope is inferred; paper projection and block expansion are unsupported. all-owner-entities inspects every live selected-owner entity and rejects unsupported geometry, including text or HATCH; finite-line-circle-only explicitly excludes other types and reports excludedCounts. The entire owner is inspected before paging, including hidden/type-excluded entities in maxEntities. reject fails closed; diagnostics returns scopeComplete:false, no certified bounds/rows and no continuation when geometry is unsupported. Otherwise bounds cover the complete declared curve scope even when rows are paged; null bounds with scopeComplete:true means an empty scope. Follow nextOffset at the exact same identity, revision and options. complete is true only when one response contains the entire result from offset zero. Uses binary64-no-selection-tolerance, without selection epsilon or inferred geology. maxBytes rejects the whole response rather than truncating it. Read only: no proposal, approval, geometry edit or history entry.',
+        inputSchema: nativeCurveBoundsSchema
+    },
+    {
+        name: 'cad_query_curve_neighborhood',
+        effect: 'read',
+        description: 'Read exact native model-owner XY distance from one same-owner live TEXT insertion-point anchorId to finite LINE and CIRCLE centerline curves. Supply every explicit documentId, expectedRevision, exact ownerId and units, model-space-only ownerPolicy, visibility, typeScope, unsupportedPolicy, pagination, resource limit, positive radius, metric=text-insertion-to-finite-native-xy-curve and boundary=inclusive. No radius, anchor, owner or units is guessed. Distance is to the finite segment or circle circumference, not an infinite line, circle center, filled disk or displayed label bounds. At a circle center the closest point is nonunique and reported as null. Uses binary64-no-selection-tolerance and distance<=radius, without a selection epsilon. Paper projection and block expansion are unsupported. The TEXT anchor is explicitly excluded from the candidate scope; finite-line-circle-only explicitly excludes other native types and reports excludedCounts. The whole owner is inspected before paging; unsupported geometry either rejects or yields scopeComplete:false with no candidate rows, never a partial certified answer. Follow nextOffset with identical identity, revision and policies; a final nonzero-offset page is not a complete neighborhood answer. maxEntities counts all live owner entities, maxBytes refuses whole over-budget results. Native proximity is untrusted geometry, not verified borehole/stratum meaning. Read only: no proposal, approval, geometry edit or history entry.',
+        inputSchema: nativeCurveNeighborhoodSchema
     }
 ]);
 function selectionSetRecord(document, value) {
@@ -5042,6 +5130,8 @@ export class KJAgentToolSession {
                     })
                 };
                 else if (name === 'cad_read_selection_sets') value = createSelectionSetContext(document, args.offset, args.limit, args.maxBytes);
+                else if (name === 'cad_query_curve_bounds') value = queryNativeCurveBounds(document, input);
+                else if (name === 'cad_query_curve_neighborhood') value = queryNativeCurveNeighborhood(document, input);
                 else if (name === 'cad_query_topology') value = createAgentTopologyContext(document, args);
                 else if (name === 'cad_read_geology_source') {
                     const drawingId = String(args.drawingId);

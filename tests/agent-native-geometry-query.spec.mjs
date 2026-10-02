@@ -256,7 +256,7 @@ test('erased entities are outside the explicit live owner scope; history remains
   await document.redo({ expectedRevision: document.revision })
   assert.equal(queryNativeCurveBounds(document, options(document)).rows.length, 1)
 })
-test('internal utility is not added to public agent registry or index and imports no benchmark gold/router', async () => {
+test('native helper imports no benchmark gold/router and is not directly re-exported by the root index', async () => {
   const source = await readFile(new URL('../packages/kjdraw-sdk/src/agent-native-geometry-query.ts', import.meta.url), 'utf8')
   for (const text of ['geology-round9', 'expectedRound9', 'fixture', 'KJDRAW_AGENT_TOOLS']) assert.equal(source.includes(text), false)
   const index = await readFile(new URL('../packages/kjdraw-sdk/src/index.ts', import.meta.url), 'utf8')

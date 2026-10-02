@@ -96,8 +96,8 @@ const resources = document => ['layers', 'textStyles', 'linetypes'].map(table =>
     payload: semanticReference(record.payload, document) })).sort((a, b) => a.name.localeCompare(b.name)) }))
 
 test('scalar tool is additive: every old full definition remains byte-exact and general [] API unchanged', () => {
-  assert.equal(KJDRAW_AGENT_TOOLS.length, 53)
-  assert.equal(hash(KJDRAW_AGENT_TOOLS.filter(tool => tool.name !== SCALAR)), 'e5e20a67c532037a9fe84248f7a534c8abc0ec7f2a599a506eb38add63dd353b')
+  assert.equal(KJDRAW_AGENT_TOOLS.length, 55)
+  assert.equal(hash(KJDRAW_AGENT_TOOLS.filter(tool => ![SCALAR, 'cad_query_curve_bounds', 'cad_query_curve_neighborhood'].includes(tool.name))), 'e5e20a67c532037a9fe84248f7a534c8abc0ec7f2a599a506eb38add63dd353b')
   assert.equal(hash(KJDRAW_AGENT_TOOLS.find(tool => tool.name === 'cad_propose_geology_revision')), '4700cdcb5d293caa0d3e767b8077562f210f6b34840419f037f66fed6ebb6ffc')
   const tool = KJDRAW_AGENT_TOOLS.find(tool => tool.name === SCALAR)
   assert.equal(tool.effect, 'propose'); assert.ok(Object.isFrozen(tool))
