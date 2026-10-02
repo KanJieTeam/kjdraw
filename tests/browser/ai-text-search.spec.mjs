@@ -92,6 +92,7 @@ test('prose-only response never creates an approval card and keeps its unchanged
   })
   await page.goto('/ai/')
   await page.getByTestId('drawing-file').setInputFiles({ name: 'public-sheet.dxf', mimeType: 'application/dxf', buffer: Buffer.from(dxf) })
+  await expect(page.getByTestId('drawing-context')).toBeVisible()
   await page.getByTestId('chat-input').fill('Change the hole label ZK03 to ZK03-A. Edit its text only.')
   await page.getByTestId('chat-send').click()
   await page.getByTestId('settings-provider').selectOption('custom')

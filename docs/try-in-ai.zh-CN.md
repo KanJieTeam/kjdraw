@@ -25,6 +25,8 @@ kjdraw-review --workspace <工作区绝对路径> --ledger <返回的账本路�
 
 审核器将生成经独立检查的 KJD/DXF，不覆盖源图。`kjdraw agent tools <name>` 给出当前工具参数 schema；Skill 应优先选高层工程工具，而非逐个生成几百个基础图元。
 
+当前源码审核器也支持 `cad_propose_design_bind` / `cad_propose_design_update` 的 `DESIGNCREATE` / `DESIGNUPDATE` 提案。带参数关系的候选图需要由审核者显式添加 `--flatten-design-relations`：KJD 保留关系以便继续改参数，DXF 展平后只交付支持的几何。用 `kjdraw-review --help` 核对实际安装版本；源码改动不代表 npm 或固定安装渠道已经发布。两孔流程见[两孔参数改型](../skills/kjdraw-hole-revision/README.zh-CN.md)。
+
 批准后，在同一测试工作区分别重开检查：
 
 ```sh
