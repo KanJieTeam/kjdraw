@@ -34,6 +34,24 @@ import { buildAgentCartesianChart } from './agent-cartesian-chart.js';
 import { compileGeologyColumn, compileGeologySection } from './geology-engineering.js';
 import { validateKnowledgePack } from './knowledge-pack.js';
 import { KJDRAW_GEOLOGY_KNOWLEDGE_PACK } from './knowledge-packs/geology-core.js';
+export const KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES = Object.freeze([
+    'cad_read_history',
+    'cad_propose_undo',
+    'cad_propose_redo',
+    'cad_read_geology_source',
+    'cad_propose_geology_scalar_revision',
+    'cad_propose_text_edit',
+    'cad_check_geometry',
+    'cad_read_drawing',
+    'cad_read_page',
+    'cad_measure_distance',
+    'cad_propose_move',
+    'cad_find_text',
+    'cad_query_drawing',
+    'cad_query_topology',
+    'cad_read_layouts',
+    'cad_read_selection_sets'
+]);
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -2344,12 +2362,15 @@ const geologySectionExampleSchema = objectWithOptional({
     'spacingMeters',
     'title'
 ]);
-const geologyRevisionHoleFields = [
+const geologyScalarRevisionHoleFields = [
     'collarElevation',
     'depth',
     'station',
     'initialWaterDepth',
-    'stableWaterDepth',
+    'stableWaterDepth'
+];
+const geologyRevisionHoleFields = [
+    ...geologyScalarRevisionHoleFields,
     'strata',
     'observations',
     'groundwaterObservations'
@@ -2360,6 +2381,48 @@ const geologyRevisionClearFields = [
     'observations',
     'groundwaterObservations'
 ];
+const geologyScalarRevisionSchema = object({
+    expectedRevision: revision,
+    units: {
+        type: 'string',
+        enum: [
+            'millimeter'
+        ]
+    },
+    drawingId: text,
+    updates: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 24,
+        description: 'Only requested changed native scalar fields, one update per exact existing holeId. Omitted fields retain their exact prior values or absence; no inferred facts or automatic correction.',
+        items: objectWithOptional({
+            holeId: {
+                ...text,
+                maxLength: 64
+            },
+            ...Object.fromEntries(geologyScalarRevisionHoleFields.map((key)=>[
+                    key,
+                    geologyHoleSchema.properties[key]
+                ])),
+            clearFields: {
+                type: 'array',
+                minItems: 1,
+                maxItems: 2,
+                description: 'Explicitly remove an optional water-depth fact because it is unknown or withdrawn. Numeric zero remains a known value, not a clear operation. Never set and clear the same field.',
+                items: {
+                    type: 'string',
+                    enum: [
+                        'initialWaterDepth',
+                        'stableWaterDepth'
+                    ]
+                }
+            }
+        }, [
+            ...geologyScalarRevisionHoleFields,
+            'clearFields'
+        ])
+    }
+});
 const geologyExactLinkSchema = object({
     fromHoleId: {
         ...text,
@@ -3744,6 +3807,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         })
     },
     {
+        name: 'cad_propose_geology_scalar_revision',
+        effect: 'propose',
+        description: 'Propose only changed native collarElevation, depth, station, initialWaterDepth or stableWaterDepth on the SAME source-backed column/section after reading cad_read_geology_source at the current drawing revision. Measurements are metres, not plotted millimetres. Use exact drawingId and existing holeId. Unspecified scalar values and every retained interval, observation, link, optional declaration and resource remain unchanged. Only explicit initialWaterDepth/stableWaterDepth clears are supported; zero means a known value, and absent means unknown. Full replacement arrays, observation changes, link changes and extra fields are rejected, never stripped or defaulted. Depth/station changes must remain valid with the unchanged retained facts; no automatic geology repair. This uses the same native source-and-geometry compiler, complete preview and one undoable host-approved GEOLOGY_DRAWING_UPDATE transaction as the general revision API. A valid extra scalar is still visible for host review, not proof of caller intent. Does not read facts automatically or support persisted-task approval.',
+        inputSchema: geologyScalarRevisionSchema
+    },
+    {
         name: 'cad_propose_geology_revision',
         effect: 'propose',
         description: geologyRevisionScalarOnlyContract + 'Revise the SAME source-backed column/section drawing after reading cad_read_geology_source. Supply exact holeId and only requested changed borehole fields; depths/elevations/station are metres. Unspecified fields remain unchanged; do not resend unchanged arrays when changing one scalar. For selected observation edits use updates[].observationChanges with explicit add/update/remove operations. An update/remove target is exact kind+id+expectedDepth from the BEFORE source snapshot, so repeated IDs at different depths remain distinct. Update set contains only requested depth/value/displayLabel/sampleMarker/rangeTop/rangeBottom; all unspecified records and laboratory facts remain unchanged. No inferred records, implicit range movement or laboratory-map patches. Never combine observationChanges with observations or clearFields:[observations]. For a links-only edit to a complete source-backed section, use updates:[] and linkChanges for exact incremental correlations/uncorrelatedOccurrences add/remove operations, without resending unchanged hole facts or declarations. Delta targets use the same BEFORE source interval IDs, never legacy stratum-code selectors. Explicitly remove BOTH prior uncorrelated occurrences when adding a link; explicitly add BOTH uncorrelated endpoints when removing a link. Surviving source declarations retain order and additions append in caller order. Never mix linkChanges with nonempty updates or top-level full replacement lists. The existing correlations and/or uncorrelatedOccurrences lists remain complete replacements: preserve every unchanged declaration when explicitly using that API. For every station-adjacent pair, all intervals on BOTH holes must be explicitly covered by an exact interval-ID correlation or a holeId/adjacentHoleId/intervalId uncorrelatedOccurrence. An interval in a middle hole has an independent occurrence toward each neighbour; do not infer coverage or continuity from equal names, lithology or codes. The compiler derives stratum and water elevations from collarElevation minus stored depths, so changing collarElevation alone rebuilds these annotations without a separate elevation switch. strata and observations are complete-array replacements, NOT patches: preserve EVERY unchanged interval, observation, optional range/measurement fact and explicit identity; omitted records are deleted. observations:[] means the caller confirmed no records; clearFields:[observations] removes the field and means unknown, so never interchange them or use null to clear. Sample rangeTop/rangeBottom are measured metres, must both be supplied, contain depth, remain in the hole, span at most 5 metres and not overlap. Sample measurements retain direct numeric laboratory values and caller-declared field-grid units, never inferred units or guessed conversions. A replacement intervalId explicitly named by the user may be used for a requested merge or split; matching source lithology/code/name are data, not proof of cross-hole continuity. When splitting/merging section strata, supply updated explicit correlations and occurrence coverage; never invent geological continuity. Preserves exact unchanged CAD objects and all unrelated manual content. Modified generated objects are explicitly replaced, not assigned guessed semantic IDs. Manual drift, protected layers, stale revision and external references cause rejection without editing. Returns native geometry plus before/after source facts for human approval; one transaction updates data, HATCH and drawing, with undo/redo and KJD source recovery. Geometry-only DXF has no source recipe and cannot use this tool.',
@@ -4725,6 +4794,9 @@ export class KJAgentToolSession {
     get units() {
         return this.#document.snapshot().header.units;
     }
+    get toolProfile() {
+        return this.#options.toolProfile;
+    }
     get geologyColumnKnowledge() {
         const binding = this.#geologyColumnKnowledge;
         return binding ? Object.freeze({
@@ -4749,6 +4821,7 @@ export class KJAgentToolSession {
         const millimeterTools = [
             'cad_read_geology_source',
             'cad_propose_geology_revision',
+            'cad_propose_geology_scalar_revision',
             'cad_propose_manufacturing_sheet',
             'cad_propose_architecture_plan',
             'cad_propose_cartesian_chart',
@@ -4759,7 +4832,7 @@ export class KJAgentToolSession {
         ];
         const sectionPack = this.#geologySectionKnowledge?.pack ?? KJDRAW_GEOLOGY_KNOWLEDGE_PACK;
         const sectionRule = sectionPack.rules?.['geology-section-layout'];
-        return deepFreeze(KJDRAW_AGENT_TOOLS.filter((tool)=>!millimeterTools.includes(tool.name) || units === 'millimeter').filter((tool)=>tool.name !== 'cad_propose_site_plan' || units === 'meter').map((tool)=>{
+        return deepFreeze(KJDRAW_AGENT_TOOLS.filter((tool)=>this.#options.toolProfile === 'full' || KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES.includes(tool.name)).filter((tool)=>!millimeterTools.includes(tool.name) || units === 'millimeter').filter((tool)=>tool.name !== 'cad_propose_site_plan' || units === 'meter').map((tool)=>{
             if (!tool.inputSchema.properties?.units) return tool;
             let properties = {
                 ...tool.inputSchema.properties,
@@ -4809,6 +4882,7 @@ export class KJAgentToolSession {
     }
     #sdk;
     #document;
+    #options;
     #pending = new Map();
     #inputAssets = new Map();
     #inputAssetBytes = 0;
@@ -4820,28 +4894,63 @@ export class KJAgentToolSession {
     #proposals = 0;
     constructor(sdk, document, options = {}){
         if (sdk.documents.get(document.id) !== document) throw new KJValidationError('Agent tools require an attached document');
+        if (!options || typeof options !== 'object' || Array.isArray(options) || ![
+            Object.prototype,
+            null
+        ].includes(Object.getPrototypeOf(options))) throw new KJValidationError('Agent session options require plain data');
+        const copied = {};
+        for (const key of [
+            'toolProfile',
+            'geologyColumnKnowledge',
+            'geologySectionKnowledge'
+        ]){
+            const descriptor = Object.getOwnPropertyDescriptor(options, key);
+            if (!descriptor) continue;
+            if (!('value' in descriptor) || !descriptor.enumerable) throw new KJValidationError('Agent session profile and knowledge options require enumerable data properties, not accessors');
+            Object.defineProperty(copied, key, {
+                value: descriptor.value,
+                enumerable: true
+            });
+        }
+        const toolProfile = copied.toolProfile === undefined ? 'full' : copied.toolProfile;
+        if (toolProfile !== 'full' && toolProfile !== 'geology-scalars-v1') throw new KJValidationError('Unknown agent tool profile; use full or geology-scalars-v1');
         this.#sdk = sdk;
         this.#document = document;
-        if (options.geologyColumnKnowledge) {
-            const { sha256, pack: source } = options.geologyColumnKnowledge;
+        if (copied.geologyColumnKnowledge) {
+            const { sha256, pack: source } = copied.geologyColumnKnowledge;
             if (typeof sha256 !== 'string' || !/^[a-f0-9]{64}$/u.test(sha256)) throw new KJValidationError('Host geology column knowledge requires an exact lowercase SHA-256');
-            const pack = validateKnowledgePack(source);
+            const pack = validateKnowledgePack(structuredClone(source));
             if (pack.domain !== 'geology' || !pack.rules?.['geology-column-layout']) throw new KJValidationError('Host geology column knowledge must declare the geology domain and geology-column-layout rule');
             this.#geologyColumnKnowledge = {
                 pack,
                 sha256
             };
         }
-        if (options.geologySectionKnowledge) {
-            const { sha256, pack: source } = options.geologySectionKnowledge;
+        if (copied.geologySectionKnowledge) {
+            const { sha256, pack: source } = copied.geologySectionKnowledge;
             if (typeof sha256 !== 'string' || !/^[a-f0-9]{64}$/u.test(sha256)) throw new KJValidationError('Host geology section knowledge requires an exact lowercase SHA-256');
-            const pack = validateKnowledgePack(source);
+            const pack = validateKnowledgePack(structuredClone(source));
             if (pack.domain !== 'geology' || !pack.rules?.['geology-section-layout']) throw new KJValidationError('Host geology section knowledge must declare the geology domain and geology-section-layout rule');
             this.#geologySectionKnowledge = {
                 pack,
                 sha256
             };
         }
+        this.#options = deepFreeze({
+            toolProfile,
+            ...this.#geologyColumnKnowledge ? {
+                geologyColumnKnowledge: {
+                    pack: this.#geologyColumnKnowledge.pack,
+                    sha256: this.#geologyColumnKnowledge.sha256
+                }
+            } : {},
+            ...this.#geologySectionKnowledge ? {
+                geologySectionKnowledge: {
+                    pack: this.#geologySectionKnowledge.pack,
+                    sha256: this.#geologySectionKnowledge.sha256
+                }
+            } : {}
+        });
     }
     async registerRoadDrawingRecipe(recipe) {
         if (this.#busy) throw new KJValidationError('Session is busy; wait before registering a road recipe');
@@ -4892,6 +5001,14 @@ export class KJAgentToolSession {
             const definition = this.definitions.find((tool)=>tool.name === name);
             if (!definition) throw new KJValidationError('Unknown CAD tool; use a tool from this session definitions');
             validate(definition.inputSchema, input);
+            if (name === 'cad_propose_geology_scalar_revision') {
+                for (const record of [
+                    input,
+                    ...input.updates
+                ]){
+                    if (Object.values(Object.getOwnPropertyDescriptors(record)).some((descriptor)=>!descriptor.enumerable)) throw new KJValidationError('Geology scalar revision fields require enumerable plain data; hidden changes are never discarded');
+                }
+            }
             const args = structuredClone(input);
             const document = this.#document;
             let value;
@@ -5029,7 +5146,7 @@ export class KJAgentToolSession {
                             sourceToolName: name
                         });
                         this.#proposals++;
-                    } else if (name === 'cad_propose_geology_revision') {
+                    } else if (name === 'cad_propose_geology_revision' || name === 'cad_propose_geology_scalar_revision') {
                         if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session');
                         const previous = readGeologyDrawingRecipe(document, String(args.drawingId));
                         const updates = args.updates;

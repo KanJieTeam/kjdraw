@@ -18,6 +18,7 @@ import { type KJAgentTaskCapabilityLock } from './agent-tasks.js';
 import type { KJAgentCapabilityRegistry } from './agent-capabilities.js';
 export type { KJAgentTopologyQuery } from './agent-topology-context.js';
 export type { KJEraseImpact, KJEraseImpactBlocker, KJEraseImpactQuery } from './erase-impact.js';
+import { type KJGeologyColumnInput } from './geology-engineering.js';
 export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';
 export type { KJAgentCompactDrawingInput } from './agent-drawing-compact.js';
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';
@@ -29,6 +30,30 @@ export interface KJAgentGeologySectionKnowledgeBinding {
     pack: unknown;
     sha256: string;
 }
+/** Explicit trusted-caller policy; never inferred from a prompt or drawing facts. */
+export type KJAgentToolProfile = 'full' | 'geology-scalars-v1';
+export interface KJAgentToolSessionOptions {
+    /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */
+    toolProfile?: KJAgentToolProfile;
+    geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;
+    geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;
+}
+export type KJAgentGeologyScalarRevisionUpdate = Partial<Pick<KJGeologyColumnInput['hole'], typeof geologyScalarRevisionHoleFields[number]>> & {
+    holeId: string;
+    clearFields?: ('initialWaterDepth' | 'stableWaterDepth')[];
+};
+/** Native scalar facts only; missing values remain absent and are never inferred. */
+export interface KJAgentGeologyScalarRevisionInput {
+    expectedRevision: number;
+    units: 'millimeter';
+    drawingId: string;
+    updates: KJAgentGeologyScalarRevisionUpdate[];
+}
+/** Fixed scope: native reads/checks, scalar proposals, real history, and explicit manual MOVE/TEXTEDIT.
+ * This does not prove a particular source drawing was read in the current model run.
+ * Host approval is not a tool; general source replacement and creation are not in this profile.
+ */
+export declare const KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES: readonly string[];
 export interface KJAgentPatternDrawingInput extends KJAgentCompactDrawingInput {
     arrays: (KJRectangularDrawingPattern & {
         sources: string[];
@@ -210,6 +235,7 @@ export type KJAgentToolResult = {
         readonly message: string;
     };
 };
+declare const geologyScalarRevisionHoleFields: readonly ['collarElevation', 'depth', 'station', 'initialWaterDepth', 'stableWaterDepth'];
 export declare const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[];
 /** Model-neutral starter tools. Bind one authorized document per session.
  * Only definitions/call belong in the model adapter. approve/reject are trusted
@@ -221,6 +247,8 @@ export declare class KJAgentToolSession {
     get documentId(): string;
     get revision(): number;
     get units(): string;
+    /** Immutable constructor policy. It narrows tools, not read-evidence or caller-intent guarantees. */
+    get toolProfile(): KJAgentToolProfile;
     get geologyColumnKnowledge(): Readonly<{
         id: string;
         version: string;
@@ -235,10 +263,7 @@ export declare class KJAgentToolSession {
     isBoundTo(document: KJDocument): boolean;
     /** Bind unit schemas to the drawing so models see its canonical unit name. */
     get definitions(): readonly KJAgentToolDefinition[];
-    constructor(sdk: KJDrawSDK, document: KJDocument, options?: {
-        geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;
-        geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;
-    });
+    constructor(sdk: KJDrawSDK, document: KJDocument, options?: KJAgentToolSessionOptions);
     /** Trusted host operation: verify saved parameters against all current generated objects.
      * Registration is bound to this exact document revision and is not model-callable. */
     registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;

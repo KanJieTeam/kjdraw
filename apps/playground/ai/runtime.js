@@ -49,6 +49,20 @@ function connectionSettings({ endpoint, model, apiKey, provider = 'custom', prot
 
 function errorResult(code, message) { return { status: 'error', text: '', error: { code, message } } }
 
+// A constructor-only caller policy, never a model setting, prompt-derived
+// choice or authority restored from untrusted saved drawing/chat data.
+function runtimeToolProfile(options) {
+  if (!options || typeof options !== 'object' || Array.isArray(options)) throw new Error('Runtime options must be an object.')
+  const descriptor = Object.getOwnPropertyDescriptor(options, 'toolProfile')
+  if ((!descriptor && 'toolProfile' in options) ||
+    (descriptor && (!Object.hasOwn(descriptor, 'value') || !descriptor.enumerable))) {
+    throw new Error('Runtime toolProfile must be an own enumerable data property.')
+  }
+  const profile = descriptor?.value === undefined ? 'full' : descriptor.value
+  if (profile !== 'full' && profile !== 'geology-scalars-v1') throw new Error('Unknown runtime toolProfile.')
+  return profile
+}
+
 /** A host-only prerequisite check over actual same-run SDK receipts. It never
  * reads a document for the model, resolves requested facts or prepares a plan.
  * Nonblank/source-backed documents and other tool/API policies are unchanged.
@@ -128,6 +142,7 @@ export function computeAiProposalCamera(document, preview, engineeringEvidence, 
  * The endpoint must accept browser CORS requests; GitHub Pages supplies no model proxy.
  */
 export function createAiChatRuntime(options = {}) {
+  const toolProfile = runtimeToolProfile(options)
   const sdk = createKJDrawSDK()
   let document = sdk.createDocument({ documentId: `ai-${crypto.randomUUID()}`, title: 'AI drawing', units: options.units ?? 'millimeter' })
   const fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis)
@@ -149,6 +164,9 @@ export function createAiChatRuntime(options = {}) {
   function configure(next = {}) {
     if (disposed) throw new Error('会话已经结束。')
     if (activeController) throw new Error('请等待当前请求结束后更换模型。')
+    if (next && (typeof next === 'object' || typeof next === 'function') && 'toolProfile' in next) {
+      throw new Error('Runtime toolProfile is immutable; select it only when creating a new runtime.')
+    }
     connection = connectionSettings(next)
     return { configured: Boolean(connection), model: connection?.model ?? '' }
   }
@@ -283,13 +301,14 @@ export function createAiChatRuntime(options = {}) {
           }
         },
       }) : null
-      const session = new KJAgentToolSession(sdk, document)
+      const session = new KJAgentToolSession(sdk, document, { toolProfile })
       const normalized = prompt.trim()
       if (!model) return errorResult('AI_MODEL_REQUIRED', '请先连接模型，再发送绘图需求。')
-      const capability = getKJDrawChatCapabilityForRequest(document, normalized)
-      const candidates = inspectBuildingCandidates(document)
+      const scalarProfile = toolProfile === 'geology-scalars-v1'
+      const capability = scalarProfile ? null : getKJDrawChatCapabilityForRequest(document, normalized)
+      const candidates = scalarProfile ? [] : inspectBuildingCandidates(document)
       const availableTools = new Set(session.definitions.map(tool => tool.name))
-      const toolNames = [...new Set(getKJDrawChatToolNamesForRequest(document, normalized)
+      const toolNames = scalarProfile ? session.definitions.map(tool => tool.name) : [...new Set(getKJDrawChatToolNamesForRequest(document, normalized)
         .filter(name => availableTools.has(name))
         .filter(name => document.listEntities().length === 0 ||
           !['cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_section_example'].includes(name)))]
@@ -339,7 +358,7 @@ export function createAiChatRuntime(options = {}) {
       const scene = candidates.length ? describeBuildingCandidates(document) : ''
       const geologyIds = Object.keys(document.snapshot().opaquePayloads).filter(key => key.startsWith('geology-drawing-recipe:')).slice(0,16).map(key => key.slice('geology-drawing-recipe:'.length))
       const geologyNotice = geologyIds.length
-        ? `Source-backed geology drawing IDs: ${JSON.stringify(geologyIds)}. For borehole data changes, first call cad_read_geology_source at the current revision with an exact drawingId, then cad_propose_geology_revision using exact hole/interval identities and only requested changes. Rebuild source data and native drawing together; editing labels alone does not change borehole data. Source records are supplied facts, not independently verified measurements. `
+        ? `Source-backed geology drawing IDs: ${JSON.stringify(geologyIds)}. For borehole data changes, first call cad_read_geology_source at the current revision with an exact drawingId, then ${scalarProfile ? 'cad_propose_geology_scalar_revision using exact hole identities and only requested supported scalar/water-clear changes' : 'cad_propose_geology_revision using exact hole/interval identities and only requested changes'}. Rebuild source data and native drawing together; editing labels alone does not change borehole data. Source records are supplied facts, not independently verified measurements. `
         : ''
       const readNotice = document.listEntities().length && !geologyIds.length
         ? 'For a target named by hole ID, layer label, title or other drawing text, use cad_find_text to find complete text and exact IDs throughout the drawing, then cad_query_drawing with IDs or a local bounding box to inspect nearby geometry. Do not assume cad_read_drawing first page contains every target. Read at the current revision after every approved or manual change. '
@@ -478,12 +497,12 @@ export function createAiChatRuntime(options = {}) {
     history = []
   }
 
-  return { send, configure, importDocument, exportLocalState, restoreLocalState, getViewerCamera, renderProposal, renderDocument, approve, reject, applyHistory, exportDocument, destroy,
+  return Object.defineProperty({ send, configure, importDocument, exportLocalState, restoreLocalState, getViewerCamera, renderProposal, renderDocument, approve, reject, applyHistory, exportDocument, destroy,
     get configured() { return Boolean(connection) },
     get revision() { return document.revision },
     get entityCount() { return document.listEntities().length },
     get drawingHistory() { return document.history },
     get historyRestoreWarning() { return historyRestoreWarning },
     get historyStorage() { return historyStorage },
-  }
+  }, 'toolProfile', { enumerable: true, get: () => toolProfile })
 }

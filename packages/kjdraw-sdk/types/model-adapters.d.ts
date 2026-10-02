@@ -60,6 +60,10 @@ export interface KJModelRequest {
 }
 /** Bounded OpenAI-compatible request fields used by domestic model profiles. Reserved CAD/tool fields cannot be overridden. */
 export interface KJChatRequestExtensions {
+    /** Explicit host opt-in for compatible providers. Valid JSON is not evidence of answer correctness. */
+    readonly response_format?: {
+        readonly type: 'json_object';
+    };
     readonly thinking?: {
         readonly type: 'enabled' | 'disabled';
         readonly keep?: 'all' | null;
