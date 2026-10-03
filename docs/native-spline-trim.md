@@ -67,8 +67,18 @@ remain enforced; failures keep drawing state and undo/redo unchanged.
 `breakEntityPayloads` and `trimEntityPayloads` provide pure geometry previews.
 The latter accepts an optional fourth argument `{ tolerance, pickParameter }`
 for SPLINE targets. Existing other-curve behavior is unchanged. This addition
-is a SDK geometry/command feature; the existing boundary-edit UI retains its
-current target and boundary restrictions.
+is available through the shared workbench controls: point BREAK, two-point
+BREAK and TRIM retain native SPLINE pieces. Continuous boundary TRIM previews
+the same native pieces before applying one undoable command. Workbench cutting
+boundaries remain LINE/RAY/XLINE/CIRCLE/ARC; ELLIPSE/SPLINE boundaries and explicit
+native parameters are SDK options. BREAK controls default to a `1e-7` pick
+tolerance; explicit larger tolerances still work for the existing non-spline
+targets, while SPLINE retains the supported `1e-9` to `1e-2` range.
+Mouse picks within the existing nine-pixel hit aperture are projected onto
+the selected native spline before certification. The core still recovers all
+matching branches and rejects ambiguous points; it does not use the nearest
+query's parameter to authorize a cut. Typed coordinates retain their exact
+values and must lie on the curve within the requested tolerance.
 Standard Agent proposal tools do not expose BREAK or TRIM; this SDK addition
 does not grant models new write permissions or bypass host approval.
 

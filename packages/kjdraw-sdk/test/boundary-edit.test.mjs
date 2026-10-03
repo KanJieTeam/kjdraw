@@ -6,6 +6,38 @@ import { createKJDrawSDK, KJDocument } from '../src/index.js'
 const records = document => Object.fromEntries(document.listObjects({ includeErased: true }).map(record => [record.id, record]))
 const code = value => error => error.details?.code === `boundary-edit.${value}`
 
+test('continuous spline trim previews native pieces, applies the reviewed command and undoes exactly', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const source = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[0, 0, 0], [5, 10, 0], [10, 0, 0]], knots: [2, 2, 2, 6, 6, 6],
+  } }, { document })
+  const boundaries = []
+  for (const x of [2, 8]) boundaries.push(await sdk.executeCommand('CREATE', { type: 'LINE',
+    payload: { start: [x, -10, 0], end: [x, 10, 0] } }, { document }))
+  const before = records(document), undo = document.history.undoCount
+  const session = createBoundaryEditSession('trim', { document, boundaryIds: boundaries.map(entity => entity.id) })
+  session.confirmBoundaries()
+  assert.throws(() => session.preview(source.id, [5, 9]), code('geometry'))
+  assert.deepEqual(records(document), before)
+  const preview = session.preview(source.id, [5, 5])
+  assert.deepEqual(preview.pieces.map(piece => piece.type), ['SPLINE', 'SPLINE'])
+  assert.deepEqual(records(document), before)
+  const expectedPayloads = preview.pieces.map(piece => piece.payload)
+  await session.apply(preview, request => sdk.executeCommandEnvelope(sdk.createCommandEnvelope(request.command,
+    request.arguments, { document, expectedRevision: request.expectedRevision, origin: 'ui' }), { document }))
+  assert.deepEqual(document.listEntities({ type: 'SPLINE' }).map(entity => entity.payload), expectedPayloads)
+  assert.equal(session.state.committedCount, 1)
+  assert.equal(document.history.undoCount, undo + 1)
+  boundaries.forEach(entity => assert.deepEqual(document.getObject(entity.id), entity))
+  const after = records(document)
+  await document.undo(); assert.deepEqual(records(document), before)
+  await document.redo(); assert.deepEqual(records(document), after)
+  assert.deepEqual(records(KJDocument.open(document.serialize())), JSON.parse(JSON.stringify(after)))
+  const unsupported = createBoundaryEditSession('extend', { document, boundaryIds: boundaries.map(entity => entity.id) })
+  unsupported.confirmBoundaries()
+  assert.throws(() => unsupported.preview(source.id, [1, 1.8]), code('target-type'))
+})
+
 async function expectUnexpectedCommit(promise, session) {
   await assert.rejects(promise, code('unexpected-commit'))
   assert.equal(session.state.committedCount, 0)

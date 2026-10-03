@@ -28,13 +28,45 @@ test('strictly-positive continuous controls do not inherit an epsilon-based HTML
   }
 })
 
-test('boundary controls expose executable polyline targets consistently with SDK discovery',()=>{
+test('boundary controls expose executable targets consistently with SDK discovery',()=>{
   const commands=createKJDrawSDK().capabilities().commands
   for(const id of ['trim','extend']){
     const definition=getKJModificationDefinition(id), capability=commands.find(command=>command.id===definition.command).capabilities
     assert.deepEqual(definition.targetEntityTypes,capability.targetEntityTypes)
     for(const type of ['LWPOLYLINE','POLYLINE'])assert.doesNotThrow(()=>validateKJModificationSelection(definition,[{id:'target',type},{id:'boundary',type:'LINE'}]))
-    assert.throws(()=>validateKJModificationSelection(definition,[{id:'target',type:'SPLINE'},{id:'boundary',type:'LINE'}]),/target first/)
+    const splineSelection = [{id:'target',type:'SPLINE'},{id:'boundary',type:'LINE'}]
+    if(id==='trim') assert.doesNotThrow(()=>validateKJModificationSelection(definition,splineSelection))
+    else assert.throws(()=>validateKJModificationSelection(definition,splineSelection),/target first/)
+  }
+})
+
+test('spline point controls build executable native BREAK and TRIM commands with atomic undo', async () => {
+  for (const operation of ['break', 'break-two-point', 'trim']) {
+    const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+    const source = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+      degree: 2, controlPoints: [[0, 0, 0], [5, 10, 0], [10, 0, 0]], knots: [0, 0, 0, 1, 1, 1],
+    } }, { document })
+    const boundaries = []
+    if (operation === 'trim') for (const x of [2, 8]) boundaries.push(await sdk.executeCommand('CREATE', {
+      type: 'LINE', payload: { start: [x, -10, 0], end: [x, 10, 0] },
+    }, { document }))
+    const selected = [source, ...boundaries], definition = getKJModificationDefinition(operation)
+    validateKJModificationSelection(definition, selected)
+    const before = document.listObjects({ includeErased: true }), undo = document.history.undoCount
+    const built = buildKJModificationCommand(operation, { ids: selected.map(entity => entity.id),
+      points: operation === 'break-two-point' ? [[2, 3.2], [8, 3.2]] : [[5, 5]], values: {} })
+    await sdk.executeCommand(built.command, built.arguments, { document })
+    const pieces = document.listEntities({ type: 'SPLINE' })
+    assert.equal(pieces.length, 2)
+    assert.equal(document.history.undoCount, undo + 1)
+    assert.equal(pieces[0].id, source.id)
+    assert.ok(pieces.every(entity => entity.payload.degree === 2))
+    const domains = pieces.map(entity => [entity.payload.knots[2], entity.payload.knots[entity.payload.controlPoints.length]])
+    domains.forEach((interval, index) => interval.forEach((value, endpoint) => close(value,
+      operation === 'break' ? [[0, .5], [.5, 1]][index][endpoint] : [[0, .2], [.8, 1]][index][endpoint], 1e-7)))
+    boundaries.forEach(entity => assert.deepEqual(document.getObject(entity.id), entity))
+    await document.undo()
+    assert.deepEqual(document.listObjects({ includeErased: true }), before)
   }
 })
 
@@ -128,7 +160,7 @@ test('all 20 modification controls build exact arguments accepted by the real SD
         const entity = await create('LINE', { start: [0, 0], end: [10, 0] })
         return {
           context: { ids: [entity.id], values: {}, points: [[4, 0]] },
-          expected: { id: entity.id, tolerance: 0.1, point: [4, 0] },
+          expected: { id: entity.id, tolerance: 1e-7, point: [4, 0] },
         }
       },
     },

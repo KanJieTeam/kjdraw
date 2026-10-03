@@ -5,7 +5,7 @@ import { KJDocument } from './document.js'
 import type { KJCommandArguments } from './commands.js'
 import { editEntityGrip, type KJEntityGrip, type KJPointInput } from './grips.js'
 import type { KJReadonlyObjectRecord } from './schema.js'
-import { getDocumentSnapSettings, KJ_SNAP_MODES, type KJSnapCandidate, type KJSnapMode } from './snapping.js'
+import { getDocumentSnapSettings, KJ_SNAP_MODES, nearestPointOnEntity2, type KJSnapCandidate, type KJSnapMode } from './snapping.js'
 import type { KJDxfPlotSettings } from './plot-settings.js'
 import type { KJFileAdapterOptions, KJFileReadProgress } from './file-adapters.js'
 import { openDrawingPrintWindow, type KJDrawingPrintHtml, type KJDrawingPrintOptions } from './print-export.js'
@@ -2359,6 +2359,16 @@ export class KJDrawWorkbench {
     if (hadPreview) this.renderer.render()
   }
 
+  #splinePointerPoint(entity: KJReadonlyObjectRecord | null, world: Point2): Point2 {
+    if (entity?.type !== 'SPLINE') return world
+    // Pointer pixels select a nearby source point; they cannot encode a 1e-7
+    // drawing-unit tolerance. This query does not select a destructive native
+    // parameter: BREAK/TRIM still certify all branches and refuse ambiguity.
+    const nearest = nearestPointOnEntity2(entity, world)
+    if (nearest.distance > 9 / this.renderer.camera.scale) return world
+    return [nearest.point[0], nearest.point[1]]
+  }
+
   #previewBoundaryTarget(location: Point2): void {
     this.#clearBoundaryPreview()
     const session = this.#boundarySession
@@ -2367,7 +2377,7 @@ export class KJDrawWorkbench {
     const hit = this.renderer.hitTest(location, 9)
     if (!hit || session.state.boundaryIds.includes(hit.entity.id)) { this.#setMessage(session.prompt); return }
     try {
-      const preview = session.preview(hit.entity.id, this.renderer.screenToWorld(location))
+      const preview = session.preview(hit.entity.id, this.#splinePointerPoint(hit.entity, this.renderer.screenToWorld(location)))
       this.#boundaryPreview = preview
       this.renderer.drawPreview(preview.pieces, this.#theme === 'dark' ? '#8fc0ff' : '#175fc8')
       this.#setMessage(session.prompt)
@@ -2394,11 +2404,11 @@ export class KJDrawWorkbench {
         session.setBoundaries(ids)
         await this.execute('SELECT', { ids, operation: 'replace' }, { expectedRevision: gesture.revision })
       } else {
-        // A trim pick is the raw clicked portion, not an object-snap endpoint:
-        // snapping can turn a valid interior pick into an ambiguous exact cut.
+        // Pick a source portion rather than an object-snap endpoint. Only native
+        // splines project pointer quantization onto their nearby source curve.
         const hit = this.renderer.hitTest(location, 9)
         if (!hit) { this.#setMessage(this.#t('boundaryEmpty')); return }
-        const preview = session.preview(hit.entity.id, this.renderer.screenToWorld(location))
+        const preview = session.preview(hit.entity.id, this.#splinePointerPoint(hit.entity, this.renderer.screenToWorld(location)))
         this.#clearBoundaryPreview()
         const applying = session.apply(preview, request => this.execute(request.command, request.arguments, { expectedRevision: request.expectedRevision }))
         this.#syncBoundaryActions()
@@ -2746,6 +2756,13 @@ export class KJDrawWorkbench {
     const directPick = ['PEDIT', 'BREAK'].includes(this.#modificationGesture?.definition.command ?? '')
     const snapped = drawingTool && !directPick ? this.#snapAt(rawWorld) : null
     this.#cursorWorld = this.#constrainPointer(rawWorld, snapped)
+    if (this.#modificationGesture && ['BREAK', 'TRIM'].includes(this.#modificationGesture.definition.command)) {
+      const source = this.document?.getObject(this.#modificationGesture.ids[0]!) ?? null
+      if (source?.type === 'SPLINE') {
+        try { this.#cursorWorld = this.#splinePointerPoint(source, rawWorld) }
+        catch { this.#cursorWorld = rawWorld }
+      }
+    }
     if (this.#draftGesture) this.#draftInputDirection = this.#cursorWorld
     if (coordinate) coordinate.textContent = `X ${this.#cursorWorld[0].toFixed(3)} · Y ${this.#cursorWorld[1].toFixed(3)}`
     this.#showSnap(snapped)
@@ -2843,7 +2860,12 @@ export class KJDrawWorkbench {
       await this.#addDraftPoint(world, snapped ? this.#dimensionPointReference(this.#snapCandidate, role) : null)
       return
     }
-    if (this.#modificationGesture) { await this.#addModificationPoint(world); return }
+    if (this.#modificationGesture) {
+      const source = this.document?.getObject(this.#modificationGesture.ids[0]!) ?? null
+      const picked = ['BREAK', 'TRIM'].includes(this.#modificationGesture.definition.command)
+        ? this.#splinePointerPoint(source, source?.type === 'SPLINE' ? rawWorld : world) : world
+      await this.#addModificationPoint(picked); return
+    }
     if (this.#tool === 'select') {
       const hit = this.renderer.hitTest(location, 9)
       if ((event.shiftKey || event.ctrlKey || event.metaKey) && !hit) return

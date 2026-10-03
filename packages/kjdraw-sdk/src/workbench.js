@@ -3,7 +3,7 @@ import { aciColor, KJCanvasRenderer } from './canvas-renderer.js';
 import { createKJDrawSDK } from './sdk.js';
 import { KJDocument } from './document.js';
 import { editEntityGrip } from './grips.js';
-import { getDocumentSnapSettings, KJ_SNAP_MODES } from './snapping.js';
+import { getDocumentSnapSettings, KJ_SNAP_MODES, nearestPointOnEntity2 } from './snapping.js';
 import { openDrawingPrintWindow } from './print-export.js';
 import { exportDrawingPng } from './drawing-image.js';
 import { createIndustrySample } from './samples.js';
@@ -4364,6 +4364,15 @@ export class KJDrawWorkbench {
         this.#boundaryPreview = null;
         if (hadPreview) this.renderer.render();
     }
+    #splinePointerPoint(entity, world) {
+        if (entity?.type !== 'SPLINE') return world;
+        const nearest = nearestPointOnEntity2(entity, world);
+        if (nearest.distance > 9 / this.renderer.camera.scale) return world;
+        return [
+            nearest.point[0],
+            nearest.point[1]
+        ];
+    }
     #previewBoundaryTarget(location) {
         this.#clearBoundaryPreview();
         const session = this.#boundarySession;
@@ -4379,7 +4388,7 @@ export class KJDrawWorkbench {
             return;
         }
         try {
-            const preview = session.preview(hit.entity.id, this.renderer.screenToWorld(location));
+            const preview = session.preview(hit.entity.id, this.#splinePointerPoint(hit.entity, this.renderer.screenToWorld(location)));
             this.#boundaryPreview = preview;
             this.renderer.drawPreview(preview.pieces, this.#theme === 'dark' ? '#8fc0ff' : '#175fc8');
             this.#setMessage(session.prompt);
@@ -4425,7 +4434,7 @@ export class KJDrawWorkbench {
                     this.#setMessage(this.#t('boundaryEmpty'));
                     return;
                 }
-                const preview = session.preview(hit.entity.id, this.renderer.screenToWorld(location));
+                const preview = session.preview(hit.entity.id, this.#splinePointerPoint(hit.entity, this.renderer.screenToWorld(location)));
                 this.#clearBoundaryPreview();
                 const applying = session.apply(preview, (request)=>this.execute(request.command, request.arguments, {
                         expectedRevision: request.expectedRevision
@@ -4923,6 +4932,19 @@ export class KJDrawWorkbench {
         ].includes(this.#modificationGesture?.definition.command ?? '');
         const snapped = drawingTool && !directPick ? this.#snapAt(rawWorld) : null;
         this.#cursorWorld = this.#constrainPointer(rawWorld, snapped);
+        if (this.#modificationGesture && [
+            'BREAK',
+            'TRIM'
+        ].includes(this.#modificationGesture.definition.command)) {
+            const source = this.document?.getObject(this.#modificationGesture.ids[0]) ?? null;
+            if (source?.type === 'SPLINE') {
+                try {
+                    this.#cursorWorld = this.#splinePointerPoint(source, rawWorld);
+                } catch  {
+                    this.#cursorWorld = rawWorld;
+                }
+            }
+        }
         if (this.#draftGesture) this.#draftInputDirection = this.#cursorWorld;
         if (coordinate) coordinate.textContent = `X ${this.#cursorWorld[0].toFixed(3)} · Y ${this.#cursorWorld[1].toFixed(3)}`;
         this.#showSnap(snapped);
@@ -5057,7 +5079,12 @@ export class KJDrawWorkbench {
             return;
         }
         if (this.#modificationGesture) {
-            await this.#addModificationPoint(world);
+            const source = this.document?.getObject(this.#modificationGesture.ids[0]) ?? null;
+            const picked = [
+                'BREAK',
+                'TRIM'
+            ].includes(this.#modificationGesture.definition.command) ? this.#splinePointerPoint(source, source?.type === 'SPLINE' ? rawWorld : world) : world;
+            await this.#addModificationPoint(picked);
             return;
         }
         if (this.#tool === 'select') {
