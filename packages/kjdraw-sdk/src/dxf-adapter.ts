@@ -30,6 +30,17 @@ interface DxfRecord { type: string; tags: DxfTag[]; vertices?: DxfRecord[]; attr
 interface DxfDimensionOverrides { textHeight?: number; precision?: number; angularUnits?: number; linearPrecision?: number; overallScale?: number; arrowSize?: number; extensionOffset?: number; extensionBeyond?: number }
 interface DxfDimensionAssociationHandle extends Omit<KJDimensionPointAssociation, 'entityId'> { entityHandle: string }
 
+// Autodesk LEADER groups 73/340 describe three native annotation categories.
+// This interchange union does not expand the MTEXT-only LEADEREDIT command.
+function leaderAnnotationFlag(type: string): 0 | 1 | 2 | null {
+  switch (type) {
+    case 'MTEXT': return 0
+    case 'TOLERANCE': return 1
+    case 'INSERT': return 2
+    default: return null
+  }
+}
+
 function readDimensionAssociationHandles(record: DxfRecord): DxfDimensionAssociationHandle[] | null {
   const starts = record.tags.map((tag, index) => tag.code === 1001 && tag.value === 'KJDRAW' ? index : -1).filter(index => index >= 0)
   if (!starts.length) return null
@@ -1182,7 +1193,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
     const occupiedHandles = new Set(Object.values(transaction._draft().objects).map(object => object.handle))
     const entityHandleIds = new Map<string, string>()
     const viewportReferences: { id: string; record: DxfRecord }[] = []
-    const leaderReferences: { id: string; annotationHandle: string }[] = []
+    const leaderReferences: { id: string; annotationHandle: string | null }[] = []
     const dimensionReferences: { id: string; associations: DxfDimensionAssociationHandle[] }[] = []
     const hatchReferences: string[] = []
     const reactorReferences: { id: string; handles: string[] }[] = []
@@ -1205,7 +1216,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
         if (sourceHandle) entityHandleIds.set(sourceHandle, entityHandleIds.has(sourceHandle) ? '' : created.id)
         if (created.type === 'VIEWPORT') viewportReferences.push({ id: created.id, record })
         if (created.type === 'DIMENSION' && dimensionAssociations) dimensionReferences.push({ id: created.id, associations: dimensionAssociations })
-        if (created.type === 'LEADER' && converted.payload.annotationHandle) leaderReferences.push({ id: created.id, annotationHandle: String(converted.payload.annotationHandle).toUpperCase() })
+        if (created.type === 'LEADER') leaderReferences.push({ id: created.id, annotationHandle: converted.payload.annotationHandle ? String(converted.payload.annotationHandle).toUpperCase() : null })
         if (created.type === 'HATCH') hatchReferences.push(created.id)
         // VIEWPORT reactor graphs are owned by the existing metadata adapter.
         if (importedReactorHandles.length) reactorReferences.push({ id: created.id, handles: importedReactorHandles })
@@ -1292,14 +1303,24 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       transaction.updateObject(id, { payload: { dimensionAssociations: resolved } })
     }
     for (const { id, annotationHandle } of leaderReferences) {
+      const leader = transaction.getObject(id)!
+      // Handle 0 is the DXF null reference, distinct from a missing live target.
+      // Preserve an explicitly stored null handle; do not invent an annotation.
+      if (annotationHandle === null || annotationHandle === '0') {
+        if (leader.payload.annotationType !== 3) transaction.updateObject(id, { payload: { unresolvedLeaderAnnotation: `${annotationHandle ?? '(missing)'}:missing-annotation` } })
+        continue
+      }
       const annotationId = entityHandleIds.get(annotationHandle), annotation = annotationId ? transaction.getObject(annotationId) : null
-      if (!annotation || annotation.kind !== 'entity' || annotation.type !== 'MTEXT') {
+      if (!annotation || annotation.erased || annotation.kind !== 'entity' || leaderAnnotationFlag(annotation.type) === null) {
         transaction.updateObject(id, { payload: { unresolvedLeaderAnnotation: annotationHandle } })
         continue
       }
-      const leader = transaction.getObject(id)!
       if (leader.ownerId !== annotation.ownerId) {
         transaction.updateObject(id, { payload: { unresolvedLeaderAnnotation: `${annotationHandle}:wrong-owner` } })
+        continue
+      }
+      if (leader.payload.annotationType !== leaderAnnotationFlag(annotation.type)) {
+        transaction.updateObject(id, { payload: { unresolvedLeaderAnnotation: `${annotationHandle}:annotation-type-mismatch` } })
         continue
       }
       transaction.updateObject(id, { payload: { annotationId: annotation.id, annotationHandle: null, textPosition: annotation.payload.position } })
@@ -2214,13 +2235,18 @@ function emitEntity(
   else if (entity.type === 'LEADER') {
     if (p.unresolvedLeaderAnnotation) throw new KJValidationError(`DXF LEADER has an unresolved annotation reference: ${p.unresolvedLeaderAnnotation}`)
     const annotation = p.annotationId ? resources.objects?.get(String(p.annotationId)) : null
-    if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || annotation.type !== 'MTEXT' || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT in the same owner space')
-    const textHeight = annotation?.payload.height ?? p.textHeight, textWidth = annotation?.payload.width ?? p.textWidth
-    emitSubclass(output, version, 'AcDbLeader'); emit(output, 3, 'STANDARD'); emit(output, 71, p.arrowEnabled === false ? 0 : 1); emit(output, 72, p.pathType ?? 0); emit(output, 73, annotation ? 0 : p.annotationType ?? 3); emit(output, 74, p.hookLineDirection ?? 0); emit(output, 75, p.hookLineEnabled === true ? 1 : 0); if (textHeight != null) emit(output, 40, textHeight); if (textWidth != null) emit(output, 41, textWidth); emit(output, 76, entityVertices.length); for (const value of entityVertices) emitPoint(output, vertexPoint(value))
+    if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || leaderAnnotationFlag(annotation.type) === null || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT, TOLERANCE or INSERT in the same owner space')
+    if (!p.annotationId && p.annotationHandle && p.annotationHandle !== '0') throw new KJValidationError(`DXF LEADER has an unresolved annotation handle: ${p.annotationHandle}`)
+    const annotationType = p.annotationType ?? (annotation ? 0 : 3)
+    if (annotationType !== (annotation ? leaderAnnotationFlag(annotation.type) : 3)) throw new KJValidationError('DXF LEADER annotation type flag does not match its associated annotation')
+    // Preserve native MTEXT sizing behavior. Tolerance/block annotations do not
+    // supply MTEXT layout dimensions; their stored leader sizes remain intact.
+    const textHeight = (annotation?.type === 'MTEXT' ? annotation.payload.height : undefined) ?? p.textHeight, textWidth = (annotation?.type === 'MTEXT' ? annotation.payload.width : undefined) ?? p.textWidth
+    emitSubclass(output, version, 'AcDbLeader'); emit(output, 3, 'STANDARD'); emit(output, 71, p.arrowEnabled === false ? 0 : 1); emit(output, 72, p.pathType ?? 0); emit(output, 73, annotationType); emit(output, 74, p.hookLineDirection ?? 0); emit(output, 75, p.hookLineEnabled === true ? 1 : 0); if (textHeight != null) emit(output, 40, textHeight); if (textWidth != null) emit(output, 41, textWidth); emit(output, 76, entityVertices.length); for (const value of entityVertices) emitPoint(output, vertexPoint(value))
     // Group 211 is optional. Preserve its absence instead of introducing a new
     // stored property on an untouched imported leader after save/reopen.
     if (p.horizontalDirection) emitPoint(output, p.horizontalDirection, 211)
-    if (p.blockOffset) emitPoint(output, p.blockOffset, 212); if (p.annotationOffset) emitPoint(output, p.annotationOffset, 213); if (annotation) emit(output, 340, annotation.handle)
+    if (p.blockOffset) emitPoint(output, p.blockOffset, 212); if (p.annotationOffset) emitPoint(output, p.annotationOffset, 213); if (annotation) emit(output, 340, annotation.handle); else if (p.annotationHandle === '0') emit(output, 340, '0')
   }
   else if (entity.type === 'DIMENSION') {
     if (!p.definitionPoints?.length) throw new KJValidationError('DXF DIMENSION requires at least one definition point')
