@@ -233,6 +233,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
   pattern?: unknown
   settings?: Record<string, unknown>
   parameters?: unknown
+  /** SPLINE BREAK only: parameter in the native knot domain. */
+  parameter?: number
   position?: unknown
   insertionPoint?: unknown
   center?: KJPointInput
@@ -250,6 +252,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
   secondVector?: KJPointInput
   vertex?: KJPointInput
   pickPoint?: KJPointInput
+  /** SPLINE TRIM only: disambiguates a pick in the native knot domain. */
+  pickParameter?: number
   sidePoint?: KJPointInput
   points?: readonly KJPointInput[]
   origin?: unknown
@@ -380,10 +384,10 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   ARRAYRECT: { domain: 'geometry', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
   ARRAYPOLAR: { domain: 'geometry', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
   OFFSET: { domain: 'geometry', precision: 'exact', supportedEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
-  BREAK: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC', 'CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'], deterministicPieces: true },
+  BREAK: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC', 'CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE', 'SPLINE'], deterministicPieces: true, splineContract: 'bounded-clamped-XY-control-points-native-knots' },
   JOIN: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'], maximumEntities: 4096 },
   EXPLODE: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE', 'REVISION_CLOUD', 'WIPEOUT'] },
-  TRIM: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC', 'CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
+  TRIM: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC', 'CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE', 'SPLINE'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'], splineBoundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC', 'ELLIPSE', 'SPLINE'], splineContract: 'bounded-clamped-XY-control-points-native-knots-transverse-cuts' },
   EXTEND: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
   LENGTHEN: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC', 'ELLIPSE'], modes: ['TOTAL', 'DELTA', 'PERCENT', 'DYNAMIC'], stableIdentity: true },
   STRETCH: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'LWPOLYLINE', 'POLYLINE'], selection: 'crossing-window', maximumEntities: 4096, stableIdentity: true },
@@ -1153,7 +1157,9 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   disposers.push(registry.register({
     id: 'BREAK', aliases: ['BR'], title: 'Break entity',
     execute: ({ document, transaction }, args) => {
-      const entity = requiredEntity(document, args.id), pieces = breakEntityPayloads(entity, args)
+      const entity = requiredEntity(document, args.id)
+      if (entity.type === 'SPLINE' && Object.keys(args).some(key => !['id', 'point', 'firstPoint', 'secondPoint', 'points', 'parameter', 'parameters', 'tolerance'].includes(key))) throw new KJValidationError('SPLINE BREAK contains unsupported command arguments')
+      const pieces = breakEntityPayloads(entity, args)
       if (pieces.length !== 2) throw new KJValidationError('BREAK requires two deterministic native pieces')
       if (pieces.every(piece => piece.type === entity.type)) {
         const leading = transaction.updateObject(entity.id, { payload: pieces[0]!.payload })
@@ -1233,7 +1239,8 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'TRIM', aliases: ['TR'], title: 'Trim entity',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds, entity.id)
-      const pieces = trimEntityPayloads(entity, boundaries, args.pickPoint)
+      if (entity.type === 'SPLINE' && Object.keys(args).some(key => !['id', 'boundaryIds', 'pickPoint', 'pickParameter', 'tolerance'].includes(key))) throw new KJValidationError('SPLINE TRIM contains unsupported command arguments')
+      const pieces = trimEntityPayloads(entity, boundaries, args.pickPoint, args)
       const first = pieces[0]
       if (!first) throw new KJValidationError('Trim must retain a non-empty entity')
       if (pieces.length !== 1 || first.type !== entity.type || entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'TRIM')
