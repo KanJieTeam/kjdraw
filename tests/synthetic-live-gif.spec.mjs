@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -129,6 +129,7 @@ test('CLI permits explicit existing tools but rejects unknown, duplicate and mis
 
 test('failed manifest is rejected before output creation or any external decoder/encoder invocation', async () => {
   const checkout = fileURLToPath(new URL('../', import.meta.url))
+  await mkdir(resolve(checkout, '.cache'), { recursive: true })
   const temporary = await mkdtemp(resolve(checkout, '.cache/synthetic-gif-invalid-'))
   const { manifest, prepared } = fixture(); manifest.status = 'failed'; manifest.publishableModelEvidence = false
   const live = resolve(temporary, 'live-recording-manifest.json'), baseline = resolve(temporary, 'manifest.json')
