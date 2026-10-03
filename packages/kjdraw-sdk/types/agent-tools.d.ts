@@ -1,4 +1,4 @@
-import type { KJDrawSDK } from './sdk.js';
+import { type KJDrawSDK } from './sdk.js';
 import type { KJDocument } from './document.js';
 import { type KJDrawingContextOptions } from './drawing-context.js';
 import type { KJHatchPatternCatalog } from './hatch-pattern-catalog.js';
@@ -39,8 +39,8 @@ export interface KJAgentToolSessionOptions {
     toolProfile?: KJAgentToolProfile;
     geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;
     geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;
-    /** Optional private host catalogs. No remote fetch or model-controlled catalog registration. */
-    hatchPatternCatalogs?: KJHatchPatternCatalog[];
+    /** Constructor-only additional host catalogs. Never fetched or model registered. */
+    hatchPatternCatalogs?: readonly ReadonlyDeep<KJHatchPatternCatalog>[];
 }
 export type KJAgentGeologyScalarRevisionUpdate = Partial<Pick<KJGeologyColumnInput['hole'], typeof geologyScalarRevisionHoleFields[number]>> & {
     holeId: string;

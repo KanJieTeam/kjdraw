@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:c070317bde8f02748a8f87300e491599a90aa3a258596b799b7b5fb6b80e28cc",
+  "sourceDigest": "sha256:5a829e421204586538d6a143a5d0fc8ee49c410de33d9167aa02759c20f26828",
   "entries": [
     {
       "name": "buildCadSkillJsonContract",
@@ -333,6 +333,30 @@
       "summary": "export declare function registerGeologyKnowledgePack(registry?: KJKnowledgePackRegistry): ReadonlyDeep<KJKnowledgePack>;"
     },
     {
+      "name": "KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw/knowledge-packs/geology-patterns",
+      "href": "./api/reference/#knowledge-packs-geology-patterns-const-kjdraw-geology-hatch-pattern-catalog",
+      "anchor": "knowledge-packs-geology-patterns-const-kjdraw-geology-hatch-pattern-catalog",
+      "summary": "export declare const KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG: ReadonlyDeep<KJHatchPatternCatalog>;"
+    },
+    {
+      "name": "KJDRAW_GEOLOGY_HATCH_PATTERN_PROVENANCE",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw/knowledge-packs/geology-patterns",
+      "href": "./api/reference/#knowledge-packs-geology-patterns-const-kjdraw-geology-hatch-pattern-provenance",
+      "anchor": "knowledge-packs-geology-patterns-const-kjdraw-geology-hatch-pattern-provenance",
+      "summary": "export declare const KJDRAW_GEOLOGY_HATCH_PATTERN_PROVENANCE: Readonly<{ source: \"User-supplied YTKC legacy ZWCAD.PAT definitions\"; authorization: \"Explicit resource redistribution authorization confirmed by the contribu"
+    },
+    {
+      "name": "KJDRAW_GEOLOGY_HATCH_PATTERN_SOURCE",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw/knowledge-packs/geology-patterns",
+      "href": "./api/reference/#knowledge-packs-geology-patterns-const-kjdraw-geology-hatch-pattern-source",
+      "anchor": "knowledge-packs-geology-patterns-const-kjdraw-geology-hatch-pattern-source",
+      "summary": "export declare const KJDRAW_GEOLOGY_HATCH_PATTERN_SOURCE: string;"
+    },
+    {
       "name": "compileKnowledgeDrawing",
       "kind": "function",
       "module": "@kanjieteam/kjdraw/knowledge-compiler",
@@ -434,7 +458,7 @@
       "module": "@kanjieteam/kjdraw/hatch-pattern-catalog",
       "href": "./api/reference/#hatch-pattern-catalog-interface-kjhatchpatterncatalogentry",
       "anchor": "hatch-pattern-catalog-interface-kjhatchpatterncatalogentry",
-      "summary": "export interface KJHatchPatternCatalogEntry { name: string; description: string; lines: KJHatchPatternCatalogLine[]; }"
+      "summary": "export interface KJHatchPatternCatalogEntry { name: string; description: string; aliases?: string[]; lines: KJHatchPatternCatalogLine[]; }"
     },
     {
       "name": "KJHatchPatternCatalogLine",
@@ -3626,7 +3650,7 @@
       "module": "@kanjieteam/kjdraw/core",
       "href": "./api/reference/#core-class-kjdrawsdk",
       "anchor": "core-class-kjdrawsdk",
-      "summary": "export declare class KJDrawSDK { readonly version: string; readonly events: KJEventBus<KJDrawSDKEvents>; readonly extensions: KJExtensionRegistry; readonly commands: KJCommandRegistry; readonly fileAdapters: KJFileAdapte"
+      "summary": "export declare class KJDrawSDK { #private; readonly version: string; readonly events: KJEventBus<KJDrawSDKEvents>; readonly extensions: KJExtensionRegistry; readonly commands: KJCommandRegistry; readonly fileAdapters: KJ"
     },
     {
       "name": "KJDrawSDKEvents",
@@ -5155,6 +5179,14 @@
       "href": "./api/reference/#core-function-matrix3",
       "anchor": "core-function-matrix3",
       "summary": "export declare function matrix3(value?: AffineMatrix3Input): AffineMatrix3;"
+    },
+    {
+      "name": "mergeHatchPatternCatalogs",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-function-mergehatchpatterncatalogs",
+      "anchor": "core-function-mergehatchpatterncatalogs",
+      "summary": "export declare function mergeHatchPatternCatalogs(...sources: readonly (readonly ReadonlyDeep<KJHatchPatternCatalog>[])[]): ReadonlyDeep<KJHatchPatternCatalog[]>;"
     },
     {
       "name": "midpoint2",
@@ -10445,6 +10477,30 @@
       "summary": "export declare const KJDRAW_ERASE_IMPACT_LIMITS: Readonly<{ maxObjects: 200000; maxReferences: 500000; maxConnectivityFeatures: 32768; maxConnectivityComparisons: 500000; }>;"
     },
     {
+      "name": "KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kjdraw-geology-hatch-pattern-catalog",
+      "anchor": "root-const-kjdraw-geology-hatch-pattern-catalog",
+      "summary": "export declare const KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG: ReadonlyDeep<KJHatchPatternCatalog>;"
+    },
+    {
+      "name": "KJDRAW_GEOLOGY_HATCH_PATTERN_PROVENANCE",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kjdraw-geology-hatch-pattern-provenance",
+      "anchor": "root-const-kjdraw-geology-hatch-pattern-provenance",
+      "summary": "export declare const KJDRAW_GEOLOGY_HATCH_PATTERN_PROVENANCE: Readonly<{ source: \"User-supplied YTKC legacy ZWCAD.PAT definitions\"; authorization: \"Explicit resource redistribution authorization confirmed by the contribu"
+    },
+    {
+      "name": "KJDRAW_GEOLOGY_HATCH_PATTERN_SOURCE",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kjdraw-geology-hatch-pattern-source",
+      "anchor": "root-const-kjdraw-geology-hatch-pattern-source",
+      "summary": "export declare const KJDRAW_GEOLOGY_HATCH_PATTERN_SOURCE: string;"
+    },
+    {
       "name": "KJDRAW_GEOLOGY_KNOWLEDGE_PACK",
       "kind": "const",
       "module": "@kanjieteam/kjdraw",
@@ -10786,7 +10842,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-class-kjdrawsdk",
       "anchor": "root-class-kjdrawsdk",
-      "summary": "export declare class KJDrawSDK { readonly version: string; readonly events: KJEventBus<KJDrawSDKEvents>; readonly extensions: KJExtensionRegistry; readonly commands: KJCommandRegistry; readonly fileAdapters: KJFileAdapte"
+      "summary": "export declare class KJDrawSDK { #private; readonly version: string; readonly events: KJEventBus<KJDrawSDKEvents>; readonly extensions: KJExtensionRegistry; readonly commands: KJCommandRegistry; readonly fileAdapters: KJ"
     },
     {
       "name": "KJDrawSDKEvents",
@@ -12018,7 +12074,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjhatchpatterncatalogentry",
       "anchor": "root-interface-kjhatchpatterncatalogentry",
-      "summary": "export interface KJHatchPatternCatalogEntry { name: string; description: string; lines: KJHatchPatternCatalogLine[]; }"
+      "summary": "export interface KJHatchPatternCatalogEntry { name: string; description: string; aliases?: string[]; lines: KJHatchPatternCatalogLine[]; }"
     },
     {
       "name": "KJHatchPatternCatalogLine",
@@ -13523,6 +13579,14 @@
       "href": "./api/reference/#root-function-matrix3",
       "anchor": "root-function-matrix3",
       "summary": "export declare function matrix3(value?: AffineMatrix3Input): AffineMatrix3;"
+    },
+    {
+      "name": "mergeHatchPatternCatalogs",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-mergehatchpatterncatalogs",
+      "anchor": "root-function-mergehatchpatterncatalogs",
+      "summary": "export declare function mergeHatchPatternCatalogs(...sources: readonly (readonly ReadonlyDeep<KJHatchPatternCatalog>[])[]): ReadonlyDeep<KJHatchPatternCatalog[]>;"
     },
     {
       "name": "midpoint2",

@@ -4,10 +4,14 @@ import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { nativeHatchPattern, hatchPatternFingerprint } from '../src/agent-hatch-pattern.js'
 import { getKJDrawChatToolNamesForRequest } from '../../../apps/playground/agent-chat.js'
+import { stableHash } from '../src/utils.js'
 
 // Original synthetic geometry/line families. No private engineering drawings or PAT assets.
 async function fixture({ catalogOnly = false } = {}) {
-  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  // This controlled synthetic-resource fixture predates the real bundled PAT
+  // library. Keep its exact single-resource oracle; default-library integration
+  // is exercised separately with literal source-only STT geometry.
+  const sdk = createKJDrawSDK({ includeBundledHatchPatterns: false }), document = sdk.createDocument({ units: 'millimeter' })
   await document.transact('Synthetic native soil patterns without text labels', tx => {
     for (const [id, x, scale, angle] of [['left', 0, 0.5, 0], ['right', 20, 1.25, 0.25]]) {
       tx.createEntity('HATCH', { patternName: '素填土', solid: false, patternScale: scale, patternAngle: angle,
@@ -22,7 +26,8 @@ async function fixture({ catalogOnly = false } = {}) {
       boundaryLoops: [{ external: true, vertices: [[50, 0, 0], [60, 0, 0], [60, 6, 0], [50, 6, 0]] }],
     }, { id: 'pattern-resource' })
   })
-  const options = catalogOnly ? { hatchPatternCatalogs: [{ version: '1.0.0', contentHash: 'synthetic', patterns: [{ name: '杂填土', description: 'Synthetic review pattern', lines: mixedLines }] }] } : {}
+  const patterns = [{ name: '杂填土', description: 'Synthetic review pattern', lines: mixedLines }]
+  const options = catalogOnly ? { hatchPatternCatalogs: [{ version: '1.0.0', contentHash: stableHash(patterns), patterns }] } : {}
   return { sdk, document, session: new KJAgentToolSession(sdk, document, options) }
 }
 const mixedLines = [

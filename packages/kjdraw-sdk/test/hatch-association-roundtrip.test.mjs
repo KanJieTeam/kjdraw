@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
-import { canonicalStringify } from '../src/utils.js'
+import { canonicalStringify, stableHash } from '../src/utils.js'
 import { DXF_VIEWPORT_METADATA_KEY } from '../src/dxf-viewport-metadata.js'
 
 async function fixture() {
@@ -45,12 +45,15 @@ const geometry = hatch => hatch.payload.boundaryLoops.map(({ sourceBoundaryIds, 
 const record = (...tags) => `${tags.join('\n')}\n`
 const ok = result => { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 async function approvePattern(sdk, document) {
-  const session = new KJAgentToolSession(sdk, document, { hatchPatternCatalogs: [{ version: '1.0.0', contentHash: 'synthetic-metadata-regression', patterns: [{
+  const fixturePatterns = [{
     name: 'PUBLIC_REPLACEMENT', description: 'Synthetic line families', lines: [
       { angle: 0, base: [0, 0], offset: [0, 4], dashes: [1, -3] },
       { angle: Math.PI / 2, base: [1, 0], offset: [4, 0], dashes: [1, -3] },
     ],
-  }] }] })
+  }]
+  const session = new KJAgentToolSession(sdk, document, { hatchPatternCatalogs: [{
+    version: '1.0.0', contentHash: stableHash(fixturePatterns), patterns: fixturePatterns,
+  }] })
   const patterns = ok(await session.call('cad_read_hatch_patterns', { expectedRevision: document.revision, search: 'PUBLIC_REPLACEMENT' }))
   const proposal = ok(await session.call('cad_propose_hatch_pattern', { expectedRevision: document.revision, units: 'millimeter',
     ids: document.listEntities({ type: 'HATCH' }).map(hatch => hatch.id), patternId: patterns.patterns[0].patternId }))

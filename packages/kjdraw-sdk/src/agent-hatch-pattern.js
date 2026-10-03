@@ -129,26 +129,33 @@ export function applyHatchPatternEdits(document, transaction, input) {
 }
 export function createAgentHatchPatternCatalog(document, catalogs = []) {
     const entries = new Map();
-    const add = (payload, source, entityId)=>{
+    const attachMetadata = (entry, metadata, exactDefinition)=>{
+        if (metadata.description && !entry.descriptions.includes(metadata.description)) entry.descriptions.push(metadata.description);
+        for (const alias of metadata.aliases)if (!entry.aliases.includes(alias)) entry.aliases.push(alias);
+        if (!entry.catalogHashes.includes(metadata.catalogHash)) entry.catalogHashes.push(metadata.catalogHash);
+        entry.catalogDefinitionMatch ||= exactDefinition;
+    };
+    const add = (payload, source, entityId, metadata)=>{
         const pattern = nativeHatchPattern({
             ...payload,
             patternScale: 1,
             patternAngle: 0
         });
         const patternId = stableHash(pattern), existing = entries.get(patternId);
-        if (existing) {
-            if (entityId) existing.entityIds.push(entityId);
-            return;
-        }
-        entries.set(patternId, {
+        const entry = existing ?? {
             patternId,
             name: String(pattern.patternName),
             source,
             pattern,
-            entityIds: entityId ? [
-                entityId
-            ] : []
-        });
+            entityIds: [],
+            descriptions: [],
+            aliases: [],
+            catalogHashes: [],
+            catalogDefinitionMatch: false
+        };
+        if (entityId && !entry.entityIds.includes(entityId)) entry.entityIds.push(entityId);
+        if (metadata) attachMetadata(entry, metadata, true);
+        if (!existing) entries.set(patternId, entry);
     };
     const unsupported = [];
     if (document.listEntities().length > 250000) return fail('drawing exceeds the catalog inspection budget');
@@ -175,7 +182,23 @@ export function createAgentHatchPatternCatalog(document, catalogs = []) {
         solid: name === 'SOLID'
     }, 'built-in');
     if (catalogs.length > 16 || catalogs.reduce((sum, catalog)=>sum + catalog.patterns.length, 0) > 256) return fail('host catalogs exceed 16 catalogs / 256 patterns');
-    for (const catalog of catalogs)for (const entry of catalog.patterns)add(hatchPatternFromCatalog(catalog, entry.name), 'host-catalog');
+    for (const catalog of catalogs){
+        const catalogHash = stableHash(catalog.patterns);
+        for (const entry of catalog.patterns){
+            if (typeof entry.description !== 'string' || entry.description.length > 256 || /[\u0000-\u001f\u007f]/.test(entry.description)) return fail('catalog description must be bounded printable text');
+            const aliases = entry.aliases ?? [];
+            if (!Array.isArray(aliases) || aliases.length > 16 || aliases.some((alias)=>typeof alias !== 'string' || !alias.trim() || alias.length > 128 || /[\u0000-\u001f\u007f]/.test(alias))) return fail('catalog aliases must be bounded printable names');
+            const metadata = {
+                description: entry.description,
+                aliases,
+                catalogHash
+            };
+            add(hatchPatternFromCatalog(catalog, entry.name), 'host-catalog', undefined, metadata);
+            for (const current of entries.values())if (current.source === 'drawing' && current.name.toUpperCase() === entry.name.toUpperCase()) {
+                attachMetadata(current, metadata, false);
+            }
+        }
+    }
     return {
         entries: [
             ...entries.values()
@@ -185,13 +208,25 @@ export function createAgentHatchPatternCatalog(document, catalogs = []) {
 }
 export function readAgentHatchPatterns(document, input, catalogs = []) {
     const { entries, unsupported } = createAgentHatchPatternCatalog(document, catalogs);
-    const query = (input.search ?? '').toLocaleLowerCase(), offset = input.offset ?? 0, limit = input.limit ?? 16, maxBytes = input.maxBytes ?? 65536;
+    if (input.search !== undefined && (typeof input.search !== 'string' || input.search.length > 256 || /[\u0000-\u001f\u007f]/.test(input.search))) return fail('search must be bounded printable text');
+    const normalize = (value)=>value.normalize('NFKC').toLowerCase();
+    const query = normalize(input.search ?? ''), offset = input.offset ?? 0, limit = input.limit ?? 16, maxBytes = input.maxBytes ?? 65536;
     if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 64 || !Number.isSafeInteger(maxBytes) || maxBytes < 1024 || maxBytes > 262144) return fail('invalid catalog page or byte budget');
-    const matched = entries.filter((entry)=>entry.name.toLocaleLowerCase().includes(query));
+    const matchKind = (entry)=>!query ? 'all' : normalize(entry.name) === query ? 'exact-name' : normalize(entry.name).includes(query) ? 'name' : entry.aliases.some((alias)=>normalize(alias).includes(query)) ? 'declared-alias' : 'description';
+    const matched = entries.filter((entry)=>[
+            entry.name,
+            ...entry.aliases,
+            ...entry.descriptions
+        ].some((value)=>normalize(value).includes(query))).sort((left, right)=>Number(matchKind(right) === 'exact-name') - Number(matchKind(left) === 'exact-name'));
     const page = matched.slice(offset, offset + limit).map((entry)=>({
             patternId: entry.patternId,
             name: entry.name,
             source: entry.source,
+            descriptions: entry.descriptions,
+            aliases: entry.aliases,
+            catalogHashes: entry.catalogHashes,
+            matchKind: matchKind(entry),
+            catalogMetadataMatch: entry.catalogDefinitionMatch ? 'exact-definition' : entry.catalogHashes.length ? 'literal-name' : 'none',
             lineFamilies: entry.pattern.patternLines.length,
             entityCount: entry.entityIds.length,
             entityIds: entry.entityIds.slice(0, 64),

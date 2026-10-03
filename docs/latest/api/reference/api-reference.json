@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:c070317bde8f02748a8f87300e491599a90aa3a258596b799b7b5fb6b80e28cc",
+  "sourceDigest": "sha256:5a829e421204586538d6a143a5d0fc8ee49c410de33d9167aa02759c20f26828",
   "modules": [
     {
       "exportPath": "./agent-skill-json",
@@ -341,6 +341,35 @@
       ]
     },
     {
+      "exportPath": "./knowledge-packs/geology-patterns",
+      "packageName": "@kanjieteam/kjdraw/knowledge-packs/geology-patterns",
+      "declaration": "types/knowledge-packs/geology-patterns.d.ts",
+      "anchor": "module-knowledge-packs-geology-patterns",
+      "symbols": [
+        {
+          "name": "KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG: ReadonlyDeep<KJHatchPatternCatalog>;",
+          "source": "knowledge-packs/geology-patterns.d.ts",
+          "anchor": "knowledge-packs-geology-patterns-const-kjdraw-geology-hatch-pattern-catalog"
+        },
+        {
+          "name": "KJDRAW_GEOLOGY_HATCH_PATTERN_PROVENANCE",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_GEOLOGY_HATCH_PATTERN_PROVENANCE: Readonly<{\n    source: \"User-supplied YTKC legacy ZWCAD.PAT definitions\";\n    authorization: \"Explicit resource redistribution authorization confirmed by the contributing user on 2026-10-03\";\n    vendorAuthorizationClaimed: false;\n    patternNames: 209;\n    lineFamilies: 940;\n    sourceSha256: \"cf3ce6d51c5fd2b4c51a132fa6c77b8325d7b346e334308d2d34a672e7ebd632\";\n    literalDefinitionSha256: \"76777b218f5f8ae6797c484f269d5b0d63020f5a70587eb4f9e7966ad0b528d2\";\n}>;",
+          "source": "knowledge-packs/geology-patterns.d.ts",
+          "anchor": "knowledge-packs-geology-patterns-const-kjdraw-geology-hatch-pattern-provenance"
+        },
+        {
+          "name": "KJDRAW_GEOLOGY_HATCH_PATTERN_SOURCE",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_GEOLOGY_HATCH_PATTERN_SOURCE: string;",
+          "source": "knowledge-packs/geology-patterns.d.ts",
+          "anchor": "knowledge-packs-geology-patterns-const-kjdraw-geology-hatch-pattern-source"
+        }
+      ]
+    },
+    {
       "exportPath": "./knowledge-compiler",
       "packageName": "@kanjieteam/kjdraw/knowledge-compiler",
       "declaration": "types/knowledge-compiler.d.ts",
@@ -441,7 +470,7 @@
         {
           "name": "KJHatchPatternCatalogEntry",
           "kind": "interface",
-          "declaration": "export interface KJHatchPatternCatalogEntry {\n    name: string;\n    description: string;\n    lines: KJHatchPatternCatalogLine[];\n}",
+          "declaration": "export interface KJHatchPatternCatalogEntry {\n    name: string;\n    description: string;\n    aliases?: string[];\n    lines: KJHatchPatternCatalogLine[];\n}",
           "source": "hatch-pattern-catalog.d.ts",
           "anchor": "hatch-pattern-catalog-interface-kjhatchpatterncatalogentry"
         },
@@ -880,7 +909,7 @@
         {
           "name": "KJAgentToolSessionOptions",
           "kind": "interface",
-          "declaration": "export interface KJAgentToolSessionOptions {\n    /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */\n    toolProfile?: KJAgentToolProfile;\n    geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n    geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n    /** Optional private host catalogs. No remote fetch or model-controlled catalog registration. */\n    hatchPatternCatalogs?: KJHatchPatternCatalog[];\n}",
+          "declaration": "export interface KJAgentToolSessionOptions {\n    /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */\n    toolProfile?: KJAgentToolProfile;\n    geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n    geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n    /** Constructor-only additional host catalogs. Never fetched or model registered. */\n    hatchPatternCatalogs?: readonly ReadonlyDeep<KJHatchPatternCatalog>[];\n}",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-interface-kjagenttoolsessionoptions"
         },
@@ -3354,7 +3383,7 @@
         {
           "name": "KJDrawSDK",
           "kind": "class",
-          "declaration": "export declare class KJDrawSDK {\n    readonly version: string;\n    readonly events: KJEventBus<KJDrawSDKEvents>;\n    readonly extensions: KJExtensionRegistry;\n    readonly commands: KJCommandRegistry;\n    readonly fileAdapters: KJFileAdapterRegistry;\n    readonly documents: Map<string, KJDocument>;\n    readonly selections: Map<string, KJSelectionManager>;\n    readonly agentPlans: KJAgentPlanRegistry;\n    activeDocumentId: string | null;\n    documentAuthority: KJDocumentAuthorityProvider | null;\n    solidAuthority: Readonly<KJCoreSolidBackend> | null;\n    constructor(options?: KJDrawSDKOptions);\n    createDocument(options?: KJDocumentOptions & KJDocumentConstructorOptions): KJDocument;\n    openDocument(input: KJOpenDocumentInput, options?: KJDocumentConstructorOptions): KJDocument;\n    attachDocument(document: KJDocument): KJDocument;\n    closeDocument(inputId: string): boolean;\n    get activeDocument(): KJDocument | null;\n    get activeSelection(): KJSelectionSet | null;\n    getSelectionManager(documentId?: string | null): KJSelectionManager | null;\n    setDocumentAuthority(authority: KJDocumentAuthorityProvider): KJDocumentAuthorityProvider;\n    setSolidAuthority(authority: Readonly<KJCoreSolidBackend>): Readonly<KJCoreSolidBackend>;\n    setActiveDocument(inputId: string): KJDocument;\n    executeCommand<TResult = unknown>(id: string, args?: KJCommandArguments, options?: KJExecuteCommandOptions): Promise<TResult>;\n    executeCommand<TResult = unknown>(envelope: Readonly<KJCommandEnvelope>, options?: KJExecuteCommandEnvelopeOptions): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    createCommandEnvelope<TArguments extends Record<string, unknown> = KJCommandArguments>(command: string, args?: TArguments, options?: KJCreateSDKCommandEnvelopeOptions): Readonly<KJCommandEnvelope<TArguments>>;\n    executeCommandEnvelope<TResult = unknown>(input: unknown, options?: KJExecuteCommandEnvelopeOptions): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    snap(cursor: KJSnapPointInput, options?: KJSnapSDKOptions): readonly Readonly<KJSnapCandidate>[];\n    readDocument(source: unknown, options?: KJFileAdapterOptions): Promise<KJDocument>;\n    writeDocument<TResult = unknown>(document?: KJDocument | null, options?: KJFileAdapterOptions): Promise<TResult>;\n    capabilities(): ReturnType<typeof buildSDKCapabilityManifest>;\n    createPluginScope(manifestInput: unknown, { grantedPermissions }?: KJPluginScopeOptions): Readonly<KJPluginScope>;\n}",
+          "declaration": "export declare class KJDrawSDK {\n    #private;\n    readonly version: string;\n    readonly events: KJEventBus<KJDrawSDKEvents>;\n    readonly extensions: KJExtensionRegistry;\n    readonly commands: KJCommandRegistry;\n    readonly fileAdapters: KJFileAdapterRegistry;\n    readonly documents: Map<string, KJDocument>;\n    readonly selections: Map<string, KJSelectionManager>;\n    readonly agentPlans: KJAgentPlanRegistry;\n    activeDocumentId: string | null;\n    documentAuthority: KJDocumentAuthorityProvider | null;\n    solidAuthority: Readonly<KJCoreSolidBackend> | null;\n    constructor(options?: KJDrawSDKOptions);\n    /** Host-selected immutable catalog snapshot. There is intentionally no setter. */\n    get hatchPatternCatalogs(): ReadonlyDeep<KJHatchPatternCatalog[]>;\n    createDocument(options?: KJDocumentOptions & KJDocumentConstructorOptions): KJDocument;\n    openDocument(input: KJOpenDocumentInput, options?: KJDocumentConstructorOptions): KJDocument;\n    attachDocument(document: KJDocument): KJDocument;\n    closeDocument(inputId: string): boolean;\n    get activeDocument(): KJDocument | null;\n    get activeSelection(): KJSelectionSet | null;\n    getSelectionManager(documentId?: string | null): KJSelectionManager | null;\n    setDocumentAuthority(authority: KJDocumentAuthorityProvider): KJDocumentAuthorityProvider;\n    setSolidAuthority(authority: Readonly<KJCoreSolidBackend>): Readonly<KJCoreSolidBackend>;\n    setActiveDocument(inputId: string): KJDocument;\n    executeCommand<TResult = unknown>(id: string, args?: KJCommandArguments, options?: KJExecuteCommandOptions): Promise<TResult>;\n    executeCommand<TResult = unknown>(envelope: Readonly<KJCommandEnvelope>, options?: KJExecuteCommandEnvelopeOptions): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    createCommandEnvelope<TArguments extends Record<string, unknown> = KJCommandArguments>(command: string, args?: TArguments, options?: KJCreateSDKCommandEnvelopeOptions): Readonly<KJCommandEnvelope<TArguments>>;\n    executeCommandEnvelope<TResult = unknown>(input: unknown, options?: KJExecuteCommandEnvelopeOptions): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    snap(cursor: KJSnapPointInput, options?: KJSnapSDKOptions): readonly Readonly<KJSnapCandidate>[];\n    readDocument(source: unknown, options?: KJFileAdapterOptions): Promise<KJDocument>;\n    writeDocument<TResult = unknown>(document?: KJDocument | null, options?: KJFileAdapterOptions): Promise<TResult>;\n    capabilities(): ReturnType<typeof buildSDKCapabilityManifest>;\n    createPluginScope(manifestInput: unknown, { grantedPermissions }?: KJPluginScopeOptions): Readonly<KJPluginScope>;\n}",
           "source": "sdk.d.ts",
           "anchor": "core-class-kjdrawsdk"
         },
@@ -3368,7 +3397,7 @@
         {
           "name": "KJDrawSDKOptions",
           "kind": "interface",
-          "declaration": "export interface KJDrawSDKOptions {\n    version?: string;\n    documentAuthority?: KJDocumentAuthorityProvider | null;\n    solidAuthority?: Readonly<KJCoreSolidBackend> | null;\n    agentPlans?: KJAgentPlanRegistry;\n    agentPlanOptions?: KJAgentPlanRegistryOptions;\n    registerDefaultAdapters?: boolean;\n    /** Optional host-owned DWG converter. KJDraw stores neither endpoints nor credentials. */\n    dwgConversionProvider?: KJDwgConversionProvider | null;\n}",
+          "declaration": "export interface KJDrawSDKOptions {\n    version?: string;\n    documentAuthority?: KJDocumentAuthorityProvider | null;\n    solidAuthority?: Readonly<KJCoreSolidBackend> | null;\n    agentPlans?: KJAgentPlanRegistry;\n    agentPlanOptions?: KJAgentPlanRegistryOptions;\n    registerDefaultAdapters?: boolean;\n    /** Optional host-owned DWG converter. KJDraw stores neither endpoints nor credentials. */\n    dwgConversionProvider?: KJDwgConversionProvider | null;\n    /** Constructor-only host pattern resources, added to the bundled catalog. */\n    hatchPatternCatalogs?: readonly ReadonlyDeep<KJHatchPatternCatalog>[];\n    /** Defaults true. A trusted host may opt out to use its own full bounded catalog. */\n    includeBundledHatchPatterns?: boolean;\n}",
           "source": "sdk.d.ts",
           "anchor": "core-interface-kjdrawsdkoptions"
         },
@@ -4694,6 +4723,13 @@
           "declaration": "export declare function matrix3(value?: AffineMatrix3Input): AffineMatrix3;",
           "source": "geometry/matrix3.d.ts",
           "anchor": "core-function-matrix3"
+        },
+        {
+          "name": "mergeHatchPatternCatalogs",
+          "kind": "function",
+          "declaration": "export declare function mergeHatchPatternCatalogs(...sources: readonly (readonly ReadonlyDeep<KJHatchPatternCatalog>[])[]): ReadonlyDeep<KJHatchPatternCatalog[]>;",
+          "source": "sdk.d.ts",
+          "anchor": "core-function-mergehatchpatterncatalogs"
         },
         {
           "name": "midpoint2",
@@ -8225,7 +8261,7 @@
         {
           "name": "KJAgentToolSessionOptions",
           "kind": "interface",
-          "declaration": "export interface KJAgentToolSessionOptions {\n    /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */\n    toolProfile?: KJAgentToolProfile;\n    geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n    geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n    /** Optional private host catalogs. No remote fetch or model-controlled catalog registration. */\n    hatchPatternCatalogs?: KJHatchPatternCatalog[];\n}",
+          "declaration": "export interface KJAgentToolSessionOptions {\n    /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */\n    toolProfile?: KJAgentToolProfile;\n    geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n    geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n    /** Constructor-only additional host catalogs. Never fetched or model registered. */\n    hatchPatternCatalogs?: readonly ReadonlyDeep<KJHatchPatternCatalog>[];\n}",
           "source": "agent-tools.d.ts",
           "anchor": "root-interface-kjagenttoolsessionoptions"
         },
@@ -9371,6 +9407,27 @@
           "anchor": "root-const-kjdraw-erase-impact-limits"
         },
         {
+          "name": "KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG: ReadonlyDeep<KJHatchPatternCatalog>;",
+          "source": "knowledge-packs/geology-patterns.d.ts",
+          "anchor": "root-const-kjdraw-geology-hatch-pattern-catalog"
+        },
+        {
+          "name": "KJDRAW_GEOLOGY_HATCH_PATTERN_PROVENANCE",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_GEOLOGY_HATCH_PATTERN_PROVENANCE: Readonly<{\n    source: \"User-supplied YTKC legacy ZWCAD.PAT definitions\";\n    authorization: \"Explicit resource redistribution authorization confirmed by the contributing user on 2026-10-03\";\n    vendorAuthorizationClaimed: false;\n    patternNames: 209;\n    lineFamilies: 940;\n    sourceSha256: \"cf3ce6d51c5fd2b4c51a132fa6c77b8325d7b346e334308d2d34a672e7ebd632\";\n    literalDefinitionSha256: \"76777b218f5f8ae6797c484f269d5b0d63020f5a70587eb4f9e7966ad0b528d2\";\n}>;",
+          "source": "knowledge-packs/geology-patterns.d.ts",
+          "anchor": "root-const-kjdraw-geology-hatch-pattern-provenance"
+        },
+        {
+          "name": "KJDRAW_GEOLOGY_HATCH_PATTERN_SOURCE",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_GEOLOGY_HATCH_PATTERN_SOURCE: string;",
+          "source": "knowledge-packs/geology-patterns.d.ts",
+          "anchor": "root-const-kjdraw-geology-hatch-pattern-source"
+        },
+        {
           "name": "KJDRAW_GEOLOGY_KNOWLEDGE_PACK",
           "kind": "const",
           "declaration": "export declare const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack>;",
@@ -9667,7 +9724,7 @@
         {
           "name": "KJDrawSDK",
           "kind": "class",
-          "declaration": "export declare class KJDrawSDK {\n    readonly version: string;\n    readonly events: KJEventBus<KJDrawSDKEvents>;\n    readonly extensions: KJExtensionRegistry;\n    readonly commands: KJCommandRegistry;\n    readonly fileAdapters: KJFileAdapterRegistry;\n    readonly documents: Map<string, KJDocument>;\n    readonly selections: Map<string, KJSelectionManager>;\n    readonly agentPlans: KJAgentPlanRegistry;\n    activeDocumentId: string | null;\n    documentAuthority: KJDocumentAuthorityProvider | null;\n    solidAuthority: Readonly<KJCoreSolidBackend> | null;\n    constructor(options?: KJDrawSDKOptions);\n    createDocument(options?: KJDocumentOptions & KJDocumentConstructorOptions): KJDocument;\n    openDocument(input: KJOpenDocumentInput, options?: KJDocumentConstructorOptions): KJDocument;\n    attachDocument(document: KJDocument): KJDocument;\n    closeDocument(inputId: string): boolean;\n    get activeDocument(): KJDocument | null;\n    get activeSelection(): KJSelectionSet | null;\n    getSelectionManager(documentId?: string | null): KJSelectionManager | null;\n    setDocumentAuthority(authority: KJDocumentAuthorityProvider): KJDocumentAuthorityProvider;\n    setSolidAuthority(authority: Readonly<KJCoreSolidBackend>): Readonly<KJCoreSolidBackend>;\n    setActiveDocument(inputId: string): KJDocument;\n    executeCommand<TResult = unknown>(id: string, args?: KJCommandArguments, options?: KJExecuteCommandOptions): Promise<TResult>;\n    executeCommand<TResult = unknown>(envelope: Readonly<KJCommandEnvelope>, options?: KJExecuteCommandEnvelopeOptions): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    createCommandEnvelope<TArguments extends Record<string, unknown> = KJCommandArguments>(command: string, args?: TArguments, options?: KJCreateSDKCommandEnvelopeOptions): Readonly<KJCommandEnvelope<TArguments>>;\n    executeCommandEnvelope<TResult = unknown>(input: unknown, options?: KJExecuteCommandEnvelopeOptions): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    snap(cursor: KJSnapPointInput, options?: KJSnapSDKOptions): readonly Readonly<KJSnapCandidate>[];\n    readDocument(source: unknown, options?: KJFileAdapterOptions): Promise<KJDocument>;\n    writeDocument<TResult = unknown>(document?: KJDocument | null, options?: KJFileAdapterOptions): Promise<TResult>;\n    capabilities(): ReturnType<typeof buildSDKCapabilityManifest>;\n    createPluginScope(manifestInput: unknown, { grantedPermissions }?: KJPluginScopeOptions): Readonly<KJPluginScope>;\n}",
+          "declaration": "export declare class KJDrawSDK {\n    #private;\n    readonly version: string;\n    readonly events: KJEventBus<KJDrawSDKEvents>;\n    readonly extensions: KJExtensionRegistry;\n    readonly commands: KJCommandRegistry;\n    readonly fileAdapters: KJFileAdapterRegistry;\n    readonly documents: Map<string, KJDocument>;\n    readonly selections: Map<string, KJSelectionManager>;\n    readonly agentPlans: KJAgentPlanRegistry;\n    activeDocumentId: string | null;\n    documentAuthority: KJDocumentAuthorityProvider | null;\n    solidAuthority: Readonly<KJCoreSolidBackend> | null;\n    constructor(options?: KJDrawSDKOptions);\n    /** Host-selected immutable catalog snapshot. There is intentionally no setter. */\n    get hatchPatternCatalogs(): ReadonlyDeep<KJHatchPatternCatalog[]>;\n    createDocument(options?: KJDocumentOptions & KJDocumentConstructorOptions): KJDocument;\n    openDocument(input: KJOpenDocumentInput, options?: KJDocumentConstructorOptions): KJDocument;\n    attachDocument(document: KJDocument): KJDocument;\n    closeDocument(inputId: string): boolean;\n    get activeDocument(): KJDocument | null;\n    get activeSelection(): KJSelectionSet | null;\n    getSelectionManager(documentId?: string | null): KJSelectionManager | null;\n    setDocumentAuthority(authority: KJDocumentAuthorityProvider): KJDocumentAuthorityProvider;\n    setSolidAuthority(authority: Readonly<KJCoreSolidBackend>): Readonly<KJCoreSolidBackend>;\n    setActiveDocument(inputId: string): KJDocument;\n    executeCommand<TResult = unknown>(id: string, args?: KJCommandArguments, options?: KJExecuteCommandOptions): Promise<TResult>;\n    executeCommand<TResult = unknown>(envelope: Readonly<KJCommandEnvelope>, options?: KJExecuteCommandEnvelopeOptions): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    createCommandEnvelope<TArguments extends Record<string, unknown> = KJCommandArguments>(command: string, args?: TArguments, options?: KJCreateSDKCommandEnvelopeOptions): Readonly<KJCommandEnvelope<TArguments>>;\n    executeCommandEnvelope<TResult = unknown>(input: unknown, options?: KJExecuteCommandEnvelopeOptions): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    snap(cursor: KJSnapPointInput, options?: KJSnapSDKOptions): readonly Readonly<KJSnapCandidate>[];\n    readDocument(source: unknown, options?: KJFileAdapterOptions): Promise<KJDocument>;\n    writeDocument<TResult = unknown>(document?: KJDocument | null, options?: KJFileAdapterOptions): Promise<TResult>;\n    capabilities(): ReturnType<typeof buildSDKCapabilityManifest>;\n    createPluginScope(manifestInput: unknown, { grantedPermissions }?: KJPluginScopeOptions): Readonly<KJPluginScope>;\n}",
           "source": "sdk.d.ts",
           "anchor": "root-class-kjdrawsdk"
         },
@@ -9681,7 +9738,7 @@
         {
           "name": "KJDrawSDKOptions",
           "kind": "interface",
-          "declaration": "export interface KJDrawSDKOptions {\n    version?: string;\n    documentAuthority?: KJDocumentAuthorityProvider | null;\n    solidAuthority?: Readonly<KJCoreSolidBackend> | null;\n    agentPlans?: KJAgentPlanRegistry;\n    agentPlanOptions?: KJAgentPlanRegistryOptions;\n    registerDefaultAdapters?: boolean;\n    /** Optional host-owned DWG converter. KJDraw stores neither endpoints nor credentials. */\n    dwgConversionProvider?: KJDwgConversionProvider | null;\n}",
+          "declaration": "export interface KJDrawSDKOptions {\n    version?: string;\n    documentAuthority?: KJDocumentAuthorityProvider | null;\n    solidAuthority?: Readonly<KJCoreSolidBackend> | null;\n    agentPlans?: KJAgentPlanRegistry;\n    agentPlanOptions?: KJAgentPlanRegistryOptions;\n    registerDefaultAdapters?: boolean;\n    /** Optional host-owned DWG converter. KJDraw stores neither endpoints nor credentials. */\n    dwgConversionProvider?: KJDwgConversionProvider | null;\n    /** Constructor-only host pattern resources, added to the bundled catalog. */\n    hatchPatternCatalogs?: readonly ReadonlyDeep<KJHatchPatternCatalog>[];\n    /** Defaults true. A trusted host may opt out to use its own full bounded catalog. */\n    includeBundledHatchPatterns?: boolean;\n}",
           "source": "sdk.d.ts",
           "anchor": "root-interface-kjdrawsdkoptions"
         },
@@ -10745,7 +10802,7 @@
         {
           "name": "KJHatchPatternCatalogEntry",
           "kind": "interface",
-          "declaration": "export interface KJHatchPatternCatalogEntry {\n    name: string;\n    description: string;\n    lines: KJHatchPatternCatalogLine[];\n}",
+          "declaration": "export interface KJHatchPatternCatalogEntry {\n    name: string;\n    description: string;\n    aliases?: string[];\n    lines: KJHatchPatternCatalogLine[];\n}",
           "source": "hatch-pattern-catalog.d.ts",
           "anchor": "root-interface-kjhatchpatterncatalogentry"
         },
@@ -12064,6 +12121,13 @@
           "declaration": "export declare function matrix3(value?: AffineMatrix3Input): AffineMatrix3;",
           "source": "geometry/matrix3.d.ts",
           "anchor": "root-function-matrix3"
+        },
+        {
+          "name": "mergeHatchPatternCatalogs",
+          "kind": "function",
+          "declaration": "export declare function mergeHatchPatternCatalogs(...sources: readonly (readonly ReadonlyDeep<KJHatchPatternCatalog>[])[]): ReadonlyDeep<KJHatchPatternCatalog[]>;",
+          "source": "sdk.d.ts",
+          "anchor": "root-function-mergehatchpatterncatalogs"
         },
         {
           "name": "midpoint2",

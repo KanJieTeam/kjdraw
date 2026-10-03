@@ -64,6 +64,18 @@ function runtimeToolProfile(options) {
   return profile
 }
 
+function runtimeHatchPatternOptions(options) {
+  const policy = {}
+  for (const key of ['hatchPatternCatalogs', 'includeBundledHatchPatterns']) {
+    const descriptor = Object.getOwnPropertyDescriptor(options, key)
+    if ((!descriptor && key in options) || descriptor && (!Object.hasOwn(descriptor, 'value') || !descriptor.enumerable)) {
+      throw new Error(`Runtime ${key} must be an own enumerable data property.`)
+    }
+    if (descriptor) policy[key] = descriptor.value
+  }
+  return policy
+}
+
 /** A host-only prerequisite check over actual same-run SDK receipts. It never
  * reads a document for the model, resolves requested facts or prepares a plan.
  * Nonblank/source-backed documents and other tool/API policies are unchanged.
@@ -144,7 +156,7 @@ export function computeAiProposalCamera(document, preview, engineeringEvidence, 
  */
 export function createAiChatRuntime(options = {}) {
   const toolProfile = runtimeToolProfile(options)
-  const sdk = createKJDrawSDK()
+  const sdk = createKJDrawSDK(runtimeHatchPatternOptions(options))
   let document = sdk.createDocument({ documentId: `ai-${crypto.randomUUID()}`, title: 'AI drawing', units: options.units ?? 'millimeter' })
   const fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis)
   let connection = connectionSettings(options)
@@ -168,6 +180,10 @@ export function createAiChatRuntime(options = {}) {
     if (activeController) throw new Error('请等待当前请求结束后更换模型。')
     if (next && (typeof next === 'object' || typeof next === 'function') && 'toolProfile' in next) {
       throw new Error('Runtime toolProfile is immutable; select it only when creating a new runtime.')
+    }
+    if (next && (typeof next === 'object' || typeof next === 'function') &&
+      ['hatchPatternCatalogs', 'includeBundledHatchPatterns'].some(key => key in next)) {
+      throw new Error('Runtime hatch pattern policy is immutable; select it only when creating a new runtime.')
     }
     connection = connectionSettings(next)
     return { configured: Boolean(connection), model: connection?.model ?? '' }
@@ -348,7 +364,7 @@ export function createAiChatRuntime(options = {}) {
           }
         },
       }) : null
-      const session = new KJAgentToolSession(sdk, document, { toolProfile, ...(options.hatchPatternCatalogs ? { hatchPatternCatalogs: options.hatchPatternCatalogs } : {}) })
+      const session = new KJAgentToolSession(sdk, document, { toolProfile })
       const normalized = prompt.trim()
       if (!model) return errorResult('AI_MODEL_REQUIRED', '请先连接模型，再发送绘图需求。')
       const scalarProfile = toolProfile === 'geology-scalars-v1'

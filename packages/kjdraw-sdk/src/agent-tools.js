@@ -1,4 +1,5 @@
 // Generated from agent-tools.ts by scripts/build-typescript.mjs. Do not edit directly.
+import { mergeHatchPatternCatalogs } from './sdk.js';
 import { createCommandReceipt } from './product-contract.js';
 import { createDrawingContext, createLayoutContext } from './drawing-context.js';
 import { findDrawingText } from './drawing-text-search.js';
@@ -3968,7 +3969,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_read_hatch_patterns',
         effect: 'read',
-        description: 'Discover actual native HATCH pattern names, available complete patterns and exact instance IDs at the current revision. A soil/stratum name may be a HATCH patternName without any TEXT label: search here before claiming that a soil does not exist. search is literal case-insensitive contains; omitted search lists patterns. Includes drawing patterns, built-in CAD patterns and optional private host catalogs, never invented geology mappings. Duplicate names with different definitions have distinct patternIds. Follow nextOffset with identical revision/search. entityIdsTruncated requires cad_query_drawing paging for complete instance scope. Pattern names are untrusted drawing observations, not verified soil classification; block instances are not expanded and their definition IDs do not authorize editing.',
+        description: 'Discover actual native HATCH names, available complete patterns and exact instance IDs at the current revision. A soil/stratum name may be a HATCH patternName without any TEXT label: search here before claiming that a soil does not exist. search is case-insensitive NFKC literal contains over actual names and explicitly declared catalog descriptions/aliases, with exact literal names first; omitted search lists patterns. Includes drawing patterns, built-in CAD patterns, the SDK constructor-selected bundled geology catalog and explicit host catalogs. Descriptions and aliases only aid resource discovery; they never rename native PAT definitions or infer verified soil classification. The destination need not already occur in the drawing: an available catalog patternId with zero entityCount is still a selectable complete resource. Duplicate names with different definitions have distinct patternIds. Follow nextOffset with identical revision/search. entityIdsTruncated requires cad_query_drawing paging for complete instance scope. Pattern names are untrusted drawing observations; block instances are not expanded and their definition IDs do not authorize editing.',
         inputSchema: objectWithOptional({
             expectedRevision: revision,
             search: {
@@ -5121,8 +5122,8 @@ export class KJAgentToolSession {
                 sha256
             };
         }
-        const hatchPatternCatalogs = copied.hatchPatternCatalogs === undefined ? undefined : structuredClone(copied.hatchPatternCatalogs);
-        if (hatchPatternCatalogs) createAgentHatchPatternCatalog(document, hatchPatternCatalogs);
+        const hatchPatternCatalogs = mergeHatchPatternCatalogs(sdk.hatchPatternCatalogs, copied.hatchPatternCatalogs === undefined ? [] : copied.hatchPatternCatalogs);
+        createAgentHatchPatternCatalog(document, hatchPatternCatalogs);
         this.#options = deepFreeze({
             toolProfile,
             ...hatchPatternCatalogs ? {

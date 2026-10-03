@@ -2,7 +2,7 @@ import type { KJDocument } from './document.js'
 import type { KJObjectPayload } from './schema.js'
 import type { KJTransaction } from './transaction.js'
 import { KJValidationError } from './errors.js'
-import { deepFreeze, stableHash } from './utils.js'
+import { deepFreeze, stableHash, type ReadonlyDeep } from './utils.js'
 import { hatchPatternLines } from './geometry/hatch.js'
 import { hatchPatternFromCatalog, type KJHatchPatternCatalog } from './hatch-pattern-catalog.js'
 
@@ -85,14 +85,28 @@ export function applyHatchPatternEdits(document: KJDocument, transaction: KJTran
   return edits.map(edit => transaction.updateObject(edit.id, { payload: edit.pattern }))
 }
 
-/** Caller-supplied catalogs are local host data, never fetched or inferred from a model request. */
-export function createAgentHatchPatternCatalog(document: KJDocument, catalogs: readonly KJHatchPatternCatalog[] = []) {
-  const entries = new Map<string, { patternId: string; name: string; source: string; pattern: KJObjectPayload; entityIds: string[] }>()
-  const add = (payload: Readonly<Record<string, unknown>>, source: string, entityId?: string) => {
+/** Host catalogs are local immutable resources, never inferred from a model request. */
+export function createAgentHatchPatternCatalog(document: KJDocument, catalogs: readonly ReadonlyDeep<KJHatchPatternCatalog>[] = []) {
+  const entries = new Map<string, {
+    patternId: string; name: string; source: string; pattern: KJObjectPayload; entityIds: string[];
+    descriptions: string[]; aliases: string[]; catalogHashes: string[]; catalogDefinitionMatch: boolean;
+  }>()
+  const attachMetadata = (entry: typeof entries extends Map<string, infer T> ? T : never,
+    metadata: { description: string; aliases: readonly string[]; catalogHash: string }, exactDefinition: boolean) => {
+    if (metadata.description && !entry.descriptions.includes(metadata.description)) entry.descriptions.push(metadata.description)
+    for (const alias of metadata.aliases) if (!entry.aliases.includes(alias)) entry.aliases.push(alias)
+    if (!entry.catalogHashes.includes(metadata.catalogHash)) entry.catalogHashes.push(metadata.catalogHash)
+    entry.catalogDefinitionMatch ||= exactDefinition
+  }
+  const add = (payload: Readonly<Record<string, unknown>>, source: string, entityId?: string,
+    metadata?: { description: string; aliases: readonly string[]; catalogHash: string }) => {
     const pattern = nativeHatchPattern({ ...payload, patternScale: 1, patternAngle: 0 })
     const patternId = stableHash(pattern), existing = entries.get(patternId)
-    if (existing) { if (entityId) existing.entityIds.push(entityId); return }
-    entries.set(patternId, { patternId, name: String(pattern.patternName), source, pattern, entityIds: entityId ? [entityId] : [] })
+    const entry = existing ?? { patternId, name: String(pattern.patternName), source, pattern,
+      entityIds: [], descriptions: [], aliases: [], catalogHashes: [], catalogDefinitionMatch: false }
+    if (entityId && !entry.entityIds.includes(entityId)) entry.entityIds.push(entityId)
+    if (metadata) attachMetadata(entry, metadata, true)
+    if (!existing) entries.set(patternId, entry)
   }
   const unsupported: { id: string; patternName: string; reason: string }[] = []
   if (document.listEntities().length > 250000) return fail('drawing exceeds the catalog inspection budget')
@@ -102,16 +116,39 @@ export function createAgentHatchPatternCatalog(document: KJDocument, catalogs: r
   }
   for (const name of ['SOLID', 'ANSI31', 'ANSI37', 'CROSS']) add({ patternName: name, solid: name === 'SOLID' }, 'built-in')
   if (catalogs.length > 16 || catalogs.reduce((sum, catalog) => sum + catalog.patterns.length, 0) > 256) return fail('host catalogs exceed 16 catalogs / 256 patterns')
-  for (const catalog of catalogs) for (const entry of catalog.patterns) add(hatchPatternFromCatalog(catalog, entry.name), 'host-catalog')
+  for (const catalog of catalogs) {
+    // Metadata is for discovery only: the literal name and native definition still
+    // determine identity. Never trust a supplied contentHash as the definition.
+    const catalogHash = stableHash(catalog.patterns)
+    for (const entry of catalog.patterns) {
+      if (typeof entry.description !== 'string' || entry.description.length > 256 || /[\u0000-\u001f\u007f]/.test(entry.description)) return fail('catalog description must be bounded printable text')
+      const aliases = entry.aliases ?? []
+      if (!Array.isArray(aliases) || aliases.length > 16 || aliases.some(alias => typeof alias !== 'string' || !alias.trim() || alias.length > 128 || /[\u0000-\u001f\u007f]/.test(alias))) return fail('catalog aliases must be bounded printable names')
+      const metadata = { description: entry.description, aliases, catalogHash }
+      add(hatchPatternFromCatalog(catalog, entry.name), 'host-catalog', undefined, metadata)
+      // Imported same-name definitions may legitimately differ, including tiny
+      // DXF transform roundoff. Share only their declared discovery metadata;
+      // do not merge IDs, line families, fingerprints or approval authority.
+      for (const current of entries.values()) if (current.source === 'drawing' && current.name.toUpperCase() === entry.name.toUpperCase()) {
+        attachMetadata(current, metadata, false)
+      }
+    }
+  }
   return { entries: [...entries.values()], unsupported }
 }
 
-export function readAgentHatchPatterns(document: KJDocument, input: { search?: string; offset?: number; limit?: number; maxBytes?: number }, catalogs: readonly KJHatchPatternCatalog[] = []) {
+export function readAgentHatchPatterns(document: KJDocument, input: { search?: string; offset?: number; limit?: number; maxBytes?: number }, catalogs: readonly ReadonlyDeep<KJHatchPatternCatalog>[] = []) {
   const { entries, unsupported } = createAgentHatchPatternCatalog(document, catalogs)
-  const query = (input.search ?? '').toLocaleLowerCase(), offset = input.offset ?? 0, limit = input.limit ?? 16, maxBytes = input.maxBytes ?? 65536
+  if (input.search !== undefined && (typeof input.search !== 'string' || input.search.length > 256 || /[\u0000-\u001f\u007f]/.test(input.search))) return fail('search must be bounded printable text')
+  const normalize = (value: string) => value.normalize('NFKC').toLowerCase()
+  const query = normalize(input.search ?? ''), offset = input.offset ?? 0, limit = input.limit ?? 16, maxBytes = input.maxBytes ?? 65536
   if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 64 || !Number.isSafeInteger(maxBytes) || maxBytes < 1024 || maxBytes > 262144) return fail('invalid catalog page or byte budget')
-  const matched = entries.filter(entry => entry.name.toLocaleLowerCase().includes(query))
+  const matchKind = (entry: typeof entries[number]) => !query ? 'all' : normalize(entry.name) === query ? 'exact-name' : normalize(entry.name).includes(query) ? 'name' : entry.aliases.some(alias => normalize(alias).includes(query)) ? 'declared-alias' : 'description'
+  const matched = entries.filter(entry => [entry.name, ...entry.aliases, ...entry.descriptions].some(value => normalize(value).includes(query)))
+    .sort((left, right) => Number(matchKind(right) === 'exact-name') - Number(matchKind(left) === 'exact-name'))
   const page = matched.slice(offset, offset + limit).map(entry => ({ patternId: entry.patternId, name: entry.name, source: entry.source,
+    descriptions: entry.descriptions, aliases: entry.aliases, catalogHashes: entry.catalogHashes, matchKind: matchKind(entry),
+    catalogMetadataMatch: entry.catalogDefinitionMatch ? 'exact-definition' : entry.catalogHashes.length ? 'literal-name' : 'none',
     lineFamilies: (entry.pattern.patternLines as unknown[]).length, entityCount: entry.entityIds.length, entityIds: entry.entityIds.slice(0, 64), entityIdsTruncated: entry.entityIds.length > 64,
   }))
   const value = { documentId: document.id, revision: document.revision, units: document.snapshot().header.units, patterns: page, totalMatches: matched.length,
@@ -122,7 +159,7 @@ export function readAgentHatchPatterns(document: KJDocument, input: { search?: s
   return deepFreeze(value)
 }
 
-export function prepareAgentHatchPatternEdit(document: KJDocument, input: { ids: string[]; patternId: string; patternScale?: number; patternAngleDegrees?: number }, catalogs: readonly KJHatchPatternCatalog[] = []) {
+export function prepareAgentHatchPatternEdit(document: KJDocument, input: { ids: string[]; patternId: string; patternScale?: number; patternAngleDegrees?: number }, catalogs: readonly ReadonlyDeep<KJHatchPatternCatalog>[] = []) {
   const selected = createAgentHatchPatternCatalog(document, catalogs).entries.find(entry => entry.patternId === input.patternId)
   if (!selected) return fail('target pattern is unavailable; read the current catalog and never invent a name or substitute a different soil pattern')
   const changes = input.ids.map(id => {
