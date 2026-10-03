@@ -33,9 +33,20 @@ test('real CAD proposal stays pending until approval and exports a reopenable DX
 
   const card = page.getByTestId('drawing-result')
   await expect(card).toBeVisible()
-  await expect(card).toContainText('REV 0')
+  await expect(card.locator('.proposal-subtitle')).toHaveText('Revision 0')
   await expect(page.getByTestId('proposal-approve')).toBeVisible()
   await expect(page.getByTestId('drawing-download')).toHaveCount(0)
+  await expect(page.getByTestId('chat-send')).toBeEnabled()
+  const persistedDrawing = async () => {
+    const bytes = await page.evaluate(async () => {
+      const saved = await (await import('/apps/playground/ai/local-history.js')).loadLocalHistory()
+      return saved.sessions.find(session => session.id === saved.activeId).state.drawing
+    })
+    return createKJDrawSDK().readDocument(bytes, { format: 'KJD' })
+  }
+  const beforeApproval = await persistedDrawing()
+  expect(beforeApproval.revision).toBe(0)
+  expect(beforeApproval.listEntities()).toHaveLength(0)
   await expect.poll(() => card.locator('canvas').evaluate(canvas => {
     if (!canvas.width || !canvas.height) return 0
     const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data
@@ -49,6 +60,11 @@ test('real CAD proposal stays pending until approval and exports a reopenable DX
 
   await page.getByTestId('proposal-approve').click()
   await expect(page.getByTestId('drawing-download')).toBeVisible()
+  await expect(card.locator('.proposal-subtitle')).toHaveText('Revision 1')
+  const afterApproval = await persistedDrawing()
+  expect(afterApproval.id).toBe(beforeApproval.id)
+  expect(afterApproval.revision).toBe(beforeApproval.revision + 1)
+  expect(afterApproval.listEntities()).toHaveLength(1)
   await expect.poll(() => card.locator('canvas').evaluate(canvas => {
     const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data
     let drawn=0

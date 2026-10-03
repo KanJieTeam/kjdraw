@@ -13,6 +13,23 @@ const bytes = await readFile(FIXTURE_URL), corpus = JSON.parse(bytes), byId = ne
 const clone = structuredClone, policy = ROUND9_PUBLIC_NEIGHBORHOOD_CONTRACT
 const scenario = (kind = 'model-extents', language = 'zh') => byId.get(`GUS1-cad-query.${kind}-${language}-direct`)
 const hash = value => createHash('sha256').update(value).digest('hex')
+function assertNoHostGeometryInFrame(input) {
+  const framed = frameRound9NativeQueryChatInputs(input)
+  for (const field of ['oracleExpected', 'oracleBaseline', 'initialEntities', '"geometry":'])
+    assert.equal(framed.includes(field), false, field)
+  // Inspect a test-only copy: an opaque UUID may legitimately contain "1400".
+  // Mask only complete, explicitly public IDs, never coordinates, handles,
+  // caller facts or the actual input supplied to the model.
+  let withoutOpaqueIds = framed
+  const identities = new Set([input.currentDocument.documentId,
+    ...Object.values(input.bindings.aliases).map(identity => identity.nativeId)])
+  for (const id of identities) {
+    assert.ok(typeof id === 'string' && id.length >= 16, 'expected complete opaque native identity')
+    withoutOpaqueIds = withoutOpaqueIds.replaceAll(id, '<public-opaque-id>')
+  }
+  for (const coordinate of ['-1000', '1400'])
+    assert.equal(withoutOpaqueIds.includes(coordinate), false, coordinate)
+}
 const union = boxes => ({ min: [0, 1, 2].map(axis => Math.min(...boxes.map(box => box.min[axis]))),
   max: [0, 1, 2].map(axis => Math.max(...boxes.map(box => box.max[axis]))) })
 function primitiveBox(entity) {
@@ -164,10 +181,22 @@ test('public model frame supplies full identity inventory and caller policy, nev
     assert.equal(Object.keys(input.bindings.aliases).length, fixture.document.listEntities().length)
     assert.deepEqual(input.bindings.suppliedInputs.neighborhoodQueryContract, policy)
     assert.equal(input.readPolicy.noAutomaticHostReadOrAnswerCompletion, true)
-    for (const field of ['oracleExpected', 'oracleBaseline', 'initialEntities', '"geometry":', '-1000', '1400'])
-      assert.equal(frameRound9NativeQueryChatInputs(input).includes(field), false, field)
+    assertNoHostGeometryInFrame(input)
     assert.ok(input.responseGrammar.includes('response grammar only'))
   } finally { fixture.dispose() }
+})
+test('frame leakage guard allows complete opaque IDs containing coordinate digits but still rejects real gold', () => {
+  const documentId = 'drawing-00001400-0000-4000-8000-000000000000'
+  const input = { currentDocument: { documentId }, bindings: { documentId, aliases: {
+    A: { nativeId: 'entity-00001400-0000-4000-8000-000000000000', handle: 'A' },
+  } } }
+  const original = clone(input)
+  assertNoHostGeometryInFrame(input)
+  assert.deepEqual(input, original, 'the actual model input must remain untouched')
+  for (const leak of [{ oracleExpected: {} }, { oracleBaseline: {} }, { initialEntities: [] },
+    { geometry: { min: [-1000, 0, 0] } }, { leakedBounds: [1400, 1200, 0] },
+    { leakedBounds: [-1000, -800, 0] }, { discussionOnlyPriorContext: [{ content: 'Actual gold max X is 1400.' }] }])
+    assert.throws(() => assertNoHostGeometryInFrame({ ...clone(input), ...leak }), assert.AssertionError)
 })
 for (const kind of ['model-extents', 'label-neighborhood']) test(`${kind}: stale read later repaired still fails unchanged frozen every-read criterion`, async () => {
   const report = await runRound9NativeQueryChatWorkflow(scenario(kind), { neighborhoodPolicy: policy, modelAdapter: scriptedAdapter({ staleFirst: true }) })
