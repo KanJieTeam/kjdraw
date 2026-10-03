@@ -57,6 +57,18 @@ test('both public README heroes link the actual synthetic live GIF to its full r
   }
 })
 
+test('public evidence page preserves its original CSS rules in a self-hosted file and reuses the existing SVG favicon', async () => {
+  const source = await text(pageFile)
+  assert.doesNotMatch(source, /<style\b|\bstyle\s*=/i, 'style-src self must not depend on inline styles')
+  assert.match(source, /<link\b[^>]*\brel=["']stylesheet["'][^>]*\bhref=["']style\.css["']/i)
+  assert.match(source, /<link\b[^>]*\brel=["']icon["'][^>]*\bhref=["']\.\.\/\.\.\/assets\/mark\.svg["'][^>]*\btype=["']image\/svg\+xml["']/i)
+  const css = (await text(resolve(directory, 'style.css'))).trim()
+  // Hash of the original inline rule text captured before CSP-only extraction;
+  // whitespace outside the stylesheet is immaterial, all rule bytes stay exact.
+  assert.equal(createHash('sha256').update(css).digest('hex'), '2014dc0aeeaa0a44bd8abd1aec39b077f973841773d82ad08858bbf5279d7b43')
+  await regularFile(resolve(directory, '../../assets/mark.svg'))
+})
+
 test('public evidence page is DXF-first, has original WebM controls, and accurately declares synthetic/non-human/non-benchmark scope', async () => {
   const source = await text(pageFile), visible = source.replace(/<(style|script)\b[^>]*>[\s\S]*?<\/\1>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
   const downloads = [...source.matchAll(/<a\b(?=[^>]*\bdownload\b)[^>]*\bhref=["']([^"']+)["']/gi)].map(match => match[1])
