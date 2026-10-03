@@ -297,14 +297,33 @@ test(`effective owned erase protection is fail-closed with creations: ${id} ${JS
   assert.equal(f.document.snapshot(), before); assert.deepEqual(f.sdk.agentPlans.list(), [])
 })
 
-for (const bundled of [false, true]) test(`independent ezdxf reads native ${bundled ? 'bundled STT' : 'ANSI31'} atomic island output without repair`, { skip: !process.env.KJDRAW_PYTHON }, async t => {
+for (const bundled of [false, true]) for (const preserveStdinCrlf of [false, true])
+test(`independent ezdxf reads native ${bundled ? 'bundled STT' : 'ANSI31'} atomic island output without repair (${preserveStdinCrlf ? 'CRLF-preserving stdin' : 'platform stdin'})`, { skip: !process.env.KJDRAW_PYTHON }, async t => {
   const f = await fixture(t, { bundled }), plan = ok(await f.session.call('cad_propose_structural_edit', input(f)))
   ok(await f.session.approve(plan.planId, 'fixture-host-reviewer'))
   const bytes = await f.sdk.writeDocument(f.document, { format: 'DXF' })
-  const code = 'import io,json,sys,ezdxf\ndoc=ezdxf.read(io.StringIO(sys.stdin.read()))\na=doc.audit()\nh=list(doc.modelspace().query("HATCH"))\np=h[0].paths\narea=lambda v:abs(sum(v[i][0]*v[(i+1)%len(v)][1]-v[(i+1)%len(v)][0]*v[i][1] for i in range(len(v))))/2\nprint(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"hatches":len(h),"paths":len(p),"pattern":h[0].dxf.pattern_name,"area":area(p[0].vertices)-area(p[1].vertices),"flags":[x.path_type_flags for x in p],"lines":len(h[0].pattern.lines),"types":[e.dxftype() for e in doc.modelspace()]}))'
+  // Fail on the original independent audit; never recover or repair a missing
+  // HATCH. Include the actual audit before indexing paths so CI can distinguish
+  // a wrong owner/space, export loss and an auditor deletion without guessing.
+  const code = `import io,json,sys,ezdxf
+${preserveStdinCrlf ? 'sys.stdin.reconfigure(newline="\\n")' : ''}
+# Match ezdxf.readfile text-mode newline handling on every platform. Linux
+# stdin can retain CRLF, while default StringIO does not translate CRLF.
+# These are the original DXF bytes; no recovery, repair or export rewriting.
+doc=ezdxf.read(io.StringIO(sys.stdin.read(),newline=None))
+before=[{"type":e.dxftype(),"handle":e.dxf.handle,"owner":e.dxf.owner,"paperspace":e.dxf.get("paperspace",0)} for e in doc.entitydb.values() if e.dxftype()=="HATCH"]
+a=doc.audit()
+h=list(doc.modelspace().query("HATCH"))
+audit={"version":ezdxf.__version__,"errors":[{"code":e.code,"message":e.message} for e in a.errors],"fixes":[{"code":e.code,"message":e.message} for e in a.fixes],"beforeHatches":before,"afterModelTypes":[e.dxftype() for e in doc.modelspace()],"layouts":[{"name":layout.name,"hatches":len(list(layout.query("HATCH")))} for layout in doc.layouts]}
+assert len(h)==1, json.dumps(audit,ensure_ascii=True)
+p=h[0].paths
+assert len(p)==2, json.dumps(audit,ensure_ascii=True)
+area=lambda v:abs(sum(v[i][0]*v[(i+1)%len(v)][1]-v[(i+1)%len(v)][0]*v[i][1] for i in range(len(v))))/2
+print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"hatches":len(h),"paths":len(p),"pattern":h[0].dxf.pattern_name,"area":area(p[0].vertices)-area(p[1].vertices),"flags":[x.path_type_flags for x in p],"lines":len(h[0].pattern.lines),"types":[e.dxftype() for e in doc.modelspace()],"audit":audit}))`
   const child = spawnSync(process.env.KJDRAW_PYTHON, ['-c', code], { input: Buffer.from(bytes).toString('utf8'), encoding: 'utf8', windowsHide: true })
   assert.equal(child.status, 0, child.stderr)
   const actual = JSON.parse(child.stdout)
+  assert.equal(actual.audit.beforeHatches.length, 1, JSON.stringify(actual.audit))
   assert.deepEqual({ errors: actual.errors, fixes: actual.fixes, hatches: actual.hatches, paths: actual.paths, pattern: actual.pattern, area: actual.area, flags: actual.flags }, { errors: 0, fixes: 0, hatches: 1, paths: 2, pattern: bundled ? 'STT' : 'ANSI31', area: 375, flags: [3, 2] })
   assert.equal(actual.lines, plan.arguments.creations.find(item => item.type === 'HATCH').payload.patternLines.length)
   for (const type of ['LINE', 'LWPOLYLINE', 'HATCH', 'TEXT']) assert.ok(actual.types.includes(type))

@@ -677,8 +677,15 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
               // from the same read tool, arguments and byte-identical payload.
               const wireResults = results.map((item, index) => {
                 const serialized = JSON.stringify(item.result)
+                // A runner's native-entity reference is already a wire-only
+                // reduction. Never register or reference that reduced receipt
+                // as if it were full; doing so would create reference chains.
+                const value = item.result.ok ? item.result.value : undefined
+                const hasEntityReferences = value && typeof value === 'object' && !Array.isArray(value) &&
+                  Array.isArray((value as Record<string, unknown>).entities) &&
+                  ((value as Record<string, unknown>).entities as unknown[]).some(row => row && typeof row === 'object' && Object.hasOwn(row, 'nativeEntityReference'))
                 if (!reuseReadResultReferences || !readTools.has(item.name) || !item.result.ok || pendingChatInvalidIds.has(item.id) ||
-                  protocol === 'gemini-generate-content' && !geminiIds.has(item.id)) return serialized
+                  hasEntityReferences || protocol === 'gemini-generate-content' && !geminiIds.has(item.id)) return serialized
                 const key = JSON.stringify([item.name, pending[index]!.arguments, serialized])
                 const originalToolCallId = readReceiptCalls.get(key)
                 if (!originalToolCallId || callIdOccurrences.get(originalToolCallId) !== 1) {

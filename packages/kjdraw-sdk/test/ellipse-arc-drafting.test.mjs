@@ -107,12 +107,21 @@ test('native elliptical arc survives history and KJD/DXF reopen while selection 
 
   const python = process.env.KJDRAW_PYTHON ?? 'python', extra = process.env.KJDRAW_EZDXF_PATH
   const prefix = extra ? `import sys;sys.path.append(${JSON.stringify(extra)});` : ''
-  const script = `${prefix}import sys,io,json,ezdxf\ndoc=ezdxf.read(io.StringIO(sys.stdin.read()))\ne=list(doc.modelspace().query('ELLIPSE'))[0]\npoints=list(e.vertices([e.dxf.start_param,e.dxf.end_param]))\nprint(json.dumps({'start':e.dxf.start_param,'end':e.dxf.end_param,'points':[list(p) for p in points]}))`
-  const probe = spawnSync(python, ['-c', script], { input: String(dxf), encoding: 'utf8', maxBuffer: 1024 * 1024 })
-  if (probe.status !== 0) { t.skip(`ezdxf required: ${probe.stderr || probe.error?.message}`); return }
-  const independent = JSON.parse(probe.stdout)
-  close(independent.start, expected.startParameter)
-  close(independent.end, expected.endParameter)
-  close(independent.points[0][0], 10); close(independent.points[0][1], 0)
-  close(independent.points[1][0], 0); close(independent.points[1][1], 5)
+  // The actual DXF remains unchanged. Exercise both platform stdin and Unix
+  // CRLF-preserving stdin, using normal text-file newline semantics in ezdxf.
+  for (const preserveStdinCrlf of [false, true]) {
+    const script = `${prefix}import sys,io,json,ezdxf\n${preserveStdinCrlf ? 'sys.stdin.reconfigure(newline="\\n")\n' : ''}doc=ezdxf.read(io.StringIO(sys.stdin.read(),newline=None))\ne=list(doc.modelspace().query('ELLIPSE'))[0]\npoints=list(e.vertices([e.dxf.start_param,e.dxf.end_param]))\nprint(json.dumps({'start':e.dxf.start_param,'end':e.dxf.end_param,'points':[list(p) for p in points]}))`
+    const probe = spawnSync(python, ['-c', script], { input: String(dxf), encoding: 'utf8', maxBuffer: 1024 * 1024, windowsHide: true })
+    if (probe.status !== 0 && !process.env.KJDRAW_PYTHON && (probe.error?.code === 'ENOENT' || /ModuleNotFoundError: No module named ['"]ezdxf['"]/.test(probe.stderr))) {
+      t.skip('Optional independent checker requires Python and ezdxf.'); return
+    }
+    // Parse/audit failures are failures, never dependency skips. CI explicitly
+    // supplies its Python and installs the independent checker.
+    assert.equal(probe.status, 0, probe.stderr || probe.error?.message)
+    const independent = JSON.parse(probe.stdout)
+    close(independent.start, expected.startParameter)
+    close(independent.end, expected.endParameter)
+    close(independent.points[0][0], 10); close(independent.points[0][1], 0)
+    close(independent.points[1][0], 0); close(independent.points[1][1], 5)
+  }
 })

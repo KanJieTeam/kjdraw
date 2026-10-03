@@ -986,7 +986,9 @@ export function createKJModelAdapter(options) {
                             }
                             const wireResults = results.map((item, index)=>{
                                 const serialized = JSON.stringify(item.result);
-                                if (!reuseReadResultReferences || !readTools.has(item.name) || !item.result.ok || pendingChatInvalidIds.has(item.id) || protocol === 'gemini-generate-content' && !geminiIds.has(item.id)) return serialized;
+                                const value = item.result.ok ? item.result.value : undefined;
+                                const hasEntityReferences = value && typeof value === 'object' && !Array.isArray(value) && Array.isArray(value.entities) && value.entities.some((row)=>row && typeof row === 'object' && Object.hasOwn(row, 'nativeEntityReference'));
+                                if (!reuseReadResultReferences || !readTools.has(item.name) || !item.result.ok || pendingChatInvalidIds.has(item.id) || hasEntityReferences || protocol === 'gemini-generate-content' && !geminiIds.has(item.id)) return serialized;
                                 const key = JSON.stringify([
                                     item.name,
                                     pending[index].arguments,

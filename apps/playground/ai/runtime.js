@@ -329,10 +329,12 @@ export function createAiChatRuntime(options = {}) {
     let modelRequestSignal = null
     try {
       const current = connection
+      const reuseEntityReads = toolProfile === 'full' && current &&
+        ['chat-completions', 'responses', 'anthropic-messages'].includes(current.protocol)
       const model = current ? createChatModelAdapter({
         protocol: current.protocol, model: current.model,
         maxOutputTokens: hasImportedDocument && toolProfile === 'full' ? 8192 : 4096,
-        reuseReadResultReferences: true,
+        reuseReadResultReferences: !reuseEntityReads,
         ...getChatModelAdapterOptions(current.provider, current.model),
         ...(current.protocol === 'chat-completions' ? { chatStreaming: true } : {}),
         ...(current.protocol === 'responses' ? { responsesStreaming: true } : {}),
@@ -449,7 +451,7 @@ export function createAiChatRuntime(options = {}) {
         ? 'For a target named by hole ID, layer label, title or other drawing text, use cad_find_text to find complete text and exact IDs throughout the drawing, then cad_query_drawing with IDs or a local bounding box to inspect nearby geometry. Do not assume cad_read_drawing first page contains every target. Read at the current revision after every approved or manual change. '
         : ''
       const inventoryNotice = !scalarProfile && hasImportedDocument && document.listEntities().length
-        ? 'When a complete native drawing inventory is relevant, you may choose cad_query_drawing with filters:{}, offset:0, layerOffset:0, limit:200, maxLayers:100, maxBytes:262144 and the current expectedRevision. Follow its independent nextOffset/nextLayerOffset at the same revision and with identical filters until both collections are complete. cad_read_page has a fixed small page size, accepts no limit and does not preserve query filters. If a page exceeds its byte budget, choose a smaller page rather than treating the partial inventory as complete. For a local named target, prefer cad_find_text and a local cad_query_drawing; a full-document inventory is not required for every local edit. These are available choices, not permission to infer missing facts or skip native reads. '
+        ? 'When a complete native drawing inventory is relevant, you may choose cad_query_drawing with filters:{}, offset:0, layerOffset:0, limit:200, maxLayers:100, maxBytes:262144 and the current expectedRevision. Follow its independent nextOffset/nextLayerOffset at the same revision and with identical filters until both collections are complete. cad_read_page has a fixed small page size, accepts no limit and does not preserve query filters. If a page exceeds its byte budget, choose a smaller page rather than treating the partial inventory as complete. Reuse the complete native inventory already read at the same revision; repeated spatial queries do not make the same geometry more certain. For local follow-up geometry you may narrow filters by actual known IDs or types. A spatial query conservatively includes unknown TEXT as unclassified; do not mistake that for intersection, exclusion or ownership. Read additional fields only when they are absent or changed; never infer a missing native field from these efficiency hints. For a local named target, prefer cad_find_text and a local cad_query_drawing; a full-document inventory is not required for every local edit. These are available choices, not permission to infer missing facts or skip native reads. '
         : ''
       const patternNotice = geologyIds.length
         ? 'For source-backed geology, cad_propose_geology_revision regenerates native HATCH geometry and the legend from supported source lithology values; the compiler supplies its own patterns, so the destination pattern need not already exist in the drawing or hatch catalog. Source lithology chooses the pattern; source stratum name independently controls its displayed name and legend. A lithology-only change does not rename the label: when the user explicitly specifies a replacement material name, include that exact requested name as well as the supported lithology. Use updates[].stratumChanges for exact existing interval name/lithology/description/code edits after reading the current source; do not resend complete strata arrays for these changes. Retain any explicit source pattern overrides and all other unrequested facts. If an explicit override conflicts with the requested pattern change, ask about that specific override rather than inventing a resource. Do not substitute a graphics-only HATCH edit or a text edit for requested source-data changes. '
@@ -465,6 +467,7 @@ export function createAiChatRuntime(options = {}) {
       if (context.length > MAX_PROMPT_LENGTH) return errorResult('AI_CONTEXT_LIMIT', '需求太长，请缩短后重试。')
       const result = await runKJAgentTask({
         session: modelSession, model, prompt: context, toolNames,
+        ...(reuseEntityReads ? { reuseReadEntityReferences: true, readEntityReferenceProtocol: current.protocol } : {}),
         ...aiDrawingRequestLimits(document.listEntities().length, hasImportedDocument && !scalarProfile),
         expectProposal, expectReadEvidence: document.listEntities().length > 0,
         ...(capability ? { capabilities: { registry: capability.registry, lock: capability.lock } } : {}),
