@@ -1848,7 +1848,9 @@ function hatchSourceMetadata(entity: DxfEntity, references: ReadonlyMap<string, 
   if (doubles.length > 1 || doubles.length && !integer({ code: 77, value: doubles[0]! }, 0, 1)) fail('invalid double-pattern flag')
   result.doublePattern = doubles.length ? Number(doubles[0]) : 0
   const pixels = values(record, 47)
-  if (pixels.length > 1 || pixels.length && (!scalar({ code: 47, value: pixels[0]! }) || Number(pixels[0]) <= 0)) fail('invalid pixel size')
+  // Preserve imported zero-valued calculation metadata exactly; the exporter
+  // does not use this optional field to compute boundaries or pattern density.
+  if (pixels.length > 1 || pixels.length && (!scalar({ code: 47, value: pixels[0]! }) || Number(pixels[0]) < 0)) fail('invalid pixel size')
   if (pixels.length) result.nativeTail.push({ code: 47, value: pixels[0]! })
   const seeds = result.body.flatMap((tag, index) => tag.code === 98 ? [index] : [])
   if (seeds.length > 1) fail('duplicate seed count')

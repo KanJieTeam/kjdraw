@@ -259,7 +259,7 @@ test('generic reactors preserve exported layouts, tables, block records and cros
   await assert.rejects(sdk.writeDocument(remapped, { format: 'DXF', version: 'R14' }), error => /live exported DXF object/.test(error.cause?.message ?? error.message))
 })
 
-async function metadataFixture({ hatchOwned = false, capture = true } = {}) {
+async function metadataFixture({ hatchOwned = false, capture = true, pixelSize = 0.1 } = {}) {
   const { sdk, document } = await fixture()
   const hatch = document.listEntities({ type: 'HATCH' })[0]
   const layout = document.getObject(document.spaces.layoutIds[1])
@@ -283,7 +283,7 @@ async function metadataFixture({ hatchOwned = false, capture = true } = {}) {
       .replace(record(0, 'HATCH', 5, hatch.handle), record(0, 'HATCH', 5, hatch.handle, 102, '{ACAD_XDICTIONARY', 360, 'F02', 102, '}'))
       .replace(record(100, 'AcDbHatch'), record(430, 'PUBLIC$COLOR', 440, 33554560, 284, 2, 100, 'AcDbHatch'))
       .replace(record(77, 0), record(77, 1))
-      .replace(record(0, 'LWPOLYLINE'), record(47, 0.1, 98, 1, 10, 1, 20, 1) + xdata + record(0, 'LWPOLYLINE'))
+      .replace(record(0, 'LWPOLYLINE'), record(47, pixelSize, 98, 1, 10, 1, 20, 1) + xdata + record(0, 'LWPOLYLINE'))
       .replace('0\nENDSEC\n0\nSECTION\n2\nBLOCKS\n', `${appid}0\nENDSEC\n0\nSECTION\n2\nBLOCKS\n`)
   }
   return { sdk, source: modified, document: await sdk.readDocument(modified, { format: 'DXF' }) }
@@ -319,6 +319,97 @@ test('approved HATCHPATTERN preserves validated extension dictionary, scalar XDA
     assert.equal(tags.find(tag => tag.code === 98).value, '1')
     assert.equal(tags.find(tag => tag.code === 1000).value, 'synthetic metadata')
     assert.equal(current.validate().valid, true)
+  }
+})
+
+test('zero HATCH pixel metadata survives unchanged and approved native pattern routes, history and repeated KJD/DXF reopen without dropping metadata', async () => {
+  const assertLinkedMetadata = (document, expectedPattern = 'ANSI31') => {
+    const hatch = document.listEntities({ type: 'HATCH' })[0]
+    assert.equal(hatch.payload.patternName, expectedPattern)
+    assert.equal(hatch.payload.associative, true)
+    assert.equal(hatch.payload.boundaryLoops.length, 2)
+    for (const [index, loop] of hatch.payload.boundaryLoops.entries()) {
+      assert.equal(loop.sourceBoundaryIds.length, 1)
+      const boundary = document.getObject(loop.sourceBoundaryIds[0])
+      assert.ok(boundary && !boundary.erased)
+      assert.equal(boundary.ownerId, hatch.ownerId)
+      assert.deepEqual(loop.sourceBoundaryHandles, [boundary.handle])
+      if (index === 0) {
+        const layout = document.getObject(document.spaces.layoutIds[1])
+        assert.deepEqual(boundary.payload.dxfReactorIds, [hatch.id, layout.id])
+        assert.deepEqual(boundary.payload.dxfReactorReferences, [{ id: hatch.id }, { metadataHandle: 'F03' }, { id: layout.id }])
+      } else assert.deepEqual(boundary.payload.dxfReactorIds, [hatch.id])
+    }
+    return hatch
+  }
+  for (const edited of [false, true]) {
+    const { sdk, document } = await metadataFixture({ hatchOwned: true, pixelSize: 0 })
+    const hatch = assertLinkedMetadata(document), originalGeometry = canonicalStringify(geometry(hatch))
+    const before = document.listEntities(), originalObjects = document.snapshot().objects
+    const opaqueBefore = canonicalStringify(document.snapshot().opaquePayloads)
+    if (edited) {
+      await approvePattern(sdk, document)
+      for (const [id, object] of Object.entries(originalObjects)) {
+        if (id !== hatch.id) assert.deepEqual(document.getObject(id), object, `untargeted record ${id}`)
+      }
+      assert.equal(canonicalStringify(document.snapshot().opaquePayloads), opaqueBefore)
+      const after = document.listEntities()
+      await document.undo(); assert.deepEqual(document.listEntities(), before)
+      assert.equal(canonicalStringify(document.snapshot().opaquePayloads), opaqueBefore)
+      await document.redo(); assert.deepEqual(document.listEntities(), after)
+    }
+    const expectedPattern = edited ? 'PUBLIC_REPLACEMENT' : 'ANSI31'
+    const expectedLines = canonicalStringify(document.getObject(hatch.id).payload.patternLines)
+    // KJD retains the definition basis; native DXF line data is scaled by the
+    // unchanged 0.5 HATCH scale. Compare the exact physical PAT on DXF routes.
+    const expectedNativeLines = edited ? canonicalStringify([
+      { angle: 0, base: [0, 0], offset: [0, 2], dashes: [0.5, -1.5] },
+      { angle: Math.PI / 2, base: [0.5, 0], offset: [2, 0], dashes: [0.5, -1.5] },
+    ]) : expectedLines
+    let current = document
+    for (const format of ['KJD', 'DXF', 'DXF']) {
+      current = await sdk.readDocument(await sdk.writeDocument(current, { format }), { format })
+      const actual = assertLinkedMetadata(current, expectedPattern), tags = actual.payload.rawTags
+      assert.equal(canonicalStringify(geometry(actual)), originalGeometry)
+      assert.equal(actual.payload.patternScale, 0.5)
+      assert.equal(canonicalStringify(actual.payload.patternLines), format === 'KJD' ? expectedLines : expectedNativeLines)
+      assert.deepEqual(tags.filter(tag => tag.code === 47), [{ code: 47, value: '0' }])
+      assert.equal(tags.find(tag => tag.code === 77).value, '1')
+      const seeds = tags.findIndex(tag => tag.code === 98)
+      assert.deepEqual(tags.slice(seeds, seeds + 3), [{ code: 98, value: '1' }, { code: 10, value: '1' }, { code: 20, value: '1' }])
+      assert.deepEqual(tags.filter(tag => [430, 440, 284].includes(tag.code)), [{ code: 430, value: 'PUBLIC$COLOR' }, { code: 440, value: '33554560' }, { code: 284, value: '2' }])
+      const dictionary = current.snapshot().opaquePayloads[DXF_VIEWPORT_METADATA_KEY].records.find(record => record.type === 'DICTIONARY')
+      assert.deepEqual(tags.filter(tag => tag.code === 360), [{ code: 360, value: 'F02' }])
+      assert.equal(dictionary.tags.find(tag => tag.code === 330).value, actual.handle)
+      assert.deepEqual(tags.filter(tag => tag.code >= 1000), [
+        { code: 1001, value: 'PUBLIC_METADATA' }, { code: 1000, value: 'synthetic metadata' },
+        { code: 1002, value: '{' }, { code: 1070, value: '17' }, { code: 1071, value: '123456' },
+        { code: 1040, value: '2.5' }, { code: 1041, value: '3' }, { code: 1042, value: '4' },
+        { code: 1010, value: '1.5' }, { code: 1020, value: '2.5' }, { code: 1030, value: '0' },
+        { code: 1004, value: '0AFF' },
+        { code: 1005, value: current.getObject(actual.payload.boundaryLoops[0].sourceBoundaryIds[0]).handle },
+        { code: 1005, value: 'F03' }, { code: 1005, value: '0' }, { code: 1002, value: '}' },
+      ])
+      assert.equal(current.listEntities().length, before.length)
+      assert.equal(current.validate().valid, true)
+    }
+  }
+})
+
+test('negative, nonfinite, malformed and duplicate HATCH pixel metadata fail closed on unchanged and approved native pattern export', async () => {
+  const { sdk, source } = await metadataFixture({ hatchOwned: true })
+  for (const invalid of ['-1', '-0.1', 'NaN', 'Infinity', '-Infinity', '1e999', 'invalid', '', '0\n47\n0']) {
+    const damaged = source.replace(record(47, 0.1), record(47, invalid))
+    assert.notEqual(damaged, source)
+    const document = await sdk.readDocument(damaged, { format: 'DXF' })
+    for (const edited of [false, true]) {
+      if (edited) await approvePattern(sdk, document)
+      const before = document.serialize()
+      await assert.rejects(sdk.writeDocument(document, { format: 'DXF' }), error =>
+        error.code === 'KJFILE_ADAPTER_FAILED' && error.cause?.code === 'KJDOCUMENT_INVALID' &&
+        error.cause.message === 'DXF HATCH source metadata cannot be exported without loss: invalid pixel size', `${JSON.stringify(invalid)}/${edited}`)
+      assert.equal(document.serialize(), before)
+    }
   }
 })
 
@@ -396,6 +487,82 @@ print(json.dumps({'errors':len(audit.errors),'fixes':len(audit.fixes),'dictionar
     assert.equal(result.status, 0, result.stderr)
     assert.deepEqual(JSON.parse(result.stdout), { errors: 0, fixes: 0, dictionary: 'F02', xrecord: 'F03' })
   }
+})
+
+test('independent ezdxf reads, writes and audits zero-pixel HATCH metadata on source, raw-remap and approved native-remap routes without repairs', { skip: !process.env.KJDRAW_PYTHON }, async () => {
+  const check = `
+import io,json,sys,ezdxf
+data=json.load(sys.stdin)
+def facts(doc, expected_pattern):
+    hatch,=doc.modelspace().query('HATCH')
+    assert hatch.dxf.pixel_size == 0
+    assert hatch.dxf.pattern_name == expected_pattern
+    assert hatch.dxf.associative == 1
+    assert hatch.dxf.pattern_double == 1
+    assert len(hatch.paths) == 2
+    assert [path.path_type_flags for path in hatch.paths] == [3,0]
+    assert hatch.paths[0].vertices == [(0,0,0),(20,0,0),(20,20,0),(0,20,0)]
+    edge,=hatch.paths[1].edges
+    assert tuple(edge.center) == (10,10)
+    assert (edge.radius,edge.start_angle,edge.end_angle,edge.ccw) == (2,0,360,True)
+    for index,path in enumerate(hatch.paths):
+        assert len(path.source_boundary_objects) == 1
+        boundary=doc.entitydb[path.source_boundary_objects[0]]
+        assert boundary.is_alive and boundary.dxf.owner == hatch.dxf.owner
+        reactors=[doc.entitydb[handle] for handle in boundary.get_reactors()]
+        assert all(target.is_alive for target in reactors)
+        if index == 0:
+            # ezdxf's Reactors API sorts by numeric handle; native wire order is
+            # checked separately by the SDK test above. Require all exact targets.
+            layout_handle=doc.layouts.get('Layout1').dxf_layout.dxf.handle
+            assert sorted(boundary.get_reactors()) == sorted([hatch.dxf.handle,'F03',layout_handle])
+            assert sorted(target.dxftype() for target in reactors) == ['HATCH','LAYOUT','XRECORD']
+        else: assert boundary.get_reactors() == [hatch.dxf.handle]
+    dictionary=hatch.extension_dict.dictionary
+    assert dictionary.dxf.handle == 'F02' and dictionary.dxf.owner == hatch.dxf.handle
+    xrecord=dictionary['SYNTHETIC_DATA']
+    assert xrecord.dxftype() == 'XRECORD' and xrecord.dxf.handle == 'F03' and xrecord.dxf.owner == 'F02'
+    assert doc.appids.has_entry('PUBLIC_METADATA')
+    xdata=hatch.get_xdata('PUBLIC_METADATA')
+    assert [(c,tuple(v) if c==1010 else v) for c,v in xdata] == [
+        (1000,'synthetic metadata'),(1002,'{'),(1070,17),(1071,123456),
+        (1040,2.5),(1041,3),(1042,4),(1010,(1.5,2.5,0)),(1004,bytes.fromhex('0AFF')),
+        (1005,hatch.paths[0].source_boundary_objects[0]),(1005,'F03'),(1005,'0'),(1002,'}')]
+    assert hatch.dxf.color_name == 'PUBLIC$COLOR'
+    assert hatch.dxf.transparency == 33554560 and hatch.dxf.shadow_mode == 2
+    assert hatch.seeds == [(1,1)]
+    lines=[(line.angle,tuple(line.base_point),tuple(line.offset),line.dash_length_items) for line in hatch.pattern.lines]
+    assert len(lines) == (1 if expected_pattern == 'ANSI31' else 2)
+    audit=doc.audit()
+    assert not audit.errors and not audit.fixes
+    assert len(doc.modelspace().query('HATCH')) == 1
+    return {'pixel':hatch.dxf.pixel_size,'pattern':lines,'loops':str(hatch.paths[0].vertices),
+        'edge':(tuple(edge.center),edge.radius,edge.start_angle,edge.end_angle,edge.ccw),
+        'sources':[path.source_boundary_objects for path in hatch.paths],
+        'reactors':[sorted(doc.entitydb[path.source_boundary_objects[0]].get_reactors()) for path in hatch.paths],'seeds':hatch.seeds}
+results=[]
+for case in data:
+    doc=ezdxf.read(io.StringIO(case['text'],newline=None))
+    expected=facts(doc,case['pattern'])
+    for index in range(2):
+        stream=io.StringIO(newline=None)
+        doc.write(stream)
+        doc=ezdxf.read(io.StringIO(stream.getvalue(),newline=None))
+        assert facts(doc,case['pattern']) == expected
+    results.append({'route':case['route'],'pixel':0,'linkedLoops':2,'audits':3,'errors':0,'fixes':0})
+print(json.dumps(results))
+`
+  const { sdk, source, document } = await metadataFixture({ hatchOwned: true, pixelSize: 0 })
+  const state = JSON.parse(document.serialize())
+  for (const [index, object] of Object.values(state.objects).entries()) object.handle = (0xff0001 + index).toString(16).toUpperCase()
+  state.header.handseed = 'FF1000'
+  const remapped = sdk.openDocument(state), cases = [{ route: 'source', text: source, pattern: 'ANSI31' }]
+  cases.push({ route: 'raw-remap', text: await sdk.writeDocument(remapped, { format: 'DXF' }), pattern: 'ANSI31' })
+  await approvePattern(sdk, remapped)
+  cases.push({ route: 'edited-remap', text: await sdk.writeDocument(remapped, { format: 'DXF' }), pattern: 'PUBLIC_REPLACEMENT' })
+  const result = spawnSync(process.env.KJDRAW_PYTHON, ['-c', check], { encoding: 'utf8', input: JSON.stringify(cases) })
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(JSON.parse(result.stdout), cases.map(({ route }) => ({ route, pixel: 0, linkedLoops: 2, audits: 3, errors: 0, fixes: 0 })))
 })
 
 test('generic reactors retain ordered mixed native and validated opaque metadata references', async () => {

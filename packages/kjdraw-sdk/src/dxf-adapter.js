@@ -2912,7 +2912,7 @@ function hatchSourceMetadata(entity, references, dictionaries, version) {
     if (pixels.length > 1 || pixels.length && (!scalar({
         code: 47,
         value: pixels[0]
-    }) || Number(pixels[0]) <= 0)) fail('invalid pixel size');
+    }) || Number(pixels[0]) < 0)) fail('invalid pixel size');
     if (pixels.length) result.nativeTail.push({
         code: 47,
         value: pixels[0]
