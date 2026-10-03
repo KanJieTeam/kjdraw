@@ -487,6 +487,8 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                 const textWidth = payload.textWidth == null ? undefined : finite(payload.textWidth, 'textWidth');
                 if (textHeight != null && (textHeight < 0 || textHeight > 1e9)) throw new KJValidationError('textHeight is outside its native LEADER range');
                 if (textWidth != null && (textWidth < 0 || textWidth > 1e9)) throw new KJValidationError('textWidth is outside its native LEADER range');
+                const hookLineDirection = payload.hookLineDirection === null ? null : integer(payload.hookLineDirection, 0, 'hookLineDirection', 0, 1);
+                const hookLineEnabled = payload.hookLineEnabled === null ? null : payload.hookLineEnabled === true;
                 return {
                     ...base(payload),
                     vertices,
@@ -496,8 +498,8 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                     arrowEnabled: payload.arrowEnabled !== false,
                     pathType: integer(payload.pathType, 0, 'pathType', 0, 1),
                     annotationType: integer(payload.annotationType, payload.annotationId ? 0 : 3, 'annotationType', 0, 3),
-                    hookLineDirection: integer(payload.hookLineDirection, 0, 'hookLineDirection', 0, 1),
-                    hookLineEnabled: payload.hookLineEnabled === true,
+                    hookLineDirection,
+                    hookLineEnabled,
                     ...textHeight == null ? {} : {
                         textHeight
                     },
