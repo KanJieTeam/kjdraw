@@ -100,6 +100,50 @@ export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput
         type: 'ANGULAR_3_POINT';
     }>, 'type'>[];
 }
+/** Optional full-session structural creation groups. Explicit geometry and existing layers only. */
+export interface KJAgentStructuralCreationsInput {
+    lines?: {
+        start: {
+            x: number;
+            y: number;
+        };
+        end: {
+            x: number;
+            y: number;
+        };
+        layerId: string;
+    }[];
+    polylines?: {
+        vertices: {
+            x: number;
+            y: number;
+        }[];
+        closed: boolean;
+        layerId: string;
+    }[];
+    hatches?: {
+        loops: {
+            vertices: {
+                x: number;
+                y: number;
+            }[];
+        }[];
+        patternId: string;
+        patternScale: number;
+        patternAngleDegrees: number;
+        layerId: string;
+    }[];
+    texts?: {
+        text: string;
+        position: {
+            x: number;
+            y: number;
+        };
+        height: number;
+        rotationDegrees: number;
+        layerId: string;
+    }[];
+}
 export interface KJAgentDrawingQuery {
     expectedRevision: number;
     filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>;

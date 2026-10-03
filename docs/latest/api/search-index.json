@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:5a829e421204586538d6a143a5d0fc8ee49c410de33d9167aa02759c20f26828",
+  "sourceDigest": "sha256:2e92fe3459237bf9903032d4672289188c6304f31a2388302dc8a7fa6923f9f1",
   "entries": [
     {
       "name": "buildCadSkillJsonContract",
@@ -538,7 +538,7 @@
       "module": "@kanjieteam/kjdraw/model-adapters",
       "href": "./api/reference/#model-adapters-class-kjmodelerror",
       "anchor": "model-adapters-class-kjmodelerror",
-      "summary": "export declare class KJModelError extends KJDrawError { constructor(code: string, message: string); }"
+      "summary": "export declare class KJModelError extends KJDrawError { constructor(code: string, message: string, details?: KJModelSizeLimitDetails); }"
     },
     {
       "name": "KJModelImage",
@@ -571,6 +571,14 @@
       "href": "./api/reference/#model-adapters-interface-kjmodelrequest",
       "anchor": "model-adapters-interface-kjmodelrequest",
       "summary": "export interface KJModelRequest { readonly protocol: KJModelProtocol; readonly model: string; /** REST JSON body. Gemini's model belongs in the URL, not this body. */ readonly body: Readonly<Record<string, unknown>>; /**"
+    },
+    {
+      "name": "KJModelSizeLimitDetails",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/model-adapters",
+      "href": "./api/reference/#model-adapters-interface-kjmodelsizelimitdetails",
+      "anchor": "model-adapters-interface-kjmodelsizelimitdetails",
+      "summary": "export interface KJModelSizeLimitDetails { readonly phase: 'request-extensions' | 'tool-schema' | 'request' | 'response' | 'stream' | 'image'; readonly actualBytes: number; readonly maxBytes: number; }"
     },
     {
       "name": "KJModelToolCall",
@@ -859,6 +867,14 @@
       "href": "./api/reference/#agent-tools-type-kjagentroaddrawingfromassetinput",
       "anchor": "agent-tools-type-kjagentroaddrawingfromassetinput",
       "summary": "export type KJAgentRoadDrawingFromAssetInput = Pick<KJAgentRoadDrawingInput, 'expectedRevision' | 'units' | 'drawingId' | 'title' | 'profileScale' | 'sectionScale' | 'textHeight' | 'sectionColumns' | 'precision'> & KJAge"
+    },
+    {
+      "name": "KJAgentStructuralCreationsInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-interface-kjagentstructuralcreationsinput",
+      "anchor": "agent-tools-interface-kjagentstructuralcreationsinput",
+      "summary": "export interface KJAgentStructuralCreationsInput { lines?: { start: { x: number; y: number; }; end: { x: number; y: number; }; layerId: string; }[]; polylines?: { vertices: { x: number; y: number; }[]; closed: boolean; l"
     },
     {
       "name": "KJAgentTaskProposalBinding",
@@ -5413,6 +5429,14 @@
       "summary": "export type PolylineVertex = readonly unknown[] | BulgedPolylineVertex;"
     },
     {
+      "name": "prepareStructuralEdit",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-function-preparestructuraledit",
+      "anchor": "core-function-preparestructuraledit",
+      "summary": "export declare function prepareStructuralEdit(document: KJDocument, args: KJCommandArguments): KJPreparedStructuralEdit;"
+    },
+    {
       "name": "projectParameter2",
       "kind": "function",
       "module": "@kanjieteam/kjdraw/core",
@@ -7965,6 +7989,14 @@
       "summary": "export declare function inspectAgentTask(document: KJDocument, id: string): Promise<ReadonlyDeep<KJAgentTaskInspection>>;"
     },
     {
+      "name": "inspectGeologyDrawingRecipe",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-inspectgeologydrawingrecipe",
+      "anchor": "root-function-inspectgeologydrawingrecipe",
+      "summary": "export declare function inspectGeologyDrawingRecipe(document: KJDocument, drawingId: string, options: KJGeologyDrawingRevisionOptions): ReadonlyDeep<KJGeologyDrawingInspection>;"
+    },
+    {
       "name": "instantiateKJCoreWasm",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -8779,6 +8811,14 @@
       "href": "./api/reference/#root-type-kjagentsiteutilitykind",
       "anchor": "root-type-kjagentsiteutilitykind",
       "summary": "export type KJAgentSiteUtilityKind = 'water' | 'drainage' | 'power' | 'gas' | 'telecom';"
+    },
+    {
+      "name": "KJAgentStructuralCreationsInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentstructuralcreationsinput",
+      "anchor": "root-interface-kjagentstructuralcreationsinput",
+      "summary": "export interface KJAgentStructuralCreationsInput { lines?: { start: { x: number; y: number; }; end: { x: number; y: number; }; layerId: string; }[]; polylines?: { vertices: { x: number; y: number; }[]; closed: boolean; l"
     },
     {
       "name": "KJAgentTaskActor",
@@ -11629,6 +11669,14 @@
       "summary": "export interface KJGeologyDescriptionTextStyle { fieldRole: 'description'; anchor: 'declared-major-group-boundary'; height: number; /** Optional source-declared MTEXT paragraph width in physical millimetres. */ width?: n"
     },
     {
+      "name": "KJGeologyDrawingInspection",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjgeologydrawinginspection",
+      "anchor": "root-interface-kjgeologydrawinginspection",
+      "summary": "export interface KJGeologyDrawingInspection { documentId: string; revision: number; drawingId: string; recipe: ReadonlyDeep<KJGeologyDrawingRecipe>; sourceGeometryConsistent: boolean; conflicts: { kind: 'resource' | 'ent"
+    },
+    {
       "name": "KJGeologyDrawingRecipe",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -12378,7 +12426,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-class-kjmodelerror",
       "anchor": "root-class-kjmodelerror",
-      "summary": "export declare class KJModelError extends KJDrawError { constructor(code: string, message: string); }"
+      "summary": "export declare class KJModelError extends KJDrawError { constructor(code: string, message: string, details?: KJModelSizeLimitDetails); }"
     },
     {
       "name": "KJModelImage",
@@ -12411,6 +12459,14 @@
       "href": "./api/reference/#root-interface-kjmodelrequest",
       "anchor": "root-interface-kjmodelrequest",
       "summary": "export interface KJModelRequest { readonly protocol: KJModelProtocol; readonly model: string; /** REST JSON body. Gemini's model belongs in the URL, not this body. */ readonly body: Readonly<Record<string, unknown>>; /**"
+    },
+    {
+      "name": "KJModelSizeLimitDetails",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjmodelsizelimitdetails",
+      "anchor": "root-interface-kjmodelsizelimitdetails",
+      "summary": "export interface KJModelSizeLimitDetails { readonly phase: 'request-extensions' | 'tool-schema' | 'request' | 'response' | 'stream' | 'image'; readonly actualBytes: number; readonly maxBytes: number; }"
     },
     {
       "name": "KJModelToolCall",
@@ -13867,6 +13923,14 @@
       "href": "./api/reference/#root-function-preparegeologydrawingrevision",
       "anchor": "root-function-preparegeologydrawingrevision",
       "summary": "export declare function prepareGeologyDrawingRevision(document: KJDocument, previous: ReadonlyDeep<KJGeologyDrawingRecipe>, next: KJGeologyDrawingSource, options: KJGeologyDrawingRevisionOptions): ReadonlyDeep<KJGeologyD"
+    },
+    {
+      "name": "prepareStructuralEdit",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-preparestructuraledit",
+      "anchor": "root-function-preparestructuraledit",
+      "summary": "export declare function prepareStructuralEdit(document: KJDocument, args: KJCommandArguments): KJPreparedStructuralEdit;"
     },
     {
       "name": "previewKJModification",

@@ -522,6 +522,7 @@ function updateComposerAvailability() {
   ui.form.querySelector('[data-text="composerHint"]').textContent = t(importing ? pendingLabel : busy ? 'working' : 'composerHint')
   ui.removeDrawing.disabled = importing || busy && activeRequestSession !== active
   for (const button of ui.messages.querySelectorAll('[data-testid="drawing-download"]')) button.disabled = busy || importing
+  for (const button of ui.messages.querySelectorAll('[data-testid="proposal-approve"], [data-testid="proposal-reject"]')) button.disabled = busy || importing
 }
 function render() {
   updateComposerAvailability()
@@ -990,6 +991,19 @@ function refreshKeyPlaceholder() {
   ui.key.placeholder = canReuseKey() ? (language === 'zh' ? '已设置，留空沿用' : 'Set; leave blank to keep')
     : (language === 'zh' ? '输入服务商 API 密钥' : 'Enter provider API key')
 }
+export function requestErrorMessage(error, fallback) {
+  const details = error?.details
+  const phases = { 'request-extensions': ['模型请求设置', 'Model request settings'], 'tool-schema': ['可用工具说明', 'Available tool definitions'],
+    request: ['本次请求与工具读取记录', 'The request and tool-read history'], response: ['模型返回内容', 'The model response'],
+    stream: ['模型流式返回内容', 'The streamed model response'], image: ['附加图片', 'The attached image'] }
+  if (error?.code !== 'KJMODEL_SIZE_LIMIT' || !details || !Object.hasOwn(phases, details.phase) ||
+    !Number.isSafeInteger(details.actualBytes) || details.actualBytes < 0 ||
+    !Number.isSafeInteger(details.maxBytes) || details.maxBytes <= 0) return error?.message ?? fallback
+  const label = phases[details.phase][language === 'zh' ? 0 : 1]
+  return language === 'zh'
+    ? `${label}超过大小限制（实际 ${details.actualBytes} 字节，上限 ${details.maxBytes} 字节）。图纸未修改；请精简对应内容后重试。`
+    : `${label} exceeded the size limit (${details.actualBytes} bytes; maximum ${details.maxBytes} bytes). The drawing is unchanged. Reduce that content and try again.`
+}
 async function submitPrompt() {
   await initialLoad
   const prompt = ui.input.value.trim()
@@ -998,7 +1012,6 @@ async function submitPrompt() {
   if (!settings) { showSettings(true); queuePersist(); return }
   const session = currentSession()
   if (settings) session.runtime.configure(settings)
-  for (const message of session.messages) for (const proposal of message.proposals ?? []) if (proposal.uiState === 'pending') proposal.uiState = 'expired'
   if (!session.messages.length) session.title = prompt.replace(/\s+/g,' ').slice(0,34)
   session.messages.push({role:'user',text:prompt})
   session.updatedAt = Date.now()
@@ -1038,6 +1051,9 @@ async function submitPrompt() {
     const index = session.messages.indexOf(waiting)
     if (index >= 0) session.messages.splice(index,1)
     if (result.status === 'proposal') {
+      // Mirror the runtime's successful replacement handoff, not request
+      // submission. A failed/cancelled run leaves an unchanged review usable.
+      for (const message of session.messages) for (const proposal of message.proposals ?? []) if (proposal.uiState === 'pending') proposal.uiState = 'expired'
       session.messages.push({role:'assistant',text:result.text,proposals:(result.proposals?.length ? result.proposals : [result.proposal]).map(proposal => ({...proposal, uiState:'pending'}))})
       if (active === session) ui.drawingContext.open = false
     }
@@ -1047,7 +1063,7 @@ async function submitPrompt() {
       restoreRequestDraft(session,prompt)
     }
     else {
-      session.messages.push({role:'assistant',status:'error',text:result.error?.message ?? result.text ?? t('retry')})
+      session.messages.push({role:'assistant',status:'error',text:requestErrorMessage(result.error, result.text || t('retry'))})
       restoreRequestDraft(session,prompt)
     }
   } catch(error) {

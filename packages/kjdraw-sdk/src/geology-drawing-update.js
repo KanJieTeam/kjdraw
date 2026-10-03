@@ -141,7 +141,7 @@ function sameRecord(a, b) {
         handle: ''
     }, b);
 }
-function validateRecipe(document, recipe) {
+function expectedRecipeRecords(document, recipe) {
     const keys = [
         'schema',
         'version',
@@ -155,11 +155,20 @@ function validateRecipe(document, recipe) {
     ];
     if (!equal(Object.keys(recipe).sort(), keys.sort()) || recipe.schema !== 'com.kanjie.kjdraw.geology-drawing-recipe' || recipe.version !== 1 || recipe.compilerVersion !== 1) fail('unsupported recipe format');
     if (recipe.documentId !== document.id || document.snapshot().header.units !== 'millimeter') fail('recipe document or units do not match');
-    if (!/^geo-[a-zA-Z0-9_-]{1,100}$/.test(recipe.drawingId) || recipe.resourceRoot !== recipe.drawingId || !document.getObject(recipe.textStyleId)) fail('invalid recipe identity or text style');
+    const textStyle = document.getObject(recipe.textStyleId);
+    if (!/^geo-[a-zA-Z0-9_-]{1,100}$/.test(recipe.drawingId) || recipe.resourceRoot !== recipe.drawingId || !textStyle || textStyle.erased || textStyle.kind !== 'table-record' || textStyle.type !== 'TEXT_STYLE' || !document.snapshot().tables.textStyles.recordIds.includes(recipe.textStyleId)) fail('invalid recipe identity or text style');
     if (!Array.isArray(recipe.entityIds) || recipe.entityIds.some((id)=>typeof id !== 'string' || !id.startsWith(`${recipe.drawingId}-entity-`) || id.length > 200)) fail('invalid recipe entity IDs');
     const compiled = compile(recipe.source);
     const expected = records(document, compiled, recipe.resourceRoot, recipe.textStyleId, recipe.entityIds);
     const state = document.snapshot(), model = new Set(state.objects[document.spaces.modelSpaceId].payload.entityIds);
+    return {
+        expected,
+        state,
+        model
+    };
+}
+function validateRecipe(document, recipe) {
+    const { expected, state, model } = expectedRecipeRecords(document, recipe);
     for (const record of expected.resources){
         const table = record.type === 'LAYER' ? state.tables.layers : record.type === 'LINETYPE' ? state.tables.linetypes : state.tables.textStyles;
         if (!table.recordIds.includes(record.id) || !sameRecord(document.getObject(record.id), record)) fail(`generated resource changed: ${record.id}`);
@@ -203,8 +212,57 @@ export async function registerGeologyDrawingRecipe(document, source, options) {
 export function readGeologyDrawingRecipe(document, drawingId) {
     const recipe = snapshot(document.snapshot().opaquePayloads[recipeKey(drawingId)]);
     if (!recipe) fail('no source-backed geology recipe; do not infer borehole facts from CAD text');
+    if (recipe.drawingId !== drawingId) fail('recipe key and drawing identity do not match');
     validateRecipe(document, recipe);
     return deepFreeze(recipe);
+}
+export function inspectGeologyDrawingRecipe(document, drawingId, options) {
+    const safeOptions = snapshot(options);
+    if (!equal(Object.keys(safeOptions), [
+        'expectedRevision'
+    ]) || !Number.isSafeInteger(safeOptions.expectedRevision) || safeOptions.expectedRevision !== document.revision) fail('stale or invalid expected revision');
+    const retained = document.snapshot().opaquePayloads[recipeKey(drawingId)];
+    if (!retained) fail('no source-backed geology recipe; do not infer borehole facts from CAD text');
+    const recipe = snapshot(retained);
+    if (recipe.drawingId !== drawingId) fail('recipe key and drawing identity do not match');
+    const { expected, state, model } = expectedRecipeRecords(document, recipe);
+    const conflicts = [];
+    const conflictTypes = [];
+    const addConflict = (kind, record, reason)=>{
+        conflicts.push({
+            kind,
+            id: record.id,
+            reason
+        });
+        const actual = state.objects[record.id];
+        conflictTypes.push({
+            id: record.id,
+            generatedType: record.type,
+            actualType: actual && !actual.erased ? actual.type : null
+        });
+    };
+    for (const record of expected.resources){
+        const table = record.type === 'LAYER' ? state.tables.layers : record.type === 'LINETYPE' ? state.tables.linetypes : state.tables.textStyles;
+        const actual = document.getObject(record.id);
+        if (!actual) addConflict('resource', record, 'missing');
+        else if (!table.recordIds.includes(record.id)) addConflict('resource', record, 'owner-membership');
+        else if (!sameRecord(actual, record)) addConflict('resource', record, 'record-changed');
+    }
+    for (const record of expected.entities){
+        const actual = document.getObject(record.id);
+        if (!actual) addConflict('entity', record, 'missing');
+        else if (!model.has(record.id)) addConflict('entity', record, 'owner-membership');
+        else if (!sameRecord(actual, record)) addConflict('entity', record, 'record-changed');
+    }
+    return deepFreeze({
+        documentId: document.id,
+        revision: document.revision,
+        drawingId,
+        recipe,
+        sourceGeometryConsistent: conflicts.length === 0,
+        conflicts,
+        conflictTypes
+    });
 }
 export function prepareGeologyDrawingRevision(document, previous, next, options) {
     const safe = snapshot({

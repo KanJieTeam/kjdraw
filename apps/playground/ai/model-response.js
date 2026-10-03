@@ -1,4 +1,10 @@
 const DEFAULT_MAX_BYTES = 2 * 1024 * 1024
+// Framing is not CAD content: many small SSE deltas repeat protocol metadata.
+// Bound both transport work and each JSON event independently; the SDK still
+// validates the complete assembled model payload before dispatching any call.
+const DEFAULT_MAX_STREAM_BYTES = 8 * 1024 * 1024
+const MAX_EVENT_BYTES = 1024 * 1024
+const encoder = new TextEncoder()
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 
 /** Decode transport bytes only. The SDK validates complete model turns and
@@ -33,10 +39,11 @@ async function* responseText(response, { signal, maxBytes }) {
 }
 
 async function* responseEvents(response, options) {
-  let buffer = '', data = []
+  let buffer = '', data = [], dataBytes = 0
   const event = () => {
     const value = data.join('\n')
     data = []
+    dataBytes = 0
     if (!value) return undefined
     if (value === '[DONE]') return null
     let json
@@ -47,8 +54,12 @@ async function* responseEvents(response, options) {
   const line = value => {
     if (!value) return event()
     // Comments, event/id/retry fields and unknown SSE fields carry no JSON.
-    if (value === 'data') data.push('')
-    else if (value.startsWith('data:')) data.push(value.slice(5).replace(/^ /, ''))
+    if (value === 'data' || value.startsWith('data:')) {
+      const part = value === 'data' ? '' : value.slice(5).replace(/^ /, '')
+      dataBytes += encoder.encode(part).byteLength + (data.length ? 1 : 0)
+      if (dataBytes > options.maxEventBytes) throw new Error('Model event exceeds budget')
+      data.push(part)
+    }
     return undefined
   }
   for await (const text of responseText(response, options)) {
@@ -59,12 +70,16 @@ async function* responseEvents(response, options) {
       // A CR at a chunk boundary may be half of CRLF. Keep it until the next
       // bytes arrive so a split terminator cannot dispatch an extra event.
       if (buffer[newline] === '\r' && newline === buffer.length - 1) break
-      const value = line(buffer.slice(0, newline))
+      const completedLine = buffer.slice(0, newline)
+      if (encoder.encode(completedLine).byteLength > options.maxEventBytes + 6) throw new Error('Model event line exceeds budget')
+      const value = line(completedLine)
       const width = buffer[newline] === '\r' && buffer[newline + 1] === '\n' ? 2 : 1
       buffer = buffer.slice(newline + width)
       if (value === null) return
       if (value !== undefined) yield value
     }
+    const partialLine = buffer.endsWith('\r') ? buffer.slice(0, -1) : buffer
+    if (encoder.encode(partialLine).byteLength > options.maxEventBytes + 6) throw new Error('Model event line exceeds budget')
   }
   if (buffer.endsWith('\r')) {
     const value = line(buffer.slice(0, -1))
@@ -80,12 +95,15 @@ async function* responseEvents(response, options) {
 
 /** A bounded, cancellation-aware browser JSON/SSE transport. Returning an
  * async iterable lets the SDK notify the UI while network bytes are arriving. */
-export async function readAiModelResponse(response, { signal, maxBytes = DEFAULT_MAX_BYTES } = {}) {
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new Error('Invalid model response budget')
+export async function readAiModelResponse(response, { signal, maxBytes } = {}) {
+  if (maxBytes !== undefined && (!Number.isSafeInteger(maxBytes) || maxBytes < 1)) throw new Error('Invalid model response budget')
   const contentType = response.headers.get('content-type') ?? ''
-  if (response.ok && /^text\/event-stream(?:\s*;|$)/i.test(contentType)) return responseEvents(response, { signal, maxBytes })
+  if (response.ok && /^text\/event-stream(?:\s*;|$)/i.test(contentType)) {
+    return responseEvents(response, { signal, maxBytes: maxBytes ?? DEFAULT_MAX_STREAM_BYTES,
+      maxEventBytes: Math.min(maxBytes ?? MAX_EVENT_BYTES, MAX_EVENT_BYTES) })
+  }
   let text = ''
-  for await (const chunk of responseText(response, { signal, maxBytes })) text += chunk
+  for await (const chunk of responseText(response, { signal, maxBytes: maxBytes ?? DEFAULT_MAX_BYTES })) text += chunk
   let json
   try { json = JSON.parse(text) } catch { throw new Error('Model endpoint returned invalid JSON') }
   if (!isObject(json)) throw new Error('Model endpoint returned invalid JSON')

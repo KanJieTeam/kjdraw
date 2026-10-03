@@ -13,7 +13,7 @@ import { buildAgentDrawingEntities } from './agent-drawing.js';
 import { buildAgentRoadDrawing } from './agent-road-drawing.js';
 import { buildAgentRoadRevision } from './agent-road-revision.js';
 import { restoreRoadDrawingRecipe } from './road-drawing-recipe.js';
-import { readGeologyDrawingRecipe, prepareGeologyDrawingRevision, applyGeologyDrawingRevision } from './geology-drawing-update.js';
+import { readGeologyDrawingRecipe, inspectGeologyDrawingRecipe, prepareGeologyDrawingRevision, applyGeologyDrawingRevision } from './geology-drawing-update.js';
 import { applyGeologyObservationChanges } from './geology-observation-changes.js';
 import { applyGeologyStratumChanges } from './geology-stratum-changes.js';
 import { applyGeologySectionLinkChanges } from './geology-link-changes.js';
@@ -675,6 +675,56 @@ const structuralEditSchema = objectWithOptional({
 }, [
     'reconnections',
     'relayer'
+]);
+const structuralCreationGroup = (items)=>({
+        type: 'array',
+        minItems: 0,
+        maxItems: 16,
+        items
+    });
+const structuralCreationsSchema = objectWithOptional({
+    lines: structuralCreationGroup(object({
+        start: point,
+        end: point,
+        layerId: text
+    })),
+    polylines: structuralCreationGroup(object({
+        vertices: {
+            type: 'array',
+            minItems: 2,
+            maxItems: 64,
+            items: point
+        },
+        closed: {
+            type: 'boolean'
+        },
+        layerId: text
+    })),
+    hatches: structuralCreationGroup(object({
+        loops: hatchSchema.properties.loops,
+        patternId: {
+            ...text,
+            description: 'Exact patternId published by cad_read_hatch_patterns. The host resolves the complete native definition; raw PAT is not accepted.'
+        },
+        patternScale: radius,
+        patternAngleDegrees: angle,
+        layerId: text
+    })),
+    texts: structuralCreationGroup(object({
+        text: {
+            ...text,
+            maxLength: 4096
+        },
+        position: point,
+        height: radius,
+        rotationDegrees: angle,
+        layerId: text
+    }))
+}, [
+    'lines',
+    'polylines',
+    'hatches',
+    'texts'
 ]);
 const offsetSchema = object({
     expectedRevision: revision,
@@ -5018,6 +5068,36 @@ export class KJAgentToolSession {
         const sectionPack = this.#geologySectionKnowledge?.pack ?? KJDRAW_GEOLOGY_KNOWLEDGE_PACK;
         const sectionRule = sectionPack.rules?.['geology-section-layout'];
         return deepFreeze(KJDRAW_AGENT_TOOLS.filter((tool)=>this.#options.toolProfile === 'full' || KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES.includes(tool.name)).filter((tool)=>!millimeterTools.includes(tool.name) || units === 'millimeter').filter((tool)=>tool.name !== 'cad_propose_site_plan' || units === 'meter').map((tool)=>{
+            if (tool.name === 'cad_read_geology_source' && this.#options.toolProfile === 'full') return {
+                ...tool,
+                description: tool.description + ' For a read-only source-versus-manual-geometry audit, set includeInspection:true with an exact drawingId: returns every generated resource/entity conflict and sourceGeometryConsistent without modifying, authorizing a rebuild or labeling unrelated manual objects as source conflicts. Malformed source recipes still reject; all revision tools still reject manual drift. Missing optional facts remain absent; report only the caller-requested missing fields, never invent default measurements.',
+                inputSchema: objectWithOptional({
+                    ...tool.inputSchema.properties,
+                    includeInspection: {
+                        type: 'boolean'
+                    }
+                }, [
+                    'includeInspection'
+                ])
+            };
+            if (tool.name === 'cad_propose_structural_edit' && this.#options.toolProfile === 'full') return {
+                ...tool,
+                description: tool.description + ' Optional creations can add native LINE, open or closed LWPOLYLINE, HATCH and TEXT in this same proposal and transaction, using explicit XY coordinates and existing editable layer IDs. At most 16 total creations plus reconnections and 64 total changed records, including actual owned erase records; no implicit object selection, layer creation or geological inference. HATCH patternId must come from cad_read_hatch_patterns; the host resolves and seals the complete published native PAT definition, never model-supplied PAT. HATCH loops[0] is the outer boundary; later closed polygon loops are disjoint empty islands strictly inside it; separate visible boundary linework is optional only when requested. TEXT must be caller-supplied content or explicitly requested illustrative wording, never fabricated engineering measurements or source facts. A simulation remains illustrative, not a geological source recipe. Omit creations to preserve the existing erase/reconnect/relayer behavior. Host approval remains required; the entire edit is one transaction and one undo.',
+                inputSchema: {
+                    ...tool.inputSchema,
+                    properties: {
+                        ...tool.inputSchema.properties,
+                        units: {
+                            ...tool.inputSchema.properties.units,
+                            enum: [
+                                units
+                            ]
+                        },
+                        creations: structuralCreationsSchema
+                    }
+                }
+            };
+            const description = tool.description + (this.#options.toolProfile !== 'full' ? '' : tool.name === 'cad_propose_drawing_pattern' ? ' Geometry-only requests, including one HATCH alone, can use this tool with arrays:[] and other unneeded geometry groups empty; no TEXT, dimension, leader or other annotation is required. Each HATCH stores its own closed native polygon boundaries: loops[0] is the outer boundary, and later loops are empty islands cut out of that hatch, not separately filled regions. No separate LINE or LWPOLYLINE is needed to establish those boundaries; add visible boundary linework only if the caller requests it. Keep existing drawing objects unchanged unless an edit to them is requested. Pattern scale and angle are reviewable graphical presentation settings, not geological measurements; when unspecified, choose valid display settings for the host preview without inventing source facts.' : tool.name === 'cad_propose_drawing_annotated' ? ' This tool requires at least one actual text, dimension or leader annotation, up to 64 total annotations. For geometry-only creation, including a HATCH with empty islands and no requested annotation, cad_propose_drawing_pattern can prepare the native geometry without annotations. Do not invent a note, label, dimension or leader solely to satisfy this annotation requirement.' : '');
             if (!tool.inputSchema.properties?.units) return tool;
             let properties = {
                 ...tool.inputSchema.properties,
@@ -5057,6 +5137,7 @@ export class KJAgentToolSession {
             }
             return {
                 ...tool,
+                description,
                 inputSchema: {
                     ...tool.inputSchema,
                     properties,
@@ -5200,6 +5281,17 @@ export class KJAgentToolSession {
                     if (Object.values(Object.getOwnPropertyDescriptors(record)).some((descriptor)=>!descriptor.enumerable)) throw new KJValidationError('Geology scalar revision fields require enumerable plain data; hidden changes are never discarded');
                 }
             }
+            if (name === 'cad_propose_structural_edit' && Object.hasOwn(input, 'creations')) {
+                const requireEnumerable = (record)=>{
+                    if (!record || typeof record !== 'object') return;
+                    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(record))){
+                        if (Array.isArray(record) && key === 'length') continue;
+                        if (!descriptor.enumerable) throw new KJValidationError('Structural creations fields require enumerable plain data; hidden changes are never discarded');
+                        requireEnumerable(descriptor.value);
+                    }
+                };
+                requireEnumerable(input);
+            }
             const args = structuredClone(input);
             const document = this.#document;
             let value;
@@ -5241,15 +5333,20 @@ export class KJAgentToolSession {
                     const drawingId = String(args.drawingId);
                     const drawingIds = Object.keys(document.snapshot().opaquePayloads).filter((key)=>key.startsWith('geology-drawing-recipe:')).map((key)=>key.slice('geology-drawing-recipe:'.length));
                     if (drawingIds.length > 16) throw new KJValidationError('Geology source listing exceeds 16 drawings');
-                    if (!drawingId) value = {
-                        documentId: document.id,
-                        revision: document.revision,
-                        units: this.units,
-                        drawingIds,
-                        sourceBacked: drawingIds.length > 0
-                    };
-                    else {
-                        const recipe = readGeologyDrawingRecipe(document, drawingId);
+                    if (!drawingId) {
+                        if (args.includeInspection === true) throw new KJValidationError('Geology source inspection requires an exact drawingId');
+                        value = {
+                            documentId: document.id,
+                            revision: document.revision,
+                            units: this.units,
+                            drawingIds,
+                            sourceBacked: drawingIds.length > 0
+                        };
+                    } else {
+                        const inspection = args.includeInspection === true ? inspectGeologyDrawingRecipe(document, drawingId, {
+                            expectedRevision: Number(args.expectedRevision)
+                        }) : null;
+                        const recipe = inspection?.recipe ?? readGeologyDrawingRecipe(document, drawingId);
                         const { columnStylePack: _columnPack, sectionStylePack: _sectionPack, hatchPack: _hatchPack, ...facts } = recipe.source.input;
                         value = {
                             documentId: document.id,
@@ -5280,7 +5377,13 @@ export class KJAgentToolSession {
                             kind: recipe.source.kind,
                             facts,
                             sourceBacked: true,
-                            measurementsVerified: false
+                            measurementsVerified: false,
+                            ...inspection ? {
+                                sourceGeometryConsistent: inspection.sourceGeometryConsistent,
+                                conflicts: inspection.conflicts,
+                                conflictTypes: inspection.conflictTypes,
+                                inspectionOnly: true
+                            } : {}
                         };
                     }
                     if (new TextEncoder().encode(JSON.stringify({
@@ -5980,6 +6083,53 @@ export class KJAgentToolSession {
                                     points: item.points.map(xy),
                                     layerId: item.layerId
                                 }));
+                            const creationsInput = args.creations;
+                            const creations = [];
+                            if (creationsInput !== undefined) {
+                                const { lines = [], polylines = [], hatches = [], texts = [] } = creationsInput;
+                                const count = lines.length + polylines.length + hatches.length + texts.length;
+                                if (!count || count + reconnections.length > 16) throw new KJValidationError('Structural creations require 1–16 entries, with at most 16 creations plus reconnections combined');
+                                const append = (type, payload)=>{
+                                    creations.push({
+                                        id: createId('entity'),
+                                        type,
+                                        payload
+                                    });
+                                };
+                                for (const item of lines)append('LINE', {
+                                    start: xy(item.start),
+                                    end: xy(item.end),
+                                    layerId: item.layerId
+                                });
+                                for (const item of polylines)append('LWPOLYLINE', {
+                                    vertices: item.vertices.map(xy),
+                                    closed: item.closed,
+                                    layerId: item.layerId
+                                });
+                                const catalog = hatches.length ? createAgentHatchPatternCatalog(document, this.#options.hatchPatternCatalogs).entries : [];
+                                for (const item of hatches){
+                                    const entry = catalog.find((candidate)=>candidate.patternId === item.patternId);
+                                    if (!entry) throw new KJValidationError('Structural HATCH patternId must identify a published native pattern from the host catalog');
+                                    append('HATCH', {
+                                        ...structuredClone(entry.pattern),
+                                        patternScale: item.patternScale,
+                                        patternAngle: item.patternAngleDegrees * Math.PI / 180,
+                                        layerId: item.layerId,
+                                        boundaryLoops: item.loops.map((loop, index)=>({
+                                                external: index === 0,
+                                                closed: true,
+                                                vertices: loop.vertices.map(xy)
+                                            }))
+                                    });
+                                }
+                                for (const item of texts)append('TEXT', {
+                                    text: item.text,
+                                    position: xy(item.position),
+                                    height: item.height,
+                                    rotation: item.rotationDegrees * Math.PI / 180,
+                                    layerId: item.layerId
+                                });
+                            }
                             const relayerInput = args.relayer;
                             const relayer = relayerInput ? {
                                 ids: resolveAgentTransformEntityIds(document, relayerInput.ids),
@@ -5995,6 +6145,9 @@ export class KJAgentToolSession {
                                 reconnections,
                                 ...relayer ? {
                                     relayer
+                                } : {},
+                                ...creations.length ? {
+                                    creations
                                 } : {}
                             };
                             structuralEdit = {
@@ -6006,6 +6159,9 @@ export class KJAgentToolSession {
                                     ...impact.effectiveEraseIds
                                 ],
                                 reconnectionIds: reconnections.map((item)=>item.id),
+                                ...creations.length ? {
+                                    creationIds: creations.map((item)=>item.id)
+                                } : {},
                                 groups: impact.groups,
                                 selectionSets: impact.selectionSets,
                                 insertAttachments: impact.insertAttachments,

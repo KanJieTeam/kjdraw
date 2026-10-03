@@ -310,3 +310,48 @@ test('JSON fallback reading also cancels a stalled body and releases its reader'
   assert.equal(cancellations, 1)
   assert.equal(response.body.locked, false)
 })
+
+test('SSE framing has its own bounded transport budget while each JSON event stays small', async () => {
+  const payload = ': ' + 'f'.repeat(510) + '\n\n'
+  const source = payload.repeat(5000) + wire([chunk({ content: 'Complete.' }), chunk({}, 'stop')])
+  assert.ok(encoder.encode(source).byteLength > 2 * 1024 * 1024)
+  const values = await readAiModelResponse(byteResponse(source, 65536))
+  assert.deepEqual(await Array.fromAsync(values), [chunk({ content: 'Complete.' }), chunk({}, 'stop')])
+  const limited = await readAiModelResponse(byteResponse(source, 65536), { maxBytes: 2 * 1024 * 1024 })
+  await assert.rejects(Array.fromAsync(limited), /budget/)
+})
+
+test('SSE rejects a wire flood or an oversized event and releases the real reader', async () => {
+  const flood = byteResponse((': ' + 'f'.repeat(510) + '\n\n').repeat(17000), 65536)
+  await assert.rejects(Array.fromAsync(await readAiModelResponse(flood)), /budget/)
+  assert.equal(flood.body.locked, false)
+  const oversized = byteResponse(event({ value: 'x'.repeat(1024 * 1024) }), 65536)
+  await assert.rejects(Array.fromAsync(await readAiModelResponse(oversized)), /budget/)
+  assert.equal(oversized.body.locked, false)
+})
+
+test('nonstreaming JSON retains its original two-MiB default instead of inheriting the SSE budget', async () => {
+  await assert.rejects(readAiModelResponse(Response.json({ value: 'x'.repeat(2 * 1024 * 1024) })), /budget/)
+})
+
+test('an exact one-MiB JSON event accepts a chunk split after its CR without counting the terminator as payload', async () => {
+  const value = { value: 'x'.repeat(1024 * 1024 - 12) }
+  assert.equal(encoder.encode(JSON.stringify(value)).byteLength, 1024 * 1024)
+  const source = event(value, '\r\n') + 'data: [DONE]\r\n\r\n'
+  const bytes = encoder.encode(source), split = source.indexOf('\r') + 1
+  const response = new Response(new ReadableStream({ start(controller) {
+    controller.enqueue(bytes.slice(0, split)); controller.enqueue(bytes.slice(split)); controller.close()
+  } }), { headers: { 'content-type': 'text/event-stream' } })
+  assert.deepEqual(await Array.fromAsync(await readAiModelResponse(response)), [value])
+  assert.equal(response.body.locked, false)
+  assert.deepEqual(await Array.fromAsync(await readAiModelResponse(byteResponse(source, bytes.length))), [value])
+})
+
+test('an oversized SSE metadata line rejects independently of transport chunk boundaries', async () => {
+  const source = ': ' + 'x'.repeat(3 * 1024 * 1024) + '\n\n'
+  for (const size of [source.length, 65536]) {
+    const response = byteResponse(source, size)
+    await assert.rejects(Array.fromAsync(await readAiModelResponse(response)), /line exceeds budget/)
+    assert.equal(response.body.locked, false)
+  }
+})
