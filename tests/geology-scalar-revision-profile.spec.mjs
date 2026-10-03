@@ -14,6 +14,7 @@ import { createKJDomesticModelAdapter } from '../packages/kjdraw-sdk/src/domesti
 
 const { KJAgentToolSession, KJDRAW_AGENT_TOOLS } = agent
 const SCALAR = 'cad_propose_geology_scalar_revision', PROFILE = 'geology-scalars-v1'
+const hatchNames = ['cad_read_hatch_patterns', 'cad_propose_hatch_pattern']
 const clone = structuredClone
 const hash = value => createHash('sha256').update(canonicalStringify(value)).digest('hex')
 const content = document => {
@@ -95,10 +96,14 @@ const resources = document => ['layers', 'textStyles', 'linetypes'].map(table =>
   records: document.getTable(table).records.map(record => ({ type: record.type, name: record.name,
     payload: semanticReference(record.payload, document) })).sort((a, b) => a.name.localeCompare(b.name)) }))
 
-test('scalar tool is additive: every old full definition remains byte-exact and general [] API unchanged', () => {
-  assert.equal(KJDRAW_AGENT_TOOLS.length, 55)
-  assert.equal(hash(KJDRAW_AGENT_TOOLS.filter(tool => ![SCALAR, 'cad_query_curve_bounds', 'cad_query_curve_neighborhood'].includes(tool.name))), 'e5e20a67c532037a9fe84248f7a534c8abc0ec7f2a599a506eb38add63dd353b')
-  assert.equal(hash(KJDRAW_AGENT_TOOLS.find(tool => tool.name === 'cad_propose_geology_revision')), '4700cdcb5d293caa0d3e767b8077562f210f6b34840419f037f66fed6ebb6ffc')
+test('scalar tool and untouched full definitions remain exact while general geology adds explicit stratum deltas', () => {
+  assert.equal(KJDRAW_AGENT_TOOLS.length, 57)
+  const previousDefinitions = KJDRAW_AGENT_TOOLS.filter(tool => ![SCALAR, 'cad_propose_geology_revision', 'cad_query_curve_bounds', 'cad_query_curve_neighborhood', ...hatchNames].includes(tool.name))
+  assert.equal(previousDefinitions.length, 51)
+  assert.equal(hash(previousDefinitions), '878db2c154dbef9bdfaa321cae2adeb5991a630f5759bea7b955916a610eb64c')
+  assert.deepEqual(KJDRAW_AGENT_TOOLS.filter(tool => hatchNames.includes(tool.name)).map(tool => ({ name: tool.name, effect: tool.effect })),
+    [{ name: hatchNames[0], effect: 'read' }, { name: hatchNames[1], effect: 'propose' }])
+  assert.equal(hash(KJDRAW_AGENT_TOOLS.find(tool => tool.name === 'cad_propose_geology_revision')), 'a0629c3b6cc72058e7cb34b9f34c3d2b0eb176191459b2b6d44a2417929ca460')
   const tool = KJDRAW_AGENT_TOOLS.find(tool => tool.name === SCALAR)
   assert.equal(tool.effect, 'propose'); assert.ok(Object.isFrozen(tool))
   const schema = tool.inputSchema
@@ -123,15 +128,18 @@ test('constructor caller profile is explicit, immutable and every exposed name i
   assert.deepEqual(agent.KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES, expectedProfile)
   assert.ok(Object.isFrozen(agent.KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES))
   assert.deepEqual(session.definitions.map(tool => tool.name), expectedProfile)
+  assert.equal(session.definitions.length, 16)
   assert.ok(session.definitions.every(tool => KJDRAW_AGENT_TOOLS.some(registered => registered.name === tool.name)))
   assert.throws(() => { session.toolProfile = 'full' }, TypeError)
   assert.throws(() => { session.definitions.push(KJDRAW_AGENT_TOOLS[0]) }, TypeError)
   assert.throws(() => { session.definitions.find(tool => tool.name === SCALAR).inputSchema.properties.strata = {} }, TypeError)
   assert.equal(new KJAgentToolSession(sdk, document).toolProfile, 'full')
   assert.deepEqual(new KJAgentToolSession(sdk, document).definitions, new KJAgentToolSession(sdk, document, { toolProfile: 'full' }).definitions)
-  for (const name of ['cad_propose_geology_revision', 'cad_propose_geology_section', 'cad_propose_lines', 'cad_propose_structural_edit']) {
+  for (const name of ['cad_propose_geology_revision', 'cad_propose_geology_section', 'cad_propose_lines', 'cad_propose_structural_edit', ...hatchNames]) {
     const before = document.snapshot()
-    assert.equal((await session.call(name, {})).ok, false)
+    assert.equal(session.definitions.some(tool => tool.name === name), false)
+    const result = await session.call(name, {})
+    assert.equal(result.ok, false); assert.match(result.error.message, /Unknown CAD tool/)
     assert.equal(document.snapshot(), before)
   }
 })

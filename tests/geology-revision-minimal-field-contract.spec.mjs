@@ -18,9 +18,16 @@ const content = document => {
   return { objects, tables, spaces, opaquePayloads }
 }
 
-test('minimal field descriptions do not alter any existing revision schema shape or required field', () => {
-  const hash = createHash('sha256').update(canonicalStringify(stripDescriptions(tool.inputSchema))).digest('hex')
+test('exact stratum deltas add one optional field without changing any previous revision schema shape', () => {
+  const previousSchema = clone(tool.inputSchema)
+  const delta = previousSchema.properties.updates.items.properties.stratumChanges
+  assert.ok(delta)
+  delete previousSchema.properties.updates.items.properties.stratumChanges
+  const hash = createHash('sha256').update(canonicalStringify(stripDescriptions(previousSchema))).digest('hex')
   assert.equal(hash, '53df96611dea141f8efc3e1d3a44d5d0f21575c77c2ca793546a5343ad99ee01')
+  assert.equal(delta.additionalProperties, false)
+  assert.deepEqual(delta.required, ['update'])
+  assert.equal(tool.inputSchema.properties.updates.items.required.includes('stratumChanges'), false)
   assert.deepEqual(tool.inputSchema.required, ['expectedRevision', 'units', 'drawingId', 'updates'])
   assert.deepEqual(Object.keys(tool.inputSchema.properties), ['expectedRevision', 'units', 'drawingId', 'updates',
     'correlations', 'uncorrelatedOccurrences', 'linkChanges'])

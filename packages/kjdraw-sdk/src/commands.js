@@ -9,6 +9,7 @@ import { KJDocument as GeologyRecipeDocument } from './document.js';
 import { createDesignRelations, deleteDesignRelations, readDesignRelations, updateDesignRelations } from './design-relations.js';
 import { createEraseImpact } from './erase-impact.js';
 import { applyTextEdits, validateTextEdits } from './text-edit.js';
+import { applyHatchPatternEdits, validateHatchPatternEdits } from './agent-hatch-pattern.js';
 import { editHatch } from './hatch-edit.js';
 import { insertCatalogComponent, searchComponentCatalog } from './component-library.js';
 import { entityArea2, entityLength2, distance2, dot2, invert3, multiply3, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
@@ -764,6 +765,7 @@ export class KJCommandRegistry {
         if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'entities')) validateCommandData(args, 'CREATEBATCH');
         if (command.id === 'STRUCTURALEDIT' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'STRUCTURALEDIT');
         if (command.id === 'TEXTEDIT' && command.owner === '@kanjieteam/kjdraw') validateTextEdits(args);
+        if (command.id === 'HATCHPATTERN' && command.owner === '@kanjieteam/kjdraw') validateHatchPatternEdits(args);
         if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
         if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE');
         if (command.transactional === false) {
@@ -804,6 +806,7 @@ export class KJCommandRegistry {
         if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'entities')) validateCommandData(args, 'CREATEBATCH');
         if (command.id === 'STRUCTURALEDIT' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'STRUCTURALEDIT');
         if (command.id === 'TEXTEDIT' && command.owner === '@kanjieteam/kjdraw') validateTextEdits(args);
+        if (command.id === 'HATCHPATTERN' && command.owner === '@kanjieteam/kjdraw') validateHatchPatternEdits(args);
         if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
         if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE');
         if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
@@ -985,6 +988,13 @@ export function registerCoreCommands(registry) {
         id: 'TEXTEDIT',
         title: 'Replace exact annotation text',
         execute: ({ document, transaction }, args)=>applyTextEdits(document, transaction, args)
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'HATCHPATTERN',
+        title: 'Replace exact native hatch patterns',
+        execute: ({ document, transaction }, args)=>applyHatchPatternEdits(document, transaction, args)
     }, {
         owner: '@kanjieteam/kjdraw'
     }));

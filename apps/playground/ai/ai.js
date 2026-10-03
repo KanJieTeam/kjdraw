@@ -105,6 +105,10 @@ Object.assign(copy.zh, {
   progressModel:'正在等待模型响应',progressRead:'正在读取图纸',progressProposal:'正在生成修改提案',
   progressTool:'正在检查图纸',progressFailed:'工具检查未通过，正在返回结果',
   hideSidebar:'收起侧栏',showSidebar:'展开侧栏',privacy:'隐私与存储',
+  removeDrawing:'移除图纸',removeDrawingTitle:'移除这张图纸？',
+  removeDrawingDescription:'这张图纸已有应用的修改。移除会清除当前图纸、修改提案和撤销历史；对话和模型设置会保留。请先下载需要保留的图纸。',
+  removingDrawing:'正在移除图纸…',deletingConversation:'正在删除对话…',progressWriting:'正在生成回复',revisionLabel:'版本 {revision}',
+  reviewSavingHint:'正在处理审核并保存本地历史，请稍候。',
 })
 Object.assign(copy.en, {
   pin:'Pin',unpin:'Unpin',pinned:'Pinned',copyMessage:'Copy',copied:'Copied',retryMessage:'Retry',
@@ -114,6 +118,10 @@ Object.assign(copy.en, {
   progressModel:'Waiting for the model',progressRead:'Reading the drawing',progressProposal:'Preparing a change proposal',
   progressTool:'Checking the drawing',progressFailed:'A tool check failed; returning the result',
   hideSidebar:'Collapse sidebar',showSidebar:'Expand sidebar',privacy:'Privacy & storage',
+  removeDrawing:'Remove drawing',removeDrawingTitle:'Remove this drawing?',
+  removeDrawingDescription:'This drawing has applied changes. Removing it clears the current drawing, proposals, and undo history. Your conversation and model settings stay saved. Download any drawing you want to keep first.',
+  removingDrawing:'Removing drawing…',deletingConversation:'Deleting conversation…',progressWriting:'Writing the response',revisionLabel:'Revision {revision}',
+  reviewSavingHint:'Processing the review and saving local history. Please wait.',
 })
 for (const labels of Object.values(copy)) {
   labels.drawingTab = labels.drawingWorkspace
@@ -134,6 +142,7 @@ const ui = {
   sidebar:byId('sidebar'), scrim:byId('mobile-scrim'), menu:byId('menu-button'),
   drawingFile:byId('drawing-file'), openDrawing:byId('open-drawing'), attachDrawing:byId('attach-drawing'),
   drawingContext:byId('drawing-context'), drawingName:byId('drawing-name'), drawingMeta:byId('drawing-meta'),
+  removeDrawing:byId('remove-drawing'), removeDrawingDialog:byId('remove-drawing-dialog'), removeDrawingForm:byId('remove-drawing-form'),
   drawingCanvas:byId('drawing-canvas'), importError:byId('import-error'), dropOverlay:byId('drawing-drop-overlay'),
   historySearch:byId('history-search'), historyDialog:byId('history-dialog'), historyForm:byId('history-form'),
   historyDialogTitle:byId('history-dialog-title'), historyDialogDescription:byId('history-dialog-description'),
@@ -154,7 +163,14 @@ let active = null
 let pendingSend = false
 let busy = false
 let activeRequest = null
+let activeRequestSession = null
+let activeRequestFinished = null
 let importing = false
+let removing = false
+let deleting = false
+let pendingRemoval = null
+let pendingDeletion = null
+let removalSession = null
 let hydrated = false
 let persistSerial = Promise.resolve()
 let pendingImport = null
@@ -258,6 +274,8 @@ function setLanguage(next) {
   byId('language-button').textContent = next === 'zh' ? 'EN' : '中文'
   byId('language-button').setAttribute('aria-label', next === 'zh' ? 'Switch to English' : '切换到中文')
   ui.send.setAttribute('aria-label', t('send'))
+  ui.removeDrawing.setAttribute('aria-label',t('removeDrawing'))
+  ui.removeDrawing.title = t('removeDrawing')
   byId('sidebar-toggle').setAttribute('aria-label',t('hideSidebar'))
   ui.menu.setAttribute('aria-label',t('showSidebar'))
   ui.workspaceClose.setAttribute('aria-label',t('closeWorkspace'))
@@ -301,20 +319,26 @@ function drawingExportError(error) {
   }
   return error?.message ?? t('failedDownload')
 }
-function queuePersist({ extraSession = null } = {}) {
+function queuePersist({ extraSession = null, replacementSession = null, deletedSession = null, activeIdOverride } = {}) {
   // Every awaited barrier is a new serial write, never an older coalesced save.
   // Imports remain staged until their own transaction completes; background
   // renders cannot overwrite the candidate or report it opened prematurely.
   if (!hydrated || pendingImport && !extraSession) return Promise.resolve(false)
   const operation = persistSerial.catch(() => {}).then(async () => {
+    // Only the staged removal/deletion may write during its barrier. Previously
+    // queued background saves must not write the still-visible old session
+    // after a candidate commit and resurrect its drawing/conversation.
+    if (pendingRemoval && replacementSession !== pendingRemoval || pendingDeletion && deletedSession !== pendingDeletion) return false
     const saved = []
     // A staged import takes over an empty draft conversation atomically. The
     // candidate already carries that draft; do not persist a duplicate chat.
-    const included = extraSession ? [...sessions.filter(session => session !== active || session.messages.length || session.source), extraSession] : sessions
-    for (const session of included.filter(item => item.messages.length || item.source || item.draft)) {
+    const base = extraSession ? [...sessions.filter(session => session !== active || session.messages.length || session.source), extraSession] : sessions
+    const included = base.filter(session => session !== deletedSession).map(session => session.id === replacementSession?.id ? replacementSession : session)
+    for (const session of included.filter(item => item.messages.length || item.source || item.draft || item.drawingRemoved)) {
       const record = {
         id: session.id, title: session.title, source: session.source, updatedAt: session.updatedAt,
         pinned: session.pinned === true, draft: String(session.draft ?? '').slice(0,12000),
+        ...(session.drawingRemoved ? { drawingRemoved:true } : {}),
         messages: session.messages.filter(message => message.status !== 'pending').map(message => ({
           role: message.role, text: message.text, status: message.status,
           ...(message.proposals ? { proposals: message.proposals.map(proposal => ({
@@ -327,7 +351,7 @@ function queuePersist({ extraSession = null } = {}) {
       saved.push({ ...record, state })
     }
     await saveLocalHistory({
-      version: 1, activeId: extraSession?.id ?? active?.id ?? null, sessions: saved,
+      version: 1, activeId: extraSession?.id ?? (activeIdOverride !== undefined ? activeIdOverride : active?.id ?? null), sessions: saved,
       connection: settings ? {
         endpoint: settings.endpoint, model: settings.model, apiKey: settings.apiKey,
         provider: settings.provider, protocol: settings.protocol,
@@ -394,6 +418,7 @@ async function restoreSessions() {
           const source = item.source ? { ...item.source, exportRestricted: hasUnsupportedDxfMetadata(item.state) } : null
           sessions.push({ id: item.id, title: String(item.title ?? t('newConversation')), source,
             updatedAt: Number.isFinite(item.updatedAt) ? item.updatedAt : Date.now(), messages, runtime,
+            drawingRemoved:item.drawingRemoved === true,
             pinned:item.pinned === true, draft: typeof item.draft === 'string' ? item.draft.slice(0,12000) : '' })
         } catch { runtime.destroy() }
       }
@@ -432,6 +457,7 @@ function renderSidebar() {
     button.title = session.title
     button.append(element('span','chat-title',session.title))
     button.addEventListener('click',()=>{
+      if (removing || deleting) return
       if (active) active.draft = ui.input.value
       active = session; render(); queuePersist(); closeSidebar()
     })
@@ -447,6 +473,7 @@ function renderSidebar() {
       actionButton.append(icon(action === 'rename' ? 'edit' : action === 'deleteChat' ? 'trash' : 'pin'),element('span','',t(action)))
       actionButton.type = 'button'
       actionButton.addEventListener('click',()=>{
+        if (removing || deleting) return
         menu.open = false
         if (action === 'pin' || action === 'unpin') {
           session.pinned = action === 'pin'
@@ -472,7 +499,8 @@ function renderSidebar() {
   ui.count.textContent = String(saved.length)
 }
 function openHistoryAction(action,session) {
-  if (busy) { showImportError(t('busyHistory')); return }
+  if (removing || deleting) return
+  if (busy || importing) { showImportError(t('busyHistory')); return }
   historyAction = {action,session}
   ui.historyDialogTitle.textContent = t(action === 'rename' ? 'renameTitle' : 'deleteTitle')
   ui.historyDialogDescription.textContent = action === 'rename' ? '' : t('deleteDescription')
@@ -486,10 +514,14 @@ function openHistoryAction(action,session) {
 }
 function updateComposerAvailability() {
   ui.send.disabled = busy || importing
+  ui.input.readOnly = removing || deleting
   ui.form.setAttribute('aria-busy', String(busy || importing))
-  ui.send.title = importing ? t('importingDrawing') : busy ? t('working') : ''
-  ui.send.querySelector('[data-text="send"]').textContent = t(importing ? 'importingDrawing' : 'send')
-  ui.form.querySelector('[data-text="composerHint"]').textContent = t(importing ? 'importingDrawing' : busy ? 'working' : 'composerHint')
+  const pendingLabel = deleting ? 'deletingConversation' : removing ? 'removingDrawing' : 'importingDrawing'
+  ui.send.title = importing ? t(pendingLabel) : busy ? t('working') : ''
+  ui.send.querySelector('[data-text="send"]').textContent = t(importing ? pendingLabel : 'send')
+  ui.form.querySelector('[data-text="composerHint"]').textContent = t(importing ? pendingLabel : busy ? 'working' : 'composerHint')
+  ui.removeDrawing.disabled = importing || busy && activeRequestSession !== active
+  for (const button of ui.messages.querySelectorAll('[data-testid="drawing-download"]')) button.disabled = busy || importing
 }
 function render() {
   updateComposerAvailability()
@@ -532,7 +564,7 @@ function render() {
     ui.drawingName.textContent = source.name
     ui.drawingMeta.textContent = `${source.entityCount} ${t('entities')} · ${source.units}`
     if (ui.drawingContext.open) requestAnimationFrame(()=>{ if (version === renderVersion) renderDrawingContext(active) })
-  }
+  } else { ui.drawingName.textContent = ''; ui.drawingMeta.textContent = '' }
   const messages = active?.messages ?? []
   document.body.classList.toggle('chat-empty', messages.length === 0)
   ui.empty.hidden = messages.length > 0
@@ -561,7 +593,17 @@ function render() {
     avatar.setAttribute('aria-hidden','true')
     const body = element('div','message-body')
     body.append(element('div','message-role',t(message.role === 'user' ? 'you' : 'assistant')))
-    if (message.status === 'pending' || saving) body.append(element('div','message-progress',saving ? t('working') : progressText(message.progress)))
+    if (message.status === 'pending' || saving) {
+      if (message.status === 'pending' && message.text) {
+        const content = element('div','message-content message-streaming')
+        content.dataset.testid = 'chat-streaming-text'
+        renderMessageMarkdown(content,message.text)
+        body.append(content)
+      }
+      const progress = element('div','message-progress',saving ? t('working') : message.text && message.progress?.phase === 'model' ? t('progressWriting') : progressText(message.progress))
+      progress.dataset.phase = message.progress?.phase ?? 'model'
+      body.append(progress)
+    }
     else if (unsaved) body.append(element('div','message-content',t('storageFailed')))
     else {
       const content = element('div', 'message-content')
@@ -625,6 +667,24 @@ function progressText(progress) {
   if (/^cad_(read|find|query)_/.test(progress.toolName ?? '')) return t('progressRead')
   return t('progressTool')
 }
+function renderStreamingMessage(session,message) {
+  if (active !== session || message.status !== 'pending') return
+  const entry = messageNodes.get(message)
+  const body = entry?.node.querySelector('.message-body')
+  if (!body) return
+  const following = followLatest
+  let content = body.querySelector('.message-content')
+  if (!content) {
+    content = element('div','message-content message-streaming')
+    content.dataset.testid = 'chat-streaming-text'
+    body.querySelector('.message-progress').before(content)
+  }
+  renderMessageMarkdown(content,message.text)
+  if (message.progress?.phase === 'model') body.querySelector('.message-progress').textContent = t('progressWriting')
+  entry.key = null
+  if (following) ui.conversation.scrollTop = ui.conversation.scrollHeight
+  updateLatestButton()
+}
 function resizeComposer() {
   ui.input.style.height = 'auto'
   ui.input.style.height = `${Math.min(200,Math.max(60,ui.input.scrollHeight))}px`
@@ -648,6 +708,8 @@ function showWorkspace(proposal = null) {
 function renderWorkspace() {
   if (!ui.workspace) return
   const pending = pendingWorkspaceProposal()
+  const saving = (active?.messages ?? []).flatMap(message=>message.proposals ?? []).find(proposal=>savingProposals.has(proposal))
+  const review = saving ?? pending
   const hasDrawing = Boolean(active && (active.source || active.runtime.entityCount || pending))
   if (workspaceSession !== active) {
     workspaceViewer?.destroy()
@@ -665,6 +727,11 @@ function renderWorkspace() {
     workspaceVisible = true
   }
   if (!pending && workspaceMode === 'proposal') workspaceMode = 'document'
+  // Approval consumes the pending plan before its durable history write ends.
+  // Any already scheduled RAF must paint the actual native document during
+  // this barrier, never an expired proposal. Keep the requested review mode
+  // so a failed approval with a still-valid pending plan can return to it.
+  const displayedMode = saving ? 'document' : workspaceMode
   const visible = workspaceVisible && hasDrawing
   ui.drawingPanel.hidden = ui.divider.hidden = !visible
   ui.workspaceTabs.hidden = !hasDrawing
@@ -676,23 +743,23 @@ function renderWorkspace() {
   ui.currentView.textContent = t('currentView')
   ui.proposalView.textContent = t('proposalView')
   ui.proposalView.hidden = !pending
-  ui.proposalView.disabled = !pending
-  ui.currentView.setAttribute('aria-selected',String(workspaceMode === 'document'))
-  ui.proposalView.setAttribute('aria-selected',String(workspaceMode === 'proposal'))
+  ui.proposalView.disabled = !pending || Boolean(saving) || busy || importing
+  ui.currentView.setAttribute('aria-selected',String(displayedMode === 'document'))
+  ui.proposalView.setAttribute('aria-selected',String(displayedMode === 'proposal'))
   ui.workspaceDownload.disabled = !active || busy || importing || Boolean(active.source?.exportRestricted) || !active.runtime.entityCount
   ui.workspaceUndo.disabled = ui.undo.disabled
   ui.workspaceRedo.disabled = ui.redo.disabled
   ui.tabChat.setAttribute('aria-selected',String(ui.workspace.dataset.mobileView !== 'drawing'))
   ui.tabDrawing.setAttribute('aria-selected',String(ui.workspace.dataset.mobileView === 'drawing'))
-  const reviewKey = JSON.stringify([language,pending?.planId,pending?.uiState,busy,importing,savingProposals.has(pending)])
+  const reviewKey = JSON.stringify([language,review?.planId,review?.uiState,busy,importing,Boolean(saving)])
   if (workspaceReviewKey !== reviewKey) {
     workspaceReviewKey = reviewKey
     ui.workspaceReview.replaceChildren()
-    ui.workspaceReview.hidden = !pending
-    if (pending) {
-      const heading = element('h3','workspace-review-title',t('proposalPending'))
-      const summary = element('p','workspace-review-summary',t('reviewHint'))
-      const before = pending.preview?.before, after = pending.preview?.after
+    ui.workspaceReview.hidden = !review
+    if (review) {
+      const heading = element('h3','workspace-review-title',t(saving ? 'working' : 'proposalPending'))
+      const summary = element('p','workspace-review-summary',t(saving ? 'reviewSavingHint' : 'reviewHint'))
+      const before = review.preview?.before, after = review.preview?.after
       if (Array.isArray(before) && Array.isArray(after)) summary.append(element('span','workspace-change-count',
         ` ${t('changedObjects')}: ${t('beforeLabel')} ${before.length} → ${t('afterLabel')} ${after.length}`))
       const actions = element('div','workspace-review-actions')
@@ -700,9 +767,9 @@ function renderWorkspace() {
         const button = element('button',action === 'approve' ? 'approve' : '',t(label))
         button.type = 'button'
         button.id = `workspace-${action}`
-        button.disabled = busy || importing || savingProposals.has(pending)
+        button.disabled = busy || importing || Boolean(saving)
         button.addEventListener('click',()=>{
-          const card = [...ui.messages.querySelectorAll('[data-plan-id]')].find(node=>node.dataset.planId === pending.planId)
+          const card = [...ui.messages.querySelectorAll('[data-plan-id]')].find(node=>node.dataset.planId === review.planId)
           card?.querySelector(`[data-testid="proposal-${action}"]`)?.click()
         })
         actions.append(button)
@@ -711,8 +778,8 @@ function renderWorkspace() {
     }
   }
   if (!visible) return
-  const options = {mode:workspaceMode,planId:pending?.planId,preserveCamera:true,
-    labels:viewerLabels(t(workspaceMode === 'proposal' ? 'proposalView' : 'currentView'))}
+  const options = {mode:displayedMode,planId:pending?.planId,preserveCamera:true,
+    labels:viewerLabels(t(displayedMode === 'proposal' ? 'proposalView' : 'currentView'))}
   try {
     if (!workspaceViewer) workspaceViewer = createDrawingViewer({container:ui.workspaceViewer,runtime:active.runtime,...options})
     else workspaceViewer.refresh(options)
@@ -749,18 +816,19 @@ function createProposalCard(session, proposal) {
   const titleGroup = element('div')
   const state = savingProposals.has(proposal) ? 'saving' : unsavedProposals.has(proposal) ? 'unsaved' : proposal.uiState ?? 'pending'
   titleGroup.append(element('h3','proposal-title',t(state === 'approved' ? 'currentDrawing' : 'proposal')),
-    element('p','proposal-subtitle',`REV ${state === 'approved' ? session.runtime.revision : proposal.expectedRevision ?? '?'} · ${proposal.command ?? ''}`))
+    element('p','proposal-subtitle',t('revisionLabel').replace('{revision}',String(state === 'approved' ? session.runtime.revision : proposal.expectedRevision ?? '?'))))
   const tag = element('span','proposal-tag '+(state === 'approved' ? 'approved' : state === 'rejected' ? 'rejected' : ''),t(state === 'approved' ? 'proposalApproved' : state === 'rejected' ? 'proposalRejected' : state === 'expired' ? 'proposalExpired' : state === 'saving' ? 'working' : state === 'unsaved' ? 'proposalUnsaved' : 'proposalPending'))
   header.append(titleGroup,tag)
   const preview = element('div','proposal-preview')
   let viewer = null
-  if (state === 'pending' || state === 'approved' || state === 'unsaved') {
+  if (state === 'pending' || state === 'approved' || state === 'unsaved' || state === 'saving') {
     requestAnimationFrame(()=>{
       if (!preview.isConnected || session !== active) return
       try {
+        const pendingView = proposal.uiState === 'pending' && !savingProposals.has(proposal)
         viewer = createDrawingViewer({ container:preview, runtime:session.runtime,
-          mode:state === 'pending' ? 'proposal' : 'document', planId:proposal.planId,
-          labels:viewerLabels(t(state === 'approved' ? 'currentDrawing' : 'proposal')) })
+          mode:pendingView ? 'proposal' : 'document', planId:proposal.planId,
+          labels:viewerLabels(t(pendingView ? 'proposal' : 'currentDrawing')) })
         registerViewer(viewer,preview)
       } catch { preview.replaceChildren(element('div','proposal-preview-fallback',t('previewMissing'))) }
     })
@@ -794,6 +862,7 @@ function createProposalCard(session, proposal) {
       updateComposerAvailability()
       savingProposals.add(proposal)
       approve.disabled = reject.disabled = true
+      viewer?.refresh({mode:'document',preserveCamera:true,labels:viewerLabels(t('currentDrawing'))})
       renderWorkspace()
       let result
       try { result = await session.runtime.approve(proposal.planId) }
@@ -805,11 +874,19 @@ function createProposalCard(session, proposal) {
         for (const message of session.messages) for (const other of message.proposals ?? []) if (other !== proposal && other.uiState === 'pending') other.uiState = 'expired'
         message = {role:'assistant',text:result.text}
       } else {
-        approve.disabled = reject.disabled = false
+        // A failed adapter may leave a valid plan, but native approval can also
+        // consume it. Do not advertise a retryable pending preview unless the
+        // actual runtime still accepts that exact plan/revision.
+        try { session.runtime.getViewerCamera({mode:'proposal',planId:proposal.planId}) }
+        catch { proposal.uiState = 'expired' }
         message = {role:'assistant',status:'error',text:result.error?.message ?? t('retry')}
       }
       session.messages.push(message)
       await persistTerminal(session, [message], [proposal])
+      if (proposal.uiState === 'pending' && !unsavedProposals.has(proposal)) {
+        approve.disabled = reject.disabled = false
+        viewer?.refresh({mode:'proposal',planId:proposal.planId,preserveCamera:true,labels:viewerLabels(t('proposal'))})
+      }
       busy = false
       render()
     })
@@ -817,12 +894,18 @@ function createProposalCard(session, proposal) {
       if (busy || importing) return
       busy = true
       updateComposerAvailability()
+      savingProposals.add(proposal)
       approve.disabled = reject.disabled = true
+      viewer?.refresh({mode:'document',preserveCamera:true,labels:viewerLabels(t('currentDrawing'))})
       renderWorkspace()
       const result = session.runtime.reject(proposal.planId)
       const message = result.status === 'rejected' ? {role:'assistant',text:result.text}
         : {role:'assistant',status:'error',text:result.error?.message ?? t('retry')}
       if (result.status === 'rejected') proposal.uiState = 'rejected'
+      else {
+        try { session.runtime.getViewerCamera({mode:'proposal',planId:proposal.planId}) }
+        catch { proposal.uiState = 'expired' }
+      }
       session.messages.push(message)
       await persistTerminal(session, [message], [proposal])
       busy = false
@@ -864,6 +947,7 @@ function createProposalCard(session, proposal) {
   return card
 }
 async function downloadDrawing(session) {
+  if (busy || importing) return false
   try {
     const data = await session.runtime.exportDocument('DXF')
     const blob = new Blob([data],{type:'application/dxf'})
@@ -923,6 +1007,11 @@ async function submitPrompt() {
   busy = true
   followLatest = true
   activeRequest = new AbortController()
+  const controller = activeRequest
+  activeRequestSession = session
+  let finishRequest
+  activeRequestFinished = new Promise(resolve=>{finishRequest=resolve})
+  let streamFrame = null
   ui.send.hidden = true
   ui.stop.hidden = false
   ui.input.value = ''
@@ -930,13 +1019,21 @@ async function submitPrompt() {
   resizeComposer()
   render()
   try {
-    const result = await session.runtime.send(prompt,{signal:activeRequest.signal,onProgress:progress=>{
+    const result = await session.runtime.send(prompt,{signal:controller.signal,onProgress:progress=>{
+      if (controller.signal.aborted) return
       waiting.progress = progress
       const progressNode = messageNodes.get(waiting)?.node.querySelector('.message-progress')
       if (progressNode) {
-        progressNode.textContent = progressText(progress)
+        progressNode.textContent = waiting.text && progress.phase === 'model' ? t('progressWriting') : progressText(progress)
         progressNode.dataset.phase = progress.phase
       }
+    },onTextDelta:event=>{
+      if (controller.signal.aborted || removing) return
+      waiting.text = event.text
+      if (streamFrame === null) streamFrame = requestAnimationFrame(()=>{
+        streamFrame = null
+        renderStreamingMessage(session,waiting)
+      })
     }})
     const index = session.messages.indexOf(waiting)
     if (index >= 0) session.messages.splice(index,1)
@@ -959,15 +1056,19 @@ async function submitPrompt() {
     session.messages.push({role:'assistant',status:'error',text:error?.message ?? t('retry')})
     restoreRequestDraft(session,prompt)
   } finally {
+    if (streamFrame !== null) cancelAnimationFrame(streamFrame)
     if (active === session) session.draft = ui.input.value
     const terminal = session.messages.filter(message => message !== waiting && message.role === 'assistant').at(-1)
     if (terminal) await persistTerminal(session, [terminal])
     busy = false
     activeRequest = null
+    activeRequestSession = null
     ui.stop.hidden = true
     ui.send.hidden = false
     render()
     if (active === session) { resizeComposer(); ui.input.focus() }
+    finishRequest()
+    activeRequestFinished = null
   }
 }
 function restoreRequestDraft(session,prompt) {
@@ -977,6 +1078,7 @@ function restoreRequestDraft(session,prompt) {
   } else if (!session.draft) session.draft = prompt
 }
 function setDraft(value) {
+  if (removing || deleting) return
   ui.input.value = value
   currentSession().draft = value
   resizeComposer()
@@ -987,6 +1089,73 @@ function closeSidebar(){ui.sidebar.classList.remove('open');ui.scrim.hidden=true
 function showImportError(message) {
   ui.importError.textContent = message
   ui.importError.hidden = false
+}
+async function requestDrawingRemoval() {
+  await initialLoad
+  if (!active?.source || importing || busy && activeRequestSession !== active) return
+  if (active.runtime.hasAppliedChanges) {
+    removalSession = active
+    ui.removeDrawingDialog.showModal()
+    byId('remove-drawing-cancel').focus()
+  } else await removeDrawing(active)
+}
+async function removeDrawing(session) {
+  if (session !== active || !session.source || importing || busy && activeRequestSession !== session) return
+  importing = removing = true
+  ui.openDrawing.disabled = ui.attachDrawing.disabled = true
+  updateComposerAvailability()
+  let candidate = null
+  try {
+    // A removed drawing cannot still be read or receive a late proposal from
+    // an in-flight request. Wait through its durable cancellation completion.
+    if (activeRequestSession === session) {
+      const finished = activeRequestFinished
+      activeRequest.abort()
+      await finished
+    }
+    const name = session.source.name
+    // A completely separate blank runtime makes removal durable-first. The
+    // original drawing, source recipe, history and pending plans remain intact
+    // until the candidate's actual IndexedDB completion receipt is delivered.
+    const runtime = createAiChatRuntime({ ...(settings ?? {}), toolProfile:session.runtime.toolProfile })
+    candidate = { ...session, runtime, source:null, drawingRemoved:true, updatedAt:Date.now(),
+      messages:session.messages.map(message=>{ const { proposals, ...retained } = message; return structuredClone(retained) }),
+      draft:ui.input.value,
+      title:session.title === name ? session.messages.find(message=>message.role === 'user')?.text.replace(/\s+/g,' ').slice(0,34) ?? t('newConversation') : session.title }
+    pendingRemoval = candidate
+    if (!await queuePersist({ replacementSession:candidate })) throw new Error(t('storageFailed'))
+    const previousRuntime = session.runtime
+    // Cancellation may have restored the request draft programmatically while
+    // the composer is read-only. Install that exact captured draft unchanged.
+    candidate.draft = ui.input.value
+    Object.assign(session, candidate)
+    candidate = null
+    previousRuntime.destroy()
+    disposeDrawingViewers()
+    ui.messages.replaceChildren()
+    workspaceViewer?.destroy()
+    workspaceViewer = null
+    ui.workspaceViewer.replaceChildren()
+    workspaceVisible = false
+    workspaceMode = 'document'
+    workspacePlanId = null
+    workspaceReviewKey = ''
+    ui.workspace.dataset.mobileView = 'chat'
+    ui.drawingContext.open = false
+    ui.drawingFile.value = ''
+    ui.importError.hidden = true
+    render()
+  } catch(error) {
+    candidate?.runtime.destroy()
+    showImportError(t('storageFailed'))
+  } finally {
+    pendingRemoval = null
+    importing = removing = false
+    ui.openDrawing.disabled = ui.attachDrawing.disabled = false
+    render()
+    queuePersist()
+    ui.input.focus()
+  }
 }
 async function openDrawing(file) {
   if (!file) return
@@ -1055,6 +1224,16 @@ ui.redo.addEventListener('click',()=>applyDrawingHistory('redo'))
 for (const button of [ui.openDrawing,ui.attachDrawing]) button.addEventListener('click',()=>ui.drawingFile.click())
 ui.drawingFile.addEventListener('change',()=>openDrawing(ui.drawingFile.files?.[0]))
 ui.drawingContext.addEventListener('toggle',()=>{ if (ui.drawingContext.open && active?.source) requestAnimationFrame(()=>renderDrawingContext(active)) })
+ui.removeDrawing.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();requestDrawingRemoval()})
+ui.removeDrawingForm.addEventListener('submit',event=>{
+  event.preventDefault()
+  const session = removalSession
+  ui.removeDrawingDialog.close()
+  removalSession = null
+  if (session) removeDrawing(session)
+})
+byId('remove-drawing-cancel').addEventListener('click',()=>ui.removeDrawingDialog.close())
+ui.removeDrawingDialog.addEventListener('close',()=>{removalSession=null})
 window.addEventListener('dragover',event=>{
   if (!hasDroppedFiles(event)) return
   event.preventDefault()
@@ -1200,6 +1379,7 @@ ui.dialog.addEventListener('close',()=>{ui.key.value='';pendingSend=false})
 ui.settingsOpen.addEventListener('click',()=>showSettings(false))
 byId('new-chat').addEventListener('click',async()=>{
   await initialLoad
+  if (removing || deleting) return
   if(active?.messages.length || active?.source) { active.draft = ui.input.value; createSession() }
   else { if(active) active.draft='';ui.input.value='';render();resizeComposer() }
   queuePersist();closeSidebar();ui.input.focus()
@@ -1213,8 +1393,9 @@ document.addEventListener('keydown',event=>{
 })
 byId('history-cancel').addEventListener('click',()=>ui.historyDialog.close())
 ui.historyDialog.addEventListener('close',()=>{ historyAction = null })
-ui.historyForm.addEventListener('submit',event=>{
+ui.historyForm.addEventListener('submit',async event=>{
   event.preventDefault()
+  if (removing || deleting || importing) return
   const choice = historyAction
   if (!choice || !sessions.includes(choice.session)) { ui.historyDialog.close(); return }
   if (choice.action === 'rename') {
@@ -1224,9 +1405,27 @@ ui.historyForm.addEventListener('submit',event=>{
     choice.session.updatedAt = Date.now()
   } else {
     if (busy) { ui.historyDialog.close(); showImportError(t('busyHistory')); return }
-    choice.session.runtime.destroy()
-    sessions = sessions.filter(item => item !== choice.session)
-    if (active === choice.session) active = sessions[0] ?? null
+    const nextActive = active === choice.session ? sessions.find(session=>session !== choice.session) ?? null : active
+    deleting = importing = true
+    pendingDeletion = choice.session
+    ui.historyDialog.close()
+    ui.openDrawing.disabled = ui.attachDrawing.disabled = true
+    updateComposerAvailability()
+    try {
+      if (!await queuePersist({ deletedSession:choice.session, activeIdOverride:nextActive?.id ?? null })) throw new Error(t('storageFailed'))
+      choice.session.runtime.destroy()
+      sessions = sessions.filter(session=>session !== choice.session)
+      active = nextActive
+    } catch {
+      showImportError(t('storageFailed'))
+    } finally {
+      pendingDeletion = null
+      deleting = importing = false
+      ui.openDrawing.disabled = ui.attachDrawing.disabled = false
+      render()
+      queuePersist()
+    }
+    return
   }
   ui.historyDialog.close()
   render()

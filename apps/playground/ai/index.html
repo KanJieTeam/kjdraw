@@ -105,7 +105,7 @@
         <input id="drawing-file" data-testid="drawing-file" class="sr-only" type="file" accept=".dxf,.kjd,.kjp" aria-label="选择 DXF 图纸">
         <p class="import-error" id="import-error" role="alert" hidden></p>
         <details class="drawing-context" id="drawing-context" data-testid="drawing-context" hidden>
-          <summary><svg class="ui-icon" aria-hidden="true"><use href="#icon-file"/></svg><span id="drawing-name"></span><small id="drawing-meta"></small><svg class="ui-icon disclosure-icon" aria-hidden="true"><use href="#icon-chevron-down"/></svg></summary>
+          <summary><svg class="ui-icon" aria-hidden="true"><use href="#icon-file"/></svg><span id="drawing-name"></span><small id="drawing-meta"></small><svg class="ui-icon disclosure-icon" aria-hidden="true"><use href="#icon-chevron-down"/></svg><button id="remove-drawing" class="remove-drawing" data-testid="drawing-remove" type="button" aria-label="移除图纸" title="移除图纸"><svg class="ui-icon" aria-hidden="true"><use href="#icon-close"/></svg></button></summary>
           <canvas id="drawing-canvas" aria-label="当前图纸预览"></canvas>
         </details>
         <form class="composer" id="chat-form">
@@ -144,7 +144,7 @@
         </footer>
       </section>
       </div>
-      <div class="drawing-drop-overlay" id="drawing-drop-overlay" hidden><span data-text="dropDrawing">松开以打开图纸</span><small>KJD · KJP · DXF</small></div>
+      <div class="drawing-drop-overlay" id="drawing-drop-overlay" hidden><span data-text="dropDrawing">松开以打开图纸</span><small>DXF · KJD · KJP</small></div>
     </main>
   </div>
 
@@ -179,6 +179,16 @@
       <div class="dialog-actions">
         <button class="secondary-button" id="settings-cancel" type="button" data-text="cancel">取消</button>
         <button class="primary-button" data-testid="settings-save" type="submit" data-text="saveConnection">连接并继续</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog class="history-dialog" id="remove-drawing-dialog" aria-labelledby="remove-drawing-title" aria-describedby="remove-drawing-description">
+    <form id="remove-drawing-form">
+      <h2 id="remove-drawing-title" data-text="removeDrawingTitle">移除这张图纸？</h2>
+      <p id="remove-drawing-description" data-text="removeDrawingDescription">这张图纸已有应用的修改。移除会清除当前图纸、修改提案和撤销历史；对话和模型设置会保留。请先下载需要保留的图纸。</p>
+      <div class="dialog-actions">
+        <button class="secondary-button" id="remove-drawing-cancel" type="button" data-text="cancel">取消</button>
+        <button class="primary-button danger" data-testid="drawing-remove-confirm" type="submit" data-text="removeDrawing">移除图纸</button>
       </div>
     </form>
   </dialog>

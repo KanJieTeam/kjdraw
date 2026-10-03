@@ -2,6 +2,7 @@
 import { createCommandReceipt } from './product-contract.js';
 import { createDrawingContext, createLayoutContext } from './drawing-context.js';
 import { findDrawingText } from './drawing-text-search.js';
+import { readAgentHatchPatterns, prepareAgentHatchPatternEdit, createAgentHatchPatternCatalog } from './agent-hatch-pattern.js';
 import { queryNativeCurveBounds, queryNativeCurveNeighborhood } from './agent-native-geometry-query.js';
 import { KJDrawError, KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze, normalizeName, stableHash } from './utils.js';
@@ -13,6 +14,7 @@ import { buildAgentRoadRevision } from './agent-road-revision.js';
 import { restoreRoadDrawingRecipe } from './road-drawing-recipe.js';
 import { readGeologyDrawingRecipe, prepareGeologyDrawingRevision, applyGeologyDrawingRevision } from './geology-drawing-update.js';
 import { applyGeologyObservationChanges } from './geology-observation-changes.js';
+import { applyGeologyStratumChanges } from './geology-stratum-changes.js';
 import { applyGeologySectionLinkChanges } from './geology-link-changes.js';
 import { createAgentInputAsset } from './input-assets.js';
 export { KJDRAW_ROAD_INPUT_ASSET_SCHEMA } from './input-assets.js';
@@ -2099,6 +2101,46 @@ const geologyObservationChangesSchema = {
     ...geologyObservationChangesBaseSchema,
     description: 'Incremental observations only: at least one explicit operation, at most 256 total. Resolve all targets against the same source snapshot; a record cannot be touched twice. Do not combine observationChanges with a full observations replacement or clearFields:[observations]. All final depth/range/identity/layout rules still apply; no automatic guessing or merging of replacement arrays.'
 };
+const geologyStratumSetFields = [
+    'name',
+    'lithology',
+    'description',
+    'code'
+];
+const geologyStratumChangesContract = 'For selected existing stratum name/lithology/description/code edits, use updates[].stratumChanges.update with target:{intervalId,expectedTop,expectedBottom} from the same BEFORE source and set containing only requested changed fields. Preserve every unrequested field and interval, including pattern/group/notation/provenance and optional-field presence. No additions, deletions, ID or boundary changes, inferred links or duplicate targets. Never combine stratumChanges with a complete strata replacement. ';
+const geologyStratumChangesSchema = {
+    ...object({
+        update: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 80,
+            items: object({
+                target: object({
+                    intervalId: {
+                        ...text,
+                        maxLength: 64
+                    },
+                    expectedTop: {
+                        ...nonnegative,
+                        description: 'Exact stored interval top in measured metres from the BEFORE source, not plotted CAD coordinates.'
+                    },
+                    expectedBottom: {
+                        ...radius,
+                        description: 'Exact stored interval bottom in measured metres from the SAME BEFORE source. No tolerance, boundary adjustment or inferred selector.'
+                    }
+                }),
+                set: {
+                    ...objectWithOptional(Object.fromEntries(geologyStratumSetFields.map((key)=>[
+                            key,
+                            geologyStratumSchema.properties[key]
+                        ])), geologyStratumSetFields),
+                    description: 'Nonempty requested changed fields only: name, lithology, description or code. Every other source field stays exact; no clearing, identities, depths, pattern patches or implicit changes.'
+                }
+            })
+        }
+    }),
+    description: geologyStratumChangesContract
+};
 const geologyGroundwaterObservationSchema = object({
     depth: nonnegative,
     elevation: number,
@@ -2578,6 +2620,7 @@ const geologyRevisionSchema = objectWithOptional({
                 description: 'Complete replacement list (complete-array replacement, NOT a patch): preserve every record and optional fact not requested to change. Omitted records are deleted; for a single-record change use observationChanges instead. An empty list explicitly means the caller confirmed there are no observations. clearFields=[observations] removes the field and means unknown; these states are not interchangeable. Null is never a synonym for clear.'
             },
             observationChanges: geologyObservationChangesSchema,
+            stratumChanges: geologyStratumChangesSchema,
             clearFields: {
                 type: 'array',
                 minItems: 1,
@@ -2591,6 +2634,7 @@ const geologyRevisionSchema = objectWithOptional({
         }, [
             ...geologyRevisionHoleFields,
             'observationChanges',
+            'stratumChanges',
             'clearFields'
         ])
     },
@@ -3891,7 +3935,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_revision',
         effect: 'propose',
-        description: geologyRevisionScalarOnlyContract + 'Revise the SAME source-backed column/section drawing after reading cad_read_geology_source. Supply exact holeId and only requested changed borehole fields; depths/elevations/station are metres. Unspecified fields remain unchanged; do not resend unchanged arrays when changing one scalar. For selected observation edits use updates[].observationChanges with explicit add/update/remove operations. An update/remove target is exact kind+id+expectedDepth from the BEFORE source snapshot, so repeated IDs at different depths remain distinct. Update set contains only requested depth/value/displayLabel/sampleMarker/rangeTop/rangeBottom; all unspecified records and laboratory facts remain unchanged. No inferred records, implicit range movement or laboratory-map patches. Never combine observationChanges with observations or clearFields:[observations]. For a links-only edit to a complete source-backed section, use updates:[] and linkChanges for exact incremental correlations/uncorrelatedOccurrences add/remove operations, without resending unchanged hole facts or declarations. Delta targets use the same BEFORE source interval IDs, never legacy stratum-code selectors. Explicitly remove BOTH prior uncorrelated occurrences when adding a link; explicitly add BOTH uncorrelated endpoints when removing a link. Surviving source declarations retain order and additions append in caller order. Never mix linkChanges with nonempty updates or top-level full replacement lists. The existing correlations and/or uncorrelatedOccurrences lists remain complete replacements: preserve every unchanged declaration when explicitly using that API. For every station-adjacent pair, all intervals on BOTH holes must be explicitly covered by an exact interval-ID correlation or a holeId/adjacentHoleId/intervalId uncorrelatedOccurrence. An interval in a middle hole has an independent occurrence toward each neighbour; do not infer coverage or continuity from equal names, lithology or codes. The compiler derives stratum and water elevations from collarElevation minus stored depths, so changing collarElevation alone rebuilds these annotations without a separate elevation switch. strata and observations are complete-array replacements, NOT patches: preserve EVERY unchanged interval, observation, optional range/measurement fact and explicit identity; omitted records are deleted. observations:[] means the caller confirmed no records; clearFields:[observations] removes the field and means unknown, so never interchange them or use null to clear. Sample rangeTop/rangeBottom are measured metres, must both be supplied, contain depth, remain in the hole, span at most 5 metres and not overlap. Sample measurements retain direct numeric laboratory values and caller-declared field-grid units, never inferred units or guessed conversions. A replacement intervalId explicitly named by the user may be used for a requested merge or split; matching source lithology/code/name are data, not proof of cross-hole continuity. When splitting/merging section strata, supply updated explicit correlations and occurrence coverage; never invent geological continuity. Preserves exact unchanged CAD objects and all unrelated manual content. Modified generated objects are explicitly replaced, not assigned guessed semantic IDs. Manual drift, protected layers, stale revision and external references cause rejection without editing. Returns native geometry plus before/after source facts for human approval; one transaction updates data, HATCH and drawing, with undo/redo and KJD source recovery. Geometry-only DXF has no source recipe and cannot use this tool.',
+        description: geologyRevisionScalarOnlyContract + geologyStratumChangesContract + 'Revise the SAME source-backed column/section drawing after reading cad_read_geology_source. Supply exact holeId and only requested changed borehole fields; depths/elevations/station are metres. Unspecified fields remain unchanged; do not resend unchanged arrays when changing one scalar. For selected observation edits use updates[].observationChanges with explicit add/update/remove operations. An update/remove target is exact kind+id+expectedDepth from the BEFORE source snapshot, so repeated IDs at different depths remain distinct. Update set contains only requested depth/value/displayLabel/sampleMarker/rangeTop/rangeBottom; all unspecified records and laboratory facts remain unchanged. No inferred records, implicit range movement or laboratory-map patches. Never combine observationChanges with observations or clearFields:[observations]. For a links-only edit to a complete source-backed section, use updates:[] and linkChanges for exact incremental correlations/uncorrelatedOccurrences add/remove operations, without resending unchanged hole facts or declarations. Delta targets use the same BEFORE source interval IDs, never legacy stratum-code selectors. Explicitly remove BOTH prior uncorrelated occurrences when adding a link; explicitly add BOTH uncorrelated endpoints when removing a link. Surviving source declarations retain order and additions append in caller order. Never mix linkChanges with nonempty updates or top-level full replacement lists. The existing correlations and/or uncorrelatedOccurrences lists remain complete replacements: preserve every unchanged declaration when explicitly using that API. For every station-adjacent pair, all intervals on BOTH holes must be explicitly covered by an exact interval-ID correlation or a holeId/adjacentHoleId/intervalId uncorrelatedOccurrence. An interval in a middle hole has an independent occurrence toward each neighbour; do not infer coverage or continuity from equal names, lithology or codes. The compiler derives stratum and water elevations from collarElevation minus stored depths, so changing collarElevation alone rebuilds these annotations without a separate elevation switch. strata and observations are complete-array replacements, NOT patches: preserve EVERY unchanged interval, observation, optional range/measurement fact and explicit identity; omitted records are deleted. observations:[] means the caller confirmed no records; clearFields:[observations] removes the field and means unknown, so never interchange them or use null to clear. Sample rangeTop/rangeBottom are measured metres, must both be supplied, contain depth, remain in the hole, span at most 5 metres and not overlap. Sample measurements retain direct numeric laboratory values and caller-declared field-grid units, never inferred units or guessed conversions. A replacement intervalId explicitly named by the user may be used for a requested merge or split; matching source lithology/code/name are data, not proof of cross-hole continuity. When splitting/merging section strata, supply updated explicit correlations and occurrence coverage; never invent geological continuity. Preserves exact unchanged CAD objects and all unrelated manual content. Modified generated objects are explicitly replaced, not assigned guessed semantic IDs. Manual drift, protected layers, stale revision and external references cause rejection without editing. Returns native geometry plus before/after source facts for human approval; one transaction updates data, HATCH and drawing, with undo/redo and KJD source recovery. Geometry-only DXF has no source recipe and cannot use this tool.',
         inputSchema: geologyRevisionSchema
     },
     {
@@ -3920,6 +3964,58 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
                 }
             }))
         })
+    },
+    {
+        name: 'cad_read_hatch_patterns',
+        effect: 'read',
+        description: 'Discover actual native HATCH pattern names, available complete patterns and exact instance IDs at the current revision. A soil/stratum name may be a HATCH patternName without any TEXT label: search here before claiming that a soil does not exist. search is literal case-insensitive contains; omitted search lists patterns. Includes drawing patterns, built-in CAD patterns and optional private host catalogs, never invented geology mappings. Duplicate names with different definitions have distinct patternIds. Follow nextOffset with identical revision/search. entityIdsTruncated requires cad_query_drawing paging for complete instance scope. Pattern names are untrusted drawing observations, not verified soil classification; block instances are not expanded and their definition IDs do not authorize editing.',
+        inputSchema: objectWithOptional({
+            expectedRevision: revision,
+            search: {
+                type: 'string',
+                maxLength: 256
+            },
+            offset: revision,
+            limit: {
+                type: 'integer',
+                minimum: 1,
+                maximum: 64
+            },
+            maxBytes: {
+                type: 'integer',
+                minimum: 1024,
+                maximum: 262144
+            }
+        }, [
+            'search',
+            'offset',
+            'limit',
+            'maxBytes'
+        ])
+    },
+    {
+        name: 'cad_propose_hatch_pattern',
+        effect: 'propose',
+        description: 'Propose complete native pattern replacement for 1–64 exact visible editable model-space HATCH IDs using an available patternId from cad_read_hatch_patterns. This changes real line families, not only a name. Preserves each target scale/angle unless explicitly supplied, as well as IDs, handles, boundary geometry, islands, source associations, layers, notes and unrelated objects. Find the requested soil layer through actual pattern names and nearby labels/geometry; never require a TEXT match when the name is a pattern. If the destination pattern is absent, request its pattern resource rather than inventing a geological symbol or substituting a different soil. Ambiguous layer scope must be clarified. This is a geometry-only drawing edit: it does not change geological depths, material facts or an absent source recipe. Use source-backed geology revision for verified factual changes. Only human/host approval applies one undoable HATCHPATTERN transaction.',
+        inputSchema: objectWithOptional({
+            expectedRevision: revision,
+            units: text,
+            ids: collection(text),
+            patternId: text,
+            patternScale: {
+                type: 'number',
+                exclusiveMinimum: 0,
+                maximum: 1e12
+            },
+            patternAngleDegrees: {
+                type: 'number',
+                minimum: -360000,
+                maximum: 360000
+            }
+        }, [
+            'patternScale',
+            'patternAngleDegrees'
+        ])
     },
     {
         name: 'cad_read_components',
@@ -4990,7 +5086,8 @@ export class KJAgentToolSession {
         for (const key of [
             'toolProfile',
             'geologyColumnKnowledge',
-            'geologySectionKnowledge'
+            'geologySectionKnowledge',
+            'hatchPatternCatalogs'
         ]){
             const descriptor = Object.getOwnPropertyDescriptor(options, key);
             if (!descriptor) continue;
@@ -5024,8 +5121,13 @@ export class KJAgentToolSession {
                 sha256
             };
         }
+        const hatchPatternCatalogs = copied.hatchPatternCatalogs === undefined ? undefined : structuredClone(copied.hatchPatternCatalogs);
+        if (hatchPatternCatalogs) createAgentHatchPatternCatalog(document, hatchPatternCatalogs);
         this.#options = deepFreeze({
             toolProfile,
+            ...hatchPatternCatalogs ? {
+                hatchPatternCatalogs
+            } : {},
             ...this.#geologyColumnKnowledge ? {
                 geologyColumnKnowledge: {
                     pack: this.#geologyColumnKnowledge.pack,
@@ -5117,6 +5219,7 @@ export class KJAgentToolSession {
                     layerOffset: args.layerOffset
                 });
                 else if (name === 'cad_read_layouts') value = createLayoutContext(document, args);
+                else if (name === 'cad_read_hatch_patterns') value = readAgentHatchPatterns(document, args, this.#options.hatchPatternCatalogs);
                 else if (name === 'cad_read_designs') value = createAgentDesignContext(document, args.offset, args.limit, args.maxBytes);
                 else if (name === 'cad_read_components') value = {
                     documentId: document.id,
@@ -5252,7 +5355,7 @@ export class KJAgentToolSession {
                             next.input.hole
                         ] : next.input.holes;
                         const seen = new Set();
-                        for (const update of updates){
+                        for (const [updateIndex, update] of updates.entries()){
                             const holeId = String(update.holeId), hole = holes.find((item)=>item.id === holeId);
                             if (!hole || seen.has(holeId) || Object.keys(update).length < 2) throw new KJValidationError('Geology revision requires unique existing hole IDs and changed fields');
                             seen.add(holeId);
@@ -5260,10 +5363,15 @@ export class KJAgentToolSession {
                             if (clearFields && new Set(clearFields).size !== clearFields.length) throw new KJValidationError('Geology revision cannot clear the same field twice');
                             if (clearFields?.some((field)=>Object.hasOwn(update, field))) throw new KJValidationError('Geology revision cannot both clear and set a field. For observations, observations:[] means confirmed no records; clearFields:[observations] deletes the field and means unknown. Preserve the caller-declared meaning when choosing one operation; never treat these states as equivalent.');
                             if (Object.hasOwn(update, 'observationChanges') && (Object.hasOwn(update, 'observations') || clearFields?.includes('observations'))) throw new KJValidationError('Geology revision must choose observationChanges, a complete observations replacement, or clearing unknown observations, never combine them');
+                            const originalUpdate = input.updates[updateIndex];
+                            const stratumChangesDescriptor = Object.getOwnPropertyDescriptor(originalUpdate, 'stratumChanges');
+                            if (stratumChangesDescriptor && (!stratumChangesDescriptor.enumerable || Object.hasOwn(originalUpdate, 'strata'))) throw new KJValidationError('Geology revision requires enumerable stratumChanges and cannot combine it with a complete strata replacement');
+                            const strata = stratumChangesDescriptor ? applyGeologyStratumChanges(hole.strata, stratumChangesDescriptor.value) : undefined;
                             const observations = Object.hasOwn(update, 'observationChanges') ? applyGeologyObservationChanges(hole.observations, update.observationChanges) : undefined;
                             for (const field of clearFields ?? [])delete hole[field];
                             for (const field of geologyRevisionHoleFields)if (Object.hasOwn(update, field)) hole[field] = structuredClone(update[field]);
                             if (observations !== undefined) hole.observations = observations;
+                            if (strata !== undefined) hole.strata = strata;
                         }
                         if (next.kind === 'column' && (args.correlations !== undefined || args.uncorrelatedOccurrences !== undefined)) throw new KJValidationError('Cross-hole links belong to sections only');
                         if (next.kind === 'section') {
@@ -5834,6 +5942,9 @@ export class KJAgentToolSession {
                             commandArgs = {
                                 changes: args.changes
                             };
+                        } else if (name === 'cad_propose_hatch_pattern') {
+                            command = 'HATCHPATTERN';
+                            commandArgs = prepareAgentHatchPatternEdit(document, args, this.#options.hatchPatternCatalogs);
                         } else if (name === 'cad_propose_design_bind') {
                             command = 'DESIGNCREATE';
                             commandArgs = {

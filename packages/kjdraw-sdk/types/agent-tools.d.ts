@@ -1,6 +1,7 @@
 import type { KJDrawSDK } from './sdk.js';
 import type { KJDocument } from './document.js';
 import { type KJDrawingContextOptions } from './drawing-context.js';
+import type { KJHatchPatternCatalog } from './hatch-pattern-catalog.js';
 export type { KJNativeCurveQueryOptions, KJNativeCurveNeighborhoodOptions, KJNativeCurveBoundsPage, KJNativeCurveNeighborhoodPage } from './agent-native-geometry-query.js';
 import { type KJAgentRoadDrawingInput } from './agent-road-drawing.js';
 import { type KJRestoredRoadDrawingRecipe } from './road-drawing-recipe.js';
@@ -38,6 +39,8 @@ export interface KJAgentToolSessionOptions {
     toolProfile?: KJAgentToolProfile;
     geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;
     geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;
+    /** Optional private host catalogs. No remote fetch or model-controlled catalog registration. */
+    hatchPatternCatalogs?: KJHatchPatternCatalog[];
 }
 export type KJAgentGeologyScalarRevisionUpdate = Partial<Pick<KJGeologyColumnInput['hole'], typeof geologyScalarRevisionHoleFields[number]>> & {
     holeId: string;

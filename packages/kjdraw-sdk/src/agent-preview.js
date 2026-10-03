@@ -2,6 +2,7 @@
 import { KJCommandRegistry, registerCoreCommands } from './commands.js';
 import { KJValidationError } from './errors.js';
 import { validateTextEdits } from './text-edit.js';
+import { validateHatchPatternEdits } from './agent-hatch-pattern.js';
 import { canonicalStringify, deepFreeze } from './utils.js';
 import { projectDimension } from './geometry/annotation.js';
 import { displayedEntityBounds } from './selection-geometry.js';
@@ -521,9 +522,10 @@ export async function createAgentGeometryPreview(document, command, args, option
         'DESIGNCREATE',
         'DESIGNUPDATE',
         'STRUCTURALEDIT',
-        'TEXTEDIT'
+        'TEXTEDIT',
+        'HATCHPATTERN'
     ].includes(command)) throw new KJValidationError('Unsupported core preview command');
-    const annotationIds = command === 'TEXTEDIT' ? validateTextEdits(args).map((change)=>change.id) : undefined;
+    const annotationIds = command === 'TEXTEDIT' ? validateTextEdits(args).map((change)=>change.id) : command === 'HATCHPATTERN' ? validateHatchPatternEdits(args).map((change)=>change.id) : undefined;
     if ([
         'MOVE',
         'COPY',
@@ -631,7 +633,7 @@ export async function createAgentGeometryPreview(document, command, args, option
                 requireEditableAgentMember(document, entity, 'Properties entity');
                 if (!isRadius && sourceLayer.id === targetLayer.id) throw new KJValidationError(`Relayer command contains an unchanged entity: ${entity.id}`);
             }
-        } else if (command !== 'LENGTHEN' && command !== 'OFFSET' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE' && command !== 'TEXTEDIT') {
+        } else if (command !== 'LENGTHEN' && command !== 'OFFSET' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE' && command !== 'TEXTEDIT' && command !== 'HATCHPATTERN') {
             if (ids.some((id)=>!KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`);
             for (const id of ids)validateMovableAnnotation(document, document.getObject(String(id)), command === 'MOVE');
         }
@@ -688,7 +690,7 @@ export async function createAgentGeometryPreview(document, command, args, option
             if (command === 'MOVE' || command === 'COPY') validateMovableAnnotation(draft, entity, command === 'MOVE');
             if (affine) validateTransformGeometry(draft, entity);
             if (command === 'LENGTHEN') validateLengthenPreview(draft, args);
-            if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN' || command === 'OFFSET' || command === 'TEXTEDIT') {
+            if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN' || command === 'OFFSET' || command === 'TEXTEDIT' || command === 'HATCHPATTERN') {
                 const bounds = displayedEntityBounds(draft, entity);
                 if (!bounds || bounds.some((value)=>!Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError(`${command} preview result exceeds the finite ±1e12 display budget`);
             }

@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:5575101b86b730a338f4bba1e88939ecb023d2f8e755a1edfd87af4e44493898",
+  "sourceDigest": "sha256:c070317bde8f02748a8f87300e491599a90aa3a258596b799b7b5fb6b80e28cc",
   "entries": [
     {
       "name": "buildCadSkillJsonContract",

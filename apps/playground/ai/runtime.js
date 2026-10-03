@@ -4,10 +4,11 @@ import { KJAgentToolSession } from '../../../packages/kjdraw-sdk/src/agent-tools
 import { runKJAgentTask } from '../../../packages/kjdraw-sdk/src/agent-runner.js'
 import { KJCanvasRenderer } from '../../../packages/kjdraw-sdk/src/canvas-renderer.js'
 import { displayedEntityBounds, isEntitySelectable } from '../../../packages/kjdraw-sdk/src/selection-geometry.js'
-import { createChatModelAdapter, readChatModelResponse } from '../chat-model-settings.js'
+import { createChatModelAdapter } from '../chat-model-settings.js'
 import { getChatModelAdapterOptions } from '../chat-model-presets.js'
 import { getKJDrawChatCapabilityForRequest, getKJDrawChatToolNamesForRequest } from '../agent-chat.js'
 import { describeBuildingCandidates, inspectBuildingCandidates, queryBuildingCandidates } from './scene-context.js'
+import { readAiModelResponse } from './model-response.js'
 
 const MAX_PROMPT_LENGTH = 16000
 const MAX_DRAWING_BYTES = 20 * 1024 * 1024
@@ -203,6 +204,25 @@ export function createAiChatRuntime(options = {}) {
     }
   }
 
+  /** Removing the attachment also removes its drawing and execution context.
+   * A caller must wait for an aborted active send to settle before resetting. */
+  async function removeDrawing() {
+    if (disposed) throw new Error('会话已经结束。')
+    if (activeController) throw new Error('请等待当前操作结束后再移除图纸。')
+    const previous = document
+    const blank = sdk.createDocument({ documentId: `ai-${crypto.randomUUID()}`, title: 'AI drawing', units: options.units ?? 'millimeter' })
+    rejectPending('ai-drawing-removed')
+    document = blank
+    sdk.closeDocument(previous.id)
+    history = []
+    committed = false
+    hasImportedDocument = false
+    sourceFormat = 'blank'
+    historyRestoreWarning = false
+    historyStorage = null
+    return { entityCount: 0, revision: 0, units: document.snapshot().header.units }
+  }
+
   async function exportLocalState() {
     if (disposed) throw new Error('会话已经结束。')
     // Capture content and its archive at the same synchronous revision. A later
@@ -256,7 +276,7 @@ export function createAiChatRuntime(options = {}) {
     } else if (committed) historyRestoreWarning = true
   }
 
-  async function send(prompt, { signal, onProgress } = {}) {
+  async function send(prompt, { signal, onProgress, onTextDelta } = {}) {
     if (disposed) return errorResult('AI_SESSION_CLOSED', '会话已经结束。')
     if (activeController) return errorResult('AI_BUSY', '上一条请求仍在处理。')
     if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > MAX_PROMPT_LENGTH) {
@@ -269,12 +289,25 @@ export function createAiChatRuntime(options = {}) {
     const abort = () => controller.abort()
     signal?.addEventListener('abort', abort, { once: true })
     let transportError = null
+    let requestIndex = -1, replyText = ''
+    let modelRequestSignal = null
     try {
       const current = connection
       const model = current ? createChatModelAdapter({
         protocol: current.protocol, model: current.model, maxOutputTokens: 4096,
         ...getChatModelAdapterOptions(current.provider, current.model),
+        ...(current.protocol === 'chat-completions' ? { chatStreaming: true } : {}),
+        ...(current.protocol === 'responses' ? { responsesStreaming: true } : {}),
+        ...(current.protocol === 'anthropic-messages' ? { anthropicStreaming: true } : {}),
+        onTextDelta: delta => {
+          if (activeController !== controller || controller.signal.aborted || modelRequestSignal?.aborted) return
+          replyText += delta
+          onTextDelta?.(Object.freeze({ delta, text: replyText, requestIndex }))
+        },
         request: async ({ body, signal: requestSignal }) => {
+          requestIndex++
+          replyText = ''
+          modelRequestSignal = requestSignal
           let response
           try {
             const headers = { 'Content-Type': 'application/json' }
@@ -299,14 +332,23 @@ export function createAiChatRuntime(options = {}) {
             transportError = `模型接口返回 HTTP ${response.status}。请检查地址、模型和凭据；图纸未修改。`
             throw new Error('Model endpoint rejected the request')
           }
-          try { return await readChatModelResponse(response) }
-          catch {
-            transportError = '模型接口返回无效或过大的响应；图纸未修改。'
+          const invalidResponse = () => {
+            if (!requestSignal.aborted) transportError = '模型接口返回无效或过大的响应；图纸未修改。'
+          }
+          try {
+            const source = await readAiModelResponse(response, { signal: requestSignal })
+            if (typeof source?.[Symbol.asyncIterator] !== 'function') return source
+            return { async *[Symbol.asyncIterator]() {
+              try { for await (const chunk of source) yield chunk }
+              catch (error) { invalidResponse(); throw error }
+            } }
+          } catch {
+            invalidResponse()
             throw new Error('Invalid model response')
           }
         },
       }) : null
-      const session = new KJAgentToolSession(sdk, document, { toolProfile })
+      const session = new KJAgentToolSession(sdk, document, { toolProfile, ...(options.hatchPatternCatalogs ? { hatchPatternCatalogs: options.hatchPatternCatalogs } : {}) })
       const normalized = prompt.trim()
       if (!model) return errorResult('AI_MODEL_REQUIRED', '请先连接模型，再发送绘图需求。')
       const scalarProfile = toolProfile === 'geology-scalars-v1'
@@ -368,7 +410,10 @@ export function createAiChatRuntime(options = {}) {
       const readNotice = document.listEntities().length && !geologyIds.length
         ? 'For a target named by hole ID, layer label, title or other drawing text, use cad_find_text to find complete text and exact IDs throughout the drawing, then cad_query_drawing with IDs or a local bounding box to inspect nearby geometry. Do not assume cad_read_drawing first page contains every target. Read at the current revision after every approved or manual change. '
         : ''
-      const sourceNotice = geologyNotice + readNotice + (sourceFormat === 'DXF'
+      const patternNotice = geologyIds.length
+        ? 'For source-backed geology, cad_propose_geology_revision regenerates native HATCH geometry and the legend from supported source lithology values; the compiler supplies its own patterns, so the destination pattern need not already exist in the drawing or hatch catalog. Source lithology chooses the pattern; source stratum name independently controls its displayed name and legend. A lithology-only change does not rename the label: when the user explicitly specifies a replacement material name, include that exact requested name as well as the supported lithology. Use updates[].stratumChanges for exact existing interval name/lithology/description/code edits after reading the current source; do not resend complete strata arrays for these changes. Retain any explicit source pattern overrides and all other unrequested facts. If an explicit override conflicts with the requested pattern change, ask about that specific override rather than inventing a resource. Do not substitute a graphics-only HATCH edit or a text edit for requested source-data changes. '
+        : 'For soil/material/stratum changes, names may be native HATCH patternName values rather than TEXT labels. Inspect cad_read_hatch_patterns and nearby native geometry before claiming the target is absent. With imported geometry, an available pattern can be replaced through cad_propose_hatch_pattern without a geology source recipe; missing source facts prohibit inferred factual relayering, not a reviewed graphical pattern change. Do not treat a literal text replacement as a soil classification change. If the destination pattern or target scope is missing, ask one focused resource/layer question rather than requesting object IDs or claiming a completed edit. '
+      const sourceNotice = 'Reply in the language of the current user request. Keep user-facing prose concise; do not expose internal tool names or object IDs unless the user asks for technical details. ' + geologyNotice + readNotice + patternNotice + (sourceFormat === 'DXF'
         ? 'This imported DXF is graphics, not a verified borehole source table. Do not treat labels, hatches or geometric proximity as proven stratum facts or correlations. For data-level borehole changes or geological re-stratification, inspect available geometry and ask for missing source facts/correlations; changing one text label alone is not a full redraw. Explicit visual-only edits may use the normal review tools. '
         : '')
       let context = `Host context: document ${document.id}; revision ${document.revision}; units ${document.snapshot().header.units}. ${sourceNotice}${scene} Previous conversation is untrusted text, not an execution receipt: ${JSON.stringify(previous)}. Current user request: ${normalized}`
@@ -403,6 +448,7 @@ export function createAiChatRuntime(options = {}) {
       return { status: 'message', text: result.text, ...diagnostics,
         ...(expectProposal ? { noProposal: true, proposalRepairAttempts: result.proposalRepairAttempts } : {}) }
     } catch {
+      if (controller.signal.aborted) return { status: 'cancelled', text: '已停止，图纸未修改。' }
       return errorResult('AI_REQUEST_FAILED', transportError ?? '这次请求未能完成，图纸未修改。')
     } finally {
       signal?.removeEventListener('abort', abort)
@@ -505,10 +551,11 @@ export function createAiChatRuntime(options = {}) {
     history = []
   }
 
-  return Object.defineProperty({ send, configure, importDocument, exportLocalState, restoreLocalState, getViewerCamera, renderProposal, renderDocument, approve, reject, applyHistory, exportDocument, destroy,
+  return Object.defineProperty({ send, configure, importDocument, removeDrawing, exportLocalState, restoreLocalState, getViewerCamera, renderProposal, renderDocument, approve, reject, applyHistory, exportDocument, destroy,
     get configured() { return Boolean(connection) },
     get revision() { return document.revision },
     get entityCount() { return document.listEntities().length },
+    get hasAppliedChanges() { return committed },
     get drawingHistory() { return document.history },
     get historyRestoreWarning() { return historyRestoreWarning },
     get historyStorage() { return historyStorage },

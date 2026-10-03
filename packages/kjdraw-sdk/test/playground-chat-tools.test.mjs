@@ -43,11 +43,15 @@ test('native geometry properties and caller revision frames cannot hide their ed
 test('workbench exposes useful tools and creates ordinary geometry through pattern arrays=[]', async () => {
   const { session, document } = fixture()
   assert.ok(Object.isFrozen(KJDRAW_CHAT_TOOL_NAMES))
-  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 36)
+  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 38)
   for (const name of ['cad_read_history', 'cad_propose_undo', 'cad_propose_redo']) assert.ok(KJDRAW_CHAT_TOOL_NAMES.includes(name))
   assert.ok(KJDRAW_CHAT_TOOL_NAMES.includes('cad_query_topology'))
   assert.ok(KJDRAW_CHAT_TOOL_NAMES.includes('cad_query_impact'))
-  assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_undo', 'cad_propose_redo', 'cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_set_circle_radius', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_revision'])
+  for (const [name, effect] of [['cad_read_hatch_patterns', 'read'], ['cad_propose_hatch_pattern', 'propose']]) {
+    assert.equal(KJDRAW_CHAT_TOOL_NAMES.filter(item => item === name).length, 1)
+    assert.equal(session.definitions.find(tool => tool.name === name)?.effect, effect)
+  }
+  assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_undo', 'cad_propose_redo', 'cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update', 'cad_propose_hatch_pattern', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_set_circle_radius', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_cartesian_chart', 'cad_propose_geology_revision'])
   const args = { expectedRevision: 0, units: 'millimeter', lines: [[0, 0, 20, 0]], circles: [[3, 4, 2]], arcs: [], polylines: [], arrays: [] }
   const result = await runKJAgentTask({ session, prompt: 'Draw a line and circle.', toolNames: KJDRAW_CHAT_TOOL_NAMES,
     model: modelCall('cad_propose_drawing_pattern', args, tools => assert.deepEqual(tools.map(item => item.name).sort(), [...KJDRAW_CHAT_TOOL_NAMES].sort())) })

@@ -100,6 +100,10 @@ h1{margin:0 0 12px;font-size:clamp(26px,2.6vw,32px);line-height:1.3;letter-spaci
 .drawing-context summary small{margin-left:auto;color:#737373;font-size:11px;font-weight:500}
 .drawing-context summary>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .drawing-context summary small{flex-shrink:0}
+.remove-drawing{display:inline-grid;place-items:center;flex:none;width:28px;height:28px;margin:-5px -5px -5px 0;padding:5px;border:0;border-radius:6px;background:transparent;color:#777}
+.remove-drawing:hover,.remove-drawing:focus-visible{background:#f1f1f1;color:#222}
+.remove-drawing:disabled{opacity:.4;cursor:not-allowed}
+.remove-drawing .ui-icon{width:16px;height:16px}
 .drawing-context>canvas{display:block;width:100%;height:250px;border-top:1px solid var(--line);background:#fff}
 .drawing-drop-overlay{position:absolute;z-index:12;inset:62px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:2px dashed #888;background:rgba(250,250,250,.96);color:#333;font-size:18px;font-weight:650;pointer-events:none}
 .drawing-drop-overlay small{font-size:12px;color:#6b6b6b;font-weight:500}
@@ -323,6 +327,7 @@ details[open]>summary>.disclosure-icon{transform:rotate(180deg)}
 .message.user .message-actions{justify-content:flex-end;margin-top:6px}
 .message-copy,.message-retry{font-weight:500}
 .message-progress{line-height:1.6}
+.message-streaming+.message-progress{margin-top:10px;font-size:11px}
 .progress-details{margin-top:10px;color:#777;font-size:11px;line-height:1.6}
 .progress-details summary{cursor:pointer}
 .progress-list,.progress-steps{display:flex;flex-direction:column;gap:6px;margin:8px 0 0;padding:0;list-style:none}

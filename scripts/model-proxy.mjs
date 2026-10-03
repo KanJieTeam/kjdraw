@@ -58,16 +58,105 @@ async function readResponse(response, limit) {
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
 }
 
-function containsCredential(value, apiKey, tails, path = '$') {
+function containsCredential(value, apiKey) {
   if (!apiKey) return false
-  if (typeof value === 'string') {
-    const combined = (tails.get(path) ?? '') + value
-    tails.set(path, combined.slice(Math.max(0, combined.length - apiKey.length + 1)))
-    return combined.includes(apiKey)
-  }
-  if (Array.isArray(value)) return value.some((item, index) => containsCredential(item, apiKey, tails, `${path}.${index}`))
-  if (object(value)) return Object.entries(value).some(([key, item]) => containsCredential(item, apiKey, tails, `${path}.${key}`))
+  if (typeof value === 'string') return value.includes(apiKey)
+  if (Array.isArray(value)) return value.some(item => containsCredential(item, apiKey))
+  if (object(value)) return Object.values(value).some(item => containsCredential(item, apiKey))
   return false
+}
+
+function containsArgumentCredential(value, apiKey) {
+  if (!apiKey || value === null || typeof value !== 'object') return false
+  if (Array.isArray(value)) return value.some(item => containsArgumentCredential(item, apiKey))
+  if ((value.type === 'function_call' || object(value.function)) && typeof (value.arguments ?? value.function?.arguments) === 'string') {
+    try {
+      if (containsCredential(JSON.parse(value.arguments ?? value.function.arguments), apiKey)) return true
+    } catch { /* Incremental, incomplete arguments are checked by their stream slots. */ }
+  }
+  return Object.values(value).some(item => containsArgumentCredential(item, apiKey))
+}
+
+// Only actual delta slots concatenate across events. Metadata such as "tool_calls"
+// and model names are complete values, not text fragments of a credential.
+function inspectCredentialDeltas(value, apiKey, tails, state) {
+  let reflected = false
+  const track = (slot, fragment) => {
+    if (!apiKey || typeof fragment !== 'string') return
+    const combined = (tails.get(slot) ?? '') + fragment
+    if (combined.includes(apiKey)) reflected = true
+    tails.set(slot, combined.slice(Math.max(0, combined.length - apiKey.length + 1)))
+  }
+  // Function arguments are JSON inside the already decoded SSE JSON. Inspect
+  // that additional escape layer too, across arbitrary argument fragment cuts.
+  const trackArguments = (slot, fragment) => {
+    if (!apiKey || typeof fragment !== 'string') return
+    const raw = (state.argumentEscapes.get(slot) ?? '') + fragment
+    let decoded = '', pendingEscape = ''
+    const escapes = { '"': '"', '\\': '\\', '/': '/', b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' }
+    for (let index = 0; index < raw.length; index++) {
+      if (raw[index] !== '\\') { decoded += raw[index]; continue }
+      if (index + 1 >= raw.length) { pendingEscape = raw.slice(index); break }
+      if (raw[index + 1] === 'u') {
+        const digits = raw.slice(index + 2, index + 6)
+        if (!/^[a-fA-F0-9]*$/.test(digits)) throw new ProxyError(502, 'MODEL_RESPONSE_INVALID')
+        if (digits.length < 4) { pendingEscape = raw.slice(index); break }
+        decoded += String.fromCharCode(parseInt(digits, 16)); index += 5
+      } else {
+        if (!Object.hasOwn(escapes, raw[index + 1])) throw new ProxyError(502, 'MODEL_RESPONSE_INVALID')
+        decoded += escapes[raw[++index]]
+      }
+    }
+    if (pendingEscape) state.argumentEscapes.set(slot, pendingEscape)
+    else state.argumentEscapes.delete(slot)
+    track(slot, decoded)
+  }
+  const clear = prefix => {
+    for (const slot of tails.keys()) if (slot.startsWith(prefix)) tails.delete(slot)
+    for (const slot of state.argumentEscapes.keys()) if (slot.startsWith(prefix)) throw new ProxyError(502, 'MODEL_RESPONSE_INVALID')
+  }
+  if (state.protocol === 'chat-completions' && Array.isArray(value.choices)) for (const [ordinal, choice] of value.choices.entries()) {
+    if (!object(choice)) continue
+    const prefix = `chat:${Number.isSafeInteger(choice.index) ? choice.index : ordinal}:`
+    if (state.closedChoices.has(prefix)) throw new ProxyError(502, 'MODEL_RESPONSE_INVALID')
+    const delta = choice.delta
+    if (object(delta)) {
+      for (const field of ['content', 'refusal', 'reasoning_content', 'reasoning']) track(prefix + field, delta[field])
+      if (object(delta.function_call)) {
+        track(prefix + 'function:name', delta.function_call.name)
+        trackArguments(prefix + 'function:arguments', delta.function_call.arguments)
+      }
+      if (Array.isArray(delta.tool_calls)) for (const [toolOrdinal, tool] of delta.tool_calls.entries()) {
+        if (!object(tool)) continue
+        const slot = `${prefix}tool:${Number.isSafeInteger(tool.index) ? tool.index : toolOrdinal}:`
+        track(slot + 'id', tool.id)
+        if (object(tool.function)) {
+          track(slot + 'name', tool.function.name)
+          trackArguments(slot + 'arguments', tool.function.arguments)
+        }
+      }
+    }
+    // The finish marker closes all fragments for this choice. A harmless final
+    // "s" may now be released, but a completed credential above still fails.
+    if (choice.finish_reason !== null && choice.finish_reason !== undefined) {
+      clear(prefix)
+      state.closedChoices.add(prefix)
+    }
+  }
+  if (state.protocol === 'responses') {
+    if (state.responseCompleted) throw new ProxyError(502, 'MODEL_RESPONSE_INVALID')
+    if (typeof value.type === 'string' && value.type.endsWith('.delta') && typeof value.delta === 'string') {
+      const slot = `responses:${value.type}:${value.item_id ?? value.output_index ?? ''}:${value.content_index ?? ''}:${value.summary_index ?? ''}`
+      if (value.type === 'response.function_call_arguments.delta') trackArguments(slot, value.delta)
+      else track(slot, value.delta)
+    }
+    if (value.type === 'response.completed') {
+      if (state.argumentEscapes.size) throw new ProxyError(502, 'MODEL_RESPONSE_INVALID')
+      tails.clear()
+      state.responseCompleted = true
+    }
+  }
+  return reflected
 }
 
 function hasCredentialPrefix(apiKey, tails) {
@@ -78,10 +167,11 @@ function hasCredentialPrefix(apiKey, tails) {
   })
 }
 
-async function streamResponse(response, res, limit, apiKey) {
+async function streamResponse(response, res, limit, apiKey, protocol) {
   if (!response.ok || !response.body) { await response.body?.cancel(); throw new ProxyError(502, 'MODEL_UPSTREAM_FAILED') }
   if (!/^text\/event-stream(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) throw new ProxyError(502, 'MODEL_RESPONSE_INVALID')
   const reader = response.body.getReader(), decoder = new TextDecoder('utf-8', { fatal: true }), tails = new Map()
+  const credentialState = { protocol, closedChoices: new Set(), responseCompleted: false, argumentEscapes: new Map() }
   let bytes = 0, buffer = '', data = [], pending = [], wrote = false, finished = false
   const write = async payload => {
     if (!wrote) {
@@ -100,10 +190,11 @@ async function streamResponse(response, res, limit, apiKey) {
       let value
       try { value = JSON.parse(payload) } catch { throw new ProxyError(502, 'MODEL_RESPONSE_INVALID') }
       const escaped = JSON.stringify(apiKey ?? '').slice(1, -1)
-      if (!object(value) || (apiKey && (payload.includes(apiKey) || (escaped && payload.includes(escaped)) || containsCredential(value, apiKey, tails)))) throw new ProxyError(502, 'MODEL_UPSTREAM_FAILED')
+      if (!object(value) || (apiKey && (payload.includes(apiKey) || (escaped && payload.includes(escaped)) || containsCredential(value, apiKey) || containsArgumentCredential(value, apiKey)))) throw new ProxyError(502, 'MODEL_UPSTREAM_FAILED')
+      if (inspectCredentialDeltas(value, apiKey, tails, credentialState)) throw new ProxyError(502, 'MODEL_UPSTREAM_FAILED')
     }
     pending.push(payload)
-    if (hasCredentialPrefix(apiKey, tails)) return
+    if (credentialState.argumentEscapes.size || hasCredentialPrefix(apiKey, tails)) return
     const ready = pending; pending = []
     for (const item of ready) await write(item)
   }
@@ -122,6 +213,7 @@ async function streamResponse(response, res, limit, apiKey) {
     buffer += decoder.decode()
     if (!finished && buffer) { if (buffer.endsWith('\r')) buffer = buffer.slice(0, -1); if (buffer.startsWith('data:')) data.push(buffer.slice(5).replace(/^ /, '')) }
     if (!finished) await emit()
+    if (pending.length) throw new ProxyError(502, 'MODEL_UPSTREAM_FAILED')
     if (!wrote) throw new ProxyError(502, 'MODEL_RESPONSE_INVALID')
     res.end()
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
@@ -171,7 +263,7 @@ export function createModelProxy(options) {
       if (!tokenLimits.length || tokenLimits.some(value => !Number.isSafeInteger(value) || value < 1 || value > maxOutputTokens)) throw new ProxyError(400, 'MODEL_TOKEN_LIMIT')
       if (protocol === 'chat-completions' && body.stream === true && options.chatStreamToolCalls === true) body.tool_stream = true
       const response = await fetch(upstream, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal, redirect: 'error' })
-      if (body.stream === true && /^text\/event-stream(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) { await streamResponse(response, res, responseBytes, apiKey); return }
+      if (body.stream === true && /^text\/event-stream(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) { await streamResponse(response, res, responseBytes, apiKey, protocol); return }
       const result = await readResponse(response, responseBytes)
       if (apiKey && JSON.stringify(result).includes(apiKey)) throw new ProxyError(502, 'MODEL_UPSTREAM_FAILED')
       respond(200, result)

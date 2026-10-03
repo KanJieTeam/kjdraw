@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:5575101b86b730a338f4bba1e88939ecb023d2f8e755a1edfd87af4e44493898",
+  "sourceDigest": "sha256:c070317bde8f02748a8f87300e491599a90aa3a258596b799b7b5fb6b80e28cc",
   "modules": [
     {
       "exportPath": "./agent-skill-json",
@@ -880,7 +880,7 @@
         {
           "name": "KJAgentToolSessionOptions",
           "kind": "interface",
-          "declaration": "export interface KJAgentToolSessionOptions {\n    /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */\n    toolProfile?: KJAgentToolProfile;\n    geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n    geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n}",
+          "declaration": "export interface KJAgentToolSessionOptions {\n    /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */\n    toolProfile?: KJAgentToolProfile;\n    geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n    geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n    /** Optional private host catalogs. No remote fetch or model-controlled catalog registration. */\n    hatchPatternCatalogs?: KJHatchPatternCatalog[];\n}",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-interface-kjagenttoolsessionoptions"
         },
@@ -8225,7 +8225,7 @@
         {
           "name": "KJAgentToolSessionOptions",
           "kind": "interface",
-          "declaration": "export interface KJAgentToolSessionOptions {\n    /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */\n    toolProfile?: KJAgentToolProfile;\n    geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n    geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n}",
+          "declaration": "export interface KJAgentToolSessionOptions {\n    /** Default full preserves the existing general API. A profile narrows actual calls, not just advertised schemas. */\n    toolProfile?: KJAgentToolProfile;\n    geologyColumnKnowledge?: KJAgentGeologyColumnKnowledgeBinding;\n    geologySectionKnowledge?: KJAgentGeologySectionKnowledgeBinding;\n    /** Optional private host catalogs. No remote fetch or model-controlled catalog registration. */\n    hatchPatternCatalogs?: KJHatchPatternCatalog[];\n}",
           "source": "agent-tools.d.ts",
           "anchor": "root-interface-kjagenttoolsessionoptions"
         },

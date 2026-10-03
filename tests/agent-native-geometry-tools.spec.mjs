@@ -14,6 +14,7 @@ import { portableMcpInputSchema, assertPortableMcpInputSchema } from '../package
 // Native SDK/provider-wire fixtures, not live provider/model-pass evidence.
 const BOUNDS = 'cad_query_curve_bounds', NEAR = 'cad_query_curve_neighborhood'
 const nativeNames = [BOUNDS, NEAR], clone = structuredClone
+const hatchNames = ['cad_read_hatch_patterns', 'cad_propose_hatch_pattern']
 const hash = value => createHash('sha256').update(canonicalStringify(value)).digest('hex')
 const commonKeys = ['documentId', 'expectedRevision', 'ownerId', 'units', 'ownerPolicy', 'visibility',
   'typeScope', 'unsupportedPolicy', 'offset', 'limit', 'maxEntities', 'maxBytes']
@@ -56,11 +57,17 @@ async function rejected(f, name, input, code) {
   return result
 }
 
-test('full inventory adds exactly two read tools; the previous 53 definitions remain byte-exact', () => {
-  assert.equal(KJDRAW_AGENT_TOOLS.length, 55)
-  assert.equal(hash(KJDRAW_AGENT_TOOLS.filter(tool => !nativeNames.includes(tool.name))),
-    'a60751347e747475e5499146e379bf7f4b92649490f46fe3bf248e2e3cfb3d20')
+test('full inventory retains native read and HATCH tools with only an explicit general geology delta extension', () => {
+  assert.equal(KJDRAW_AGENT_TOOLS.length, 57)
+  const previousDefinitions = KJDRAW_AGENT_TOOLS.filter(tool => ![...nativeNames, ...hatchNames, 'cad_propose_geology_revision'].includes(tool.name))
+  assert.equal(previousDefinitions.length, 52)
+  assert.equal(hash(previousDefinitions),
+    'e53379d183b3a5acc75156020ab6807cf835955e10421195264944d58b012611')
+  assert.ok(KJDRAW_AGENT_TOOLS.find(tool => tool.name === 'cad_propose_geology_revision').inputSchema.properties.updates.items.properties.stratumChanges)
   assert.deepEqual(KJDRAW_AGENT_TOOLS.slice(-2).map(tool => tool.name), nativeNames)
+  assert.deepEqual(KJDRAW_AGENT_TOOLS.filter(tool => hatchNames.includes(tool.name)).map(tool => ({ name: tool.name, effect: tool.effect })),
+    [{ name: hatchNames[0], effect: 'read' }, { name: hatchNames[1], effect: 'propose' }])
+  for (const name of hatchNames) assert.ok(Object.isFrozen(KJDRAW_AGENT_TOOLS.find(tool => tool.name === name)))
   for (const name of nativeNames) {
     const tool = KJDRAW_AGENT_TOOLS.find(tool => tool.name === name)
     assert.equal(tool.effect, 'read'); assert.ok(Object.isFrozen(tool))
@@ -101,9 +108,10 @@ test('scalar profile exact 16 definitions and original effective wire SHA cannot
     name: tool.name, description: tool.description, parameters: tool.inputSchema } }))
   assert.equal(hash(wire), 'db26706498552e8fc1f7417de5924ef64f0e286226b84beb8efa0134f3e34689')
   assert.throws(() => { session.toolProfile = 'full' }, TypeError)
-  for (const name of nativeNames) {
+  for (const name of [...nativeNames, ...hatchNames]) {
     assert.equal(session.definitions.some(tool => tool.name === name), false)
-    const result = await unchanged(f, () => session.call(name, name === BOUNDS ? options(f.document) : nearby(f.document)))
+    const input = name === BOUNDS ? options(f.document) : name === NEAR ? nearby(f.document) : { expectedRevision: f.document.revision }
+    const result = await unchanged(f, () => session.call(name, input))
     assert.equal(result.ok, false); assert.match(result.error.message, /Unknown CAD tool/)
   }
 })

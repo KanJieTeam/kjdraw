@@ -1,0 +1,1588 @@
+{
+  "schema": "com.kanjie.kjdraw.synthetic-live-gif@1",
+  "status": "encoded-awaiting-visual-publication-review",
+  "synthetic": true,
+  "measuredData": false,
+  "source": "original-public-synthetic-facts",
+  "approval": "actual-automated-reviewer-harness-not-human-review",
+  "initialCreation": "trusted-host-compiler-not-model-creation",
+  "scope": "source-backed synthetic drawing; arbitrary imported DXF source-fact regeneration is not claimed",
+  "actualRoundCount": 10,
+  "publicationReviewRequired": true,
+  "condensed": true,
+  "waitingTimeCut": true,
+  "framesInterpolated": false,
+  "modelProseAltered": false,
+  "sourceManifestSha256": "750722f6e111497658f27e9cd3132e93ccdc5d645f2018f85897a61c12001ed9",
+  "preparedManifestSha256": "56a8e50bbf0b556c171c8c36099a3614e927dec83463b0253bef865f93e0ffdb",
+  "sourceVideoSha256": "8a97d8f87fd2ffd31c844b05bafdef7e588acd77831878a3c0d04bc71e1d1535",
+  "sourceVideo": "synthetic-live-model-workflow.webm",
+  "captureReferences": [
+    {
+      "file": "01-live-synthetic-baseline.png",
+      "sha256": "ad09a600d1a9ca1834c616179f49c0621708a25375e8ba2b3d250382a0617ed9"
+    },
+    {
+      "file": "02-collar-actual-model-review.png",
+      "sha256": "5baa1878698ddf7a9fe8c25f11feb369a63078bf3eebe734609b7ce5417471f1"
+    },
+    {
+      "file": "03-collar-actual-approved.png",
+      "sha256": "205542c099ab83d7070a19280eecabf14408585dba07489564969e59b8bf4dc4"
+    },
+    {
+      "file": "04-depth-actual-model-review.png",
+      "sha256": "32465ff4f8991fa7639de1efc04a06b0cf631f9900165bfaafb4973134082ec0"
+    },
+    {
+      "file": "05-depth-actual-approved.png",
+      "sha256": "fe3e6b74a4f5da08cc5dfb6068188ec02474fde72385d9210a3e5af643e4ff78"
+    },
+    {
+      "file": "06-stable-water-actual-model-review.png",
+      "sha256": "745525c192fa27faa6397c184c305aaecf91939249dac6b43baf96d1ebc43a03"
+    },
+    {
+      "file": "07-stable-water-actual-approved.png",
+      "sha256": "e9f2800153adee4c92be2975e6fc4fcf22a3cad59d00bf395ba6aff7f616485e"
+    },
+    {
+      "file": "08-boundary-actual-model-review.png",
+      "sha256": "afd6a336cfee4755e92fb3745920d0e3de2fcd4f480caeea50fa6586507b3ac3"
+    },
+    {
+      "file": "09-boundary-actual-approved.png",
+      "sha256": "429ea8d8727971ac79d43f4bfefda4aa998b3ba4e1f8a316374c351880730f29"
+    },
+    {
+      "file": "10-lithology-pattern-actual-model-review.png",
+      "sha256": "1fa3128258b0a7895e9278e1256b0e2c0ec069ff9677e7da17d66fc33974aea6"
+    },
+    {
+      "file": "11-lithology-pattern-actual-approved.png",
+      "sha256": "8b00c3bfde178c03c6a6c0746f787551c30b4dd6ae1fbd0bf186d5c514f3b000"
+    },
+    {
+      "file": "12-sample-add-actual-model-review.png",
+      "sha256": "b83969a68d188c5de9ba058422c43b6efe24a7d4b042984bc6120a172fbcdc41"
+    },
+    {
+      "file": "13-sample-add-actual-approved.png",
+      "sha256": "df266580eb3db3c2ecc72f8e3a8771f0a413af1e96c142bbfef420c73b67a31c"
+    },
+    {
+      "file": "14-spt-update-actual-model-review.png",
+      "sha256": "d9b97200a8d72688b1fd5322e912c1069dc0f42c592856c13d8a90ab5deddd67"
+    },
+    {
+      "file": "15-spt-update-actual-approved.png",
+      "sha256": "faf7634ee04c1d3a677ac0dbf69cd84c0aff12136d83f8bdb5cd5a600c68ef43"
+    },
+    {
+      "file": "16-sample-remove-actual-model-review.png",
+      "sha256": "bd5b5a3905790d03f3f6d01996bdf9b37b9ef7dfa1bb428a500d9b7d2a284b40"
+    },
+    {
+      "file": "17-sample-remove-actual-approved.png",
+      "sha256": "b2b16b24ccdb085650698ca6d2f7d42c70d6525217084bd9605ee18f6fd1d123"
+    },
+    {
+      "file": "18-station-actual-model-review.png",
+      "sha256": "c32163066f2638b65622a3b0178e7919b88eca09bd0d407f036747b015c71c80"
+    },
+    {
+      "file": "19-station-actual-approved.png",
+      "sha256": "adb3efcfeeb3451c6e4b6fff40efec97baed02fb660677bc11b9c6fc9816ea83"
+    },
+    {
+      "file": "20-water-unknown-actual-model-review.png",
+      "sha256": "a2f48857c371e20f98a41733d4f0d25cfa7894cbe6bc885bcf2793e4ee060977"
+    },
+    {
+      "file": "21-water-unknown-actual-approved.png",
+      "sha256": "8ffec18826fb1a0730e68e771544d6ec075a4ba0ee5fb56880e09bfd8244d0c2"
+    },
+    {
+      "file": "22-live-native-undo.png",
+      "sha256": "f090c5c153baa1be5bbfe9e4c2e3d910a9e4122e0877bcf30dc7555aebcd126a"
+    },
+    {
+      "file": "23-live-native-redo.png",
+      "sha256": "32f5fd668204fe9513d3feb373807de258eb830b7f0a842504bf688a15dc3fb1"
+    },
+    {
+      "file": "24-live-actual-dxf-reopened.png",
+      "sha256": "ebac7326772f2dba78e0f71a9712ad7f967f277b5ba9908df0d695cffd379f15"
+    }
+  ],
+  "tokenAccounting": {
+    "scope": "all actual provider calls, including failed tool attempts and repair requests; no unreported usage imputed",
+    "totals": {
+      "inputTokens": 380008,
+      "outputTokens": 4492,
+      "totalTokens": 384500
+    },
+    "calls": [
+      {
+        "sequence": 0,
+        "round": "collar",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 8272,
+          "outputTokens": 98,
+          "totalTokens": 8370,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 8272,
+          "reportedOutputTokens": 98,
+          "reportedTotalTokens": 8370,
+          "cacheReadInputTokens": 8064,
+          "cacheMissInputTokens": 208,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 1,
+        "round": "collar",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 14692,
+          "outputTokens": 140,
+          "totalTokens": 14832,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 14692,
+          "reportedOutputTokens": 140,
+          "reportedTotalTokens": 14832,
+          "cacheReadInputTokens": 14464,
+          "cacheMissInputTokens": 228,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 2,
+        "round": "depth",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 8361,
+          "outputTokens": 95,
+          "totalTokens": 8456,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 8361,
+          "reportedOutputTokens": 95,
+          "reportedTotalTokens": 8456,
+          "cacheReadInputTokens": 8064,
+          "cacheMissInputTokens": 297,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 3,
+        "round": "depth",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 14778,
+          "outputTokens": 611,
+          "totalTokens": 15389,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 14778,
+          "reportedOutputTokens": 611,
+          "reportedTotalTokens": 15389,
+          "cacheReadInputTokens": 8448,
+          "cacheMissInputTokens": 6330,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 4,
+        "round": "stable-water",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 8438,
+          "outputTokens": 95,
+          "totalTokens": 8533,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 8438,
+          "reportedOutputTokens": 95,
+          "reportedTotalTokens": 8533,
+          "cacheReadInputTokens": 8064,
+          "cacheMissInputTokens": 374,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 5,
+        "round": "stable-water",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 14861,
+          "outputTokens": 161,
+          "totalTokens": 15022,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 14861,
+          "reportedOutputTokens": 161,
+          "reportedTotalTokens": 15022,
+          "cacheReadInputTokens": 8448,
+          "cacheMissInputTokens": 6413,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 6,
+        "round": "boundary",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 33676,
+          "outputTokens": 98,
+          "totalTokens": 33774,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 33676,
+          "reportedOutputTokens": 98,
+          "reportedTotalTokens": 33774,
+          "cacheReadInputTokens": 33280,
+          "cacheMissInputTokens": 396,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 7,
+        "round": "boundary",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 40102,
+          "outputTokens": 219,
+          "totalTokens": 40321,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 40102,
+          "reportedOutputTokens": 219,
+          "reportedTotalTokens": 40321,
+          "cacheReadInputTokens": 33664,
+          "cacheMissInputTokens": 6438,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 8,
+        "round": "boundary",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 40369,
+          "outputTokens": 630,
+          "totalTokens": 40999,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 40369,
+          "reportedOutputTokens": 630,
+          "reportedTotalTokens": 40999,
+          "cacheReadInputTokens": 40192,
+          "cacheMissInputTokens": 177,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 9,
+        "round": "lithology-pattern",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 33784,
+          "outputTokens": 99,
+          "totalTokens": 33883,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 33784,
+          "reportedOutputTokens": 99,
+          "reportedTotalTokens": 33883,
+          "cacheReadInputTokens": 33280,
+          "cacheMissInputTokens": 504,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 10,
+        "round": "lithology-pattern",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 40217,
+          "outputTokens": 759,
+          "totalTokens": 40976,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 40217,
+          "reportedOutputTokens": 759,
+          "reportedTotalTokens": 40976,
+          "cacheReadInputTokens": 33792,
+          "cacheMissInputTokens": 6425,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 11,
+        "round": "sample-add",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 8788,
+          "outputTokens": 98,
+          "totalTokens": 8886,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 8788,
+          "reportedOutputTokens": 98,
+          "reportedTotalTokens": 8886,
+          "cacheReadInputTokens": 8064,
+          "cacheMissInputTokens": 724,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 12,
+        "round": "sample-add",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 15252,
+          "outputTokens": 260,
+          "totalTokens": 15512,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 15252,
+          "reportedOutputTokens": 260,
+          "reportedTotalTokens": 15512,
+          "cacheReadInputTokens": 8832,
+          "cacheMissInputTokens": 6420,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 13,
+        "round": "spt-update",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 8955,
+          "outputTokens": 95,
+          "totalTokens": 9050,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 8955,
+          "reportedOutputTokens": 95,
+          "reportedTotalTokens": 9050,
+          "cacheReadInputTokens": 8064,
+          "cacheMissInputTokens": 891,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 14,
+        "round": "spt-update",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 15450,
+          "outputTokens": 165,
+          "totalTokens": 15615,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 15450,
+          "reportedOutputTokens": 165,
+          "reportedTotalTokens": 15615,
+          "cacheReadInputTokens": 8960,
+          "cacheMissInputTokens": 6490,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 15,
+        "round": "sample-remove",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 9028,
+          "outputTokens": 95,
+          "totalTokens": 9123,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 9028,
+          "reportedOutputTokens": 95,
+          "reportedTotalTokens": 9123,
+          "cacheReadInputTokens": 8064,
+          "cacheMissInputTokens": 964,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 16,
+        "round": "sample-remove",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 15523,
+          "outputTokens": 151,
+          "totalTokens": 15674,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 15523,
+          "reportedOutputTokens": 151,
+          "reportedTotalTokens": 15674,
+          "cacheReadInputTokens": 9088,
+          "cacheMissInputTokens": 6435,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 17,
+        "round": "station",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 9095,
+          "outputTokens": 95,
+          "totalTokens": 9190,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 9095,
+          "reportedOutputTokens": 95,
+          "reportedTotalTokens": 9190,
+          "cacheReadInputTokens": 8064,
+          "cacheMissInputTokens": 1031,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 18,
+        "round": "station",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 15557,
+          "outputTokens": 123,
+          "totalTokens": 15680,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 15557,
+          "reportedOutputTokens": 123,
+          "reportedTotalTokens": 15680,
+          "cacheReadInputTokens": 9088,
+          "cacheMissInputTokens": 6469,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 19,
+        "round": "water-unknown",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 9081,
+          "outputTokens": 130,
+          "totalTokens": 9211,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 9081,
+          "reportedOutputTokens": 130,
+          "reportedTotalTokens": 9211,
+          "cacheReadInputTokens": 8064,
+          "cacheMissInputTokens": 1017,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      },
+      {
+        "sequence": 20,
+        "round": "water-unknown",
+        "model": "deepseek-flash",
+        "usage": {
+          "protocol": "chat-completions",
+          "inputTokens": 15729,
+          "outputTokens": 275,
+          "totalTokens": 16004,
+          "inputTokensSource": "reported",
+          "outputTokensSource": "reported",
+          "totalTokensSource": "reported",
+          "reportedInputTokens": 15729,
+          "reportedOutputTokens": 275,
+          "reportedTotalTokens": 16004,
+          "cacheReadInputTokens": 9088,
+          "cacheMissInputTokens": 6641,
+          "cacheWriteInputTokens": null,
+          "reasoningOutputTokens": null,
+          "toolUsePromptTokens": null,
+          "latencyMs": null,
+          "latencyScope": null,
+          "invalidFields": []
+        }
+      }
+    ]
+  },
+  "proposalAttempts": [
+    {
+      "round": "collar",
+      "reported": {
+        "totalAttempts": 1,
+        "finalCallId": "call_00_JmNE1zO1VibRTVg5zWm64191",
+        "finalRequestIndex": 1,
+        "failedAttempts": []
+      }
+    },
+    {
+      "round": "depth",
+      "reported": {
+        "totalAttempts": 1,
+        "finalCallId": "call_00_jvTxyVJtCkXAfsTuXpvG9128",
+        "finalRequestIndex": 1,
+        "failedAttempts": []
+      }
+    },
+    {
+      "round": "stable-water",
+      "reported": {
+        "totalAttempts": 1,
+        "finalCallId": "call_00_qcq35FhUVUAlIa7RJBY83695",
+        "finalRequestIndex": 1,
+        "failedAttempts": []
+      }
+    },
+    {
+      "round": "boundary",
+      "reported": {
+        "totalAttempts": 2,
+        "finalCallId": "call_00_p6Xy6XNYzVKzrJjH7T098017",
+        "finalRequestIndex": 2,
+        "failedAttempts": [
+          {
+            "callId": "call_00_45GaMVWPtQwiVhHKWQP62590",
+            "toolName": "cad_propose_geology_revision",
+            "code": "KJDOCUMENT_INVALID",
+            "modelRequestSequence": 7,
+            "usage": {
+              "protocol": "chat-completions",
+              "inputTokens": 40102,
+              "outputTokens": 219,
+              "totalTokens": 40321,
+              "inputTokensSource": "reported",
+              "outputTokensSource": "reported",
+              "totalTokensSource": "reported",
+              "reportedInputTokens": 40102,
+              "reportedOutputTokens": 219,
+              "reportedTotalTokens": 40321,
+              "cacheReadInputTokens": 33664,
+              "cacheMissInputTokens": 6438,
+              "cacheWriteInputTokens": null,
+              "reasoningOutputTokens": null,
+              "toolUsePromptTokens": null,
+              "latencyMs": null,
+              "latencyScope": null,
+              "invalidFields": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "round": "lithology-pattern",
+      "reported": {
+        "totalAttempts": 1,
+        "finalCallId": "call_00_wyb7G6gre2GVENMlqKrx6762",
+        "finalRequestIndex": 1,
+        "failedAttempts": []
+      }
+    },
+    {
+      "round": "sample-add",
+      "reported": {
+        "totalAttempts": 1,
+        "finalCallId": "call_00_Q5QhUcZZtuXtgeN0dird2218",
+        "finalRequestIndex": 1,
+        "failedAttempts": []
+      }
+    },
+    {
+      "round": "spt-update",
+      "reported": {
+        "totalAttempts": 1,
+        "finalCallId": "call_00_O72RhTNOWxXD2yTTEBxZ7469",
+        "finalRequestIndex": 1,
+        "failedAttempts": []
+      }
+    },
+    {
+      "round": "sample-remove",
+      "reported": {
+        "totalAttempts": 1,
+        "finalCallId": "call_00_8SyRZN8BAg7djQel7rrS5146",
+        "finalRequestIndex": 1,
+        "failedAttempts": []
+      }
+    },
+    {
+      "round": "station",
+      "reported": {
+        "totalAttempts": 1,
+        "finalCallId": "call_00_KI4iVLb8w3aiWn2PWabt2916",
+        "finalRequestIndex": 1,
+        "failedAttempts": []
+      }
+    },
+    {
+      "round": "water-unknown",
+      "reported": {
+        "totalAttempts": 1,
+        "finalCallId": "call_00_7QhtansYa2hmzDniFy2w4368",
+        "finalRequestIndex": 1,
+        "failedAttempts": []
+      }
+    }
+  ],
+  "timestampCalibration": {
+    "videoOffsetMs": -750,
+    "explicitlyProvided": true,
+    "accuracy": "approximate context-ready screenshot-request offsets plus operator video-start calibration; not exact screenshot PTS"
+  },
+  "requested": {
+    "width": 1000,
+    "fps": 4,
+    "durationSeconds": 24
+  },
+  "maximumBytes": 10000000,
+  "cuts": [
+    {
+      "index": 0,
+      "capture": "01-live-synthetic-baseline.png",
+      "captureElapsedMs": 1700.4518,
+      "sourceStartMs": 950.4518,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "01-01.png",
+          "sourceTimestampMs": 950.4518,
+          "durationMs": 250,
+          "sha256": "7e4d24a8eb63297f18967db2463fdb729608fdc46fb2f5618ce0d4e552c231a8"
+        },
+        {
+          "file": "01-02.png",
+          "sourceTimestampMs": 1200.4518,
+          "durationMs": 250,
+          "sha256": "9892dacab54a3cff5ec5c5156d151b72b6f6e7aee26cc28bca7d5957f05409a0"
+        },
+        {
+          "file": "01-03.png",
+          "sourceTimestampMs": 1450.4518,
+          "durationMs": 250,
+          "sha256": "497276ded6522fa69283264943bddaa590a6b5b7b2653a5cdafca42277cfbaac"
+        },
+        {
+          "file": "01-04.png",
+          "sourceTimestampMs": 1700.4518,
+          "durationMs": 250,
+          "sha256": "9ac5d64eec855e467df38a80b0a307c8b9f4abb96ec1549efe3853e7e7c19a53"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "capture": "02-collar-actual-model-review.png",
+      "captureElapsedMs": 5492.6902,
+      "sourceStartMs": 4742.6902,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "02-01.png",
+          "sourceTimestampMs": 4742.6902,
+          "durationMs": 250,
+          "sha256": "1715898555e06e2fb4b3729fb05f5a5eedd8f8cd3eab284d936d2b03c86e49fd"
+        },
+        {
+          "file": "02-02.png",
+          "sourceTimestampMs": 4992.6902,
+          "durationMs": 250,
+          "sha256": "59263335e274cfe6125f5472a1685325ea182c534c993f7517147dd8cd7f2089"
+        },
+        {
+          "file": "02-03.png",
+          "sourceTimestampMs": 5242.6902,
+          "durationMs": 250,
+          "sha256": "d4affe1cf268eeaf622fd8f6a07ddc4c714f9f6055273c14afbec26d9093147a"
+        },
+        {
+          "file": "02-04.png",
+          "sourceTimestampMs": 5492.6902,
+          "durationMs": 250,
+          "sha256": "4e08117f1043041e57c25bd378967e24a8e5c9d2224919830ff0eb7a082e5db8"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "capture": "03-collar-actual-approved.png",
+      "captureElapsedMs": 7301.3646,
+      "sourceStartMs": 6551.3646,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "03-01.png",
+          "sourceTimestampMs": 6551.3646,
+          "durationMs": 250,
+          "sha256": "68a46a13dedbcabe080a5a2210d9d0ae7af56d6afe4f44a07ce7bd5fa8dc64a9"
+        },
+        {
+          "file": "03-02.png",
+          "sourceTimestampMs": 6801.3646,
+          "durationMs": 250,
+          "sha256": "ba371a1a0780f0d008d73659cbcfe7c095833f169ad5bc6a1862b66daf1fb211"
+        },
+        {
+          "file": "03-03.png",
+          "sourceTimestampMs": 7051.3646,
+          "durationMs": 250,
+          "sha256": "ba371a1a0780f0d008d73659cbcfe7c095833f169ad5bc6a1862b66daf1fb211"
+        },
+        {
+          "file": "03-04.png",
+          "sourceTimestampMs": 7301.3646,
+          "durationMs": 250,
+          "sha256": "1ace969aeee88f492533a621c33704d262e6fb8b1f2ec644527e08a94e568de5"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "capture": "04-depth-actual-model-review.png",
+      "captureElapsedMs": 12592.4422,
+      "sourceStartMs": 11842.4422,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "04-01.png",
+          "sourceTimestampMs": 11842.4422,
+          "durationMs": 250,
+          "sha256": "3b001d7426e108bb40136c385fee5fca27242177dfd64a9803d398fdab1dd62d"
+        },
+        {
+          "file": "04-02.png",
+          "sourceTimestampMs": 12092.4422,
+          "durationMs": 250,
+          "sha256": "af9a3cc460b8d6472624b680b8e56f9430967aeac483bd9890f8abaa735fe2b0"
+        },
+        {
+          "file": "04-03.png",
+          "sourceTimestampMs": 12342.4422,
+          "durationMs": 250,
+          "sha256": "2f59c9940aae62a867db69cb4a8acf448882b40ddd32bf70c2913d22011e494e"
+        },
+        {
+          "file": "04-04.png",
+          "sourceTimestampMs": 12592.4422,
+          "durationMs": 250,
+          "sha256": "c04aae816c9303d385e8cd12a54cd824cf99beb0d466388f46fca837484d33a0"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "capture": "05-depth-actual-approved.png",
+      "captureElapsedMs": 14402.652799999998,
+      "sourceStartMs": 13652.652799999998,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "05-01.png",
+          "sourceTimestampMs": 13652.652799999998,
+          "durationMs": 250,
+          "sha256": "af0eb4ec6b11b2438e15d4e46cd3c49c45d0440d756a92314ade99521a018e4e"
+        },
+        {
+          "file": "05-02.png",
+          "sourceTimestampMs": 13902.652799999998,
+          "durationMs": 250,
+          "sha256": "d2283e0aaf9c47eebf1810253b44e20e778f6e6d15994c6390ca0e9ae6a34b38"
+        },
+        {
+          "file": "05-03.png",
+          "sourceTimestampMs": 14152.652799999998,
+          "durationMs": 250,
+          "sha256": "848aed4f4b49e2615c28a3eda07867ceb7c444401fc63d850ba2e36a856c0357"
+        },
+        {
+          "file": "05-04.png",
+          "sourceTimestampMs": 14402.652799999998,
+          "durationMs": 250,
+          "sha256": "5a10d395acd9488aa88dc83f8ba8844861ece2e62e2307d79428ad589bfb5d7d"
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "capture": "06-stable-water-actual-model-review.png",
+      "captureElapsedMs": 18951.775700000002,
+      "sourceStartMs": 18201.775700000002,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "06-01.png",
+          "sourceTimestampMs": 18201.775700000002,
+          "durationMs": 250,
+          "sha256": "c42d03fcc0c542871282b75832c22e8e691fc333bf66e7d4741b859c13c71291"
+        },
+        {
+          "file": "06-02.png",
+          "sourceTimestampMs": 18451.775700000002,
+          "durationMs": 250,
+          "sha256": "54cc4a93a01112476c7ef69393f69bf7e1e16e9c26c4b5bedd9e6f75cab75ff5"
+        },
+        {
+          "file": "06-03.png",
+          "sourceTimestampMs": 18701.775700000002,
+          "durationMs": 250,
+          "sha256": "54cc4a93a01112476c7ef69393f69bf7e1e16e9c26c4b5bedd9e6f75cab75ff5"
+        },
+        {
+          "file": "06-04.png",
+          "sourceTimestampMs": 18951.775700000002,
+          "durationMs": 250,
+          "sha256": "43d15a1d676fcf58806ad83d35aeadfef912d25dd885cff86452918fc15b13b5"
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "capture": "07-stable-water-actual-approved.png",
+      "captureElapsedMs": 20772.7475,
+      "sourceStartMs": 20022.7475,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "07-01.png",
+          "sourceTimestampMs": 20022.7475,
+          "durationMs": 250,
+          "sha256": "e0f6db8cbc099601e49185b3cb524c9b14b9d35e970d61622050f5187d3522c3"
+        },
+        {
+          "file": "07-02.png",
+          "sourceTimestampMs": 20272.7475,
+          "durationMs": 250,
+          "sha256": "e9c5c655c815a17567903e0c1e61cc8f241d213ce7c5975ae5d55c20244c8ac8"
+        },
+        {
+          "file": "07-03.png",
+          "sourceTimestampMs": 20522.7475,
+          "durationMs": 250,
+          "sha256": "847294895baf8d2865963a591bd928db4081c0832569b267270216abf2ec8c9a"
+        },
+        {
+          "file": "07-04.png",
+          "sourceTimestampMs": 20772.7475,
+          "durationMs": 250,
+          "sha256": "19bb4ef5d129653da325ec6e2807bca63f8b7fcd3abd59587c4d267a7563fbfd"
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "capture": "08-boundary-actual-model-review.png",
+      "captureElapsedMs": 28224.09,
+      "sourceStartMs": 27474.09,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "08-01.png",
+          "sourceTimestampMs": 27474.09,
+          "durationMs": 250,
+          "sha256": "13e3b79ebb3df2a40dc88a997b6e3e3b3be3a3ea643f4769ea9f4982f04a8565"
+        },
+        {
+          "file": "08-02.png",
+          "sourceTimestampMs": 27724.09,
+          "durationMs": 250,
+          "sha256": "bb511870d01730b2a9e8752812b44ba850eee69d4fdfeed94a621a17836b7b9a"
+        },
+        {
+          "file": "08-03.png",
+          "sourceTimestampMs": 27974.09,
+          "durationMs": 250,
+          "sha256": "7a0e4b5aaae07f952cd1014b6a3c8a1e3211710126d0eefcf99774a20e708cd1"
+        },
+        {
+          "file": "08-04.png",
+          "sourceTimestampMs": 28224.09,
+          "durationMs": 250,
+          "sha256": "e74041db512f0e5af7c292da91a2773d50d2af0e7d2758834d77d776454132a5"
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "capture": "09-boundary-actual-approved.png",
+      "captureElapsedMs": 30110.519800000002,
+      "sourceStartMs": 29360.519800000002,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "09-01.png",
+          "sourceTimestampMs": 29360.519800000002,
+          "durationMs": 250,
+          "sha256": "d0e31ffbdeac8b46de76e83d29642ef3e302d414b0419a6d595ba0216d574762"
+        },
+        {
+          "file": "09-02.png",
+          "sourceTimestampMs": 29610.519800000002,
+          "durationMs": 250,
+          "sha256": "5275b9e12d31424b687273ac2af6c257ace9fa64357d2a89911af1577a029bea"
+        },
+        {
+          "file": "09-03.png",
+          "sourceTimestampMs": 29860.519800000002,
+          "durationMs": 250,
+          "sha256": "4934795c7ee1d00bbf1d5cbd8c9882d30c6eec8b574cf695af9bec50caa30f97"
+        },
+        {
+          "file": "09-04.png",
+          "sourceTimestampMs": 30110.519800000002,
+          "durationMs": 250,
+          "sha256": "91319a4c92b18bb0b9fd5f7ba331a5f6879068082255620e005fc316ee3baa8a"
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "capture": "10-lithology-pattern-actual-model-review.png",
+      "captureElapsedMs": 36375.8721,
+      "sourceStartMs": 35625.8721,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "10-01.png",
+          "sourceTimestampMs": 35625.8721,
+          "durationMs": 250,
+          "sha256": "7a7e2c1c13be6a8a15e9a77048768d331c09cf4b98545472df6ad3fb75cbafa6"
+        },
+        {
+          "file": "10-02.png",
+          "sourceTimestampMs": 35875.8721,
+          "durationMs": 250,
+          "sha256": "22460dc0377c208f44a74da7528fe284b0a037ec010355aaefd9b8905290a296"
+        },
+        {
+          "file": "10-03.png",
+          "sourceTimestampMs": 36125.8721,
+          "durationMs": 250,
+          "sha256": "f07787c22858fce7d6a53b848405356d968a8456392977ee223c9bd75f7e63e7"
+        },
+        {
+          "file": "10-04.png",
+          "sourceTimestampMs": 36375.8721,
+          "durationMs": 250,
+          "sha256": "6f8e5e25e0f473bd00ce6fbf56fa456707562dcb3e3718b39cdaf9a8d0f203b0"
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "capture": "11-lithology-pattern-actual-approved.png",
+      "captureElapsedMs": 38377.5431,
+      "sourceStartMs": 37627.5431,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "11-01.png",
+          "sourceTimestampMs": 37627.5431,
+          "durationMs": 250,
+          "sha256": "311e482d302e95f96622f31636c41b621026a36ab64cdb031f5f79882bc34c89"
+        },
+        {
+          "file": "11-02.png",
+          "sourceTimestampMs": 37877.5431,
+          "durationMs": 250,
+          "sha256": "ddf319c661fe4709e4efcc96e027135cb95fda746b7b0efbea034f620212db48"
+        },
+        {
+          "file": "11-03.png",
+          "sourceTimestampMs": 38127.5431,
+          "durationMs": 250,
+          "sha256": "45b90f824b680b8d208848190079edf1da06516995965ef7fc0a03d4b9541328"
+        },
+        {
+          "file": "11-04.png",
+          "sourceTimestampMs": 38377.5431,
+          "durationMs": 250,
+          "sha256": "622667615668ff2f94e497014cbda34e54bcce074ab262fbf1824982aefe4155"
+        }
+      ]
+    },
+    {
+      "index": 11,
+      "capture": "12-sample-add-actual-model-review.png",
+      "captureElapsedMs": 43634.286400000005,
+      "sourceStartMs": 42884.286400000005,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "12-01.png",
+          "sourceTimestampMs": 42884.286400000005,
+          "durationMs": 250,
+          "sha256": "1c26ea287ff0d7fc5079d73f8c8ef0b8ffcb2d6fe5f1a9590b168d165aae10f3"
+        },
+        {
+          "file": "12-02.png",
+          "sourceTimestampMs": 43134.286400000005,
+          "durationMs": 250,
+          "sha256": "879dc5a6172b1a2ac749b762e8582f52b66607f8f8043501146fdb51790ee419"
+        },
+        {
+          "file": "12-03.png",
+          "sourceTimestampMs": 43384.286400000005,
+          "durationMs": 250,
+          "sha256": "ce90d45d45d23f09eaa425e8c980dd98a9094b84f11d277a178e3cc259cbe4d6"
+        },
+        {
+          "file": "12-04.png",
+          "sourceTimestampMs": 43634.286400000005,
+          "durationMs": 250,
+          "sha256": "9d6313b911708fd3a8f0d5720029a0283f3bfcffa52ed2c0182998a96937145f"
+        }
+      ]
+    },
+    {
+      "index": 12,
+      "capture": "13-sample-add-actual-approved.png",
+      "captureElapsedMs": 45774.4111,
+      "sourceStartMs": 45024.4111,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "13-01.png",
+          "sourceTimestampMs": 45024.4111,
+          "durationMs": 250,
+          "sha256": "fe1b26348b77e2aed0535e3770fa722a6f54c7a77c96b8fa31842104823bfcfc"
+        },
+        {
+          "file": "13-02.png",
+          "sourceTimestampMs": 45274.4111,
+          "durationMs": 250,
+          "sha256": "12a7b8f7fd00ebd28cf524a60bb7aef815a29e67d3d31a839f081580574d2209"
+        },
+        {
+          "file": "13-03.png",
+          "sourceTimestampMs": 45524.4111,
+          "durationMs": 250,
+          "sha256": "54a41dd514d112f0829768cc83ab26ac95eec32badfe34b3c85120db53396489"
+        },
+        {
+          "file": "13-04.png",
+          "sourceTimestampMs": 45774.4111,
+          "durationMs": 250,
+          "sha256": "dc9c5673c588f55cd0b18b29ab023daa371cbb840b5ab3940a27f18d2d17158a"
+        }
+      ]
+    },
+    {
+      "index": 13,
+      "capture": "14-spt-update-actual-model-review.png",
+      "captureElapsedMs": 50253.9962,
+      "sourceStartMs": 49503.9962,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "14-01.png",
+          "sourceTimestampMs": 49503.9962,
+          "durationMs": 250,
+          "sha256": "cf12051408ab85147b12d92f745978333bc4e9f5c5184d1d841a0632f74d5621"
+        },
+        {
+          "file": "14-02.png",
+          "sourceTimestampMs": 49753.9962,
+          "durationMs": 250,
+          "sha256": "fba38f1b4652361e7f01c6f63a7d78d659f6b8675389e5be405bc34b33597e40"
+        },
+        {
+          "file": "14-03.png",
+          "sourceTimestampMs": 50003.9962,
+          "durationMs": 250,
+          "sha256": "da919d1129b8e26bce79a05bb76db454c836e8d8673354e4627846615d80f65e"
+        },
+        {
+          "file": "14-04.png",
+          "sourceTimestampMs": 50253.9962,
+          "durationMs": 250,
+          "sha256": "ad614524c89936db670dc603a8f7f72f854150624c2027209752f8fc3cedd42d"
+        }
+      ]
+    },
+    {
+      "index": 14,
+      "capture": "15-spt-update-actual-approved.png",
+      "captureElapsedMs": 52140.1448,
+      "sourceStartMs": 51390.1448,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "15-01.png",
+          "sourceTimestampMs": 51390.1448,
+          "durationMs": 250,
+          "sha256": "4e0515a0965621cff548161468562f5bad69b200d4402f1c0d2606ced9f92fb6"
+        },
+        {
+          "file": "15-02.png",
+          "sourceTimestampMs": 51640.1448,
+          "durationMs": 250,
+          "sha256": "3d6d3e52aa52dfa3fe6c9f734d1843007ad0cf4e308f0e7e573d2f3dde7364f3"
+        },
+        {
+          "file": "15-03.png",
+          "sourceTimestampMs": 51890.1448,
+          "durationMs": 250,
+          "sha256": "0d64481f3bbabf37605f4a0897d4e2ab5205209fba865907a36778c83d2cd822"
+        },
+        {
+          "file": "15-04.png",
+          "sourceTimestampMs": 52140.1448,
+          "durationMs": 250,
+          "sha256": "7c19cdd91f22a6e9c86603aab04697563b6c21cb047c6fa71e2f411387ad5231"
+        }
+      ]
+    },
+    {
+      "index": 15,
+      "capture": "16-sample-remove-actual-model-review.png",
+      "captureElapsedMs": 57127.2495,
+      "sourceStartMs": 56377.2495,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "16-01.png",
+          "sourceTimestampMs": 56377.2495,
+          "durationMs": 250,
+          "sha256": "dc8880da31d7cb46a3dc6310940f3b0b786476436125322451e8f4ce28e75f3f"
+        },
+        {
+          "file": "16-02.png",
+          "sourceTimestampMs": 56627.2495,
+          "durationMs": 250,
+          "sha256": "22194f46e1f566e776a9ac95b77e35e429a4a68cc70b9d876f7b90825f3bfbbf"
+        },
+        {
+          "file": "16-03.png",
+          "sourceTimestampMs": 56877.2495,
+          "durationMs": 250,
+          "sha256": "ddc28be13a3ea416b26e1ceb452d6cc9aa6fecd79cfcd4230229199c478df55f"
+        },
+        {
+          "file": "16-04.png",
+          "sourceTimestampMs": 57127.2495,
+          "durationMs": 250,
+          "sha256": "cde6eab985e03f93a417952784fd60d03ca1b6a1f39512c86cb399c6970700c2"
+        }
+      ]
+    },
+    {
+      "index": 16,
+      "capture": "17-sample-remove-actual-approved.png",
+      "captureElapsedMs": 59353.6115,
+      "sourceStartMs": 58603.6115,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "17-01.png",
+          "sourceTimestampMs": 58603.6115,
+          "durationMs": 250,
+          "sha256": "843d92498f8dac89648920ff03f2bb15501c1d4328f9ab47ce59de2fb2574bab"
+        },
+        {
+          "file": "17-02.png",
+          "sourceTimestampMs": 58853.6115,
+          "durationMs": 250,
+          "sha256": "843d92498f8dac89648920ff03f2bb15501c1d4328f9ab47ce59de2fb2574bab"
+        },
+        {
+          "file": "17-03.png",
+          "sourceTimestampMs": 59103.6115,
+          "durationMs": 250,
+          "sha256": "00ac3300b6a63ba86493ff7323c8f1390fbeab0f97b2221310703da9810487fa"
+        },
+        {
+          "file": "17-04.png",
+          "sourceTimestampMs": 59353.6115,
+          "durationMs": 250,
+          "sha256": "00ac3300b6a63ba86493ff7323c8f1390fbeab0f97b2221310703da9810487fa"
+        }
+      ]
+    },
+    {
+      "index": 17,
+      "capture": "18-station-actual-model-review.png",
+      "captureElapsedMs": 64562.3799,
+      "sourceStartMs": 63812.3799,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "18-01.png",
+          "sourceTimestampMs": 63812.3799,
+          "durationMs": 250,
+          "sha256": "ee487ba9ed95df6f34d0223b6e850b371543bd77b6485f4ee8e9bab5a4dc893a"
+        },
+        {
+          "file": "18-02.png",
+          "sourceTimestampMs": 64062.3799,
+          "durationMs": 250,
+          "sha256": "094b6ce573a52469789e89e86c7f1c0eb2762dd23248ead1dac5e59c0018016e"
+        },
+        {
+          "file": "18-03.png",
+          "sourceTimestampMs": 64312.3799,
+          "durationMs": 250,
+          "sha256": "c172431e6532aacf4b613b999d3453a0debaffde06f758f23b8a42a676878c9e"
+        },
+        {
+          "file": "18-04.png",
+          "sourceTimestampMs": 64562.3799,
+          "durationMs": 250,
+          "sha256": "df389f3dcadfed6af669093002a173b38a1253faa630c590efdba4a3f2386e77"
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "capture": "19-station-actual-approved.png",
+      "captureElapsedMs": 66969.2124,
+      "sourceStartMs": 66219.2124,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "19-01.png",
+          "sourceTimestampMs": 66219.2124,
+          "durationMs": 250,
+          "sha256": "5b4e91d01f78a40a4ee86ed8088e4deb35fbf1b82b7c1cc85eecbece08040361"
+        },
+        {
+          "file": "19-02.png",
+          "sourceTimestampMs": 66469.2124,
+          "durationMs": 250,
+          "sha256": "e1c722562898306149583bed82b5e34535e4b2cc91ae3ae77f4cfc88f96d75d0"
+        },
+        {
+          "file": "19-03.png",
+          "sourceTimestampMs": 66719.2124,
+          "durationMs": 250,
+          "sha256": "8bd41540a9510e4eb7682aa584961ad59c4c3719db1f48c05190290f7c6d0978"
+        },
+        {
+          "file": "19-04.png",
+          "sourceTimestampMs": 66969.2124,
+          "durationMs": 250,
+          "sha256": "cb26f8d008e0dd6fe13e7c4de0edaddaee3e8744a15b825a2cc2e99eee86e44b"
+        }
+      ]
+    },
+    {
+      "index": 19,
+      "capture": "20-water-unknown-actual-model-review.png",
+      "captureElapsedMs": 72552.418,
+      "sourceStartMs": 71802.418,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "20-01.png",
+          "sourceTimestampMs": 71802.418,
+          "durationMs": 250,
+          "sha256": "20a64789a0d343a5ff408626a4722b4e4b7c3ba3f470999f4fa360da3086c7ff"
+        },
+        {
+          "file": "20-02.png",
+          "sourceTimestampMs": 72052.418,
+          "durationMs": 250,
+          "sha256": "63ced2cf64074397cabfc4b774480a4d1f8a27f95fdfe52e94b3252222c9787f"
+        },
+        {
+          "file": "20-03.png",
+          "sourceTimestampMs": 72302.418,
+          "durationMs": 250,
+          "sha256": "3a0e4171c4199fd31f6afab4f0bb62cdd6c7f30eb2eb4ffb9adc57e1db0feae9"
+        },
+        {
+          "file": "20-04.png",
+          "sourceTimestampMs": 72552.418,
+          "durationMs": 250,
+          "sha256": "3a47d174671b6e3b93179b081010734390809f27668c1fc1edc8ed6c8ab61214"
+        }
+      ]
+    },
+    {
+      "index": 20,
+      "capture": "21-water-unknown-actual-approved.png",
+      "captureElapsedMs": 74997.8449,
+      "sourceStartMs": 74247.8449,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "21-01.png",
+          "sourceTimestampMs": 74247.8449,
+          "durationMs": 250,
+          "sha256": "659264541a00fdbe4914558063bab049e67db61fce0146db3d32292e6eb34a2f"
+        },
+        {
+          "file": "21-02.png",
+          "sourceTimestampMs": 74497.8449,
+          "durationMs": 250,
+          "sha256": "caab3af0da583856915882467387f5d877ae7ce797509e00ca7e6aa236a214d0"
+        },
+        {
+          "file": "21-03.png",
+          "sourceTimestampMs": 74747.8449,
+          "durationMs": 250,
+          "sha256": "1a207d6c87b4ef0b33837086aff3ff419c87294f76f74c1faf9aa898fa9957d2"
+        },
+        {
+          "file": "21-04.png",
+          "sourceTimestampMs": 74997.8449,
+          "durationMs": 250,
+          "sha256": "0095a23fc0e401647cc5faff5dd2a5727284cc3599a6b1142a1010e624fc50a6"
+        }
+      ]
+    },
+    {
+      "index": 21,
+      "capture": "22-live-native-undo.png",
+      "captureElapsedMs": 77927.902,
+      "sourceStartMs": 77177.902,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "22-01.png",
+          "sourceTimestampMs": 77177.902,
+          "durationMs": 250,
+          "sha256": "71844d1d64ea4e7790b72203ce50e63863b955ef7ad73226790f49422731ae04"
+        },
+        {
+          "file": "22-02.png",
+          "sourceTimestampMs": 77427.902,
+          "durationMs": 250,
+          "sha256": "584f892a7bd2a75ce6272d7b1e731f1763a8a092c3320e227a2a04dd8c8fd791"
+        },
+        {
+          "file": "22-03.png",
+          "sourceTimestampMs": 77677.902,
+          "durationMs": 250,
+          "sha256": "d59b4197426b9df7ccd403077c7e6055b69e09528662ce963353b669a612e6ca"
+        },
+        {
+          "file": "22-04.png",
+          "sourceTimestampMs": 77927.902,
+          "durationMs": 250,
+          "sha256": "d3d73dee2e2234be2c7c3c0a6be016ee3dd1e614824eb1a1e1865f5610ef9f84"
+        }
+      ]
+    },
+    {
+      "index": 22,
+      "capture": "23-live-native-redo.png",
+      "captureElapsedMs": 80838.0124,
+      "sourceStartMs": 80088.0124,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "23-01.png",
+          "sourceTimestampMs": 80088.0124,
+          "durationMs": 250,
+          "sha256": "5a1940335cfd982dc2efde1c313f5cc842ec6d07e6957cf5e8d30bb2f7bff0bb"
+        },
+        {
+          "file": "23-02.png",
+          "sourceTimestampMs": 80338.0124,
+          "durationMs": 250,
+          "sha256": "43b0598ebc4fd329358f1c3e50e36cde327e50af5e4445ab04420074206b2500"
+        },
+        {
+          "file": "23-03.png",
+          "sourceTimestampMs": 80588.0124,
+          "durationMs": 250,
+          "sha256": "5ee4b765c0f75602cc107c24f2436c9395e79a28cf080338256e58a74bf7df62"
+        },
+        {
+          "file": "23-04.png",
+          "sourceTimestampMs": 80838.0124,
+          "durationMs": 250,
+          "sha256": "2f164e2a5e67106a6c4e9aaed5c6e03f6b607f6d5b93f6d4c2023ec711ef78cf"
+        }
+      ]
+    },
+    {
+      "index": 23,
+      "capture": "24-live-actual-dxf-reopened.png",
+      "captureElapsedMs": 82855.7813,
+      "sourceStartMs": 82105.7813,
+      "playbackDurationMs": 1000,
+      "frames": [
+        {
+          "file": "24-01.png",
+          "sourceTimestampMs": 82105.7813,
+          "durationMs": 250,
+          "sha256": "bfc526d06084884994a83cc6c1a934252531b6c7e0b6ca17fa68ffcf970a5cd0"
+        },
+        {
+          "file": "24-02.png",
+          "sourceTimestampMs": 82355.7813,
+          "durationMs": 250,
+          "sha256": "5857db162b2b025f7ed4a2249a50067fe6262292efc6bbd52259c28823190224"
+        },
+        {
+          "file": "24-03.png",
+          "sourceTimestampMs": 82605.7813,
+          "durationMs": 250,
+          "sha256": "2409cc5de1cf014f32044bdb34fdfb8d036bdd94b9e098585b22c2fe6833596f"
+        },
+        {
+          "file": "24-04.png",
+          "sourceTimestampMs": 82855.7813,
+          "durationMs": 250,
+          "sha256": "406ba018c18a60ee6124595c82d137c3cf4cab56829bb1167f0721e1cac61bbd"
+        }
+      ]
+    }
+  ],
+  "gif": {
+    "file": "synthetic-live-model-highlights.gif",
+    "sha256": "953bbb22599fc0455257514368515b0c9319550e20cb899ef3e4310108b1dad5",
+    "bytes": 8307638,
+    "width": 1000,
+    "height": 625,
+    "paletteColours": 256,
+    "sourceFrameCount": 96,
+    "encodedFrameCount": 92,
+    "durationMs": 24000
+  }
+}

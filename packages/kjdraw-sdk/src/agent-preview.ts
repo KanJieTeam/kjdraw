@@ -2,6 +2,7 @@ import { KJCommandRegistry, registerCoreCommands } from './commands.js'
 import type { KJDocument } from './document.js'
 import { KJValidationError } from './errors.js'
 import { validateTextEdits } from './text-edit.js'
+import { validateHatchPatternEdits } from './agent-hatch-pattern.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 import { canonicalStringify, deepFreeze, type ReadonlyDeep } from './utils.js'
 import { projectDimension } from './geometry/annotation.js'
@@ -34,7 +35,7 @@ export interface KJAgentGeometryPreview {
   readonly blockDependencies?: readonly KJAgentBlockPreviewDependency[]
   readonly designChange?: { readonly id: string; readonly before: ReadonlyDeep<KJDesignDefinition>; readonly after: ReadonlyDeep<KJDesignDefinition>; readonly record: KJReadonlyObjectRecord; readonly members: readonly KJReadonlyObjectRecord[]; readonly dictionary: { readonly id: string; readonly key: string } }
   readonly recordChanges?: readonly Readonly<{ id: string; before: KJReadonlyObjectRecord; after: KJReadonlyObjectRecord | null }>[]
-  readonly command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT' | 'ROAD_DRAWING_UPDATE' | 'GEOLOGY_DRAWING_UPDATE' | 'UNDO' | 'REDO'
+  readonly command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT' | 'HATCHPATTERN' | 'ROAD_DRAWING_UPDATE' | 'GEOLOGY_DRAWING_UPDATE' | 'UNDO' | 'REDO'
   readonly historyChange?: {
     readonly targetHistoryId: string
     readonly targetRevision: number
@@ -353,9 +354,9 @@ export interface KJAgentGeometryPreviewOptions {
 }
 
 /** Run bounded core geometry on a detached document. No host plugins, authority, network or source history is invoked. */
-export async function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT', args: Record<string, unknown>, options: KJAgentGeometryPreviewOptions = {}): Promise<KJAgentGeometryPreview> {
-  if (!['CREATEBATCH', 'COMPONENTINSERT', 'MOVE', 'COPY', 'ROTATE', 'SCALE', 'OFFSET', 'STRETCH', 'LENGTHEN', 'PEDIT', 'PROPERTIES', 'DESIGNCREATE', 'DESIGNUPDATE', 'STRUCTURALEDIT', 'TEXTEDIT'].includes(command)) throw new KJValidationError('Unsupported core preview command')
-  const annotationIds = command === 'TEXTEDIT' ? validateTextEdits(args).map(change => change.id) : undefined
+export async function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT' | 'HATCHPATTERN', args: Record<string, unknown>, options: KJAgentGeometryPreviewOptions = {}): Promise<KJAgentGeometryPreview> {
+  if (!['CREATEBATCH', 'COMPONENTINSERT', 'MOVE', 'COPY', 'ROTATE', 'SCALE', 'OFFSET', 'STRETCH', 'LENGTHEN', 'PEDIT', 'PROPERTIES', 'DESIGNCREATE', 'DESIGNUPDATE', 'STRUCTURALEDIT', 'TEXTEDIT', 'HATCHPATTERN'].includes(command)) throw new KJValidationError('Unsupported core preview command')
+  const annotationIds = command === 'TEXTEDIT' ? validateTextEdits(args).map(change => change.id) : command === 'HATCHPATTERN' ? validateHatchPatternEdits(args).map(change => change.id) : undefined
   if (['MOVE', 'COPY', 'ROTATE', 'SCALE'].includes(command) && Array.isArray(args.ids)) args = { ...args, ids: resolveAgentTransformEntityIds(document, args.ids as string[]) }
   if (command === 'COPY') {
     if (Object.keys(args).some(key => !['ids', 'dx', 'dy', 'resultIds'].includes(key))) throw new KJValidationError('Unexpected COPY preview argument')
@@ -425,7 +426,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
         requireEditableAgentMember(document, entity, 'Properties entity')
         if (!isRadius && sourceLayer.id === targetLayer!.id) throw new KJValidationError(`Relayer command contains an unchanged entity: ${entity.id}`)
       }
-    } else if (command !== 'LENGTHEN' && command !== 'OFFSET' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE' && command !== 'TEXTEDIT') {
+    } else if (command !== 'LENGTHEN' && command !== 'OFFSET' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE' && command !== 'TEXTEDIT' && command !== 'HATCHPATTERN') {
       if (ids.some(id => !KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`)
       for (const id of ids) validateMovableAnnotation(document, document.getObject(String(id))!, command === 'MOVE')
     }
@@ -460,7 +461,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
       if (command === 'MOVE' || command === 'COPY') validateMovableAnnotation(draft, entity, command === 'MOVE')
       if (affine) validateTransformGeometry(draft, entity)
       if (command === 'LENGTHEN') validateLengthenPreview(draft, args)
-      if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN' || command === 'OFFSET' || command === 'TEXTEDIT') {
+      if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN' || command === 'OFFSET' || command === 'TEXTEDIT' || command === 'HATCHPATTERN') {
         const bounds = displayedEntityBounds(draft, entity)
         if (!bounds || bounds.some(value => !Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError(`${command} preview result exceeds the finite ±1e12 display budget`)
       }

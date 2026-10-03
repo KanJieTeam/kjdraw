@@ -17,10 +17,12 @@ const circleArgs = (revision = 0) => ({ expectedRevision: revision, units: 'mill
 function value(result) { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 
 test('tool definitions are frozen serializable schemas with no approval or arbitrary execution tool', () => {
-  assert.equal(KJDRAW_AGENT_TOOLS.length, 55)
-  const previousDefinitions = KJDRAW_AGENT_TOOLS.filter(tool => !['cad_query_curve_bounds', 'cad_query_curve_neighborhood'].includes(tool.name))
-  assert.equal(previousDefinitions.length, 53)
-  assert.equal(createHash('sha256').update(canonicalStringify(previousDefinitions)).digest('hex'), 'a60751347e747475e5499146e379bf7f4b92649490f46fe3bf248e2e3cfb3d20')
+  assert.equal(KJDRAW_AGENT_TOOLS.length, 57)
+  // General geology revision intentionally gains exact stratum deltas. All
+  // other previously published definitions, including the scalar profile, stay exact.
+  const previousDefinitions = KJDRAW_AGENT_TOOLS.filter(tool => !['cad_query_curve_bounds', 'cad_query_curve_neighborhood', 'cad_read_hatch_patterns', 'cad_propose_hatch_pattern', 'cad_propose_geology_revision'].includes(tool.name))
+  assert.equal(previousDefinitions.length, 52)
+  assert.equal(createHash('sha256').update(canonicalStringify(previousDefinitions)).digest('hex'), 'e53379d183b3a5acc75156020ab6807cf835955e10421195264944d58b012611')
   assert.ok(KJDRAW_AGENT_TOOLS.every(tool => ['read', 'propose'].includes(tool.effect)))
   assert.deepEqual(JSON.parse(JSON.stringify(KJDRAW_AGENT_TOOLS)), KJDRAW_AGENT_TOOLS)
   for (const tool of KJDRAW_AGENT_TOOLS) {
@@ -35,6 +37,10 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
         ? ['ellipses', 'splines', 'hatches']
       : tool.name === 'cad_read_components'
         ? ['query', 'category', 'locale', 'limit', 'cursor']
+        : tool.name === 'cad_read_hatch_patterns'
+          ? ['search', 'offset', 'limit', 'maxBytes']
+        : tool.name === 'cad_propose_hatch_pattern'
+          ? ['patternScale', 'patternAngleDegrees']
         : tool.name === 'cad_propose_geology_revision'
           ? ['correlations', 'uncorrelatedOccurrences', 'linkChanges']
         : tool.name === 'cad_find_text'
