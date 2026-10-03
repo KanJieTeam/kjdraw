@@ -2,8 +2,96 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:e75fc362a86661f65549135c57146f451bd02d9ca861baee6caf3e4b04b3869a",
+  "sourceDigest": "sha256:d2a2d6d14f3298f235e2eb63c79934651898152f464ccf7c041a2706dc66e0a1",
   "entries": [
+    {
+      "name": "KJPlanarBoundary",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-boundaries",
+      "href": "./api/reference/#planar-boundaries-interface-kjplanarboundary",
+      "anchor": "planar-boundaries-interface-kjplanarboundary",
+      "summary": "export interface KJPlanarBoundary extends KJPlanarContour { readonly area: number; readonly hole: boolean; readonly depth: number; readonly sourceIds: readonly string[]; readonly segments: readonly KJPlanarBoundarySegmen"
+    },
+    {
+      "name": "KJPlanarBoundaryDiagnostic",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-boundaries",
+      "href": "./api/reference/#planar-boundaries-interface-kjplanarboundarydiagnostic",
+      "anchor": "planar-boundaries-interface-kjplanarboundarydiagnostic",
+      "summary": "export interface KJPlanarBoundaryDiagnostic { readonly code: KJPlanarBoundaryDiagnosticCode; readonly sourceIds: readonly string[]; readonly message: string; readonly points: readonly (readonly [number, number, number])["
+    },
+    {
+      "name": "KJPlanarBoundaryDiagnosticCode",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/planar-boundaries",
+      "href": "./api/reference/#planar-boundaries-type-kjplanarboundarydiagnosticcode",
+      "anchor": "planar-boundaries-type-kjplanarboundarydiagnosticcode",
+      "summary": "export type KJPlanarBoundaryDiagnosticCode = 'open-chain' | 'branch' | 'near-endpoint' | 'self-intersection' | 'boundary-intersection' | 'incompatible-style' | 'precision';"
+    },
+    {
+      "name": "KJPlanarBoundaryPreview",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-boundaries",
+      "href": "./api/reference/#planar-boundaries-interface-kjplanarboundarypreview",
+      "anchor": "planar-boundaries-interface-kjplanarboundarypreview",
+      "summary": "export interface KJPlanarBoundaryPreview { readonly contours: readonly KJPlanarBoundary[]; readonly diagnostics: readonly KJPlanarBoundaryDiagnostic[]; /** False if any selected geometry was unresolved. Never apply a par"
+    },
+    {
+      "name": "KJPlanarBoundaryRequest",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-boundaries",
+      "href": "./api/reference/#planar-boundaries-interface-kjplanarboundaryrequest",
+      "anchor": "planar-boundaries-interface-kjplanarboundaryrequest",
+      "summary": "export interface KJPlanarBoundaryRequest { readonly ids: readonly string[]; readonly units: string; readonly expectedRevision: number; /** Absolute ambiguity/geometry tolerance, in drawing units. No gap is snapped. */ re"
+    },
+    {
+      "name": "KJPlanarBoundarySegment",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-boundaries",
+      "href": "./api/reference/#planar-boundaries-interface-kjplanarboundarysegment",
+      "anchor": "planar-boundaries-interface-kjplanarboundarysegment",
+      "summary": "export interface KJPlanarBoundarySegment { readonly sourceId: string; readonly sourceSegmentIndex: number; readonly reversed: boolean; }"
+    },
+    {
+      "name": "previewPlanarBoundaries",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/planar-boundaries",
+      "href": "./api/reference/#planar-boundaries-function-previewplanarboundaries",
+      "anchor": "planar-boundaries-function-previewplanarboundaries",
+      "summary": "export declare function previewPlanarBoundaries(document: KJDocument, input: KJPlanarBoundaryRequest, options?: KJContourBackendOptions): Promise<KJPlanarBoundaryPreview>;"
+    },
+    {
+      "name": "applyPlanarBoundaryExtraction",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/planar-boundary-edit",
+      "href": "./api/reference/#planar-boundary-edit-function-applyplanarboundaryextraction",
+      "anchor": "planar-boundary-edit-function-applyplanarboundaryextraction",
+      "summary": "export declare function applyPlanarBoundaryExtraction(document: KJDocument, input: KJPlanarBoundaryEditRequest, options?: KJPlanarBoundaryApplyOptions): Promise<KJPlanarBoundaryEditResult>;"
+    },
+    {
+      "name": "KJPlanarBoundaryApplyOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-boundary-edit",
+      "href": "./api/reference/#planar-boundary-edit-interface-kjplanarboundaryapplyoptions",
+      "anchor": "planar-boundary-edit-interface-kjplanarboundaryapplyoptions",
+      "summary": "export interface KJPlanarBoundaryApplyOptions extends KJContourBackendOptions { readonly author?: unknown; readonly commandEnvelope?: KJCommandEnvelopeContext | null; }"
+    },
+    {
+      "name": "KJPlanarBoundaryEditRequest",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-boundary-edit",
+      "href": "./api/reference/#planar-boundary-edit-interface-kjplanarboundaryeditrequest",
+      "anchor": "planar-boundary-edit-interface-kjplanarboundaryeditrequest",
+      "summary": "export interface KJPlanarBoundaryEditRequest extends KJPlanarBoundaryRequest { /** Required digest from the complete, read-only boundary preview. */ readonly expectedGeometryDigest: string; }"
+    },
+    {
+      "name": "KJPlanarBoundaryEditResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-boundary-edit",
+      "href": "./api/reference/#planar-boundary-edit-interface-kjplanarboundaryeditresult",
+      "anchor": "planar-boundary-edit-interface-kjplanarboundaryeditresult",
+      "summary": "export interface KJPlanarBoundaryEditResult extends KJPlanarBoundaryPreview { readonly resultIds: readonly string[]; readonly revisionAfter: number; }"
+    },
     {
       "name": "applyPlanarContourEdit",
       "kind": "function",
@@ -6917,6 +7005,14 @@
       "summary": "export declare function applyGeologySectionLinkChanges(before: ReadonlyDeep<KJGeologySectionInput>, changes: KJGeologySectionLinkChanges): KJGeologySectionInput;"
     },
     {
+      "name": "applyPlanarBoundaryExtraction",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-applyplanarboundaryextraction",
+      "anchor": "root-function-applyplanarboundaryextraction",
+      "summary": "export declare function applyPlanarBoundaryExtraction(document: KJDocument, input: KJPlanarBoundaryEditRequest, options?: KJPlanarBoundaryApplyOptions): Promise<KJPlanarBoundaryEditResult>;"
+    },
+    {
       "name": "applyPlanarContourEdit",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -12941,6 +13037,78 @@
       "summary": "export interface KJPersistedAgentTaskRunResult extends KJAgentRunResult { readonly task: { readonly id: string; readonly version: number; readonly status: 'ready' | 'running'; readonly documentId: string; readonly revisi"
     },
     {
+      "name": "KJPlanarBoundary",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarboundary",
+      "anchor": "root-interface-kjplanarboundary",
+      "summary": "export interface KJPlanarBoundary extends KJPlanarContour { readonly area: number; readonly hole: boolean; readonly depth: number; readonly sourceIds: readonly string[]; readonly segments: readonly KJPlanarBoundarySegmen"
+    },
+    {
+      "name": "KJPlanarBoundaryApplyOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarboundaryapplyoptions",
+      "anchor": "root-interface-kjplanarboundaryapplyoptions",
+      "summary": "export interface KJPlanarBoundaryApplyOptions extends KJContourBackendOptions { readonly author?: unknown; readonly commandEnvelope?: KJCommandEnvelopeContext | null; }"
+    },
+    {
+      "name": "KJPlanarBoundaryDiagnostic",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarboundarydiagnostic",
+      "anchor": "root-interface-kjplanarboundarydiagnostic",
+      "summary": "export interface KJPlanarBoundaryDiagnostic { readonly code: KJPlanarBoundaryDiagnosticCode; readonly sourceIds: readonly string[]; readonly message: string; readonly points: readonly (readonly [number, number, number])["
+    },
+    {
+      "name": "KJPlanarBoundaryDiagnosticCode",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjplanarboundarydiagnosticcode",
+      "anchor": "root-type-kjplanarboundarydiagnosticcode",
+      "summary": "export type KJPlanarBoundaryDiagnosticCode = 'open-chain' | 'branch' | 'near-endpoint' | 'self-intersection' | 'boundary-intersection' | 'incompatible-style' | 'precision';"
+    },
+    {
+      "name": "KJPlanarBoundaryEditRequest",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarboundaryeditrequest",
+      "anchor": "root-interface-kjplanarboundaryeditrequest",
+      "summary": "export interface KJPlanarBoundaryEditRequest extends KJPlanarBoundaryRequest { /** Required digest from the complete, read-only boundary preview. */ readonly expectedGeometryDigest: string; }"
+    },
+    {
+      "name": "KJPlanarBoundaryEditResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarboundaryeditresult",
+      "anchor": "root-interface-kjplanarboundaryeditresult",
+      "summary": "export interface KJPlanarBoundaryEditResult extends KJPlanarBoundaryPreview { readonly resultIds: readonly string[]; readonly revisionAfter: number; }"
+    },
+    {
+      "name": "KJPlanarBoundaryPreview",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarboundarypreview",
+      "anchor": "root-interface-kjplanarboundarypreview",
+      "summary": "export interface KJPlanarBoundaryPreview { readonly contours: readonly KJPlanarBoundary[]; readonly diagnostics: readonly KJPlanarBoundaryDiagnostic[]; /** False if any selected geometry was unresolved. Never apply a par"
+    },
+    {
+      "name": "KJPlanarBoundaryRequest",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarboundaryrequest",
+      "anchor": "root-interface-kjplanarboundaryrequest",
+      "summary": "export interface KJPlanarBoundaryRequest { readonly ids: readonly string[]; readonly units: string; readonly expectedRevision: number; /** Absolute ambiguity/geometry tolerance, in drawing units. No gap is snapped. */ re"
+    },
+    {
+      "name": "KJPlanarBoundarySegment",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarboundarysegment",
+      "anchor": "root-interface-kjplanarboundarysegment",
+      "summary": "export interface KJPlanarBoundarySegment { readonly sourceId: string; readonly sourceSegmentIndex: number; readonly reversed: boolean; }"
+    },
+    {
       "name": "KJPlanarContour",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -14163,6 +14331,14 @@
       "href": "./api/reference/#root-function-previewkjmodification",
       "anchor": "root-function-previewkjmodification",
       "summary": "export declare function previewKJModification(id: KJModificationId, context: KJModificationBuildContext, entities: readonly KJReadonlyObjectRecord[], options?: { readonly maxEntities?: number; }): KJModificationPreview |"
+    },
+    {
+      "name": "previewPlanarBoundaries",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-previewplanarboundaries",
+      "anchor": "root-function-previewplanarboundaries",
+      "summary": "export declare function previewPlanarBoundaries(document: KJDocument, input: KJPlanarBoundaryRequest, options?: KJContourBackendOptions): Promise<KJPlanarBoundaryPreview>;"
     },
     {
       "name": "previewPlanarContourEdit",

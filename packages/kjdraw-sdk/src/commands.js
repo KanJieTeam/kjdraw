@@ -13,6 +13,7 @@ import { applyHatchPatternEdits, validateHatchPatternEdits, nativeHatchPattern }
 import { editHatch } from './hatch-edit.js';
 import { insertCatalogComponent, searchComponentCatalog } from './component-library.js';
 import { applyPlanarContourEdit } from './planar-contours.js';
+import { applyPlanarBoundaryExtraction } from './planar-boundary-edit.js';
 import { entityArea2, entityLength2, distance2, dot2, invert3, multiply3, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
@@ -233,6 +234,22 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         emptyResultCommits: false,
         requiresExpectedRevision: true,
         requiresUnits: true
+    },
+    CONTOURBOUNDARIES: {
+        domain: 'geometry',
+        precision: 'native-arcs',
+        supportedEntityTypes: [
+            'LINE',
+            'ARC',
+            'CIRCLE',
+            'LWPOLYLINE'
+        ],
+        atomic: true,
+        preservesSources: true,
+        multipleResults: true,
+        requiresExpectedRevision: true,
+        requiresUnits: true,
+        requiresReviewedGeometry: true
     },
     BREAK: {
         domain: 'topology',
@@ -805,7 +822,8 @@ export class KJCommandRegistry {
         if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE');
         if ([
             'CONTOUROFFSET',
-            'CONTOURBOOLEAN'
+            'CONTOURBOOLEAN',
+            'CONTOURBOUNDARIES'
         ].includes(command.id) && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, command.id);
         if (command.transactional === false) {
             if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
@@ -850,7 +868,8 @@ export class KJCommandRegistry {
         if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE');
         if ([
             'CONTOUROFFSET',
-            'CONTOURBOOLEAN'
+            'CONTOURBOOLEAN',
+            'CONTOURBOUNDARIES'
         ].includes(command.id) && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, command.id);
         if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
         const scope = createCommandEditScope(context.transaction, command.id);
@@ -2043,6 +2062,27 @@ export function registerCoreCommands(registry) {
                 ...args,
                 operation: 'offset'
             }, {
+                author,
+                ...commandEnvelope ? {
+                    commandEnvelope: {
+                        id: commandEnvelope.id,
+                        schema: commandEnvelope.schema,
+                        schemaVersion: commandEnvelope.schemaVersion,
+                        origin: commandEnvelope.origin
+                    }
+                } : {}
+            });
+        }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'CONTOURBOUNDARIES',
+        title: 'Create reviewed planar boundaries',
+        transactional: false,
+        execute: ({ document, expectedRevision, author, commandEnvelope }, args)=>{
+            if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOURBOUNDARIES requires matching explicit expectedRevision in context and arguments');
+            return applyPlanarBoundaryExtraction(document, args, {
                 author,
                 ...commandEnvelope ? {
                     commandEnvelope: {

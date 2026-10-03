@@ -49,6 +49,8 @@ export * from './svg-adapter.js';
 export * from './print-export.js';
 export * from './editing.js';
 export * from './planar-contours.js';
+export * from './planar-boundaries.js';
+export * from './planar-boundary-edit.js';
 export * from './errors.js';
 export * from './events.js';
 export * from './extensions.js';

@@ -459,6 +459,17 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly requiresExpectedRevision: boolean;
         readonly requiresUnits: boolean;
     };
+    readonly CONTOURBOUNDARIES: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly supportedEntityTypes: readonly string[];
+        readonly atomic: boolean;
+        readonly preservesSources: boolean;
+        readonly multipleResults: boolean;
+        readonly requiresExpectedRevision: boolean;
+        readonly requiresUnits: boolean;
+        readonly requiresReviewedGeometry: boolean;
+    };
     readonly BREAK: {
         readonly domain: string;
         readonly precision: string;
