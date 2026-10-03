@@ -14,6 +14,22 @@ const MAX_PROMPT_LENGTH = 16000
 const MAX_DRAWING_BYTES = 20 * 1024 * 1024
 const CONNECTION_ERROR = '模型连接失败。请检查地址、网络及服务商的浏览器 CORS 设置；图纸未修改。'
 const GEOLOGY_CREATION_TOOLS = new Set(['cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_plan'])
+const STRUCTURAL_IMPACT_NOTICE = ' In this chat host, first call cad_query_impact with the final intended eraseIds as ids and inspect a successful canErase:true receipt in this same request. The unique ID set must match exactly, regardless of order: a subset, superset or union of separately queried sets is not that receipt. If you change the intended eraseIds, query that exact new set again before proposing; never remove necessary objects merely to fit a limit. The existing limits remain 1–64 query/erase IDs, 16 total creations plus reconnections, and 64 total actual changed records. For explicitly requested simulations choose only the illustrative detail needed to cover the complete request, without unrequested annotations or redundant boundary linework. Do not split one requested atomic edit into partial proposals to bypass these limits; if the complete request cannot fit, explain the specific limit without claiming completion.'
+
+function structuralImpactRequired(document, args) {
+  const ids = args?.eraseIds
+  const validIds = Array.isArray(ids) && ids.length > 0 && ids.length <= 64 &&
+    ids.every(id => typeof id === 'string' && id.length > 0 && id.length <= 256) && new Set(ids).size === ids.length
+  const validReadLimits = Number.isFinite(args?.tolerance) && args.tolerance > 0 && args.tolerance <= 1 &&
+    Number.isInteger(args?.maxBytes) && args.maxBytes >= 1024 && args.maxBytes <= 262144
+  return { code: 'CAD_IMPACT_REQUIRED',
+    message: 'Call cad_query_impact for these exact eraseIds at the current revision before proposing a structural edit. A previous subset, superset or union of separate queries is not an exact-set receipt; changing eraseIds requires a fresh successful query. No proposal was prepared and the drawing is unchanged.',
+    ...(validIds && validReadLimits ? { details: { matchRule: 'same-request-successful-exact-ID-set', requiredRead: {
+      name: 'cad_query_impact', arguments: { expectedRevision: document.revision, units: document.snapshot().header.units,
+        operation: 'erase', ids: [...ids], tolerance: args.tolerance, maxBytes: args.maxBytes },
+    } } } : {}),
+  }
+}
 
 const SUPPORTED_PROTOCOLS = new Set(['chat-completions', 'responses', 'anthropic-messages', 'gemini-generate-content'])
 const SPATIAL_TOOL = Object.freeze({
@@ -412,8 +428,10 @@ export function createAiChatRuntime(options = {}) {
       // Same-run receipts only: chat text, previous requests and provider
       // message fields cannot grant permission to dispatch native creation.
       const geologyCreationReads = {}
+      const modelDefinitions = session.definitions.map(tool => ['cad_query_impact', 'cad_propose_structural_edit'].includes(tool.name)
+        ? { ...tool, description: tool.description + STRUCTURAL_IMPACT_NOTICE } : tool)
       const modelSession = {
-        definitions: candidates.length && !capability ? [...session.definitions, SPATIAL_TOOL] : session.definitions,
+        definitions: candidates.length && !capability ? [...modelDefinitions, SPATIAL_TOOL] : modelDefinitions,
         async call(name, args) {
           if (name === SPATIAL_TOOL.name) return queryBuildingCandidates(document, args)
           if (GEOLOGY_CREATION_TOOLS.has(name)) {
@@ -430,7 +448,7 @@ export function createAiChatRuntime(options = {}) {
           if (name === 'cad_propose_structural_edit') {
             const signature = Array.isArray(args?.eraseIds) ? JSON.stringify([...args.eraseIds].sort()) : ''
             if (!checkedEraseIds.has(signature)) {
-              return { ok: false, error: { code: 'CAD_IMPACT_REQUIRED', message: 'Call cad_query_impact for these exact eraseIds at the current revision before proposing a structural edit.' } }
+              return { ok: false, error: structuralImpactRequired(document, args) }
             }
           }
           const result = await session.call(name, args)

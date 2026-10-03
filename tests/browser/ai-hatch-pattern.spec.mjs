@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/index.js'
+import { resolveChatToolReceipt } from '../helpers/native-entity-wire-references.mjs'
 
 const endpoint = 'https://ai-public-hatch-protocol.invalid/v1/chat/completions'
 const sourceName = '素填土', destinationName = '杂填土'
@@ -105,8 +106,8 @@ for (const protocol of ['JSON', 'SSE']) {
       expect(body.stream).toBe(true)
       expect(body.tools.some(tool => tool.function.name === 'cad_read_hatch_patterns')).toBe(true)
       expect(body.tools.some(tool => tool.function.name === 'cad_propose_hatch_pattern')).toBe(true)
-      const receiptText = body.messages.findLast(message => message.role === 'tool')?.content
-      const receipt = receiptText ? JSON.parse(receiptText) : null
+      const wireBefore = JSON.stringify(body), receipt = resolveChatToolReceipt(body)
+      expect(JSON.stringify(body)).toBe(wireBefore)
       if (receipt) { expect(receipt.ok).toBe(true); receipts.push(receipt) }
       let name, args
       if (calls.length === 0) { name = 'cad_read_drawing'; args = {} }
@@ -128,6 +129,8 @@ for (const protocol of ['JSON', 'SSE']) {
         expect(receipt.value.revision).toBe(catalog.revision)
         expect(receipt.value.units).toBe(catalog.units)
         expect(receipt.value.entities).toHaveLength(1)
+        const actualWire = JSON.parse(body.messages.findLast(message => message.role === 'tool').content)
+        expect(actualWire.value.entities[0].nativeEntityReference).toBeDefined()
         expect(receipt.value.entities[0]).toMatchObject({ id: proposalArgs.ids[0], type: 'HATCH' })
         name = 'cad_propose_hatch_pattern'
         args = { ...proposalArgs, expectedRevision: receipt.value.revision, units: receipt.value.units }

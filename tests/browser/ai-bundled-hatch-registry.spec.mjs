@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 import { createKJDrawSDK, hatchPatternFromCatalog, KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG } from '../../packages/kjdraw-sdk/src/index.js'
 import { nativeHatchPattern } from '../../packages/kjdraw-sdk/src/agent-hatch-pattern.js'
+import { resolveChatToolReceipt } from '../helpers/native-entity-wire-references.mjs'
 
 // Controlled public protocol responses, not live-model acceptance. HTTP bytes,
 // SDK resource discovery, native CAD, browser preview/approval, DXF and IDB are real.
@@ -115,7 +116,8 @@ for (const protocol of ['JSON', 'SSE']) {
       expect(body.stream).toBe(true)
       expect(body.model).toBe(`public-${protocol.toLowerCase()}-catalog-protocol-fixture-not-a-live-model`)
       for (const name of ['cad_read_hatch_patterns', 'cad_propose_hatch_pattern']) expect(body.tools.some(tool => tool.function.name === name)).toBe(true)
-      const last = body.messages.findLast(message => message.role === 'tool'), receipt = last ? JSON.parse(last.content) : null
+      const wireBefore = JSON.stringify(body), receipt = resolveChatToolReceipt(body)
+      expect(JSON.stringify(body)).toBe(wireBefore)
       if (receipt) { expect(receipt.ok).toBe(true); receipts.push(receipt) }
       let name, args
       if (!calls.length) { name = 'cad_read_drawing'; args = {} }
@@ -143,6 +145,8 @@ for (const protocol of ['JSON', 'SSE']) {
         name = 'cad_query_drawing'; args = { expectedRevision: revision, filters: { ids: source.entityIds }, offset: 0, limit: 64, layerOffset: 0, maxLayers: 64, maxBytes: 262144 }
       } else {
         expect(calls).toHaveLength(4); expect(receipt.value.revision).toBe(revision)
+        const actualWire = JSON.parse(body.messages.findLast(message => message.role === 'tool').content)
+        expect(actualWire.value.entities.every(entity => entity.nativeEntityReference)).toBe(true)
         expect(receipt.value.entities.map(entity => entity.id).sort()).toEqual([...source.entityIds].sort())
         expect(receipt.value.entities.every(entity => entity.type === 'HATCH')).toBe(true)
         name = 'cad_propose_hatch_pattern'; args = proposalArgs

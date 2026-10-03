@@ -1369,6 +1369,7 @@ ui.protocol.addEventListener('change',()=>{
 })
 ui.settingsForm.addEventListener('submit',async event=>{
   event.preventDefault()
+  await initialLoad
   if (busy || importing) {ui.settingsError.textContent=t('importBusy');ui.settingsError.hidden=false;return}
   const endpoint=ui.endpoint.value.trim(), model=ui.model.value.trim()
   const provider=ui.provider.value, protocol=ui.protocol.value
