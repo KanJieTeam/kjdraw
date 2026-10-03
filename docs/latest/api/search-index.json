@@ -2,8 +2,128 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:be83c94b8c58c3876821c062a01928c96e8f904880d309feff978c8f7bcbbb43",
+  "sourceDigest": "sha256:e75fc362a86661f65549135c57146f451bd02d9ca861baee6caf3e4b04b3869a",
   "entries": [
+    {
+      "name": "applyPlanarContourEdit",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-function-applyplanarcontouredit",
+      "anchor": "planar-contours-function-applyplanarcontouredit",
+      "summary": "export declare function applyPlanarContourEdit(document: KJDocument, input: KJPlanarContourEditRequest, options?: KJPlanarContourApplyOptions): Promise<KJPlanarContourEditResult>;"
+    },
+    {
+      "name": "computePlanarContours",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-function-computeplanarcontours",
+      "anchor": "planar-contours-function-computeplanarcontours",
+      "summary": "export declare function computePlanarContours(input: KJPlanarContourRequest, options?: KJContourBackendOptions): Promise<KJPlanarContourGeometry>;"
+    },
+    {
+      "name": "default",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-type-default",
+      "anchor": "planar-contours-type-default",
+      "summary": "export type { KJContourBackendOptions } from './geometry/contour-wasm.js';"
+    },
+    {
+      "name": "KJPlanarContour",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-interface-kjplanarcontour",
+      "anchor": "planar-contours-interface-kjplanarcontour",
+      "summary": "export interface KJPlanarContour { readonly closed: true; readonly vertices: readonly KJPlanarContourVertex[]; }"
+    },
+    {
+      "name": "KJPlanarContourApplyOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-interface-kjplanarcontourapplyoptions",
+      "anchor": "planar-contours-interface-kjplanarcontourapplyoptions",
+      "summary": "export interface KJPlanarContourApplyOptions extends KJContourBackendOptions { readonly author?: unknown; /** Host-supplied provenance only; it cannot replace the operation or geometry receipt. */ readonly commandEnvelop"
+    },
+    {
+      "name": "KJPlanarContourEditRequest",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-interface-kjplanarcontoureditrequest",
+      "anchor": "planar-contours-interface-kjplanarcontoureditrequest",
+      "summary": "export interface KJPlanarContourEditRequest { readonly operation: KJPlanarContourOperation; readonly ids: readonly string[]; readonly units: string; readonly expectedRevision: number; readonly distance?: number; readonly"
+    },
+    {
+      "name": "KJPlanarContourEditResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-interface-kjplanarcontoureditresult",
+      "anchor": "planar-contours-interface-kjplanarcontoureditresult",
+      "summary": "export interface KJPlanarContourEditResult extends KJPlanarContourPreview { readonly resultIds: readonly string[]; readonly revisionAfter: number; }"
+    },
+    {
+      "name": "KJPlanarContourGeometry",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-interface-kjplanarcontourgeometry",
+      "anchor": "planar-contours-interface-kjplanarcontourgeometry",
+      "summary": "export interface KJPlanarContourGeometry { readonly contours: readonly KJPlanarContourResult[]; readonly area: number; readonly receipt: KJPlanarContourReceipt; }"
+    },
+    {
+      "name": "KJPlanarContourOperation",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-type-kjplanarcontouroperation",
+      "anchor": "planar-contours-type-kjplanarcontouroperation",
+      "summary": "export type KJPlanarContourOperation = 'offset' | 'union' | 'intersection' | 'difference';"
+    },
+    {
+      "name": "KJPlanarContourPreview",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-interface-kjplanarcontourpreview",
+      "anchor": "planar-contours-interface-kjplanarcontourpreview",
+      "summary": "export interface KJPlanarContourPreview extends KJPlanarContourGeometry { readonly sourceIds: readonly string[]; readonly sourceDigest: string; readonly units: string; readonly revisionBefore: number; }"
+    },
+    {
+      "name": "KJPlanarContourReceipt",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-interface-kjplanarcontourreceipt",
+      "anchor": "planar-contours-interface-kjplanarcontourreceipt",
+      "summary": "export interface KJPlanarContourReceipt { readonly schema: 'kjdraw.planar-contours.v1'; readonly backend: 'cavalier-contours-wasm'; readonly abi: string; readonly operation: KJPlanarContourOperation; /** Total caller-req"
+    },
+    {
+      "name": "KJPlanarContourRequest",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-interface-kjplanarcontourrequest",
+      "anchor": "planar-contours-interface-kjplanarcontourrequest",
+      "summary": "export interface KJPlanarContourRequest { readonly operation: KJPlanarContourOperation; /** Offset: CCW exterior rings and CW holes. Boolean: exactly two simple regions. */ readonly contours: readonly KJPlanarContour[]; "
+    },
+    {
+      "name": "KJPlanarContourResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-interface-kjplanarcontourresult",
+      "anchor": "planar-contours-interface-kjplanarcontourresult",
+      "summary": "export interface KJPlanarContourResult extends KJPlanarContour { readonly area: number; readonly hole: boolean; }"
+    },
+    {
+      "name": "KJPlanarContourVertex",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-interface-kjplanarcontourvertex",
+      "anchor": "planar-contours-interface-kjplanarcontourvertex",
+      "summary": "export interface KJPlanarContourVertex { readonly point: readonly [number, number, number]; /** Native DXF bulge. Major arcs are split into native arcs by the kernel. */ readonly bulge?: number; }"
+    },
+    {
+      "name": "previewPlanarContourEdit",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/planar-contours",
+      "href": "./api/reference/#planar-contours-function-previewplanarcontouredit",
+      "anchor": "planar-contours-function-previewplanarcontouredit",
+      "summary": "export declare function previewPlanarContourEdit(document: KJDocument, request: KJPlanarContourEditRequest, options?: KJContourBackendOptions): Promise<KJPlanarContourPreview>;"
+    },
     {
       "name": "buildCadSkillJsonContract",
       "kind": "function",
@@ -6797,6 +6917,14 @@
       "summary": "export declare function applyGeologySectionLinkChanges(before: ReadonlyDeep<KJGeologySectionInput>, changes: KJGeologySectionLinkChanges): KJGeologySectionInput;"
     },
     {
+      "name": "applyPlanarContourEdit",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-applyplanarcontouredit",
+      "anchor": "root-function-applyplanarcontouredit",
+      "summary": "export declare function applyPlanarContourEdit(document: KJDocument, input: KJPlanarContourEditRequest, options?: KJPlanarContourApplyOptions): Promise<KJPlanarContourEditResult>;"
+    },
+    {
       "name": "ArcDefinition",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -7251,6 +7379,14 @@
       "href": "./api/reference/#root-function-compileknowledgedrawing",
       "anchor": "root-function-compileknowledgedrawing",
       "summary": "export declare function compileKnowledgeDrawing(source: KJKnowledgeCompileInput): ReadonlyDeep<KJKnowledgeCompileResult>;"
+    },
+    {
+      "name": "computePlanarContours",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-computeplanarcontours",
+      "anchor": "root-function-computeplanarcontours",
+      "summary": "export declare function computePlanarContours(input: KJPlanarContourRequest, options?: KJContourBackendOptions): Promise<KJPlanarContourGeometry>;"
     },
     {
       "name": "constrainOrthogonalDraftPoint",
@@ -12805,6 +12941,94 @@
       "summary": "export interface KJPersistedAgentTaskRunResult extends KJAgentRunResult { readonly task: { readonly id: string; readonly version: number; readonly status: 'ready' | 'running'; readonly documentId: string; readonly revisi"
     },
     {
+      "name": "KJPlanarContour",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarcontour",
+      "anchor": "root-interface-kjplanarcontour",
+      "summary": "export interface KJPlanarContour { readonly closed: true; readonly vertices: readonly KJPlanarContourVertex[]; }"
+    },
+    {
+      "name": "KJPlanarContourApplyOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarcontourapplyoptions",
+      "anchor": "root-interface-kjplanarcontourapplyoptions",
+      "summary": "export interface KJPlanarContourApplyOptions extends KJContourBackendOptions { readonly author?: unknown; /** Host-supplied provenance only; it cannot replace the operation or geometry receipt. */ readonly commandEnvelop"
+    },
+    {
+      "name": "KJPlanarContourEditRequest",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarcontoureditrequest",
+      "anchor": "root-interface-kjplanarcontoureditrequest",
+      "summary": "export interface KJPlanarContourEditRequest { readonly operation: KJPlanarContourOperation; readonly ids: readonly string[]; readonly units: string; readonly expectedRevision: number; readonly distance?: number; readonly"
+    },
+    {
+      "name": "KJPlanarContourEditResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarcontoureditresult",
+      "anchor": "root-interface-kjplanarcontoureditresult",
+      "summary": "export interface KJPlanarContourEditResult extends KJPlanarContourPreview { readonly resultIds: readonly string[]; readonly revisionAfter: number; }"
+    },
+    {
+      "name": "KJPlanarContourGeometry",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarcontourgeometry",
+      "anchor": "root-interface-kjplanarcontourgeometry",
+      "summary": "export interface KJPlanarContourGeometry { readonly contours: readonly KJPlanarContourResult[]; readonly area: number; readonly receipt: KJPlanarContourReceipt; }"
+    },
+    {
+      "name": "KJPlanarContourOperation",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjplanarcontouroperation",
+      "anchor": "root-type-kjplanarcontouroperation",
+      "summary": "export type KJPlanarContourOperation = 'offset' | 'union' | 'intersection' | 'difference';"
+    },
+    {
+      "name": "KJPlanarContourPreview",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarcontourpreview",
+      "anchor": "root-interface-kjplanarcontourpreview",
+      "summary": "export interface KJPlanarContourPreview extends KJPlanarContourGeometry { readonly sourceIds: readonly string[]; readonly sourceDigest: string; readonly units: string; readonly revisionBefore: number; }"
+    },
+    {
+      "name": "KJPlanarContourReceipt",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarcontourreceipt",
+      "anchor": "root-interface-kjplanarcontourreceipt",
+      "summary": "export interface KJPlanarContourReceipt { readonly schema: 'kjdraw.planar-contours.v1'; readonly backend: 'cavalier-contours-wasm'; readonly abi: string; readonly operation: KJPlanarContourOperation; /** Total caller-req"
+    },
+    {
+      "name": "KJPlanarContourRequest",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarcontourrequest",
+      "anchor": "root-interface-kjplanarcontourrequest",
+      "summary": "export interface KJPlanarContourRequest { readonly operation: KJPlanarContourOperation; /** Offset: CCW exterior rings and CW holes. Boolean: exactly two simple regions. */ readonly contours: readonly KJPlanarContour[]; "
+    },
+    {
+      "name": "KJPlanarContourResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarcontourresult",
+      "anchor": "root-interface-kjplanarcontourresult",
+      "summary": "export interface KJPlanarContourResult extends KJPlanarContour { readonly area: number; readonly hole: boolean; }"
+    },
+    {
+      "name": "KJPlanarContourVertex",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjplanarcontourvertex",
+      "anchor": "root-interface-kjplanarcontourvertex",
+      "summary": "export interface KJPlanarContourVertex { readonly point: readonly [number, number, number]; /** Native DXF bulge. Major arcs are split into native arcs by the kernel. */ readonly bulge?: number; }"
+    },
+    {
       "name": "KJPluginCompatibility",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -13939,6 +14163,14 @@
       "href": "./api/reference/#root-function-previewkjmodification",
       "anchor": "root-function-previewkjmodification",
       "summary": "export declare function previewKJModification(id: KJModificationId, context: KJModificationBuildContext, entities: readonly KJReadonlyObjectRecord[], options?: { readonly maxEntities?: number; }): KJModificationPreview |"
+    },
+    {
+      "name": "previewPlanarContourEdit",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-previewplanarcontouredit",
+      "anchor": "root-function-previewplanarcontouredit",
+      "summary": "export declare function previewPlanarContourEdit(document: KJDocument, request: KJPlanarContourEditRequest, options?: KJContourBackendOptions): Promise<KJPlanarContourPreview>;"
     },
     {
       "name": "projectParameter2",

@@ -12,6 +12,7 @@ import { applyTextEdits, validateTextEdits } from './text-edit.js';
 import { applyHatchPatternEdits, validateHatchPatternEdits, nativeHatchPattern } from './agent-hatch-pattern.js';
 import { editHatch } from './hatch-edit.js';
 import { insertCatalogComponent, searchComponentCatalog } from './component-library.js';
+import { applyPlanarContourEdit } from './planar-contours.js';
 import { entityArea2, entityLength2, distance2, dot2, invert3, multiply3, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
@@ -199,6 +200,39 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'CIRCLE',
             'ARC'
         ]
+    },
+    CONTOUROFFSET: {
+        domain: 'geometry',
+        precision: 'native-arcs',
+        supportedEntityTypes: [
+            'LWPOLYLINE',
+            'CIRCLE'
+        ],
+        atomic: true,
+        preservesSources: true,
+        multipleResults: true,
+        emptyResultCommits: false,
+        requiresExpectedRevision: true,
+        requiresUnits: true
+    },
+    CONTOURBOOLEAN: {
+        domain: 'geometry',
+        precision: 'native-arcs',
+        operations: [
+            'union',
+            'intersection',
+            'difference'
+        ],
+        supportedEntityTypes: [
+            'LWPOLYLINE',
+            'CIRCLE'
+        ],
+        atomic: true,
+        preservesSources: true,
+        multipleResults: true,
+        emptyResultCommits: false,
+        requiresExpectedRevision: true,
+        requiresUnits: true
     },
     BREAK: {
         domain: 'topology',
@@ -769,6 +803,10 @@ export class KJCommandRegistry {
         if (command.id === 'HATCHPATTERN' && command.owner === '@kanjieteam/kjdraw') validateHatchPatternEdits(args);
         if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
         if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE');
+        if ([
+            'CONTOUROFFSET',
+            'CONTOURBOOLEAN'
+        ].includes(command.id) && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, command.id);
         if (command.transactional === false) {
             if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
             return command.execute({
@@ -810,6 +848,10 @@ export class KJCommandRegistry {
         if (command.id === 'HATCHPATTERN' && command.owner === '@kanjieteam/kjdraw') validateHatchPatternEdits(args);
         if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
         if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE');
+        if ([
+            'CONTOUROFFSET',
+            'CONTOURBOOLEAN'
+        ].includes(command.id) && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, command.id);
         if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
         const scope = createCommandEditScope(context.transaction, command.id);
         const result = await command.execute({
@@ -1987,6 +2029,57 @@ export function registerCoreCommands(registry) {
         ],
         title: 'Polar array',
         execute: (context, args)=>polarArray(context, args)
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'CONTOUROFFSET',
+        title: 'Offset closed planar contours',
+        transactional: false,
+        execute: ({ document, expectedRevision, author, commandEnvelope }, args)=>{
+            if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOUROFFSET requires matching explicit expectedRevision in context and arguments');
+            if (args.operation !== undefined && args.operation !== 'offset') throw new KJValidationError('CONTOUROFFSET operation must be offset');
+            return applyPlanarContourEdit(document, {
+                ...args,
+                operation: 'offset'
+            }, {
+                author,
+                ...commandEnvelope ? {
+                    commandEnvelope: {
+                        id: commandEnvelope.id,
+                        schema: commandEnvelope.schema,
+                        schemaVersion: commandEnvelope.schemaVersion,
+                        origin: commandEnvelope.origin
+                    }
+                } : {}
+            });
+        }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'CONTOURBOOLEAN',
+        title: 'Combine closed planar contours',
+        transactional: false,
+        execute: ({ document, expectedRevision, author, commandEnvelope }, args)=>{
+            if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOURBOOLEAN requires matching explicit expectedRevision in context and arguments');
+            if (![
+                'union',
+                'intersection',
+                'difference'
+            ].includes(args.operation)) throw new KJValidationError('CONTOURBOOLEAN operation must be union, intersection or difference');
+            return applyPlanarContourEdit(document, args, {
+                author,
+                ...commandEnvelope ? {
+                    commandEnvelope: {
+                        id: commandEnvelope.id,
+                        schema: commandEnvelope.schema,
+                        schemaVersion: commandEnvelope.schemaVersion,
+                        origin: commandEnvelope.origin
+                    }
+                } : {}
+            });
+        }
     }, {
         owner: '@kanjieteam/kjdraw'
     }));

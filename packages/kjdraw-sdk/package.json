@@ -61,6 +61,11 @@
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./planar-contours": {
+      "types": "./types/planar-contours.d.ts",
+      "import": "./src/planar-contours.js",
+      "default": "./src/planar-contours.js"
+    },
     "./agent-skill-json": {
       "types": "./types/agent-skill-json.d.ts",
       "import": "./src/agent-skill-json.js",

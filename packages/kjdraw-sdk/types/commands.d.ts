@@ -436,6 +436,29 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly precision: string;
         readonly supportedEntityTypes: readonly string[];
     };
+    readonly CONTOUROFFSET: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly supportedEntityTypes: readonly string[];
+        readonly atomic: boolean;
+        readonly preservesSources: boolean;
+        readonly multipleResults: boolean;
+        readonly emptyResultCommits: boolean;
+        readonly requiresExpectedRevision: boolean;
+        readonly requiresUnits: boolean;
+    };
+    readonly CONTOURBOOLEAN: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly operations: readonly string[];
+        readonly supportedEntityTypes: readonly string[];
+        readonly atomic: boolean;
+        readonly preservesSources: boolean;
+        readonly multipleResults: boolean;
+        readonly emptyResultCommits: boolean;
+        readonly requiresExpectedRevision: boolean;
+        readonly requiresUnits: boolean;
+    };
     readonly BREAK: {
         readonly domain: string;
         readonly precision: string;

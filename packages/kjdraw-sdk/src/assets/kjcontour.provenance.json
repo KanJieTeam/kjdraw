@@ -1,0 +1,44 @@
+{
+  "schema": "com.kanjie.kjdraw.contour-wasm-provenance",
+  "schemaVersion": 1,
+  "abiVersion": 1,
+  "source": "runtime/kjcore-rs/crates/kjcontour-wasm",
+  "algorithm": {
+    "name": "cavalier_contours",
+    "version": "0.9.0",
+    "license": "MIT OR Apache-2.0"
+  },
+  "target": "wasm32-unknown-unknown",
+  "pathRemapping": {
+    "repository": "/kjdraw",
+    "cargoHome": "/cargo",
+    "rustupHome": "/rustup"
+  },
+  "buildFlags": {
+    "cargo": [
+      "build",
+      "--locked",
+      "-p",
+      "kjcontour-wasm",
+      "--target",
+      "wasm32-unknown-unknown",
+      "--release"
+    ],
+    "rustcTemplates": [
+      "--remap-path-prefix=<repository>=/kjdraw",
+      "--remap-path-prefix=<cargoHome>=/cargo",
+      "--remap-path-prefix=<rustupHome>=/rustup"
+    ],
+    "rustcFlagsEncoding": "CARGO_ENCODED_RUSTFLAGS",
+    "inheritedRustFlagCount": 0
+  },
+  "sources": {
+    "runtime/kjcore-rs/Cargo.toml": "0c9f4153046f58412cdb4e64e1d490859708df8498309ac09e4c8e5737c4b6c5",
+    "runtime/kjcore-rs/Cargo.lock": "7af703011be049b3f46641cabaefffd61383013d746ecc0741496f1103632c66",
+    "runtime/kjcore-rs/crates/kjcontour-wasm/Cargo.toml": "9f56cf49e19e29255d9d03233e27dc600878727aeb79f1d3e9b0634bff05b442",
+    "runtime/kjcore-rs/crates/kjcontour-wasm/src/lib.rs": "cbcc77d1bba303a59440b3c9f1dddba449f7d7b7eeccfd625466cedbaf8a6153",
+    "scripts/build-contour-wasm.mjs": "1452e5efedee4e18604d92965431ef1d92e6a07c538a9e1e431298ecf82a79e9"
+  },
+  "licensesSha256": "62c253010e057a88fb462c969a2258741a3623924adb534e73ab98549862acbc",
+  "sha256": "48c2835231a1f5fad2ef6f584efab00e91419226a1e492c97099105d89e67f33"
+}

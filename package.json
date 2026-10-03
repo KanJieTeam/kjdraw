@@ -21,6 +21,7 @@
     "build:docs": "node scripts/build-docs-site.mjs && node scripts/build-api-docs.mjs",
     "build": "node --no-warnings scripts/build-typescript.mjs && node scripts/build-declarations.mjs && node scripts/build-docs-site.mjs && node scripts/build-api-docs.mjs && node scripts/build.mjs",
     "build:wasm": "node scripts/build-wasm.mjs",
+    "build:contour-wasm": "node scripts/build-contour-wasm.mjs",
     "release:version": "node scripts/set-version.mjs",
     "example": "node examples/agent-command.mjs",
     "test:browser": "playwright test",

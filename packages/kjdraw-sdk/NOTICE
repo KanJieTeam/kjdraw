@@ -23,3 +23,6 @@ vendor, nor does it redistribute the legacy software or private drawings.
 The resource provenance and exact SHA-256 digests are exported by
 src/knowledge-packs/geology-patterns.js. The symbols are drawing resources,
 not verified geological classifications or a claim of universal standards.
+The optional contour WASM module bundles Cavalier Contours 0.9.0 and its
+locked Rust dependencies. Copyright attribution and selected license terms
+are included in src/assets/kjcontour-LICENSES.txt.

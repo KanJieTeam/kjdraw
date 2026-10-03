@@ -13,6 +13,7 @@ import { applyTextEdits, validateTextEdits } from './text-edit.js'
 import { applyHatchPatternEdits, validateHatchPatternEdits, nativeHatchPattern } from './agent-hatch-pattern.js'
 import { editHatch } from './hatch-edit.js'
 import { insertCatalogComponent, searchComponentCatalog } from './component-library.js'
+import { applyPlanarContourEdit, type KJPlanarContourEditRequest } from './planar-contours.js'
 import type { KJRoadDrawingResult } from './road-drawing.js'
 import {
   entityArea2,
@@ -380,6 +381,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   ARRAYRECT: { domain: 'geometry', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
   ARRAYPOLAR: { domain: 'geometry', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
   OFFSET: { domain: 'geometry', precision: 'exact', supportedEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
+  CONTOUROFFSET: { domain: 'geometry', precision: 'native-arcs', supportedEntityTypes: ['LWPOLYLINE', 'CIRCLE'], atomic: true, preservesSources: true, multipleResults: true, emptyResultCommits: false, requiresExpectedRevision: true, requiresUnits: true },
+  CONTOURBOOLEAN: { domain: 'geometry', precision: 'native-arcs', operations: ['union', 'intersection', 'difference'], supportedEntityTypes: ['LWPOLYLINE', 'CIRCLE'], atomic: true, preservesSources: true, multipleResults: true, emptyResultCommits: false, requiresExpectedRevision: true, requiresUnits: true },
   BREAK: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC', 'CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'], deterministicPieces: true },
   JOIN: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'], maximumEntities: 4096 },
   EXPLODE: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE', 'REVISION_CLOUD', 'WIPEOUT'] },
@@ -501,6 +504,7 @@ export class KJCommandRegistry {
     if (command.id === 'HATCHPATTERN' && command.owner === '@kanjieteam/kjdraw') validateHatchPatternEdits(args)
     if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE')
     if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE')
+    if (['CONTOUROFFSET', 'CONTOURBOOLEAN'].includes(command.id) && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, command.id)
     if (command.transactional === false) {
       if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`)
       return command.execute({ ...context, transaction: null } as unknown as KJCommandContext, clone(args))
@@ -538,6 +542,7 @@ export class KJCommandRegistry {
     if (command.id === 'HATCHPATTERN' && command.owner === '@kanjieteam/kjdraw') validateHatchPatternEdits(args)
     if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE')
     if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE')
+    if (['CONTOUROFFSET', 'CONTOURBOOLEAN'].includes(command.id) && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, command.id)
     if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`)
     const scope = createCommandEditScope(context.transaction, command.id)
     const result = await command.execute({ ...context, transaction: scope.transaction }, clone(args))
@@ -1141,6 +1146,22 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   disposers.push(registry.register({
     id: 'ARRAYPOLAR', aliases: ['POLARARRAY'], title: 'Polar array',
     execute: (context, args) => polarArray(context, args),
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'CONTOUROFFSET', title: 'Offset closed planar contours', transactional: false,
+    execute: ({ document, expectedRevision, author, commandEnvelope }, args) => {
+      if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOUROFFSET requires matching explicit expectedRevision in context and arguments')
+      if (args.operation !== undefined && args.operation !== 'offset') throw new KJValidationError('CONTOUROFFSET operation must be offset')
+      return applyPlanarContourEdit(document, { ...args, operation: 'offset' } as unknown as KJPlanarContourEditRequest, { author, ...(commandEnvelope ? { commandEnvelope: { id: commandEnvelope.id, schema: commandEnvelope.schema, schemaVersion: commandEnvelope.schemaVersion, origin: commandEnvelope.origin } } : {}) })
+    },
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'CONTOURBOOLEAN', title: 'Combine closed planar contours', transactional: false,
+    execute: ({ document, expectedRevision, author, commandEnvelope }, args) => {
+      if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOURBOOLEAN requires matching explicit expectedRevision in context and arguments')
+      if (!['union', 'intersection', 'difference'].includes(args.operation as string)) throw new KJValidationError('CONTOURBOOLEAN operation must be union, intersection or difference')
+      return applyPlanarContourEdit(document, args as unknown as KJPlanarContourEditRequest, { author, ...(commandEnvelope ? { commandEnvelope: { id: commandEnvelope.id, schema: commandEnvelope.schema, schemaVersion: commandEnvelope.schemaVersion, origin: commandEnvelope.origin } } : {}) })
+    },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'OFFSET', aliases: ['O'], title: 'Offset entity',
