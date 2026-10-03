@@ -1252,8 +1252,8 @@ function entityPayload(record, blockIds, resources = {}) {
                     arrowEnabled: number(record, 71, 1) !== 0,
                     pathType: number(record, 72, 0),
                     annotationType: number(record, 73, 3),
-                    hookLineDirection: number(record, 74, 0),
-                    hookLineEnabled: number(record, 75, 0) !== 0,
+                    hookLineDirection: values(record, 74).length ? number(record, 74) : null,
+                    hookLineEnabled: values(record, 75).length ? number(record, 75) !== 0 : null,
                     ...values(record, 40).length ? {
                         textHeight: number(record, 40)
                     } : {},
@@ -2114,11 +2114,6 @@ async function readDXF(source, options = {}) {
         for (const { id, annotationHandle } of leaderReferences){
             const leader = transaction.getObject(id);
             if (annotationHandle === null || annotationHandle === '0') {
-                if (leader.payload.annotationType !== 3) transaction.updateObject(id, {
-                    payload: {
-                        unresolvedLeaderAnnotation: `${annotationHandle ?? '(missing)'}:missing-annotation`
-                    }
-                });
                 continue;
             }
             const annotationId = entityHandleIds.get(annotationHandle), annotation = annotationId ? transaction.getObject(annotationId) : null;
@@ -2134,14 +2129,6 @@ async function readDXF(source, options = {}) {
                 transaction.updateObject(id, {
                     payload: {
                         unresolvedLeaderAnnotation: `${annotationHandle}:wrong-owner`
-                    }
-                });
-                continue;
-            }
-            if (leader.payload.annotationType !== leaderAnnotationFlag(annotation.type)) {
-                transaction.updateObject(id, {
-                    payload: {
-                        unresolvedLeaderAnnotation: `${annotationHandle}:annotation-type-mismatch`
                     }
                 });
                 continue;
@@ -3616,15 +3603,14 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || leaderAnnotationFlag(annotation.type) === null || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT, TOLERANCE or INSERT in the same owner space');
         if (!p.annotationId && p.annotationHandle && p.annotationHandle !== '0') throw new KJValidationError(`DXF LEADER has an unresolved annotation handle: ${p.annotationHandle}`);
         const annotationType = p.annotationType ?? (annotation ? 0 : 3);
-        if (annotationType !== (annotation ? leaderAnnotationFlag(annotation.type) : 3)) throw new KJValidationError('DXF LEADER annotation type flag does not match its associated annotation');
         const textHeight = (annotation?.type === 'MTEXT' ? annotation.payload.height : undefined) ?? p.textHeight, textWidth = (annotation?.type === 'MTEXT' ? annotation.payload.width : undefined) ?? p.textWidth;
         emitSubclass(output, version, 'AcDbLeader');
         emit(output, 3, 'STANDARD');
         emit(output, 71, p.arrowEnabled === false ? 0 : 1);
         emit(output, 72, p.pathType ?? 0);
         emit(output, 73, annotationType);
-        emit(output, 74, p.hookLineDirection ?? 0);
-        emit(output, 75, p.hookLineEnabled === true ? 1 : 0);
+        if (p.hookLineDirection !== null) emit(output, 74, p.hookLineDirection ?? 0);
+        if (p.hookLineEnabled !== null) emit(output, 75, p.hookLineEnabled === true ? 1 : 0);
         if (textHeight != null) emit(output, 40, textHeight);
         if (textWidth != null) emit(output, 41, textWidth);
         emit(output, 76, entityVertices.length);

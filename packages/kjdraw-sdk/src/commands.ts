@@ -1936,7 +1936,7 @@ function editLeaderAnnotation(document: KJDocument, transaction: KJTransaction, 
   const updatedAnnotation = annotation
     ? transaction.updateObject(annotation.id, { payload: { position: textPosition, text, height, ...widthPatch, rotation, attachmentPoint, styleId, ...(layerId == null ? {} : { layerId }) } })
     : transaction.createEntity('MTEXT', { position: textPosition, text, height, ...(width === null ? {} : { width }), rotation, attachmentPoint, styleId, ...(layerId == null ? {} : { layerId }) }, { ownerId: source.ownerId })
-  const updatedLeader = transaction.updateObject(source.id, { payload: { vertices, textPosition, annotationId: updatedAnnotation.id, ownsAnnotation: annotation ? source.payload.ownsAnnotation : true, annotationType: 0, arrowEnabled: args.arrowEnabled ?? source.payload.arrowEnabled ?? true, ...(layerId == null ? {} : { layerId }) } })
+  const updatedLeader = transaction.updateObject(source.id, { payload: { vertices, textPosition, annotationId: updatedAnnotation.id, ownsAnnotation: annotation ? source.payload.ownsAnnotation : true, annotationType: annotation ? source.payload.annotationType ?? 0 : 0, arrowEnabled: args.arrowEnabled ?? source.payload.arrowEnabled ?? true, ...(layerId == null ? {} : { layerId }) } })
   return { leader: updatedLeader, annotation: updatedAnnotation }
 }
 

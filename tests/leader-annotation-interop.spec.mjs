@@ -103,6 +103,18 @@ function changeLeader(source, handle, changes) {
   }
   return tags.map(t => `${t.code}\n${t.value}`).join('\n') + '\n'
 }
+function leaderFlagTags(source, handle) {
+  const lines = source.replaceAll('\r\n', '\n').split('\n'), records = []
+  let record
+  for (let i = 0; i + 1 < lines.length; i += 2) {
+    const code = Number(lines[i].trim()), value = lines[i + 1].trim()
+    if (code === 0) { record = []; records.push(record) }
+    record?.push({ code, value })
+  }
+  const leader = records.find(r => r[0]?.value === 'LEADER' && r.find(t => t.code === 5)?.value === handle)
+  assert.ok(leader)
+  return Object.fromEntries([74, 75].map(code => [code, leader.find(t => t.code === code)?.value ?? null]))
+}
 
 test('all three legal annotation categories preserve group 73/340, handles, geometry and attributes through two KJD/DXF rounds', async () => {
   const original = sourceFixture(), sdk = createKJDrawSDK()
@@ -147,6 +159,7 @@ test('TOLERANCE and INSERT associations do not become owned MTEXT or gain text-e
 test('native MTEXT creation and edit retain the existing coupled text sizing and reference behavior', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const pair = await sdk.executeCommand('LEADER', { vertices: [[0, 0, 0], [10, 5, 0]], text: 'A', textHeight: 3 }, { document })
+  assert.equal(pair.leader.payload.hookLineDirection, 0); assert.equal(pair.leader.payload.hookLineEnabled, false)
   await sdk.executeCommand('LEADEREDIT', { id: pair.leader.id, text: 'B', textHeight: 4 }, { document })
   const exported = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   const reopened = await sdk.readDocument(exported, { format: 'DXF' }), leader = reopened.listEntities({ type: 'LEADER' })[0], note = reopened.getObject(leader.payload.annotationId)
@@ -156,17 +169,49 @@ test('native MTEXT creation and edit retain the existing coupled text sizing and
   assert.equal(observed.leaders[0].flag, 0); assert.equal(observed.leaders[0].annotation, observed.notes[0].handle)
 })
 
-test('missing, wrong-type, different-owner and flag-mismatched source references stay diagnosed and cannot be exported', async () => {
+test('every absent/0/1 combination of groups 74 and 75 survives text edits and two KJD/DXF rounds without guessing defaults', async () => {
+  const original = sourceFixture(), annotated = original.leaders.find(l => l.flag === 0)
+  for (const direction of [null, 0, 1]) for (const enabled of [null, 0, 1]) {
+    const source = changeLeader(original.source, annotated.handle, { 74: direction, 75: enabled })
+    const expected = semantic(oracle({ mode: 'inspect', source })), expectedTags = leaderFlagTags(source, annotated.handle)
+    expected.notes.find(n => n.handle === annotated.annotation).text = 'EDITED SYNTHETIC NOTE'
+    const sdk = createKJDrawSDK(); let document = await sdk.readDocument(source, { format: 'DXF' })
+    await sdk.executeCommand('LEADEREDIT', { id: findHandle(document, annotated.handle).id, text: 'EDITED SYNTHETIC NOTE' }, { document })
+    for (let round = 0; round < 2; round++) {
+      const native = findHandle(document, annotated.handle)
+      assert.equal(native.payload.hookLineDirection, direction)
+      assert.equal(native.payload.hookLineEnabled, enabled === null ? null : enabled === 1)
+      const before = state(document), kjd = await sdk.writeDocument(document, { format: 'KJD' })
+      document = await sdk.readDocument(kjd, { format: 'KJD' })
+      assert.deepEqual(document.toJSON().objects, json(before.json.objects))
+      const dxf = String(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }))
+      assert.deepEqual(leaderFlagTags(dxf, annotated.handle), expectedTags)
+      assertInterop(semantic(oracle({ mode: 'inspect', source: dxf })), expected)
+      document = await sdk.readDocument(dxf, { format: 'DXF' })
+    }
+  }
+})
+
+test('explicit zero and one flag edits replace omission and survive KJD without stale omission metadata', async () => {
+  const original = sourceFixture(), annotated = original.leaders.find(l => l.flag === 0), sdk = createKJDrawSDK()
+  const source = changeLeader(original.source, annotated.handle, { 74: null, 75: null })
+  const document = await sdk.readDocument(source, { format: 'DXF' }), leader = findHandle(document, annotated.handle)
+  for (const flag of [0, 1, 0]) {
+    await document.transact('Explicit synthetic flag edit', tx => tx.updateObject(leader.id, { payload: { hookLineDirection: flag, hookLineEnabled: flag === 1 } }))
+    const reopened = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+    const output = String(await sdk.writeDocument(reopened, { format: 'DXF', version: '2018' }))
+    assert.deepEqual(leaderFlagTags(output, annotated.handle), { 74: String(flag), 75: String(flag) })
+    oracle({ mode: 'inspect', source: output })
+  }
+})
+
+test('missing nonzero, wrong-type and different-owner source references stay diagnosed and cannot be exported', async () => {
   const original = sourceFixture(), sdk = createKJDrawSDK(), annotated = original.leaders.find(l => l.flag === 0)
   const foreign = original.notes.find(n => n.type === 'MTEXT' && n.position[0] === 20), line = original.lines[0]
   for (const [name, changes, pattern] of [
     ['missing target', { 340: 'DEAD' }, /DEAD/],
-    ['missing handle', { 340: null }, /missing-annotation/],
-    ['null annotated handle', { 340: '0' }, /missing-annotation/],
     ['unsupported target', { 340: line.handle }, new RegExp(line.handle)],
     ['different owner', { 340: foreign.handle }, /wrong-owner/],
-    ['annotation flag mismatch', { 73: 1 }, /annotation-type-mismatch/],
-    ['no-annotation flag with target', { 73: 3 }, /annotation-type-mismatch/],
   ]) {
     const source = changeLeader(original.source, annotated.handle, changes), document = await sdk.readDocument(source, { format: 'DXF' }), native = findHandle(document, annotated.handle)
     assert.ok(native, name); assert.equal(native.type, 'LEADER'); assert.match(native.payload.unresolvedLeaderAnnotation, pattern)
@@ -180,15 +225,69 @@ test('missing, wrong-type, different-owner and flag-mismatched source references
   }
 })
 
-test('native stale/erased/wrong-owner/wrong-category references and inconsistent no-annotation flags fail without mutation', async () => {
-  for (const variant of ['missing', 'erased', 'wrong-owner', 'wrong-type', 'flag-mismatch', 'no-target-flag', 'unresolved-handle']) {
+test('native stale/erased/wrong-owner/wrong-category and unresolved nonzero references fail without mutation', async () => {
+  for (const variant of ['missing', 'erased', 'wrong-owner', 'wrong-type', 'unresolved-handle']) {
     const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
     const note = await sdk.executeCommand('CREATE', { type: variant === 'wrong-type' ? 'CIRCLE' : 'TOLERANCE', payload: variant === 'wrong-type' ? { center: [20, 5, 0], radius: 2 } : { position: [20, 5, 0], text: 'SYNTHETIC FCF' } }, { document })
-    const leader = await document.transact('Original synthetic reference', tx => tx.createEntity('LEADER', { vertices: [[0, 0, 0], [10, 5, 0]], annotationId: variant === 'missing' ? 'missing-id' : ['no-target-flag', 'unresolved-handle'].includes(variant) ? null : note.id, annotationType: variant === 'flag-mismatch' ? 0 : variant === 'unresolved-handle' ? 3 : 1, ...(variant === 'unresolved-handle' ? { annotationHandle: 'DEAD' } : {}) }))
+    const leader = await document.transact('Original synthetic reference', tx => tx.createEntity('LEADER', { vertices: [[0, 0, 0], [10, 5, 0]], annotationId: variant === 'missing' ? 'missing-id' : variant === 'unresolved-handle' ? null : note.id, annotationType: variant === 'unresolved-handle' ? 3 : 1, ...(variant === 'unresolved-handle' ? { annotationHandle: 'DEAD' } : {}) }))
     if (variant === 'erased') await document.transact('Erase note explicitly', tx => tx.eraseObject(note.id))
     if (variant === 'wrong-owner') await document.transact('Other space', tx => { const block = tx.createObject({ kind: 'block-record', type: 'BLOCK_RECORD', name: 'OTHER', payload: { entityIds: [] } }); tx.reparentObject(note.id, block.id) })
     const before = state(document)
     await assert.rejects(sdk.writeDocument(document, { format: 'DXF', version: '2018' }), error => /LEADER/.test(error.cause?.message ?? error.message), variant)
     assert.deepEqual(state(document), before)
   }
+})
+
+test('creation flag 0–3 is preserved independently of all three current target types and detached missing/null references', async () => {
+  const original = sourceFixture(), sdk = createKJDrawSDK()
+  for (const flag of [0, 1, 2, 3]) {
+    let source = original.source
+    for (const leader of original.leaders) source = changeLeader(source, leader.handle, { 73: flag })
+    const expected = semantic(oracle({ mode: 'inspect', source }))
+    let document = await sdk.readDocument(source, { format: 'DXF' })
+    for (let round = 0; round < 2; round++) {
+      for (const before of original.leaders) {
+        const native = findHandle(document, before.handle)
+        assert.equal(native.payload.annotationType, flag)
+        assert.equal(native.payload.unresolvedLeaderAnnotation, undefined)
+        if (before.target) {
+          assert.equal(document.getObject(native.payload.annotationId).type, before.target)
+          if (before.target !== 'MTEXT') {
+            const unchanged = state(document)
+            await assert.rejects(sdk.executeCommand('LEADEREDIT', { id: native.id, text: 'NO CONVERSION' }, { document }), /MTEXT|annotation/i)
+            await assert.rejects(sdk.executeCommand('GRIPEDIT', { id: native.id, gripId: 'text', point: [99, 99, 0] }, { document }), /MTEXT|annotation/i)
+            assert.deepEqual(state(document), unchanged)
+          }
+        } else assert.equal(native.payload.annotationId, null)
+      }
+      document = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+      const output = String(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }))
+      assertInterop(semantic(oracle({ mode: 'inspect', source: output })), expected)
+      document = await sdk.readDocument(output, { format: 'DXF' })
+    }
+  }
+})
+
+test('LEADEREDIT preserves all four existing MTEXT creation flags and sets zero only when adding a new annotation', async () => {
+  const original = sourceFixture(), annotated = original.leaders.find(l => l.flag === 0), sdk = createKJDrawSDK()
+  for (const flag of [0, 1, 2, 3]) {
+    const source = changeLeader(original.source, annotated.handle, { 73: flag })
+    const expected = semantic(oracle({ mode: 'inspect', source }))
+    expected.notes.find(n => n.handle === annotated.annotation).text = 'EDITED CREATION FLAG'
+    let document = await sdk.readDocument(source, { format: 'DXF' })
+    await sdk.executeCommand('LEADEREDIT', { id: findHandle(document, annotated.handle).id, text: 'EDITED CREATION FLAG' }, { document })
+    for (let round = 0; round < 2; round++) {
+      document = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+      assert.equal(findHandle(document, annotated.handle).payload.annotationType, flag)
+      const output = String(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }))
+      assertInterop(semantic(oracle({ mode: 'inspect', source: output })), expected)
+      document = await sdk.readDocument(output, { format: 'DXF' })
+    }
+  }
+  const detachedSource = changeLeader(original.source, annotated.handle, { 73: 2, 340: null })
+  const document = await sdk.readDocument(detachedSource, { format: 'DXF' }), leader = findHandle(document, annotated.handle)
+  const created = await sdk.executeCommand('LEADEREDIT', { id: leader.id, text: 'NEW ANNOTATION' }, { document })
+  assert.equal(created.annotation.type, 'MTEXT'); assert.equal(created.leader.payload.annotationType, 0)
+  assert.equal(created.leader.payload.ownsAnnotation, true)
+  oracle({ mode: 'inspect', source: String(await sdk.writeDocument(document, { format: 'DXF', version: '2018' })) })
 })

@@ -30,7 +30,8 @@ interface DxfRecord { type: string; tags: DxfTag[]; vertices?: DxfRecord[]; attr
 interface DxfDimensionOverrides { textHeight?: number; precision?: number; angularUnits?: number; linearPrecision?: number; overallScale?: number; arrowSize?: number; extensionOffset?: number; extensionBeyond?: number }
 interface DxfDimensionAssociationHandle extends Omit<KJDimensionPointAssociation, 'entityId'> { entityHandle: string }
 
-// Autodesk LEADER groups 73/340 describe three native annotation categories.
+// Autodesk LEADER group 340 can reference three native annotation categories.
+// Group 73 records how the leader was created, not a required current binding.
 // This interchange union does not expand the MTEXT-only LEADEREDIT command.
 function leaderAnnotationFlag(type: string): 0 | 1 | 2 | null {
   switch (type) {
@@ -222,8 +223,8 @@ interface DxfPayload extends KJObjectPayload {
   arrowEnabled?: boolean
   pathType?: number
   annotationType?: number
-  hookLineDirection?: number
-  hookLineEnabled?: boolean
+  hookLineDirection?: number | null
+  hookLineEnabled?: boolean | null
   horizontalDirection?: Point3
   blockOffset?: Point3
   annotationOffset?: Point3
@@ -893,7 +894,11 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
     }
     case 'LEADER': return { type: 'LEADER', payload: {
       vertices: repeatedPoints(record), annotationHandle: first(record, 340) || null,
-      arrowEnabled: number(record, 71, 1) !== 0, pathType: number(record, 72, 0), annotationType: number(record, 73, 3), hookLineDirection: number(record, 74, 0), hookLineEnabled: number(record, 75, 0) !== 0,
+      arrowEnabled: number(record, 71, 1) !== 0, pathType: number(record, 72, 0), annotationType: number(record, 73, 3),
+      // Null records an omitted optional DXF flag through KJD serialization.
+      // Keep omission instead of guessing a CAD application's default value.
+      hookLineDirection: values(record, 74).length ? number(record, 74) : null,
+      hookLineEnabled: values(record, 75).length ? number(record, 75) !== 0 : null,
       ...(values(record, 40).length ? { textHeight: number(record, 40) } : {}), ...(values(record, 41).length ? { textWidth: number(record, 41) } : {}),
       ...(optionalPoint(record, 211, 221, 231) ? { horizontalDirection: optionalPoint(record, 211, 221, 231) } : {}),
       ...(optionalPoint(record, 212, 222, 232) ? { blockOffset: optionalPoint(record, 212, 222, 232) } : {}),
@@ -1307,7 +1312,6 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       // Handle 0 is the DXF null reference, distinct from a missing live target.
       // Preserve an explicitly stored null handle; do not invent an annotation.
       if (annotationHandle === null || annotationHandle === '0') {
-        if (leader.payload.annotationType !== 3) transaction.updateObject(id, { payload: { unresolvedLeaderAnnotation: `${annotationHandle ?? '(missing)'}:missing-annotation` } })
         continue
       }
       const annotationId = entityHandleIds.get(annotationHandle), annotation = annotationId ? transaction.getObject(annotationId) : null
@@ -1317,10 +1321,6 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       }
       if (leader.ownerId !== annotation.ownerId) {
         transaction.updateObject(id, { payload: { unresolvedLeaderAnnotation: `${annotationHandle}:wrong-owner` } })
-        continue
-      }
-      if (leader.payload.annotationType !== leaderAnnotationFlag(annotation.type)) {
-        transaction.updateObject(id, { payload: { unresolvedLeaderAnnotation: `${annotationHandle}:annotation-type-mismatch` } })
         continue
       }
       transaction.updateObject(id, { payload: { annotationId: annotation.id, annotationHandle: null, textPosition: annotation.payload.position } })
@@ -2238,11 +2238,13 @@ function emitEntity(
     if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || leaderAnnotationFlag(annotation.type) === null || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT, TOLERANCE or INSERT in the same owner space')
     if (!p.annotationId && p.annotationHandle && p.annotationHandle !== '0') throw new KJValidationError(`DXF LEADER has an unresolved annotation handle: ${p.annotationHandle}`)
     const annotationType = p.annotationType ?? (annotation ? 0 : 3)
-    if (annotationType !== (annotation ? leaderAnnotationFlag(annotation.type) : 3)) throw new KJValidationError('DXF LEADER annotation type flag does not match its associated annotation')
     // Preserve native MTEXT sizing behavior. Tolerance/block annotations do not
     // supply MTEXT layout dimensions; their stored leader sizes remain intact.
     const textHeight = (annotation?.type === 'MTEXT' ? annotation.payload.height : undefined) ?? p.textHeight, textWidth = (annotation?.type === 'MTEXT' ? annotation.payload.width : undefined) ?? p.textWidth
-    emitSubclass(output, version, 'AcDbLeader'); emit(output, 3, 'STANDARD'); emit(output, 71, p.arrowEnabled === false ? 0 : 1); emit(output, 72, p.pathType ?? 0); emit(output, 73, annotationType); emit(output, 74, p.hookLineDirection ?? 0); emit(output, 75, p.hookLineEnabled === true ? 1 : 0); if (textHeight != null) emit(output, 40, textHeight); if (textWidth != null) emit(output, 41, textWidth); emit(output, 76, entityVertices.length); for (const value of entityVertices) emitPoint(output, vertexPoint(value))
+    emitSubclass(output, version, 'AcDbLeader'); emit(output, 3, 'STANDARD'); emit(output, 71, p.arrowEnabled === false ? 0 : 1); emit(output, 72, p.pathType ?? 0); emit(output, 73, annotationType)
+    if (p.hookLineDirection !== null) emit(output, 74, p.hookLineDirection ?? 0)
+    if (p.hookLineEnabled !== null) emit(output, 75, p.hookLineEnabled === true ? 1 : 0)
+    if (textHeight != null) emit(output, 40, textHeight); if (textWidth != null) emit(output, 41, textWidth); emit(output, 76, entityVertices.length); for (const value of entityVertices) emitPoint(output, vertexPoint(value))
     // Group 211 is optional. Preserve its absence instead of introducing a new
     // stored property on an untouched imported leader after save/reopen.
     if (p.horizontalDirection) emitPoint(output, p.horizontalDirection, 211)
