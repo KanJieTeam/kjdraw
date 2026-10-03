@@ -198,7 +198,7 @@ function payloadFor(curve) {
         ]);
     if (controls.some((value)=>value.some((coordinate)=>!Number.isFinite(coordinate) || Math.abs(coordinate) > 1e9))) fail('result control points exceed the finite coordinate budget');
     if (Math.hypot(Math.max(...controls.map((value)=>value[0])) - Math.min(...controls.map((value)=>value[0])), Math.max(...controls.map((value)=>value[1])) - Math.min(...controls.map((value)=>value[1]))) <= curve.tolerance) fail('retained interval is too small to resolve within tolerance');
-    return {
+    const payload = {
         ...clone(curve.payload),
         degree: curve.degree,
         controlPoints: controls,
@@ -209,6 +209,8 @@ function payloadFor(curve) {
             weights: curve.controls.map((value)=>value[2])
         } : {}
     };
+    definition(payload, curve.tolerance);
+    return payload;
 }
 function bezierPieces(curve) {
     const cuts = [

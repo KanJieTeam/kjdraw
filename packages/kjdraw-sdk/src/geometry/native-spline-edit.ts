@@ -164,8 +164,13 @@ function payloadFor(curve: Definition): KJObjectPayload {
   const controls = curve.controls.map(value => [value[0] / value[2], value[1] / value[2], 0])
   if (controls.some(value => value.some(coordinate => !Number.isFinite(coordinate) || Math.abs(coordinate) > 1e9))) fail('result control points exceed the finite coordinate budget')
   if (Math.hypot(Math.max(...controls.map(value => value[0]!)) - Math.min(...controls.map(value => value[0]!)), Math.max(...controls.map(value => value[1]!)) - Math.min(...controls.map(value => value[1]!))) <= curve.tolerance) fail('retained interval is too small to resolve within tolerance')
-  return { ...clone(curve.payload), degree: curve.degree, controlPoints: controls, knots: [...curve.knots],
+  const payload = { ...clone(curve.payload), degree: curve.degree, controlPoints: controls, knots: [...curve.knots],
     ...(curve.rational ? { weights: curve.controls.map(value => value[2]) } : {}) }
+  // A cut can introduce a near-coincident knot or exhaust an input budget.
+  // Validate every planned result before the command mutates the document,
+  // so saved fragments remain edit targets at the requested tolerance.
+  definition(payload, curve.tolerance)
+  return payload
 }
 
 function bezierPieces(curve: Definition): Definition[] {

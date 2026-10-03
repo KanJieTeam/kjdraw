@@ -25,6 +25,13 @@ with points on the source curve within tolerance. Do not mix points and
 explicit parameters. A point occurring on several parameter branches is
 refused; select its native parameter explicitly.
 
+Every planned retained piece must satisfy the same representation and numeric
+contract at the requested tolerance before the command commits. In particular,
+an explicit cut very close to an existing knot can create an unresolvable knot
+span and is refused atomically. Explicit parameters are never silently snapped
+to another knot; choosing the exact existing native knot can avoid that new
+span. Future requested cuts are still checked independently.
+
 The leading result keeps the original ID, handle, owner, extension and source
 record. The trailing result uses the existing derived-entity convention:
 the original owner, name and extension plus `derivedFromId` and
