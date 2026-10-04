@@ -202,7 +202,9 @@ test('release readiness accepts all three evidence files only for the exact chec
   const provenance = buildProvenanceCandidateEvidence({ run: { id: 10, head_sha: commit, event: 'push', head_branch: 'main', status: 'completed', conclusion: 'success' }, jobs: [{ id: 11, name: PROVENANCE_JOB, status: 'completed', conclusion: 'success', steps: PROVENANCE_STEPS.map(name => ({ name, status: 'completed', conclusion: 'success' })) }] }, { repository: exact.repository, commit })
   const paths = { model: resolve(value.directory, 'model.json'), external: resolve(value.directory, 'external.json'), provenance: resolve(value.directory, 'provenance.json') }
   await Promise.all([writeFile(paths.model, JSON.stringify(model)), writeFile(paths.external, JSON.stringify(external)), writeFile(paths.provenance, JSON.stringify(provenance))])
-  const result = spawnSync(process.execPath, ['scripts/audits/release-readiness.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env, KJDRAW_MODEL_HOLDOUT_EVIDENCE: paths.model, KJDRAW_EXTERNAL_ACCEPTANCE_EVIDENCE: paths.external, KJDRAW_PROVENANCE_CANDIDATE_EVIDENCE: paths.provenance } })
+  // Synthetic evidence belongs to this explicit repository, even in fork CI.
+  const evidenceEnv = { ...process.env, GITHUB_REPOSITORY: exact.repository, KJDRAW_MODEL_HOLDOUT_EVIDENCE: paths.model, KJDRAW_EXTERNAL_ACCEPTANCE_EVIDENCE: paths.external, KJDRAW_PROVENANCE_CANDIDATE_EVIDENCE: paths.provenance }
+  const result = spawnSync(process.execPath, ['scripts/audits/release-readiness.mjs'], { cwd: root, encoding: 'utf8', env: evidenceEnv })
   assert.equal(result.status, 0)
   const report = JSON.parse(result.stdout)
   assert.equal(report.modelHoldout.valid, true)
@@ -210,4 +212,13 @@ test('release readiness accepts all three evidence files only for the exact chec
   assert.equal(report.provenanceCandidate.valid, true)
   assert.deepEqual(report.modelHoldout.runtimeEnvironments, ['linux', 'win32'])
   assert.equal(report.verifiedCandidateGates.some(gate => gate.gate === 'security.release-provenance'), true)
+  await t.test('fork repository identity still rejects evidence for another repository', () => {
+    const fork = spawnSync(process.execPath, ['scripts/audits/release-readiness.mjs', '--require-ready'], { cwd: root, encoding: 'utf8', env: { ...evidenceEnv, GITHUB_REPOSITORY: 'fixture-fork/kjdraw' } })
+    assert.equal(fork.status, 1)
+    const rejected = JSON.parse(fork.stdout)
+    assert.equal(rejected.modelHoldout.valid, false)
+    assert.equal(rejected.externalAcceptance.valid, false)
+    assert.equal(rejected.provenanceCandidate.valid, false)
+    assert.equal(rejected.findings.some(finding => finding.code === 'PROVENANCE_CANDIDATE_EVIDENCE_REQUIRED'), true)
+  })
 })
