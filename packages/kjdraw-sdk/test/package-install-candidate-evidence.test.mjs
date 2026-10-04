@@ -89,21 +89,30 @@ test('package candidate CLI writes reviewable evidence for the checked-out candi
   const identity = { ...fixed, commit, packageName: packageJson.name, packageVersion: packageJson.version }
   const inputPath = join(directory, 'input.json'), outputPath = join(directory, 'evidence.json')
   await writeFile(inputPath, JSON.stringify(fixture(identity)))
-  const result = spawnSync(process.execPath, ['scripts/audits/verify-package-install-candidate.mjs', '--input', inputPath, '--output', outputPath], { cwd: root, encoding: 'utf8' })
+  const result = spawnSync(process.execPath, ['scripts/audits/verify-package-install-candidate.mjs', '--repository', identity.repository, '--input', inputPath, '--output', outputPath], { cwd: root, encoding: 'utf8' })
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
   const evidence = JSON.parse(await readFile(outputPath, 'utf8'))
   assert.equal(isPackageInstallCandidateEvidence(evidence, identity), true)
   const readiness = spawnSync(process.execPath, ['scripts/audits/release-readiness.mjs'], {
     cwd: root,
     encoding: 'utf8',
-    env: { ...process.env, KJDRAW_PACKAGE_INSTALL_CANDIDATE_EVIDENCE: outputPath },
+    env: { ...process.env, GITHUB_REPOSITORY: identity.repository, KJDRAW_PACKAGE_INSTALL_CANDIDATE_EVIDENCE: outputPath },
   })
   assert.equal(JSON.parse(readiness.stdout).packageInstallCandidate.valid, true)
   const before = await readFile(outputPath)
-  const duplicate = spawnSync(process.execPath, ['scripts/audits/verify-package-install-candidate.mjs', '--input', inputPath, '--output', outputPath], { cwd: root, encoding: 'utf8' })
+  const duplicate = spawnSync(process.execPath, ['scripts/audits/verify-package-install-candidate.mjs', '--repository', identity.repository, '--input', inputPath, '--output', outputPath], { cwd: root, encoding: 'utf8' })
   assert.notEqual(duplicate.status, 0)
   assert.match(duplicate.stderr, /EEXIST/)
   assert.deepEqual(await readFile(outputPath), before)
+  await t.test('fork repository cannot collect a release manifest from another repository', async () => {
+    const rejectedPath = join(directory, 'fork-evidence.json')
+    const fork = spawnSync(process.execPath, ['scripts/audits/verify-package-install-candidate.mjs', '--input', inputPath, '--output', rejectedPath], {
+      cwd: root, encoding: 'utf8', env: { ...process.env, GITHUB_REPOSITORY: 'fixture-fork/kjdraw' },
+    })
+    assert.notEqual(fork.status, 0)
+    assert.match(fork.stderr, /Release manifest source does not match the candidate/)
+    await assert.rejects(readFile(rejectedPath), { code: 'ENOENT' })
+  })
 })
 
 test('release readiness reports missing exact package install evidence at the correct gate', () => {
