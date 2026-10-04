@@ -4,13 +4,11 @@ import { KJValidationError } from '../errors.js'
 export const KJ_CONTOUR_WASM_ABI = 'kanjie.kjcontour.wasm.v1'
 const ABI_VERSION = 1
 const MAX_BYTES = 4 * 1024 * 1024
-// Static URL construction also lets browser bundlers discover the WASM asset.
-const DEFAULT_ASSET = new URL('../assets/kjcontour.wasm', import.meta.url)
 
 export interface KJContourBackendOptions {
   /** Local bytes avoid URL loading altogether. Supply either bytes or a URL. */
   readonly wasmBytes?: Uint8Array | ArrayBuffer
-  /** Explicit asset URL. The default is the SDK's bundled local asset. */
+  /** Explicit asset URL. Relative URLs use the module URL, or the page base in a browser bundle. */
   readonly wasmUrl?: string | URL
 }
 
@@ -35,7 +33,17 @@ async function readAsset(options: KJContourBackendOptions): Promise<Uint8Array> 
     return bytes
   }
   if (options.wasmUrl !== undefined && typeof options.wasmUrl !== 'string' && !(options.wasmUrl instanceof URL)) throw new KJValidationError('Contour wasmUrl must be a string or URL')
-  const url = options.wasmUrl === undefined ? DEFAULT_ASSET : new URL(options.wasmUrl, import.meta.url)
+  let url: URL
+  if (options.wasmUrl === undefined) {
+    if (typeof import.meta.url !== 'string') throw new KJValidationError('Bundled contour operations require an explicit wasmUrl or wasmBytes asset')
+    // Keep this static expression discoverable by asset-aware ESM bundlers, but
+    // evaluate it only when the operation actually needs the default asset.
+    url = new URL('../assets/kjcontour.wasm', import.meta.url)
+  } else {
+    const base = typeof import.meta.url === 'string' ? import.meta.url
+      : typeof document !== 'undefined' ? document.baseURI : undefined
+    url = new URL(options.wasmUrl, base)
+  }
   if (url.protocol === 'file:') {
     // Variable dynamic import keeps Node's file API out of browser bundles.
     const fsModule = 'node:fs/promises'

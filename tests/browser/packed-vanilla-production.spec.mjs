@@ -81,6 +81,7 @@ import {
   buildAgentArchitecturePlan,
   createKJDrawEditor,
   createKJDrawSDK,
+  computePlanarContours,
   exportDrawingSvg,
 } from '@kanjieteam/kjdraw'
 
@@ -144,6 +145,10 @@ function inspect(document, layoutName) {
 }
 
 async function productionLifecycle() {
+  const contourBytes = Uint8Array.from(atob(KJDRAW_PACKED_CONTOUR_WASM_BASE64), character => character.charCodeAt(0))
+  const contour = await computePlanarContours({ operation: 'offset', distance: 2, contours: [{
+    closed: true, vertices: [{ point: [-5, 0, 0], bulge: 1 }, { point: [5, 0, 0], bulge: 1 }],
+  }] }, { wasmBytes: contourBytes })
   const host = document.querySelector('#vanilla-consumer')
   const first = createKJDrawEditor(host, editorOptions)
   await first.ready
@@ -187,6 +192,7 @@ async function productionLifecycle() {
   verifier.closeDocument(finalDocument.id)
 
   return {
+    contour: { area: contour.area, nativeArcs: contour.contours[0].vertices.every(vertex => vertex.bulge !== 0) },
     blank,
     blankBeforeOpen,
     command: receipt.command,
@@ -246,6 +252,7 @@ test.beforeAll(async () => {
   }
 
   const entry = join(consumerDirectory, 'consumer.mjs')
+  const contourAsset = await readFile(join(installedRoot, 'src/assets/kjcontour.wasm'))
   await writeFile(entry, browserConsumer)
   const built = await build({
     absWorkingDir: consumerDirectory,
@@ -256,6 +263,7 @@ test.beforeAll(async () => {
     target: 'es2022',
     write: false,
     metafile: true,
+    define: { KJDRAW_PACKED_CONTOUR_WASM_BASE64: JSON.stringify(contourAsset.toString('base64')) },
   })
   bundle = built.outputFiles[0].text
   const installedRootReal = normalized(await realpath(installedRoot))
@@ -307,6 +315,8 @@ test('packed Vanilla editor creates, reopens, verifies and disposes a production
     disposedRejected: true,
     secondDisposed: true,
   })
+  expect(outcome.result.contour.area).toBeCloseTo(Math.PI * 49, 7)
+  expect(outcome.result.contour.nativeArcs).toBe(true)
   for (const stage of [outcome.result.initial, outcome.result.reopened, outcome.result.final]) {
     expect(stage).toMatchObject({
       valid: true,

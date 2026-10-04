@@ -3,7 +3,6 @@ import { KJValidationError } from '../errors.js';
 export const KJ_CONTOUR_WASM_ABI = 'kanjie.kjcontour.wasm.v1';
 const ABI_VERSION = 1;
 const MAX_BYTES = 4 * 1024 * 1024;
-const DEFAULT_ASSET = new URL('../assets/kjcontour.wasm', import.meta.url);
 let defaultBackend = null;
 async function readAsset(options) {
     if (options.wasmBytes !== undefined && options.wasmUrl !== undefined) throw new KJValidationError('Contour backend accepts either wasmBytes or wasmUrl, not both');
@@ -14,7 +13,14 @@ async function readAsset(options) {
         return bytes;
     }
     if (options.wasmUrl !== undefined && typeof options.wasmUrl !== 'string' && !(options.wasmUrl instanceof URL)) throw new KJValidationError('Contour wasmUrl must be a string or URL');
-    const url = options.wasmUrl === undefined ? DEFAULT_ASSET : new URL(options.wasmUrl, import.meta.url);
+    let url;
+    if (options.wasmUrl === undefined) {
+        if (typeof import.meta.url !== 'string') throw new KJValidationError('Bundled contour operations require an explicit wasmUrl or wasmBytes asset');
+        url = new URL('../assets/kjcontour.wasm', import.meta.url);
+    } else {
+        const base = typeof import.meta.url === 'string' ? import.meta.url : typeof document !== 'undefined' ? document.baseURI : undefined;
+        url = new URL(options.wasmUrl, base);
+    }
     if (url.protocol === 'file:') {
         const fsModule = 'node:fs/promises';
         const fs = await import(fsModule);

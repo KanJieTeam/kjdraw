@@ -113,6 +113,12 @@ asset or `wasmBytes` from their own asset pipeline. The import itself does not
 fetch or instantiate the kernel. Neither the SDK nor this module requires a
 remote geometry service.
 
+Script bundles such as IIFE can mount the editor without loading WASM. When a
+contour operation is requested, pass `wasmBytes` or a `wasmUrl` for the asset
+copied by your build. Relative URLs in a script bundle resolve against the
+page's base URL; direct ESM continues to use its module URL. Missing bundle
+configuration refuses the contour request before changing the drawing.
+
 ## Build and verification
 
 With Rust 1.88+ and its `wasm32-unknown-unknown` target installed:
