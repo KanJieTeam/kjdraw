@@ -661,6 +661,16 @@ console.log(JSON.stringify(results))
     const curveProbePath = join(consumerDirectory, 'verify-curve-editing.mjs')
     await cp(join(repositoryRoot, 'fixtures', 'consumer-runtime', 'curved-editing.mjs'), curveProbePath)
     const curveProbe = run(process.execPath, [curveProbePath], { cwd: consumerDirectory })
+
+    const contourProbePath = join(consumerDirectory, 'verify-planar-contours.mjs')
+    await cp(join(repositoryRoot, 'fixtures', 'consumer-runtime', 'planar-contours.mjs'), contourProbePath)
+    const contourProbe = run(process.execPath, [contourProbePath], { cwd: consumerDirectory })
+    const contourEvidence = JSON.parse(contourProbe.stdout)
+    assert.equal(contourEvidence.source, 'installed-tarball')
+    const extractionProbePath = join(consumerDirectory, 'verify-planar-boundaries.mjs')
+    await cp(join(repositoryRoot, 'fixtures', 'consumer-runtime', 'planar-boundaries.mjs'), extractionProbePath)
+    const extractionEvidence = JSON.parse(run(process.execPath, [extractionProbePath], { cwd: consumerDirectory }).stdout)
+    assert.deepEqual(extractionEvidence, { source: 'installed-tarball', multipleBoundaries: true, nativeArcs: true, sourcePreservation: true, undoRedo: true, reopenedOffset: true })
     assert.deepEqual(JSON.parse(curveProbe.stdout), { curveEditing: true, nativeArc: true, undoRedo: true, dxfReopen: true })
 
     const boundaryProbePath = join(consumerDirectory, 'verify-boundary-edit.mjs')
@@ -769,6 +779,7 @@ console.log(JSON.stringify({ guide: '${locale}', geometricPreview: true, reviewe
       },
       typedConsumers: ['Vanilla TypeScript', 'React TSX', 'Vue composable'],
       productionWorkflows,
+      planarContours: contourEvidence,
       readmeConsumers,
       cli: 'kjdraw --version',
       quickstart: {

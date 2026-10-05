@@ -19,6 +19,7 @@ import { createKJDFileAdapter } from './kjd-adapter.js'
 import { hatchPatternFromCatalog, type KJHatchPatternCatalog } from './hatch-pattern-catalog.js'
 import { KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG } from './knowledge-packs/geology-patterns.js'
 import type { KJCoreSolidBackend } from './kernel/wasm-solid.js'
+import type { KJContourBackendOptions } from './geometry/contour-wasm.js'
 import {
   assertPluginCompatibility,
   assertPluginContribution,
@@ -57,6 +58,8 @@ export interface KJDrawSDKOptions {
   version?: string
   documentAuthority?: KJDocumentAuthorityProvider | null
   solidAuthority?: Readonly<KJCoreSolidBackend> | null
+  /** Constructor-only host WASM asset for contour commands. Never serialized into drawings or command arguments. */
+  contourBackend?: KJContourBackendOptions
   agentPlans?: KJAgentPlanRegistry
   agentPlanOptions?: KJAgentPlanRegistryOptions
   registerDefaultAdapters?: boolean
@@ -269,6 +272,35 @@ function constructorHatchPatternCatalogs(options: KJDrawSDKOptions): ReadonlyDee
   return mergeHatchPatternCatalogs(selected === false ? [] : [KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG], supplied === undefined ? [] : supplied)
 }
 
+function copyContourBackend(options: KJContourBackendOptions): KJContourBackendOptions {
+  if (options.wasmBytes !== undefined) {
+    return Object.freeze({ wasmBytes: options.wasmBytes instanceof Uint8Array ? new Uint8Array(options.wasmBytes) : new Uint8Array(options.wasmBytes.slice(0)) })
+  }
+  if (options.wasmUrl !== undefined) return Object.freeze({ wasmUrl: typeof options.wasmUrl === 'string' ? options.wasmUrl : new URL(options.wasmUrl) })
+  return Object.freeze({})
+}
+
+function constructorContourBackend(options: KJDrawSDKOptions): KJContourBackendOptions {
+  const descriptor = Object.getOwnPropertyDescriptor(options, 'contourBackend')
+  if ((!descriptor && 'contourBackend' in options) || descriptor && (!descriptor.enumerable || !Object.hasOwn(descriptor, 'value'))) {
+    throw new KJValidationError('SDK contourBackend must be an own enumerable data property')
+  }
+  const supplied = descriptor?.value as KJContourBackendOptions | undefined
+  if (supplied === undefined) return Object.freeze({})
+  if (!supplied || typeof supplied !== 'object' || ![Object.prototype, null].includes(Object.getPrototypeOf(supplied))) throw new KJValidationError('SDK contourBackend must be a plain data object')
+  for (const key of Reflect.ownKeys(supplied)) {
+    const field = Object.getOwnPropertyDescriptor(supplied, key)!
+    if (typeof key !== 'string' || !['wasmBytes', 'wasmUrl'].includes(key) || !field.enumerable || !Object.hasOwn(field, 'value')) throw new KJValidationError('SDK contourBackend supports only wasmBytes or wasmUrl data properties')
+  }
+  if (supplied.wasmBytes !== undefined && supplied.wasmUrl !== undefined) throw new KJValidationError('SDK contourBackend accepts either wasmBytes or wasmUrl, not both')
+  if (supplied.wasmBytes !== undefined) {
+    if (!(supplied.wasmBytes instanceof Uint8Array) && !(supplied.wasmBytes instanceof ArrayBuffer)) throw new KJValidationError('SDK contourBackend wasmBytes must be a Uint8Array or ArrayBuffer')
+    if (supplied.wasmBytes.byteLength === 0 || supplied.wasmBytes.byteLength > 4 * 1024 * 1024) throw new KJValidationError('SDK contour WASM asset exceeds the 4 MiB budget or is empty')
+  }
+  if (supplied.wasmUrl !== undefined && typeof supplied.wasmUrl !== 'string' && !(supplied.wasmUrl instanceof URL)) throw new KJValidationError('SDK contourBackend wasmUrl must be a string or URL')
+  return copyContourBackend(supplied)
+}
+
 export class KJDrawSDK {
   readonly version: string
   readonly events: KJEventBus<KJDrawSDKEvents>
@@ -279,11 +311,15 @@ export class KJDrawSDK {
   readonly selections: Map<string, KJSelectionManager>
   readonly agentPlans: KJAgentPlanRegistry
   readonly #hatchPatternCatalogs: ReadonlyDeep<KJHatchPatternCatalog[]>
+  readonly #contourBackend: KJContourBackendOptions
   activeDocumentId: string | null
   documentAuthority: KJDocumentAuthorityProvider | null
   solidAuthority: Readonly<KJCoreSolidBackend> | null
 
   constructor(options: KJDrawSDKOptions = {}) {
+    this.#contourBackend = constructorContourBackend(options)
+    Object.defineProperty(this, 'contourBackend', { enumerable: true, configurable: false,
+      get: () => copyContourBackend(this.#contourBackend) })
     this.#hatchPatternCatalogs = constructorHatchPatternCatalogs(options)
     Object.defineProperty(this, 'hatchPatternCatalogs', { enumerable: true, configurable: false,
       get: () => this.#hatchPatternCatalogs })
@@ -309,6 +345,9 @@ export class KJDrawSDK {
 
   /** Host-selected immutable catalog snapshot. There is intentionally no setter. */
   get hatchPatternCatalogs(): ReadonlyDeep<KJHatchPatternCatalog[]> { return this.#hatchPatternCatalogs }
+
+  /** Detached host asset options for read-only previews. Commands use the same constructor snapshot. */
+  get contourBackend(): KJContourBackendOptions { return copyContourBackend(this.#contourBackend) }
 
   createDocument(options: KJDocumentOptions & KJDocumentConstructorOptions = {}): KJDocument {
     return this.attachDocument(KJDocument.create(options))

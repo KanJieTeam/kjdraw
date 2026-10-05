@@ -61,6 +61,21 @@
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./planar-boundaries": {
+      "types": "./types/planar-boundaries.d.ts",
+      "import": "./src/planar-boundaries.js",
+      "default": "./src/planar-boundaries.js"
+    },
+    "./planar-boundary-edit": {
+      "types": "./types/planar-boundary-edit.d.ts",
+      "import": "./src/planar-boundary-edit.js",
+      "default": "./src/planar-boundary-edit.js"
+    },
+    "./planar-contours": {
+      "types": "./types/planar-contours.d.ts",
+      "import": "./src/planar-contours.js",
+      "default": "./src/planar-contours.js"
+    },
     "./agent-skill-json": {
       "types": "./types/agent-skill-json.d.ts",
       "import": "./src/agent-skill-json.js",

@@ -1,4 +1,5 @@
 import type { KJDxfPlotSettings } from './plot-settings.js';
+import type { KJContourBackendOptions } from './geometry/contour-wasm.js';
 import type { ReadonlyDeep } from './utils.js';
 import type { KJPointInput } from './grips.js';
 import type { KJDocument } from './document.js';
@@ -34,6 +35,7 @@ export interface KJSolidAuthority extends Record<string, unknown> {
 }
 export interface KJCommandSDKContext {
     readonly solidAuthority?: unknown;
+    readonly contourBackend?: KJContourBackendOptions;
     getSelectionManager(documentId?: string | null): KJSelectionManager | null;
 }
 export interface KJCommandContext {
@@ -441,6 +443,40 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly domain: string;
         readonly precision: string;
         readonly supportedEntityTypes: readonly string[];
+    };
+    readonly CONTOUROFFSET: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly supportedEntityTypes: readonly string[];
+        readonly atomic: boolean;
+        readonly preservesSources: boolean;
+        readonly multipleResults: boolean;
+        readonly emptyResultCommits: boolean;
+        readonly requiresExpectedRevision: boolean;
+        readonly requiresUnits: boolean;
+    };
+    readonly CONTOURBOOLEAN: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly operations: readonly string[];
+        readonly supportedEntityTypes: readonly string[];
+        readonly atomic: boolean;
+        readonly preservesSources: boolean;
+        readonly multipleResults: boolean;
+        readonly emptyResultCommits: boolean;
+        readonly requiresExpectedRevision: boolean;
+        readonly requiresUnits: boolean;
+    };
+    readonly CONTOURBOUNDARIES: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly supportedEntityTypes: readonly string[];
+        readonly atomic: boolean;
+        readonly preservesSources: boolean;
+        readonly multipleResults: boolean;
+        readonly requiresExpectedRevision: boolean;
+        readonly requiresUnits: boolean;
+        readonly requiresReviewedGeometry: boolean;
     };
     readonly BREAK: {
         readonly domain: string;

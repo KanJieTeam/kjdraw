@@ -121,6 +121,43 @@ function constructorHatchPatternCatalogs(options) {
         KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG
     ], supplied === undefined ? [] : supplied);
 }
+function copyContourBackend(options) {
+    if (options.wasmBytes !== undefined) {
+        return Object.freeze({
+            wasmBytes: options.wasmBytes instanceof Uint8Array ? new Uint8Array(options.wasmBytes) : new Uint8Array(options.wasmBytes.slice(0))
+        });
+    }
+    if (options.wasmUrl !== undefined) return Object.freeze({
+        wasmUrl: typeof options.wasmUrl === 'string' ? options.wasmUrl : new URL(options.wasmUrl)
+    });
+    return Object.freeze({});
+}
+function constructorContourBackend(options) {
+    const descriptor = Object.getOwnPropertyDescriptor(options, 'contourBackend');
+    if (!descriptor && 'contourBackend' in options || descriptor && (!descriptor.enumerable || !Object.hasOwn(descriptor, 'value'))) {
+        throw new KJValidationError('SDK contourBackend must be an own enumerable data property');
+    }
+    const supplied = descriptor?.value;
+    if (supplied === undefined) return Object.freeze({});
+    if (!supplied || typeof supplied !== 'object' || ![
+        Object.prototype,
+        null
+    ].includes(Object.getPrototypeOf(supplied))) throw new KJValidationError('SDK contourBackend must be a plain data object');
+    for (const key of Reflect.ownKeys(supplied)){
+        const field = Object.getOwnPropertyDescriptor(supplied, key);
+        if (typeof key !== 'string' || ![
+            'wasmBytes',
+            'wasmUrl'
+        ].includes(key) || !field.enumerable || !Object.hasOwn(field, 'value')) throw new KJValidationError('SDK contourBackend supports only wasmBytes or wasmUrl data properties');
+    }
+    if (supplied.wasmBytes !== undefined && supplied.wasmUrl !== undefined) throw new KJValidationError('SDK contourBackend accepts either wasmBytes or wasmUrl, not both');
+    if (supplied.wasmBytes !== undefined) {
+        if (!(supplied.wasmBytes instanceof Uint8Array) && !(supplied.wasmBytes instanceof ArrayBuffer)) throw new KJValidationError('SDK contourBackend wasmBytes must be a Uint8Array or ArrayBuffer');
+        if (supplied.wasmBytes.byteLength === 0 || supplied.wasmBytes.byteLength > 4 * 1024 * 1024) throw new KJValidationError('SDK contour WASM asset exceeds the 4 MiB budget or is empty');
+    }
+    if (supplied.wasmUrl !== undefined && typeof supplied.wasmUrl !== 'string' && !(supplied.wasmUrl instanceof URL)) throw new KJValidationError('SDK contourBackend wasmUrl must be a string or URL');
+    return copyContourBackend(supplied);
+}
 export class KJDrawSDK {
     version;
     events;
@@ -131,10 +168,17 @@ export class KJDrawSDK {
     selections;
     agentPlans;
     #hatchPatternCatalogs;
+    #contourBackend;
     activeDocumentId;
     documentAuthority;
     solidAuthority;
     constructor(options = {}){
+        this.#contourBackend = constructorContourBackend(options);
+        Object.defineProperty(this, 'contourBackend', {
+            enumerable: true,
+            configurable: false,
+            get: ()=>copyContourBackend(this.#contourBackend)
+        });
         this.#hatchPatternCatalogs = constructorHatchPatternCatalogs(options);
         Object.defineProperty(this, 'hatchPatternCatalogs', {
             enumerable: true,
@@ -164,6 +208,9 @@ export class KJDrawSDK {
     }
     get hatchPatternCatalogs() {
         return this.#hatchPatternCatalogs;
+    }
+    get contourBackend() {
+        return copyContourBackend(this.#contourBackend);
     }
     createDocument(options = {}) {
         return this.attachDocument(KJDocument.create(options));
