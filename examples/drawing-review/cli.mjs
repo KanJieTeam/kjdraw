@@ -14,6 +14,7 @@ Optional: --layer <exact name> (repeatable), --window xmin,ymin,xmax,ymax,
           --max-normalization-nodes 1..1000000 (shared per drawing)
 Handle identity is an assertion that both files share one CAD lineage.
 No input is modified. JSON, CSV, HTML and SDK SVG previews are generated.
+Regular report files can be refreshed; input aliases, symlinks and report aliases are refused.
 Exit 0: report generated (including warnings); exit 1: invalid input/failure.
 `
 

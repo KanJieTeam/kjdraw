@@ -1,6 +1,7 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/index.js'
+import { writeOutputFiles } from '../../packages/kjdraw-sdk/bin/safe-output.mjs'
 import { reviewDrawingFiles, writeReviewReport } from './report.mjs'
 
 // Original sample, generated with the public SDK. No private drawing is shipped.
@@ -17,11 +18,11 @@ await document.transact('Original demonstration', tx => {
   note = tx.createEntity('TEXT', { position: [5, 70, 0], text: 'Plate A', height: 5 })
 })
 const before = path.join(out, 'sample-a.dxf'), after = path.join(out, 'sample-b.dxf')
-await writeFile(before, await sdk.writeDocument(document, { format: 'DXF' }), 'utf8')
+const original = await sdk.writeDocument(document, { format: 'DXF' })
 await document.transact('Revised hole and label', tx => {
   tx.updateObject(hole.id, { payload: { center: [30, 30, 0], radius: 6 } })
   tx.updateObject(note.id, { payload: { text: 'Plate B' } })
 })
-await writeFile(after, await sdk.writeDocument(document, { format: 'DXF' }), 'utf8')
+await writeOutputFiles([{ path: before, data: original }, { path: after, data: await sdk.writeDocument(document, { format: 'DXF' }) }])
 const report = await reviewDrawingFiles({ before, after, units: 'millimeter', scope: 'model', identity: 'same-lineage-handles', window: [-15, -15, 115, 90] })
 console.log(await writeReviewReport(report, out))

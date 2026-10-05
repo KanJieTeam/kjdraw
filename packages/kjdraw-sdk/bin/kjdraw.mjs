@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto'
-import { lstat, mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, open, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,6 +9,7 @@ import { createKJDrawSDK } from '../src/sdk.js'
 import { createKjpPackage, openKjpPackage } from '../src/project-package.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { portableMcpInputSchema } from '../src/mcp-schema-compat.js'
+import { writeOutputFiles } from './safe-output.mjs'
 
 const HELP = `KJDraw ${KJDRAW_VERSION}
 
@@ -26,6 +27,7 @@ Usage:
   kjdraw --version
 
 Agent calls run locally and only create review proposals. --summary keeps the full proposal in the review ledger while returning a small receipt to the agent. Approve separately with kjdraw-review in an interactive terminal.
+Convert atomically replaces a regular output file; input aliases and output symlinks are refused.
 No drawing data is uploaded by the CLI.`
 
 const SOURCE_LIMITS = Object.freeze({ '.kjd': 64 * 1024 ** 2, '.dxf': 64 * 1024 ** 2, '.kjp': 512 * 1024 ** 2 })
@@ -244,11 +246,19 @@ function extension(path) {
 async function readBounded(path) {
   const absolute = resolve(path)
   const suffix = extension(absolute)
-  const info = await stat(absolute)
   const maximum = SOURCE_LIMITS[suffix]
-  if (!info.isFile()) throw new Error(`Input is not a file: ${absolute}`)
-  if (info.size > maximum) throw new Error(`Input exceeds the ${Math.round(maximum / 1024 ** 2)} MiB ${suffix.slice(1).toUpperCase()} limit`)
-  return { absolute, suffix, bytes: new Uint8Array(await readFile(absolute)) }
+  const observed = await stat(absolute)
+  if (!observed.isFile()) throw new Error(`Input is not a file: ${absolute}`)
+  if (observed.size > maximum) throw new Error(`Input exceeds the ${Math.round(maximum / 1024 ** 2)} MiB ${suffix.slice(1).toUpperCase()} limit`)
+  const handle = await open(absolute, 'r')
+  try {
+    const info = await handle.stat({ bigint: true })
+    if (!info.isFile()) throw new Error(`Input is not a file: ${absolute}`)
+    if (info.size > BigInt(maximum)) throw new Error(`Input exceeds the ${Math.round(maximum / 1024 ** 2)} MiB ${suffix.slice(1).toUpperCase()} limit`)
+    const bytes = new Uint8Array(await handle.readFile())
+    if (bytes.length > maximum) throw new Error('Input grew beyond the host read limit')
+    return { absolute, suffix, bytes, inputIdentity: { info, path: await realpath(absolute) } }
+  } finally { await handle.close() }
 }
 
 function decodeText(bytes) {
@@ -334,7 +344,7 @@ async function convert(input, output, args) {
       ? { format: 'DXF', version: optionValue(args, '--dxf-version', '2018') }
       : { format: 'KJD' })
   }
-  await writeFile(outputPath, value)
+  await writeOutputFiles([{ path: outputPath, data: value }], { protectedInputs: [opened.inputIdentity] })
   return { ...summary(opened), output: outputPath, outputFormat: suffix.slice(1).toUpperCase() }
 }
 

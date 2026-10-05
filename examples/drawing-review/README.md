@@ -33,6 +33,10 @@ node examples/drawing-review/cli.mjs --before A.dxf --after B.dxf --out work/rev
 
 The output directory receives `report.json`, `findings.csv`, `report.html` and numbered before/after SDK SVG files. JSON includes source SHA-256 and bytes, declared/asserted units, full import inventory, selected/excluded counts, native validation, type coverage, diagnostics, unresolved identity groups and SVG coverage. The CSV includes object IDs, handles, logical owners and layer names; cells are quoted and formula-like text is neutralized. Runtime IDs remain useful for locating records in that specific report, but they do not drive cross-file matching.
 
+Re-running a report in the same directory refreshes its regular output files. Before replacing any file, the host checks the complete output set for aliases to either input drawing (including hard links and canonical path aliases), symbolic links, and aliases between report files. Those targets are refused without changing existing outputs. Source paths and filesystem identities are kept in host memory, not serialized in the report.
+
+Each replacement is written to an exclusively created temporary file in the destination directory, then renamed over the destination. It does not truncate an existing inode or follow a destination symlink inserted between the check and rename, so a concurrent link to an input cannot overwrite that input's contents. Use a directory you control: this does not lock directories or stop another process from modifying the source itself. A late filesystem error can leave a partially refreshed report; the report files are not one atomic transaction.
+
 Implemented checks are **exact zero-length LINE** and **exact native duplicate LINE/CIRCLE/ARC/LWPOLYLINE**. Duplicate identity includes layer, style, extension and logical owner. Reversed endpoints, different properties, approximate overlaps and coincident entities in different owners are not automatically called duplicates. Coincidence is a review observation, not permission to delete.
 
 Diffing uses normalized native payloads and extensions, resolves table/block/layout references through logical names, and excludes runtime UUIDs, handles, import source and raw DXF tags. Named native resource changes are reported separately. Unsupported native identity, proxies, ignored opaque tags and document payloads stay explicit. Unmatched records can represent additions/removals **or** changes that cannot be paired safely. No deletion/addition conclusion is inferred from an unmatched record alone.
@@ -48,5 +52,5 @@ This is a usable report example, not a new public SDK contract or automatic repa
 Run the focused checks with:
 
 ```sh
-node --test tests/drawing-review.spec.mjs
+node --test tests/drawing-review.spec.mjs tests/drawing-review-output-safety.spec.mjs
 ```
