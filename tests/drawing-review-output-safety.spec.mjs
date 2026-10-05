@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { reviewDrawingFiles, writeReviewReport } from '../examples/drawing-review/report.mjs'
+import { renderCsv, renderHtml, reviewDrawingFiles, writeReviewReport } from '../examples/drawing-review/report.mjs'
 
 const cli = fileURLToPath(new URL('../examples/drawing-review/cli.mjs', import.meta.url))
 const demo = fileURLToPath(new URL('../examples/drawing-review/demo.mjs', import.meta.url))
@@ -139,5 +139,31 @@ test('demo refreshes its generated samples and report without truncating an unre
     assert.match(await readFile(path.join(out, 'sample-a.dxf'), 'utf8'), /Plate A/u)
     assert.match(await readFile(path.join(out, 'sample-b.dxf'), 'utf8'), /Plate B/u)
     assert.match(await readFile(path.join(out, 'report.html'), 'utf8'), /<svg/u)
+  }
+})
+
+for (const kind of ['structuredClone', 'JSON-roundtrip']) {
+  test(`the ${kind} report cannot replace a canonical input through an input symlink`, async t => {
+    const { root, out } = await fixture(t), input = path.join(root, 'input-alias.dxf')
+    const canonical = path.join(out, 'report.html')
+    await writeFile(canonical, dxf); await symlink(canonical, input, 'file')
+    const report = await reviewDrawingFiles({ before: input, ...options })
+    const detached = kind === 'structuredClone' ? structuredClone(report) : JSON.parse(JSON.stringify(report))
+    await assert.rejects(writeReviewReport(detached, out), /original report returned by reviewDrawingFiles/u)
+    assert.equal(await readFile(input, 'utf8'), dxf); assert.equal(await readFile(canonical, 'utf8'), dxf)
+    assert.deepEqual(await readdir(out), ['report.html'])
+    const newOut = path.join(root, 'must-not-be-created')
+    await assert.rejects(writeReviewReport(detached, newOut), /original report returned by reviewDrawingFiles/u)
+    await assert.rejects(stat(newOut), { code: 'ENOENT' })
+    assert.match(renderHtml(detached), /^<!doctype html>/u)
+    assert.equal(typeof renderCsv(detached), 'string')
+  })
+}
+
+test('the original bound report can be written twice without losing its input protection', async t => {
+  const { before, out } = await fixture(t), report = await reviewDrawingFiles({ before, ...options })
+  for (let run = 0; run < 2; run++) {
+    assert.equal(await writeReviewReport(report, out), path.join(out, 'report.html'))
+    assert.equal(await readFile(before, 'utf8'), dxf)
   }
 })

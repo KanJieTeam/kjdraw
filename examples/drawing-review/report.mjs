@@ -174,6 +174,8 @@ export function renderHtml(report) {
 }
 
 export async function writeReviewReport(report, outputDirectory) {
+  const protectedInputs = reportInputs.get(report)
+  if (!protectedInputs) throw new Error('Report writing requires the original report returned by reviewDrawingFiles in this process; copied or deserialized reports have no input protection')
   const page = renderHtml(report)
   if (Buffer.byteLength(page, 'utf8') > 32 * 1024 * 1024) throw new Error('HTML report exceeds the 32 MiB host output limit; narrow the scope or findings budget')
   await mkdir(outputDirectory, { recursive: true })
@@ -192,7 +194,7 @@ export async function writeReviewReport(report, outputDirectory) {
   files.push({ path: path.join(outputDirectory, 'report.html'), data: page },
     { path: path.join(outputDirectory, 'findings.csv'), data: renderCsv(report) },
     { path: path.join(outputDirectory, 'report.json'), data: JSON.stringify(detached, null, 2) + '\n' })
-  await writeOutputFiles(files, { protectedInputs: reportInputs.get(report) ?? [] })
+  await writeOutputFiles(files, { protectedInputs })
   for (const drawing of report.drawings) for (const [index, preview] of drawing.previews.entries()) {
     if (preview.svg) preview.file = `${drawing.side}-${index + 1}.svg`
   }
