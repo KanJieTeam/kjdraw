@@ -35,7 +35,9 @@ const assertReferences = document => {
     assert.deepEqual(leader.payload.textPosition, annotation.payload.position)
   }
   assert.equal(leaders[3].payload.annotationType, 3)
-  assert.equal(leaders[3].payload.annotationHandle, null)
+  // DXF's explicit null handle survives KJD and DXF checkpoints distinctly
+  // from an omitted group 340, without creating an annotation reference.
+  assert.equal(leaders[3].payload.annotationHandle, '0')
   assert.equal(leaders[3].payload.annotationId, null)
   assert.equal(leaders[3].payload.unresolvedLeaderAnnotation, undefined)
 }
@@ -64,7 +66,10 @@ test('LEADER annotation references fail closed for wrong type, owner, missing an
   const erasedDocument = await adapter.read(fixture())
   const leader = erasedDocument.listEntities({ type: 'LEADER' })[1]
   await erasedDocument.transact('erase annotation', tx => tx.eraseObject(leader.payload.annotationId))
-  assert.throws(() => adapter.write(erasedDocument), /live MTEXT, TOLERANCE, or INSERT/)
+  assert.throws(() => adapter.write(erasedDocument), {
+    name: 'KJValidationError',
+    message: /^DXF LEADER annotation must reference live MTEXT, TOLERANCE,? or INSERT in the same owner space$/,
+  })
 })
 
 test('independent ezdxf observes every exported LEADER annotation type and no structural repair', async t => {

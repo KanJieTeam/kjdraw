@@ -3334,7 +3334,7 @@ function editLeaderAnnotation(document, transaction, args) {
             textPosition,
             annotationId: updatedAnnotation.id,
             ownsAnnotation: annotation ? source.payload.ownsAnnotation : true,
-            annotationType: 0,
+            annotationType: annotation ? source.payload.annotationType ?? 0 : 0,
             arrowEnabled: args.arrowEnabled ?? source.payload.arrowEnabled ?? true,
             ...layerId == null ? {} : {
                 layerId
