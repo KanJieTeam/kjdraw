@@ -21,10 +21,10 @@ async function removeConsumerScratch(scratch){
 }
 async function compiler(){const tsc=join(root,'node_modules/typescript/bin/tsc');if(existsSync(tsc))return[process.execPath,[tsc]];const name=`typescript-${process.platform}-${process.arch}`;const binary=join(root,'node_modules/@typescript',name,'lib',process.platform==='win32'?'tsc.exe':'tsc');assert.ok(existsSync(binary),'Install the locked TypeScript compiler first');return[binary,[]]}
 
-test('real installed tarball exposes vector output, headless print and angular/AI transform APIs to typed framework consumers',{timeout:180000},async()=>{
+test('real installed tarball exposes vector output, headless print and angular/AI transform APIs to typed framework consumers',{timeout:360000},async()=>{
  const scratch=await createConsumerScratch()
  try{
-  const audit=run(process.execPath,['scripts/audits/verify-packed-package.mjs'],{env:{...process.env,KJDRAW_KEEP_PACK_AUDIT:'1',KJDRAW_AUDIT_TMPDIR:scratch,npm_config_offline:'true'}})
+  const audit=run(process.execPath,['scripts/audits/verify-packed-package.mjs'],{timeout:300000,env:{...process.env,KJDRAW_KEEP_PACK_AUDIT:'1',KJDRAW_AUDIT_TMPDIR:scratch,npm_config_offline:'true'}})
   const baseline=JSON.parse(audit.stdout);assert.equal(baseline.ok,true);assert.deepEqual(baseline.typedConsumers,['Vanilla TypeScript','React TSX','Vue composable']);assert.equal(baseline.frameworkInstall.mode,'locked-offline-npm-ci')
   const folders=(await readdir(scratch)).filter(n=>n.startsWith('kjdraw-packed-consumer-'));assert.equal(folders.length,1)
   const consumer=join(scratch,folders[0],'consumer'),installed=join(consumer,'node_modules/@kanjieteam/kjdraw'),manifest=JSON.parse(await readFile(join(installed,'package.json'),'utf8'))

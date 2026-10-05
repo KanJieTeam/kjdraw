@@ -46,6 +46,8 @@ export interface KJModelConversationOptions {
     readonly onTextDelta?: (delta: string) => void;
     /** One observation per completed model turn, even when response parsing later fails. Exceptions are isolated. */
     readonly onUsage?: (usage: KJModelUsage) => void;
+    /** Host may append exactly one prompt after a successful text-only turn. Defaults to false; never resumes after transport/protocol failure or while tool results are pending. */
+    readonly allowTextContinuation?: boolean;
 }
 export interface KJModelRequest {
     readonly protocol: KJModelProtocol;
@@ -58,6 +60,10 @@ export interface KJModelRequest {
 }
 /** Bounded OpenAI-compatible request fields used by domestic model profiles. Reserved CAD/tool fields cannot be overridden. */
 export interface KJChatRequestExtensions {
+    /** Explicit host opt-in for compatible providers. Valid JSON is not evidence of answer correctness. */
+    readonly response_format?: {
+        readonly type: 'json_object';
+    };
     readonly thinking?: {
         readonly type: 'enabled' | 'disabled';
         readonly keep?: 'all' | null;
@@ -91,17 +97,28 @@ export interface KJModelAdapterOptions {
     chatStreamIncludeUsage?: boolean;
     /** Send tool_stream=true for compatible endpoints that require it for incremental tool arguments. */
     chatStreamToolCalls?: boolean;
+    /** Maximum JSON bytes for a complete logical response and for each parsed streaming event. */
     maxResponseBytes?: number;
+    /** Independent aggregate UTF-8 JSON budget for parsed streaming event envelopes; defaults to 8 MiB and cannot exceed 8 MiB. The host transport must separately bound raw SSE framing. */
+    maxStreamBytes?: number;
     /** Maximum parsed events or chunks accepted for one streamed response. */
     maxStreamEvents?: number;
     maxHistoryBytes?: number;
+    /** Opt-in wire-only reuse of byte-identical successful read receipts with identical arguments in this conversation. The first complete receipt and all host tool outputs are retained. Never deduplicates proposals, errors or changed read results. */
+    reuseReadResultReferences?: boolean;
     /** Adapter-wide visible text observer, including runs created through runKJAgentTask. Exceptions are isolated. */
     onTextDelta?: (delta: string) => void;
     /** Host-only observer; contains counters and timing, never response text or credentials. Exceptions are isolated. */
     onUsage?: (usage: KJModelUsage) => void;
 }
+/** Safe budget diagnostics. Does not contain model text, drawing data or transport credentials. */
+export interface KJModelSizeLimitDetails {
+    readonly phase: 'request-extensions' | 'tool-schema' | 'request' | 'response' | 'stream' | 'image';
+    readonly actualBytes: number;
+    readonly maxBytes: number;
+}
 export declare class KJModelError extends KJDrawError {
-    constructor(code: string, message: string);
+    constructor(code: string, message: string, details?: KJModelSizeLimitDetails);
 }
 /** Four wire formats, one CAD tool schema. This adapter never fetches, approves edits or selects a model. */
 export declare function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentModel;

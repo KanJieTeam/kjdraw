@@ -9,7 +9,7 @@ npm install -g @kanjieteam/kjdraw@next
 npx skills add KanJieTeam/kjdraw -g
 ```
 
-The Skills CLI finds the repository's single `kjdraw-cad` Skill and detects installed agents; choose a target when prompted. It installs instructions, **not** the CAD engine; the global npm command installs the engine. Verify the installed CLI with `kjdraw agent tools cad_propose_circles`. If you only want to inspect a tool without installing globally, `npx --yes --package=@kanjieteam/kjdraw@1.0.0-rc.3 kjdraw agent tools cad_propose_circles` also works, but the Skill needs a persistent `kjdraw` command for normal use.
+The Skills CLI finds the repository's single `kjdraw-cad` Skill and detects installed agents; choose a target when prompted. It installs instructions, **not** the CAD engine; the global npm command installs the engine. Verify the installed CLI with `kjdraw agent tools cad_propose_circles`. If you only want to inspect a tool without installing globally, `npx --yes --package=@kanjieteam/kjdraw@1.0.0-rc.4 kjdraw agent tools cad_propose_circles` also works, but the Skill needs a persistent `kjdraw` command for normal use.
 
 For a local smoke test, create `circle.json` in a test workspace containing `{"expectedRevision":0,"units":"millimeter","circles":[{"center":{"x":0,"y":0},"radius":5}]}`, then run there:
 
@@ -32,13 +32,13 @@ kjdraw inspect reviewed.kjd
 kjdraw inspect reviewed.dxf
 ```
 
-Both commands must report `valid: true` and the expected entities. Do not count the proposal alone as a completed drawing. For a repeatable test against the **actual published npm package** rather than repository source, install `@kanjieteam/kjdraw@1.0.0-rc.3` into an isolated directory and run `node scripts/audits/verify-published-agent-first-use.mjs --package-root <isolated-node_modules/@kanjieteam/kjdraw>` from a source checkout. Its scripted approval is only a smoke-test fixture, not independent human or live-model acceptance.
+Both commands must report `valid: true` and the expected entities. Do not count the proposal alone as a completed drawing. For a repeatable test against the **actual published npm package** rather than repository source, install `@kanjieteam/kjdraw@1.0.0-rc.4` into an isolated directory and run `node scripts/audits/verify-published-agent-first-use.mjs --package-root <isolated-node_modules/@kanjieteam/kjdraw>` from a source checkout. Its scripted approval is only a smoke-test fixture, not independent human or live-model acceptance.
 
 ## Browser chat: data flow and limits
 
 The separate [KJDraw AI chat](https://kanjieteam.github.io/kjdraw/ai/) is an optional, bring-your-own-key preview. Its static GitHub Pages frontend sends the API key in an authorization header **directly to the HTTPS endpoint you enter**; it also sends your prompt, recent conversation and the drawing context needed for that request. KJDraw does not host a model proxy. Do not enter a key or customer drawing unless you trust that endpoint and are allowed to share the data with it.
 
-The key is kept in the page's memory, not local or session storage, and is cleared when the page closes. Requests omit browser credentials, reject redirects and require CORS permission from the chosen provider; many provider APIs therefore cannot be used directly from a browser. A self-only script policy and no third-party scripts reduce exposure, but the static site's CSP meta tag is **not** equivalent to server response headers or a security certification. On a shared computer, close the tab after use. Browser tests currently exercise mocked model responses, not independent live-provider compatibility. Every CAD change remains a proposal until approved.
+Conversations, drawings and model connection settings (**including the plaintext API key**) are saved in this browser's IndexedDB so you can continue after a refresh; KJDraw provides no server-side sync. Clearing this site's data removes them. On a shared computer, clear site data before leaving. Requests omit browser credentials, reject redirects and require CORS permission from the chosen provider; many provider APIs therefore cannot be used directly from a browser. A self-only script policy and no third-party scripts reduce exposure, but the static site's CSP meta tag is **not** equivalent to server response headers or a security certification. Browser tests currently exercise mocked model responses, not independent live-provider compatibility. Every CAD change remains a proposal until approved.
 
 ## Existing optional MCP installer
 
@@ -111,7 +111,7 @@ If `kjdraw` already exists in Codex, review that entry with `codex mcp list` bef
 
 Run the same one-line command again to move to the currently promoted source commit. This is an in-place update; uninstalling or reconfiguring each project is unnecessary. Restart the AI client and start a new task so its MCP process loads the new runtime. The install channel is promoted only by an explicit maintainer change after candidate verification; it is not the moving tip of `main`, and the installer never silently downloads new executable code while an agent task is running.
 
-Geology knowledge comes from the runtime package. In the current source candidate, remote geology updates are **disabled**: the repository's mutable JSON manifest has hashes but no independently verifiable publisher signature. Hashes alone do not authenticate a new version. This change does **not** retrofit an already installed rc.3 package or an older pinned one-line installer; on those installations set `KJDRAW_KNOWLEDGE_UPDATES=off` in the launcher environment until a fixed runtime is published and installed. A future release must ship a pinned verification key and signed manifest before it can re-enable remote or cached knowledge. Restart the client after upgrading the runtime; installing a Skill alone does not update the CAD engine.
+Geology knowledge comes from the runtime package. In published rc.4, remote geology updates are **disabled by default**: the repository's mutable JSON manifest has hashes but no independently verifiable publisher signature. Hashes alone do not authenticate a new version. This change does **not** retrofit an already installed rc.3 package or older pinned one-line installer; on those installations set `KJDRAW_KNOWLEDGE_UPDATES=off` in the launcher environment until upgrading the runtime. A future release must ship a pinned verification key and signed manifest before it can re-enable remote or cached knowledge. Restart the client after upgrading; installing a Skill alone does not update the CAD engine.
 
 ## Verify the connection
 

@@ -13,6 +13,8 @@ function workflowTimeoutMinutes(workflow) {
 }
 
 function exactMainWaitSeconds(workflow) {
+  const deadlineWindow = /poll_wait_seconds=(\d+)/.exec(workflow)?.[1]
+  if (deadlineWindow) return Number(deadlineWindow)
   const attempts = /for attempt in \$\(seq 1 (\d+)\)/.exec(workflow)?.[1]
   const interval = /sleep (\d+)/.exec(workflow)?.[1]
   assert.ok(attempts && interval, 'exact-main gate must declare a bounded polling window')
@@ -167,8 +169,9 @@ test('release docs separate the source candidate from live registry verification
     read('docs/npm-publishing.md'), read('docs/status.md'), read('packages/kjdraw-sdk/package.json'),
   ])
   const { version } = JSON.parse(packageText)
+  assert.ok(guide.includes(`source-tree candidate is \`${version}\``))
+  assert.ok(status.includes(`current public candidate is \`${version}\``))
   for (const document of [guide, status]) {
-    assert.ok(document.includes(`source-tree candidate is \`${version}\``))
     assert.match(document, /checkout version does not establish npm publication/i)
     assert.match(document, /npm view @kanjieteam\/kjdraw dist-tags/)
     assert.ok(document.includes(`npm view @kanjieteam/kjdraw@${version} version`))

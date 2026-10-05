@@ -3,7 +3,7 @@
   "symbol": "createKJDrawEditor",
   "class": "KJDrawEditor",
   "distribution": {
-    "version": "1.0.0-rc.3",
+    "version": "1.0.0-rc.4",
     "channel": "source"
   },
   "title": {
@@ -371,7 +371,7 @@
     }
   ],
   "package": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "source": "docs/site/api/editor-api.json",
-  "sourceDigest": "sha256:ece6f0267ee2631796a3dc55140df32e930c1927ca304afdac57a1e1ecb74810"
+  "sourceDigest": "sha256:69c84d74626398f72ae04c04e6d23488ebd1c137311447d853bb390e021f3fc7"
 }

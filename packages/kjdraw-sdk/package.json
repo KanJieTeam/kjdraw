@@ -1,6 +1,6 @@
 {
   "name": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "description": "Open-source CAD engine and ready-to-use editor for engineering apps and AI agents",
   "repository": {
     "type": "git",
@@ -61,6 +61,21 @@
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./planar-boundaries": {
+      "types": "./types/planar-boundaries.d.ts",
+      "import": "./src/planar-boundaries.js",
+      "default": "./src/planar-boundaries.js"
+    },
+    "./planar-boundary-edit": {
+      "types": "./types/planar-boundary-edit.d.ts",
+      "import": "./src/planar-boundary-edit.js",
+      "default": "./src/planar-boundary-edit.js"
+    },
+    "./planar-contours": {
+      "types": "./types/planar-contours.d.ts",
+      "import": "./src/planar-contours.js",
+      "default": "./src/planar-contours.js"
+    },
     "./agent-skill-json": {
       "types": "./types/agent-skill-json.d.ts",
       "import": "./src/agent-skill-json.js",
@@ -90,6 +105,11 @@
       "types": "./types/knowledge-packs/geology-core.d.ts",
       "import": "./src/knowledge-packs/geology-core.js",
       "default": "./src/knowledge-packs/geology-core.js"
+    },
+    "./knowledge-packs/geology-patterns": {
+      "types": "./types/knowledge-packs/geology-patterns.d.ts",
+      "import": "./src/knowledge-packs/geology-patterns.js",
+      "default": "./src/knowledge-packs/geology-patterns.js"
     },
     "./knowledge-compiler": {
       "types": "./types/knowledge-compiler.d.ts",

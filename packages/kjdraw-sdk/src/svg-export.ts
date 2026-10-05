@@ -296,7 +296,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
     const layout = layoutCadMText(entity.payload, style)
     if (!fontIds.has(entity.id)) { fontIds.add(entity.id); report.approximations.push({ entityId: entity.id, type: entity.type, reason: 'Editable text uses unembedded sans-serif font metrics' }) }
     const m = layout.matrix
-    const spans = layout.lines.map(line=>`<tspan x="${numeric(line.left)}" y="${numeric(-line.baseline)}">${xml(line.text)}</tspan>`).join('')
+    const spans = layout.lines.map(line=>line.runs.map(run=>`<tspan x="${numeric(run.left)}" y="${numeric(-line.baseline)}" font-family="${xml(run.family)}">${xml(run.text)}</tspan>`).join('')).join('')
     return `<text transform="matrix(${m[0]} ${m[1]} ${-m[2]} ${-m[3]} ${m[4]} ${m[5]})" font-family="${xml(layout.family)}" font-size="${layout.height}" text-anchor="start" fill="currentColor" stroke="none" xml:space="preserve">${spans}</text>`
   }
   const primitive = (entity: KJReadonlyObjectRecord): string => {

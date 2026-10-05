@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 // This installer is deliberately locked to one public release candidate. It
 // must be updated only after the candidate package and provenance exist.
-export const CANDIDATE_VERSION = '1.0.0-rc.3'
+export const CANDIDATE_VERSION = '1.0.0-rc.4'
 const PACKAGE = '@kanjieteam/kjdraw'
 const REGISTRY = 'https://registry.npmjs.org/'
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))

@@ -130,6 +130,169 @@ test('model proxy terminates an SSE event that completes a reflected credential'
  assert.ok(!received.includes('server-only-'));assert.ok(!received.includes('server-only-secret'))
 })
 
+test('model proxy releases real tool-call endings and usage with an sk-style credential', async t => {
+  const app = await fixture(t, (req, res) => {
+    req.resume()
+    const events = [
+      { model: 'models', choices: [{ index: 0, delta: { content: 'Read the patterns', tool_calls: [{ index: 0, id: 'call-patterns', type: 'function', function: { name: 'cad_read_hatch_patterns', arguments: '{' } }] } }] },
+      { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: '}' } }] }, finish_reason: 'tool_calls' }] },
+      { choices: [], usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 } },
+    ]
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    for (const event of events) res.write(`data: ${JSON.stringify(event)}\n\n`)
+    res.end('data: [DONE]\n\n')
+  }, { apiKey: 'sk-public-fixture-not-a-real-provider-secret' })
+  const response = await app.post({ ...body, stream: true })
+  assert.equal(response.status, 200)
+  const frames = []
+  for await (const event of await readChatModelResponse(response)) frames.push(event)
+  assert.equal(frames.length, 3)
+  assert.equal(frames[1].choices[0].finish_reason, 'tool_calls')
+  assert.equal(frames[2].usage.total_tokens, 5)
+})
+
+test('model proxy permits a harmless final credential-prefix character only after choice completion', async t => {
+  const app = await fixture(t, (req, res) => {
+    req.resume()
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    res.end('data: {"choices":[{"index":0,"delta":{"content":"Draw holes"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
+  }, { apiKey: 'sk-public-fixture-not-a-real-provider-secret' })
+  const response = await app.post({ ...body, stream: true })
+  assert.equal(response.status, 200)
+  const received = await response.text()
+  assert.match(received, /Draw holes/)
+  assert.match(received, /\[DONE\]/)
+})
+
+test('model proxy blocks reflected tool arguments even when sparse tool indices change array position', async t => {
+  const app = await fixture(t, (req, res) => {
+    req.resume()
+    const events = [
+      { choices: [{ index: 0, delta: { tool_calls: [{ index: 1, function: { arguments: '{"label":"sk-fixture-' } }] } }] },
+      { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: '{}' } }, { index: 1, function: { arguments: 'private"}' } }] }, finish_reason: 'tool_calls' }] },
+    ]
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    for (const event of events) res.write(`data: ${JSON.stringify(event)}\n\n`)
+    res.end('data: [DONE]\n\n')
+  }, { apiKey: 'sk-fixture-private' })
+  const response = await app.post({ ...body, stream: true })
+  assert.equal(response.status, 502)
+  const received = await response.text()
+  assert.ok(!received.includes('sk-fixture-'))
+  assert.ok(!received.includes('sk-fixture-private'))
+})
+
+test('model proxy blocks split Responses deltas and never releases an unfinished credential prefix', async t => {
+  for (const behavior of ['split', 'truncated']) await t.test(behavior, async t => {
+    const app = await fixture(t, (req, res) => {
+      req.resume()
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+      const first = { type: 'response.output_text.delta', item_id: 'item-1', content_index: 0, delta: 'sk-fixture-' }
+      res.write(`data: ${JSON.stringify(first)}\n\n`)
+      if (behavior === 'split') {
+        const second = { ...first, delta: 'private' }
+        res.write(`data: ${JSON.stringify(second)}\n\n`)
+      }
+      res.end()
+    }, { protocol: 'responses', apiKey: 'sk-fixture-private' })
+    const response = await app.post({ model: 'fixed-model', input: [], max_output_tokens: 32, stream: true })
+    assert.equal(response.status, 502)
+    assert.ok(!(await response.text()).includes('sk-fixture-'))
+  })
+})
+
+test('model proxy never forwards fragments after a completed chat choice or Responses response', async t => {
+  for (const protocol of ['chat-completions', 'responses']) await t.test(protocol, async t => {
+    const app = await fixture(t, async (req, res) => {
+      req.resume()
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+      const first = protocol === 'chat-completions'
+        ? { choices: [{ index: 0, delta: { content: 'sk-fixture-' }, finish_reason: 'stop' }] }
+        : { type: 'response.completed', response: { status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: 'sk-fixture-' }] }] } }
+      const second = protocol === 'chat-completions'
+        ? { choices: [{ index: 0, delta: { content: 'private' }, finish_reason: 'stop' }] }
+        : { type: 'response.output_text.delta', item_id: 'item-1', content_index: 0, delta: 'private' }
+      res.write(`data: ${JSON.stringify(first)}\n\n`)
+      await new Promise(resolve => setTimeout(resolve, 20))
+      res.end(`data: ${JSON.stringify(second)}\n\ndata: [DONE]\n\n`)
+    }, { protocol, apiKey: 'sk-fixture-private' })
+    const request = protocol === 'chat-completions'
+      ? { ...body, stream: true }
+      : { model: 'fixed-model', input: [], max_output_tokens: 32, stream: true }
+    const response = await app.post(request)
+    assert.equal(response.status, 200)
+    const reader = response.body.getReader(), chunks = []
+    try {
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        chunks.push(value)
+      }
+      assert.fail('invalid post-terminal fragments must close the browser stream')
+    } catch (error) {
+      assert.notEqual(error.code, 'ERR_ASSERTION')
+    } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
+    const received = Buffer.concat(chunks).toString('utf8')
+    assert.match(received, /sk-fixture-/)
+    assert.ok(!received.includes('private'))
+    assert.ok(!received.includes('[DONE]'))
+  })
+})
+
+test('a foreign protocol completion event cannot clear live chat credential fragments', async t => {
+  const app = await fixture(t, (req, res) => {
+    req.resume()
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    const events = [
+      { choices: [{ index: 0, delta: { content: 'sk-fixture-' } }] },
+      { type: 'response.completed', response: { status: 'completed' } },
+      { choices: [{ index: 0, delta: { content: 'private' }, finish_reason: 'stop' }] },
+    ]
+    for (const event of events) res.write(`data: ${JSON.stringify(event)}\n\n`)
+    res.end('data: [DONE]\n\n')
+  }, { apiKey: 'sk-fixture-private' })
+  const response = await app.post({ ...body, stream: true })
+  assert.equal(response.status, 502)
+  assert.ok(!(await response.text()).includes('sk-fixture-'))
+})
+
+test('model proxy rejects JSON-escaped credentials in complete and fragmented tool arguments', async t => {
+  for (const protocol of ['chat-completions', 'responses']) for (const fragments of [['{"label":"\\u0073k-fixture-private"}'], ['{"label":"\\u00', '73k-fixture-', 'private"}']]) {
+    await t.test(`${protocol}/${fragments.length}-fragments`, async t => {
+      const app = await fixture(t, (req, res) => {
+        req.resume()
+        res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+        fragments.forEach((argumentsFragment, index) => {
+          const event = protocol === 'chat-completions'
+            ? { choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: argumentsFragment } }] }, ...(index === fragments.length - 1 ? { finish_reason: 'tool_calls' } : {}) }] }
+            : { type: 'response.function_call_arguments.delta', item_id: 'item-1', output_index: 0, delta: argumentsFragment }
+          res.write(`data: ${JSON.stringify(event)}\n\n`)
+        })
+        res.end('data: [DONE]\n\n')
+      }, { protocol, apiKey: 'sk-fixture-private' })
+      const request = protocol === 'chat-completions' ? { ...body, stream: true } : { model: 'fixed-model', input: [], max_output_tokens: 32, stream: true }
+      const response = await app.post(request)
+      assert.equal(response.status, 502)
+      assert.ok(!(await response.text()).includes('fixture-'))
+    })
+  }
+})
+
+test('model proxy inspects completed Responses argument snapshots without double-decoding literal escapes', async t => {
+  for (const reflected of [true, false]) await t.test(String(reflected), async t => {
+    const args = reflected ? '{"label":"\\u0073k-fixture-private"}' : JSON.stringify({ label: '\\u0073k-fixture-private' })
+    const app = await fixture(t, (req, res) => {
+      req.resume()
+      const event = { type: 'response.completed', response: { status: 'completed', output: [{ type: 'function_call', name: 'cad_read_drawing', arguments: args }] } }
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+      res.end(`data: ${JSON.stringify(event)}\n\n`)
+    }, { protocol: 'responses', apiKey: 'sk-fixture-private' })
+    const response = await app.post({ model: 'fixed-model', input: [], max_output_tokens: 32, stream: true })
+    assert.equal(response.status, reflected ? 502 : 200)
+    if (!reflected) assert.ok((await response.text()).includes('response.completed'))
+  })
+})
+
 test('model proxy enforces both declared and chunked request byte limits', async t => {
   let requests = 0
   const app = await fixture(t, (req, res) => { requests++; req.resume(); json(res, {}) }, { maxRequestBytes: 128 })

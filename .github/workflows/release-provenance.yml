@@ -20,7 +20,7 @@ concurrency:
 jobs:
   verify-candidate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -41,12 +41,21 @@ jobs:
           git fetch --no-tags origin main
           test "$(git rev-parse refs/remotes/origin/main)" = "$sha"
 
+          poll_wait_seconds=2100
+          poll_started_at="$(date +%s)"
+          poll_deadline=$((poll_started_at + poll_wait_seconds))
+          exact_run_query='[.workflow_runs[] | select(.head_sha == "'"$sha"'" and .head_branch == "main" and .event == "push")][0] | (.status // "missing") + ":" + (.conclusion // "")'
           ci_conclusion=""
           pages_conclusion=""
-          for attempt in $(seq 1 50); do
-            ci_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
-            pages_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pages.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
-            if [[ "$ci_conclusion" == "success" && "$pages_conclusion" == "success" ]]; then break; fi
+          # At most 70 waits, with a fresh terminal-state query after the last wait.
+          for attempt in $(seq 1 71); do
+            ci_state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=20" --jq "$exact_run_query")"
+            pages_state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pages.yml/runs?head_sha=$sha&event=push&per_page=20" --jq "$exact_run_query")"
+            ci_status="${ci_state%%:*}"
+            ci_conclusion="${ci_state#*:}"
+            pages_status="${pages_state%%:*}"
+            pages_conclusion="${pages_state#*:}"
+            if [[ "$ci_status" == "completed" && "$pages_status" == "completed" && "$ci_conclusion" == "success" && "$pages_conclusion" == "success" ]]; then break; fi
             for result in "CI:$ci_conclusion" "Pages:$pages_conclusion"; do
               conclusion="${result#*:}"
               if [[ -n "$conclusion" && "$conclusion" != "success" ]]; then
@@ -54,7 +63,16 @@ jobs:
                 exit 1
               fi
             done
-            sleep 30
+            poll_remaining=$((poll_deadline - $(date +%s)))
+            if (( poll_remaining <= 0 || attempt == 71 )); then
+              echo "::error::Timed out waiting for exact-main checks for $sha after $poll_wait_seconds seconds (attempt=$attempt; CI status=$ci_status conclusion=${ci_conclusion:-pending}; Pages status=$pages_status conclusion=${pages_conclusion:-pending})"
+              exit 1
+            fi
+            if (( poll_remaining < 30 )); then
+              sleep "$poll_remaining"
+            else
+              sleep 30
+            fi
           done
           test "$ci_conclusion" = "success"
           test "$pages_conclusion" = "success"

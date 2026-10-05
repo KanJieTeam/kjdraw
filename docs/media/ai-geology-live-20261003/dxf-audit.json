@@ -1,0 +1,24 @@
+{
+  "schema": "com.kanjie.kjdraw.public-synthetic-dxf-audit@1",
+  "source": "original-public-synthetic-facts",
+  "measuredData": false,
+  "validator": "ezdxf",
+  "validatorVersion": "1.4.4",
+  "scope": "Independent parsing and native document audit of these two exact exported DXF files. Does not certify engineering conclusions or arbitrary DXF compatibility. Original byte hashes are preserved in Git.",
+  "files": {
+    "synthetic-geology-section.dxf": {
+      "sha256": "a28ac92cc2a7c639198824720cf5ae08fa68c69bcbd8141124151ba77ee98f4c",
+      "entities": 542,
+      "hatches": 96,
+      "auditErrors": 0,
+      "auditFixes": 0
+    },
+    "synthetic-live-final.dxf": {
+      "sha256": "dda4666503ca2d712264ecb6a20cad92dfd6cbca13a0bdb1902d2da7dbb166e6",
+      "entities": 539,
+      "hatches": 96,
+      "auditErrors": 0,
+      "auditFixes": 0
+    }
+  }
+}

@@ -37,6 +37,8 @@ export interface KJModificationDefinition {
 }
 export interface KJModificationBuildContext {
     readonly ids: readonly string[];
+    /** Selected target type, used to choose entity-specific form defaults. */
+    readonly targetEntityType?: string;
     readonly values?: Readonly<Record<string, unknown>>;
     readonly points?: readonly KJModificationPoint[];
     readonly selectionCenter?: KJModificationPoint;
@@ -62,7 +64,8 @@ export declare const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinit
 export declare function getKJModificationSelectionCenter(entities: readonly {
     readonly payload: Readonly<Record<string, unknown>>;
 }[]): KJModificationPoint;
-export declare function getKJModificationDefinition(id: KJModificationId): KJModificationDefinition;
+/** Resolve form defaults for the selected target without changing explicit user values. */
+export declare function getKJModificationDefinition(id: KJModificationId, targetEntityType?: string): KJModificationDefinition;
 /** Resolve modification commands that require the parameter dialog and/or ordered canvas picks. */
 export declare function getKJInteractiveModificationDefinition(command: string): KJModificationDefinition | null;
 /** Parse optional positional command parameters into the same values used by the modification dialog. */

@@ -9,7 +9,7 @@
 The model describes engineering intent. KJDraw compiles it into real CAD drawings<br/>
 that stay editable, verifiable, undoable, and reopenable.
 
-[**Quick start**](#-quick-start) · [**Try with AI**](https://kanjieteam.github.io/kjdraw/ai/) · [**Live editor**](https://kanjieteam.github.io/kjdraw/) · [**Docs**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [简体中文](README.zh-CN.md)
+[**Quick start**](#-quick-start) · [**Try with AI**](https://kanjieteam.github.io/kjdraw/ai/) · [**Live editor**](https://kanjieteam.github.io/kjdraw/) · [**Docs**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [**Contribute Skills**](docs/contributing-skills.md) · [简体中文](README.zh-CN.md)
 
 [![GitHub release](https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0)](https://github.com/KanJieTeam/kjdraw/releases)
 [![npm next](https://img.shields.io/npm/v/@kanjieteam/kjdraw/next?style=flat-square&label=npm&labelColor=30363d&color=2863f0)](https://www.npmjs.com/package/@kanjieteam/kjdraw)
@@ -18,11 +18,11 @@ that stay editable, verifiable, undoable, and reopenable.
 </div>
 
 <p align="center">
-  <a href="https://kanjieteam.github.io/kjdraw/">
-    <img src="docs/media/kjdraw-workflow.gif" alt="KJDraw workbench: open a drawing, review a change, draw and dimension a part" width="100%" />
+  <a href="https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/">
+    <img src="docs/media/ai-geology-live-20261003/synthetic-live-model-highlights.gif" alt="Real DeepSeek session: ten reviewed edits to one synthetic geological section, followed by undo, redo and DXF reopening" width="100%" />
   </a>
   <br/>
-  <sub>Recorded in the built-in workbench; the Agent panel replays a preset scenario. To use KJDraw from a real AI client, see Quick start.</sub>
+  <sub>Real DeepSeek · ten edits on one synthetic section · condensed recording. <a href="https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/">Full recording and checks ↗</a></sub>
 </p>
 
 ## Draw it. Then keep editing it.
@@ -40,17 +40,15 @@ npm install -g @kanjieteam/kjdraw@next
 npx skills add KanJieTeam/kjdraw -g
 ```
 
-The first command installs the CAD engine; the short second command lets you choose where to add its Skill. Restart your agent, then ask:
+The first command installs the CAD engine. In the second, select `kjdraw-cad` and your agent. Restart your agent, then ask:
 
 ```text
 Use KJDraw to draw a circle with a radius of 5 mm.
 ```
 
-The Skill calls `kjdraw agent` locally; **no MCP registration or model API key is needed by KJDraw**. Edits remain proposals until a human approves them. [Other agents and optional MCP setup](docs/try-in-ai.md).
+Review the proposed change, approve it, then export the drawing as **DXF**. The Skill calls the local CAD engine through `kjdraw agent`; **MCP registration is optional**. [Approval and export guide](docs/try-in-ai.md#skill-first-local-cli).
 
-For a more representative first drawing, ask: “Use KJDraw to draw a six-hole flange in millimeters: outer diameter 120, bore 40, thickness 20, bolt circle 90, holes diameter 10; title it Six-hole flange and use drawing ID DEMO-FLANGE.” The published rc.3 tool produces a review proposal, not an automatically approved drawing. [Review it and reopen the KJD/DXF candidates](docs/try-in-ai.md#skill-first-local-cli).
-
-Prefer the browser? [Try with AI](https://kanjieteam.github.io/kjdraw/ai/) is a separate chat page. Bring your own API key and a model endpoint that permits browser CORS requests; the key stays in page memory. CAD changes remain proposals until you approve them.
+Prefer not to install? [Try with AI](https://kanjieteam.github.io/kjdraw/ai/) in your browser and connect your model. Your requests and drawing context go to that provider; conversations, drawings and the key stay saved in this browser. Clear site data on shared devices. [Connection requirements and other agents](docs/try-in-ai.md).
 
 ## What you can build
 
@@ -153,13 +151,15 @@ Each proposal is bound to the revision it was made against, can be used only onc
 
 ## Formats and scope
 
+Use **DXF** to exchange drawings with other CAD tools. KJD and KJP are optional native formats for KJDraw document and project state.
+
 | Area | Status |
 | --- | --- |
-| **KJD** native drawings | ✅ Read/write, validation, transactions, revisions, undo/redo |
-| **KJP** projects | ✅ Multiple drawings in one package with snapshots, hashes and command journals |
 | **DXF** (ASCII) | ✅ Documented subset, R14–2024 version labels — [compatibility details](docs/dxf-compatibility.md) |
 | Binary DXF | ❌ Not supported |
 | **DWG** | ❌ Not in 1.0 — convert to DXF first (for example with ODA File Converter) |
+| **KJD** native drawings | ✅ Read/write, validation, transactions, revisions, undo/redo |
+| **KJP** projects | ✅ Multiple drawings in one package with snapshots, hashes and command journals |
 | **3D** | 🧪 Experimental meshes, primitives and box booleans |
 | CLI | ✅ Inspect, validate and convert KJD, KJP and DXF headless — [file guide](https://kanjieteam.github.io/kjdraw/docs/latest/files/) |
 
@@ -167,11 +167,27 @@ Unsupported content is rejected rather than silently dropped. Full boundaries: [
 
 ## Contributing
 
-**Our mission: make KJDraw the default open-source CAD engine for the AI era.**
+**Contribute a Skill for your industry.** Start with the [Skill catalog](skills/README.md) and [developer guide](docs/contributing-skills.md). An industry pack is one `skills/kjdraw-<industry-task>/` directory containing a workflow and any useful templates, rules or helpers.
+
+**Fork → add `skills/kjdraw-<topic>/` → test your workflow → open a PR.**
+
+[Skill developer guide](docs/contributing-skills.md) · [Skill catalog and samples](skills/README.md) · [All contribution types](CONTRIBUTING.md) · [中文技能包指南](docs/contributing-skills.zh-CN.md).
+
+Define the inputs, outputs and acceptance checks. Reusing existing operations normally does not require a kernel change; propose missing planner, plugin or engine capabilities separately.
+
+For a new Skill, include `SKILL.md` and a human README in **English or Chinese**; maintainers can help with the translation. Add a focused `tests/community-<topic>.spec.mjs`, then run one command from the repository root:
+
+```sh
+npm run check:skill
+```
+
+This checks package structure and runs workflow tests with public synthetic inputs; it does not certify model behavior. To check only your pack, append `-- skills/kjdraw-your-topic`. List the Skill in [the catalog](skills/README.md).
 
 The most useful contributions right now:
 
-- **A drawing that breaks KJDraw.** Real DXF files that fail to open or render correctly are the fastest way to improve compatibility.
+- **An installable domain Skill.** Start from [read-only text audit](skills/kjdraw-text-audit/README.md), [mechanical hole patterns](skills/kjdraw-hole-pattern/README.md) or [drawing templates and layer rules](skills/kjdraw-sheet-template/README.md); keep its own short `SKILL.md` and useful resources, and add tests for your actual workflow.
+- **A reproducible drawing problem.** Share a small synthetic DXF or a reduced example you are authorized to publish, with the request and expected result. Do not upload private customer drawings.
+- **A reusable engineering workflow.** Explicit inputs, editable CAD output, and tests for changes, undo and DXF reopening. Start from the [domain planner example](examples/domain-planner-starter/README.md).
 - **Try it in your AI client and report back**, especially failed generations or multi-turn edits that go wrong.
 - **Editing tools, drawing types, performance, accessibility and docs.**
 
@@ -182,7 +198,7 @@ npm ci --ignore-scripts
 npm run dev          # http://localhost:4173
 ```
 
-Before opening a PR, run `npm run typecheck` and `npm test` (plus `npm run test:browser` for UI changes). For larger changes, please [open an issue](https://github.com/KanJieTeam/kjdraw/issues) first. See [Contributing](CONTRIBUTING.md) · [Governance](GOVERNANCE.md) · [Roadmap](docs/roadmap.md) · [Support](SUPPORT.md).
+Open the editor at <http://localhost:4173>. For a Skill-only PR, use `npm run check:skill`; SDK or UI changes also need the checks in [Contributing](CONTRIBUTING.md). Choose a task from the [industry-pack claim list](docs/industry-skill-tasks.md) and [claim it here](https://github.com/KanJieTeam/kjdraw/issues/4), or propose your own. See [Governance](GOVERNANCE.md) · [Roadmap](docs/roadmap.md) · [Support](SUPPORT.md).
 
 ## Star History
 

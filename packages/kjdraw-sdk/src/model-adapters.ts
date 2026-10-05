@@ -24,6 +24,8 @@ export interface KJModelConversationOptions {
   readonly onTextDelta?: (delta: string) => void
   /** One observation per completed model turn, even when response parsing later fails. Exceptions are isolated. */
   readonly onUsage?: (usage: KJModelUsage) => void
+  /** Host may append exactly one prompt after a successful text-only turn. Defaults to false; never resumes after transport/protocol failure or while tool results are pending. */
+  readonly allowTextContinuation?: boolean
 }
 export interface KJModelRequest {
   readonly protocol: KJModelProtocol
@@ -36,6 +38,8 @@ export interface KJModelRequest {
 }
 /** Bounded OpenAI-compatible request fields used by domestic model profiles. Reserved CAD/tool fields cannot be overridden. */
 export interface KJChatRequestExtensions {
+  /** Explicit host opt-in for compatible providers. Valid JSON is not evidence of answer correctness. */
+  readonly response_format?: { readonly type: 'json_object' }
   readonly thinking?: { readonly type: 'enabled' | 'disabled'; readonly keep?: 'all' | null }
   readonly reasoning_effort?: 'low' | 'high' | 'max'
   readonly enable_thinking?: boolean
@@ -66,26 +70,47 @@ export interface KJModelAdapterOptions {
   chatStreamIncludeUsage?: boolean
   /** Send tool_stream=true for compatible endpoints that require it for incremental tool arguments. */
   chatStreamToolCalls?: boolean
+  /** Maximum JSON bytes for a complete logical response and for each parsed streaming event. */
   maxResponseBytes?: number
+  /** Independent aggregate UTF-8 JSON budget for parsed streaming event envelopes; defaults to 8 MiB and cannot exceed 8 MiB. The host transport must separately bound raw SSE framing. */
+  maxStreamBytes?: number
   /** Maximum parsed events or chunks accepted for one streamed response. */
   maxStreamEvents?: number
   maxHistoryBytes?: number
+  /** Opt-in wire-only reuse of byte-identical successful read receipts with identical arguments in this conversation. The first complete receipt and all host tool outputs are retained. Never deduplicates proposals, errors or changed read results. */
+  reuseReadResultReferences?: boolean
   /** Adapter-wide visible text observer, including runs created through runKJAgentTask. Exceptions are isolated. */
   onTextDelta?: (delta: string) => void
   /** Host-only observer; contains counters and timing, never response text or credentials. Exceptions are isolated. */
   onUsage?: (usage: KJModelUsage) => void
 }
+/** Safe budget diagnostics. Does not contain model text, drawing data or transport credentials. */
+export interface KJModelSizeLimitDetails {
+  readonly phase: 'request-extensions' | 'tool-schema' | 'request' | 'response' | 'stream' | 'image'
+  readonly actualBytes: number
+  readonly maxBytes: number
+}
 export class KJModelError extends KJDrawError {
-  constructor(code: string, message: string) { super(message, { code }) }
+  constructor(code: string, message: string, details?: KJModelSizeLimitDetails) { super(message, { code, details }) }
 }
 
 function invalid(message: string): never { throw new KJModelError('KJMODEL_PROTOCOL', message) }
-const CHAT_EXTENSION_KEYS = new Set(['thinking', 'reasoning_effort', 'enable_thinking', 'tool_choice', 'parallel_tool_calls', 'prompt_cache_key', 'safety_identifier'])
+const CHAT_EXTENSION_KEYS = new Set(['response_format', 'thinking', 'reasoning_effort', 'enable_thinking', 'tool_choice', 'parallel_tool_calls', 'prompt_cache_key', 'safety_identifier'])
 function chatExtensions(value: KJChatRequestExtensions | undefined): Readonly<Record<string, unknown>> {
   if (value === undefined) return Object.freeze({})
   if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Chat request extensions must be an object')
   const input = value as Record<string, unknown>
   if (Object.keys(input).some(key => !CHAT_EXTENSION_KEYS.has(key))) invalid('Unsupported or reserved Chat request extension')
+  if (Object.hasOwn(input, 'response_format')) {
+    const descriptor = Object.getOwnPropertyDescriptor(input, 'response_format')
+    if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) invalid('Chat response format must be an enumerable data property')
+    const format: unknown = descriptor.value
+    if (!format || typeof format !== 'object' || Array.isArray(format) ||
+      ![Object.prototype, null].includes(Object.getPrototypeOf(format)) ||
+      Reflect.ownKeys(format).length !== 1 || !Object.hasOwn(format, 'type')) invalid('Unsupported Chat response format')
+    const type = Object.getOwnPropertyDescriptor(format, 'type')
+    if (!type || !Object.hasOwn(type, 'value') || !type.enumerable || type.value !== 'json_object') invalid('Unsupported Chat response format')
+  }
   if (input.thinking !== undefined) {
     if (!input.thinking || typeof input.thinking !== 'object' || Array.isArray(input.thinking)) invalid('Invalid Chat thinking configuration')
     const thinking = input.thinking as Record<string, unknown>
@@ -95,7 +120,7 @@ function chatExtensions(value: KJChatRequestExtensions | undefined): Readonly<Re
   for (const key of ['enable_thinking', 'parallel_tool_calls']) if (input[key] !== undefined && typeof input[key] !== 'boolean') invalid(`Invalid Chat ${key} option`)
   if (input.tool_choice !== undefined && !['auto', 'none', 'required'].includes(String(input.tool_choice))) invalid('Invalid Chat tool choice')
   for (const key of ['prompt_cache_key', 'safety_identifier']) if (input[key] !== undefined && (typeof input[key] !== 'string' || !(input[key] as string).trim() || (input[key] as string).length > 256)) invalid(`Invalid Chat ${key} option`)
-  return deepFreeze(jsonCopy(input, 8192))
+  return deepFreeze(jsonCopy(input, 8192, 'request-extensions'))
 }
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Expected a JSON object from the model transport')
@@ -113,9 +138,11 @@ function jsonArguments(value: unknown): unknown {
   if (typeof value !== 'string') invalid('Tool arguments must be a JSON string')
   try { return JSON.parse(value) } catch { return null } // Runtime schema validation returns an actionable tool error.
 }
-function jsonCopy<T>(value: T, budget: number): T {
+function jsonCopy<T>(value: T, budget: number, phase: KJModelSizeLimitDetails['phase']): T {
   const serialized = JSON.stringify(value)
-  if (!serialized || new TextEncoder().encode(serialized).length > budget) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model response or conversation exceeds its configured JSON byte limit')
+  if (!serialized) invalid('Model payload must be JSON serializable')
+  const actualBytes = new TextEncoder().encode(serialized).length
+  if (actualBytes > budget) throw new KJModelError('KJMODEL_SIZE_LIMIT', `Model ${phase} exceeds its configured JSON byte limit`, { phase, actualBytes, maxBytes: budget })
   return JSON.parse(serialized) as T
 }
 const IMAGE_BYTES = 1048576
@@ -222,7 +249,7 @@ function imagesForPrompt(input: KJModelInput): { mimeType: string; base64: strin
     if (!['image/png', 'image/jpeg'].includes(mimeType as string) || typeof base64 !== 'string' || !base64.length || base64.length > 1398104 || base64.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64)) invalid('Invalid PNG/JPEG base64 attachment')
     let binary: string
     try { binary = atob(base64) } catch { return invalid('Invalid image base64 encoding') }
-    if (binary.length > IMAGE_BYTES) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Each image attachment is limited to 1 MiB of decoded bytes')
+    if (binary.length > IMAGE_BYTES) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Each image attachment is limited to 1 MiB of decoded bytes', { phase: 'image', actualBytes: binary.length, maxBytes: IMAGE_BYTES })
     if (btoa(binary) !== base64) invalid('Image attachment requires canonical base64 encoding')
     imageContainer(Uint8Array.from(binary, char => char.charCodeAt(0)), mimeType as string)
     output.push({ mimeType: mimeType as string, base64, dataUrl: `data:${mimeType};base64,${base64}` })
@@ -248,13 +275,15 @@ function streamIndex(value: unknown, label: string): number {
   if (!Number.isSafeInteger(value) || (value as number) < 0) invalid(`Streaming ${label} must be a non-negative integer`)
   return value as number
 }
-interface StreamBudget { bytes: number; events: number; readonly maximumBytes: number; readonly maximumEvents: number }
+interface StreamBudget { bytes: number; events: number; readonly maximumBytes: number; readonly maximumEventBytes: number; readonly maximumEvents: number }
 function streamRecord(value: unknown, label: string, budget: StreamBudget): Record<string, unknown> {
   if (++budget.events > budget.maximumEvents) throw new KJModelError('KJMODEL_SIZE_LIMIT', `Streaming ${label} exceeds its configured event limit`)
   const serialized = JSON.stringify(value)
   if (!serialized) invalid(`Streaming ${label} must be JSON serializable`)
-  budget.bytes += new TextEncoder().encode(serialized).length
-  if (budget.bytes > budget.maximumBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model response or conversation exceeds its configured JSON byte limit')
+  const eventBytes = new TextEncoder().encode(serialized).length
+  if (eventBytes > budget.maximumEventBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model stream event exceeds its configured JSON byte limit', { phase: 'stream', actualBytes: eventBytes, maxBytes: budget.maximumEventBytes })
+  budget.bytes += eventBytes
+  if (budget.bytes > budget.maximumBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model stream envelopes exceed their configured JSON byte limit', { phase: 'stream', actualBytes: budget.bytes, maxBytes: budget.maximumBytes })
   return record(JSON.parse(serialized) as unknown)
 }
 async function * streamValues(source: AsyncIterable<unknown>, signal: AbortSignal): AsyncGenerator<unknown> {
@@ -279,11 +308,11 @@ async function * streamValues(source: AsyncIterable<unknown>, signal: AbortSigna
     }
   }
 }
-async function assembleResponsesStream(source: unknown, maximumBytes: number, maximumEvents: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
+async function assembleResponsesStream(source: unknown, maximumEventBytes: number, maximumBytes: number, maximumEvents: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
   if (!isAsyncIterable(source)) invalid('Streaming Responses transport must return an async iterable of parsed JSON events')
   const texts = new Map<string, { itemId: string; outputIndex: number; contentIndex: number; text: string; done: boolean }>()
   const calls = new Map<string, { itemId: string; outputIndex: number; arguments: string; name?: string; done: boolean }>()
-  const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEvents }
+  const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEventBytes, maximumEvents }
   let sequence = -1, terminal: Record<string, unknown> | undefined
   for await (const rawEvent of streamValues(source, signal)) {
     signal.throwIfAborted()
@@ -343,10 +372,10 @@ async function assembleResponsesStream(source: unknown, maximumBytes: number, ma
   }
   return terminal
 }
-async function assembleChatStream(source: unknown, maximumBytes: number, maximumEvents: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
+async function assembleChatStream(source: unknown, maximumEventBytes: number, maximumBytes: number, maximumEvents: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
   if (!isAsyncIterable(source)) invalid('Streaming Chat transport must return an async iterable of parsed JSON chunks')
   const tools = new Map<number, { id?: string; type?: string; name: string; arguments: string }>()
-  const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEvents }
+  const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEventBytes, maximumEvents }
   let text = '', reasoning = '', encryptedContent: string | undefined, finishReason: unknown = null, usage: unknown
   for await (const rawChunk of streamValues(source, signal)) {
     signal.throwIfAborted()
@@ -435,9 +464,9 @@ type AnthropicBlock =
   | { type: 'tool_use'; id: string; name: string; initialInput: Record<string, unknown>; arguments: string; done: boolean }
   | { type: 'thinking'; thinking: string; signature?: string; done: boolean }
   | { type: 'redacted_thinking'; data: string; done: boolean }
-async function assembleAnthropicStream(source: unknown, maximumBytes: number, maximumEvents: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
+async function assembleAnthropicStream(source: unknown, maximumEventBytes: number, maximumBytes: number, maximumEvents: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
   if (!isAsyncIterable(source)) invalid('Streaming Anthropic transport must return an async iterable of parsed JSON events')
-  const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEvents }, blocks = new Map<number, AnthropicBlock>()
+  const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEventBytes, maximumEvents }, blocks = new Map<number, AnthropicBlock>()
   let message: Record<string, unknown> | undefined, stopReason: unknown, stopSequence: unknown = null, finalUsage: Record<string, unknown> | undefined
   let messageDeltas = 0, stopped = false
   for await (const rawEvent of streamValues(source, signal)) {
@@ -527,9 +556,9 @@ async function assembleAnthropicStream(source: unknown, maximumBytes: number, ma
   return { ...message, role: 'assistant', content, stop_reason: stopReason, stop_sequence: stopSequence, usage: { ...startUsage, ...finalUsage } }
 }
 
-async function assembleGeminiStream(source: unknown, maximumBytes: number, maximumEvents: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
+async function assembleGeminiStream(source: unknown, maximumEventBytes: number, maximumBytes: number, maximumEvents: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
   if (!isAsyncIterable(source)) invalid('Streaming Gemini transport must return an async iterable of parsed JSON responses')
-  const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEvents }, parts: Record<string, unknown>[] = []
+  const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEventBytes, maximumEvents }, parts: Record<string, unknown>[] = []
   let finishReason: unknown, usageMetadata: unknown, modelVersion: unknown, responseId: unknown
   for await (const rawChunk of streamValues(source, signal)) {
     signal.throwIfAborted()
@@ -591,22 +620,32 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
   const chatStreamToolCalls = options.chatStreamToolCalls ?? false
   if (typeof chatStreaming !== 'boolean' || typeof responsesStreaming !== 'boolean' || typeof anthropicStreaming !== 'boolean' || typeof geminiStreaming !== 'boolean' || typeof chatStreamIncludeUsage !== 'boolean' || typeof chatStreamToolCalls !== 'boolean' || (chatStreaming || chatStreamIncludeUsage || chatStreamToolCalls) && protocol !== 'chat-completions' || responsesStreaming && protocol !== 'responses' || anthropicStreaming && protocol !== 'anthropic-messages' || geminiStreaming && protocol !== 'gemini-generate-content' || (chatStreamIncludeUsage || chatStreamToolCalls) && !chatStreaming) invalid('Streaming options require their matching model protocol')
   const responseBytes = limit(options.maxResponseBytes, 1048576, 16777216)
+  const streamBytes = limit(options.maxStreamBytes, 8388608, 8388608)
   const streamEvents = limit(options.maxStreamEvents, 16384, 131072)
   const historyBytes = limit(options.maxHistoryBytes, 2097152, 16777216)
+  const reuseReadResultReferences = options.reuseReadResultReferences ?? false
+  if (typeof reuseReadResultReferences !== 'boolean') invalid('reuseReadResultReferences must be a boolean')
   const streaming = chatStreaming || responsesStreaming || anthropicStreaming || geminiStreaming
   return Object.freeze({
-    createConversation({ instructions, tools, onTextDelta, onUsage }: KJModelConversationOptions): KJModelConversation {
+    createConversation({ instructions, tools, onTextDelta, onUsage, allowTextContinuation }: KJModelConversationOptions): KJModelConversation {
       if (onTextDelta !== undefined && typeof onTextDelta !== 'function') invalid('onTextDelta must be a function')
       if (onUsage !== undefined && typeof onUsage !== 'function') invalid('onUsage must be a function')
+      if (allowTextContinuation !== undefined && typeof allowTextContinuation !== 'boolean') invalid('allowTextContinuation must be a boolean')
       const definitions = tools.map(tool => ({ name: tool.name, description: tool.description, parameters: tool.inputSchema }))
-      const schema = jsonCopy(definitions, historyBytes)
+      const schema = jsonCopy(definitions, historyBytes, 'tool-schema')
+      const readTools = new Set(tools.filter(tool => tool.effect === 'read').map(tool => tool.name))
+      const readReceiptCalls = new Map<string, string>()
+      const callIdOccurrences = new Map<string, number>()
       const history: unknown[] = []
       let pending: readonly KJModelToolCall[] = []
+      let pendingChatInvalidIds = new Set<string>(), pendingChatHistoryIndex = -1, chatArgumentRecoveries = 0
       let started = false, busy = false, ended = false, turnNumber = 0
+      let textContinuationAvailable = false, textContinuations = 0
       const geminiIds = new Map<string, string>()
       return {
         async next(input: KJModelInput, signal: AbortSignal): Promise<KJModelTurn> {
-          if (busy || ended) invalid('Conversation is busy or has ended; start a fresh conversation')
+          const continueText = ended && textContinuationAvailable && allowTextContinuation === true && textContinuations === 0 && input.kind === 'prompt'
+          if (busy || ended && !continueText) invalid('Conversation is busy or has ended; start a fresh conversation')
           busy = true
           try {
             signal.throwIfAborted()
@@ -619,16 +658,74 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
               else if (protocol === 'responses') history.push({ role: 'user', content: [{ type: 'input_text', text: input.text }, ...images.map(image => ({ type: 'input_image', image_url: image.dataUrl }))] })
               else if (protocol === 'chat-completions') history.push({ role: 'user', content: [{ type: 'text', text: input.text }, ...images.map(image => ({ type: 'image_url', image_url: { url: image.dataUrl } }))] })
               else history.push({ role: 'user', content: [...images.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.base64 } })), { type: 'text', text: input.text }] })
+            } else if (continueText) {
+              if (input.kind !== 'prompt' || typeof input.text !== 'string' || !input.text.trim() || input.text.length > 16000 || imagesForPrompt(input).length) invalid('A text continuation requires a nonempty bounded prompt without images')
+              textContinuations++
+              textContinuationAvailable = false
+              ended = false
+              if (protocol === 'gemini-generate-content') history.push({ role: 'user', parts: [{ text: input.text }] })
+              else history.push({ role: 'user', content: input.text })
             } else {
               if (input.kind !== 'tool-results' || input.results.length !== pending.length || !pending.length) invalid('Every pending tool call needs exactly one result')
               const results = input.results
               for (let index = 0; index < pending.length; index++) {
                 if (results[index]?.id !== pending[index]!.id || results[index]?.name !== pending[index]!.name) invalid('Tool results must preserve the original call IDs, names and order')
               }
-              if (protocol === 'responses') history.push(...results.map(item => ({ type: 'function_call_output', call_id: item.id, output: JSON.stringify(item.result) })))
-              else if (protocol === 'chat-completions') history.push(...results.map(item => ({ role: 'tool', tool_call_id: item.id, content: JSON.stringify(item.result) })))
-              else if (protocol === 'anthropic-messages') history.push({ role: 'user', content: results.map(item => ({ type: 'tool_result', tool_use_id: item.id, content: JSON.stringify(item.result), is_error: !item.result.ok })) })
-              else history.push({ role: 'function', parts: results.map(item => ({ functionResponse: { ...(geminiIds.has(item.id) ? { id: geminiIds.get(item.id) } : {}), name: item.name, response: item.result } })) })
+              // Only the wire representation is reduced. Every actual native
+              // result remains in the runner's audit outputs. References are
+              // valid only within this conversation, to an earlier full result
+              // from the same read tool, arguments and byte-identical payload.
+              const wireResults = results.map((item, index) => {
+                const serialized = JSON.stringify(item.result)
+                // A runner's native-entity reference is already a wire-only
+                // reduction. Never register or reference that reduced receipt
+                // as if it were full; doing so would create reference chains.
+                const value = item.result.ok ? item.result.value : undefined
+                const hasEntityReferences = value && typeof value === 'object' && !Array.isArray(value) &&
+                  Array.isArray((value as Record<string, unknown>).entities) &&
+                  ((value as Record<string, unknown>).entities as unknown[]).some(row => row && typeof row === 'object' && Object.hasOwn(row, 'nativeEntityReference'))
+                if (!reuseReadResultReferences || !readTools.has(item.name) || !item.result.ok || pendingChatInvalidIds.has(item.id) ||
+                  hasEntityReferences || protocol === 'gemini-generate-content' && !geminiIds.has(item.id)) return serialized
+                const key = JSON.stringify([item.name, pending[index]!.arguments, serialized])
+                const originalToolCallId = readReceiptCalls.get(key)
+                if (!originalToolCallId || callIdOccurrences.get(originalToolCallId) !== 1) {
+                  if (callIdOccurrences.get(item.id) === 1) readReceiptCalls.set(key, item.id)
+                  return serialized
+                }
+                return JSON.stringify({ ok: true, value: { status: 'unchanged-read-result', originalToolCallId, toolName: item.name,
+                  instruction: 'Reuse the complete result of this earlier tool call in this conversation: the native read ran again with identical arguments and returned byte-identical data. This reference is not approval, a mutation receipt or evidence about anything outside that result.' } })
+              })
+              const wireResult = (item: KJModelToolOutput): string => wireResults[results.indexOf(item)]!
+              if (protocol === 'responses') history.push(...results.map(item => ({ type: 'function_call_output', call_id: item.id, output: wireResult(item) })))
+              else if (protocol === 'chat-completions') {
+                if (pendingChatInvalidIds.size) {
+                  const rejected = results.filter(item => pendingChatInvalidIds.has(item.id))
+                  if (rejected.some(item => item.result.ok !== false)) invalid('Non-object tool arguments require an actual failed tool result before wire recovery')
+                  // Never repair returned arguments or dispatch a replacement
+                  // CAD call. Only remove invalid historical wire pairs after
+                  // their real SDK rejection, then let the model regenerate.
+                  if (chatArgumentRecoveries >= 2) invalid('Chat invalid-argument wire recovery budget exhausted')
+                  chatArgumentRecoveries++
+                  const assistant = record(history[pendingChatHistoryIndex])
+                  const validCalls = array(assistant.tool_calls).filter(raw => !pendingChatInvalidIds.has(identifier(record(raw).id)))
+                  if (validCalls.length) history[pendingChatHistoryIndex] = { ...assistant, tool_calls: validCalls }
+                  else if (typeof assistant.content === 'string' && assistant.content.trim()) {
+                    const textOnly = { ...assistant }; delete textOnly.tool_calls
+                    history[pendingChatHistoryIndex] = textOnly
+                  } else history.splice(pendingChatHistoryIndex, 1)
+                  history.push(...results.filter(item => !pendingChatInvalidIds.has(item.id))
+                    .map(item => ({ role: 'tool', tool_call_id: item.id, content: wireResult(item) })))
+                  const firstRejection = rejected[0]!.result
+                  history.push({ role: 'user', content: JSON.stringify({ ok: false,
+                    error: { code: firstRejection.ok === false ? firstRejection.error.code.slice(0, 128) : 'KJMODEL_ARGUMENTS_REJECTED',
+                      message: 'CAD validation rejected tool arguments that were not a plain object before execution.' },
+                    rejectedCalls: rejected.map(item => ({ id: item.id, name: item.name,
+                      errorCode: item.result.ok === false ? item.result.error.code.slice(0, 128) : '' })),
+                    instruction: 'Generate new tool calls with valid JSON object arguments using the published schema and actual prior receipts. Do not repair or repeat the malformed text. No rejected call was executed. Preserve unrequested facts; proposals still require host approval.' }) })
+                } else history.push(...results.map(item => ({ role: 'tool', tool_call_id: item.id, content: wireResult(item) })))
+              }
+              else if (protocol === 'anthropic-messages') history.push({ role: 'user', content: results.map(item => ({ type: 'tool_result', tool_use_id: item.id, content: wireResult(item), is_error: !item.result.ok })) })
+              else history.push({ role: 'function', parts: results.map(item => ({ functionResponse: { ...(geminiIds.has(item.id) ? { id: geminiIds.get(item.id) } : {}), name: item.name, response: JSON.parse(wireResult(item)) as unknown } })) })
             }
             let body: Record<string, unknown>
             if (protocol === 'responses') body = { model, instructions, input: history, tools: schema.map(tool => ({ type: 'function', ...tool, strict: false })), max_output_tokens: outputTokens, store: false, stream: responsesStreaming, include: ['reasoning.encrypted_content'] }
@@ -636,25 +733,29 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
             else if (protocol === 'anthropic-messages') body = { model, system: instructions, messages: history, tools: schema.map(tool => ({ name: tool.name, description: tool.description, input_schema: tool.parameters })), max_tokens: outputTokens, stream: anthropicStreaming }
             else body = { systemInstruction: { parts: [{ text: instructions }] }, contents: history, tools: [{ functionDeclarations: schema.map(tool => ({ name: tool.name, description: tool.description, parametersJsonSchema: tool.parameters })) }], generationConfig: { maxOutputTokens: outputTokens, candidateCount: 1 } }
             // Never expose mutable internal history, or credentials, through the public result.
-            const outgoing = deepFreeze(jsonCopy(body, historyBytes))
+            const outgoing = deepFreeze(jsonCopy(body, historyBytes, 'request'))
             const startedAt = performance.now()
             const responseSource = await request({ protocol, model, body: outgoing, streaming, signal })
             const streamedResponse = isAsyncIterable(responseSource)
             const delta = (text: string) => { notifyText(onTextDelta, text); notifyText(adapterText, text) }
-            const rawResponse = chatStreaming && streamedResponse ? await assembleChatStream(responseSource, responseBytes, streamEvents, signal, delta)
-              : responsesStreaming && streamedResponse ? await assembleResponsesStream(responseSource, responseBytes, streamEvents, signal, delta)
-                : anthropicStreaming && streamedResponse ? await assembleAnthropicStream(responseSource, responseBytes, streamEvents, signal, delta)
-                  : geminiStreaming && streamedResponse ? await assembleGeminiStream(responseSource, responseBytes, streamEvents, signal, delta) : responseSource
+            const rawResponse = chatStreaming && streamedResponse ? await assembleChatStream(responseSource, responseBytes, streamBytes, streamEvents, signal, delta)
+              : responsesStreaming && streamedResponse ? await assembleResponsesStream(responseSource, responseBytes, streamBytes, streamEvents, signal, delta)
+                : anthropicStreaming && streamedResponse ? await assembleAnthropicStream(responseSource, responseBytes, streamBytes, streamEvents, signal, delta)
+                  : geminiStreaming && streamedResponse ? await assembleGeminiStream(responseSource, responseBytes, streamBytes, streamEvents, signal, delta) : responseSource
             if (!streaming && streamedResponse) invalid('Non-streaming model transport returned an async iterable')
             const usage = extractKJModelUsage(protocol, rawResponse, { latencyMs: Math.max(0, performance.now() - startedAt) })
             notifyUsage(onUsage, usage)
             notifyUsage(adapterUsage, usage)
-            const response = record(jsonCopy(rawResponse, responseBytes))
+            const response = record(jsonCopy(rawResponse, responseBytes, 'response'))
             signal.throwIfAborted()
             turnNumber++
             let text = ''
             const calls: KJModelToolCall[] = []
-            const addCall = (id: unknown, name: unknown, args: unknown) => calls.push({ id: identifier(id), name: identifier(name), arguments: args })
+            const addCall = (id: unknown, name: unknown, args: unknown) => {
+              const callId = identifier(id)
+              calls.push({ id: callId, name: identifier(name), arguments: args })
+              callIdOccurrences.set(callId, (callIdOccurrences.get(callId) ?? 0) + 1)
+            }
             if (protocol === 'responses') {
               if (response.status !== 'completed') throw new KJModelError('KJMODEL_INCOMPLETE', 'Response is incomplete or failed; no tool calls were dispatched')
               const output = array(response.output)
@@ -676,11 +777,24 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
               if (message.refusal) throw new KJModelError('KJMODEL_REFUSED', 'The model refused this request')
               if (message.content !== null && message.content !== undefined && typeof message.content !== 'string') invalid('Only text and function-call chat messages are supported')
               text = typeof message.content === 'string' ? message.content : ''
-              for (const raw of array(message.tool_calls ?? [])) { const item = record(raw), fn = record(item.function); if (item.type !== 'function') invalid('Unsupported chat tool type'); addCall(item.id, fn.name, jsonArguments(fn.arguments)) }
+              pendingChatInvalidIds = new Set<string>()
+              for (const raw of array(message.tool_calls ?? [])) {
+                const item = record(raw), fn = record(item.function)
+                if (item.type !== 'function') invalid('Unsupported chat tool type')
+                const args = jsonArguments(fn.arguments)
+                addCall(item.id, fn.name, args)
+                if (!args || typeof args !== 'object' || Array.isArray(args)) pendingChatInvalidIds.add(identifier(item.id))
+              }
               // Some compatible endpoints finish valid function-call messages with stop.
               // Completeness is enforced above; call structure and IDs are still validated.
               if (choice.finish_reason === 'tool_calls' && !calls.length) invalid('Chat finish reason requires tool calls')
-              history.push(message) // Preserve provider fields such as reasoning_content verbatim.
+              // An assistant text turn has no tool_calls field on the outbound
+              // wire. Some compatible endpoints reject [] (or null) in history.
+              // Keep actual calls and provider fields such as reasoning_content.
+              const assistantHistory = { ...message }
+              if (!calls.length) delete assistantHistory.tool_calls
+              pendingChatHistoryIndex = history.length
+              history.push(assistantHistory)
             } else if (protocol === 'anthropic-messages') {
               if (response.role !== 'assistant') invalid('Expected an assistant message')
               if (!['end_turn', 'tool_use', 'stop_sequence'].includes(String(response.stop_reason))) throw new KJModelError('KJMODEL_INCOMPLETE', 'Claude response is truncated, paused or incomplete')
@@ -702,7 +816,9 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
                   const call = record(part.functionCall)
                   const id = call.id === undefined ? `kj-gemini-${turnNumber}-${index}` : identifier(call.id)
                   if (call.id !== undefined) geminiIds.set(id, identifier(call.id))
-                  addCall(id, call.name, call.args ?? {})
+                  // Omitted arguments retain the no-argument tool fallback;
+                  // explicit JSON null must reach native validation unchanged.
+                  addCall(id, call.name, call.args === undefined ? {} : call.args)
                 } else if (typeof part.text === 'string') { if (part.thought !== true) text += part.text }
                 else invalid('Unsupported Gemini part')
               }
@@ -713,8 +829,9 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
             if (streaming && !streamedResponse) delta(text)
             pending = calls
             ended = !calls.length
+            textContinuationAvailable = ended
             return deepFreeze({ text, calls, usage }) as KJModelTurn
-          } catch (error) { ended = true; throw error } finally { busy = false }
+          } catch (error) { ended = true; textContinuationAvailable = false; throw error } finally { busy = false }
         },
       }
     },

@@ -1,6 +1,7 @@
 // Explicit paired live experiment. Default CLI execution only prints a dry-run plan.
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { replaceReportFile } from './atomic-report.mjs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/sdk.js'
@@ -320,7 +321,7 @@ export async function runPairedModelBenchmark(options) {
   report.toolChoiceMode = config.toolChoiceMode
   report.drawingTool = config.drawingTool
   report.chatTokenParameter = config.chatTokenParameter
-  for (const name of ['paired-model-benchmark.mjs', 'paired-model-validator.py', 'model-drawing-pilot.mjs', 'deepseek-drawing-pilot.py', 'parametric-drawing-tasks.mjs', 'drawing-strategies.mjs', 'engineering-drawing-tasks.mjs', 'engineering-model-validator.py', 'manufacturing-drawing-tasks.mjs', 'manufacturing-task-suite.mjs', 'manufacturing-model-validator.py', 'release-holdout-task-suite.mjs', 'release-holdout-validator.py']) report.source[name] = hash(await readFile(new URL(name, import.meta.url)))
+  for (const name of ['paired-model-benchmark.mjs', 'atomic-report.mjs', 'paired-model-validator.py', 'model-drawing-pilot.mjs', 'deepseek-drawing-pilot.py', 'parametric-drawing-tasks.mjs', 'drawing-strategies.mjs', 'engineering-drawing-tasks.mjs', 'engineering-model-validator.py', 'manufacturing-drawing-tasks.mjs', 'manufacturing-task-suite.mjs', 'manufacturing-model-validator.py', 'release-holdout-task-suite.mjs', 'release-holdout-validator.py']) report.source[name] = hash(await readFile(new URL(name, import.meta.url)))
   report.source['chat-model-settings.js'] = hash(await readFile(new URL('../../apps/playground/chat-model-settings.js', import.meta.url)))
   report.source['model-usage.js'] = hash(await readFile(new URL('../../packages/kjdraw-sdk/src/model-usage.js', import.meta.url)))
   const sdkFolder = new URL('../../packages/kjdraw-sdk/src/', import.meta.url), sdkHash = createHash('sha256')
@@ -336,7 +337,7 @@ export async function runPairedModelBenchmark(options) {
     report.consistentReturnedModel = report.returnedModels.length === 1 && report.runs.every(run => typeof run.returnedModel === 'string' && run.returnedModel.length > 0)
     const temporary = resolve(config.output, 'report.next.json')
     await writeFile(temporary, JSON.stringify(report, null, 2), { flag: 'wx' })
-    await rename(temporary, resolve(config.output, 'report.json'))
+    await replaceReportFile(temporary, resolve(config.output, 'report.json'))
   }
   const tasks = selectedTasks
   try {

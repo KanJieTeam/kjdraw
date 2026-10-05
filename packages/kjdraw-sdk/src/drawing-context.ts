@@ -101,6 +101,9 @@ export interface KJDrawingContext {
   readonly spatialQuery?: { readonly bounds: readonly [number, number, number, number]; readonly coordinates: 'owner-xy'; readonly mode: 'crossing'; readonly unclassifiedIncluded: true }
   readonly layers: readonly KJDrawingContextLayer[]
   readonly entities: readonly KJDrawingContextEntity[]
+  /** Deterministic counts of the returned page only, not the full document or
+   * all matching rows. Follow nextOffset before claiming a complete inventory. */
+  readonly pageEntityCounts: Readonly<Record<string, number>>
   /** True when either collection or any requested native geometry was omitted. */
   readonly truncated: boolean
   readonly truncationReasons: readonly KJDrawingContextTruncationReason[]
@@ -112,6 +115,7 @@ export interface KJDrawingContext {
 interface DrawingContextBuilder extends KJDrawingContext {
   layers: KJDrawingContextLayer[]
   entities: KJDrawingContextEntity[]
+  pageEntityCounts: Record<string, number>
   truncated: boolean
   truncationReasons: KJDrawingContextTruncationReason[]
   nextOffset: number | null
@@ -409,7 +413,7 @@ export function createDrawingContext(document: KJDocument, options: KJDrawingCon
   const result: DrawingContextBuilder = {
     documentId: state.documentId, revision: state.revision, units: state.header.units, spaceId,
     ...(bounds ? { spatialQuery: { bounds: [...bounds] as [number, number, number, number], coordinates: 'owner-xy' as const, mode: 'crossing' as const, unclassifiedIncluded: true as const } } : {}),
-    layers: [], entities: [], truncated: false, truncationReasons: [], nextOffset: null, nextLayerOffset: null,
+    layers: [], entities: [], pageEntityCounts: {}, truncated: false, truncationReasons: [], nextOffset: null, nextLayerOffset: null,
     limits: { limit, maxLayers, maxBytes, maxGeometryBytes: MAX_GEOMETRY_BYTES },
   }
   // Reserve the worst-case completion envelope before admitting any item. This
@@ -435,11 +439,14 @@ export function createDrawingContext(document: KJDocument, options: KJDrawingCon
     if (result.entities.length >= limit) { result.nextOffset = matched - 1; reasons.add('entity-limit'); break }
     for (const value of [entity.id, entity.type, entity.ownerId, layerId]) checkIdentity(value, maxBytes)
     const item: DrawingContextEntityBuilder = { id: entity.id, type: entity.type, ownerId: entity.ownerId, layerId, visible, editable: visible && layer?.payload.locked !== true, ...nativeGeometry(entity, state), ...(spatialMatch ? { spatialMatch } : {}) }
-    let bytes = jsonBytes(item) + (result.entities.length ? 1 : 0)
+    const nextCounts = Object.fromEntries(Object.entries(result.pageEntityCounts))
+    Object.defineProperty(nextCounts, entity.type, { value: (Object.hasOwn(nextCounts, entity.type) ? nextCounts[entity.type]! : 0) + 1, enumerable: true, writable: true, configurable: true })
+    const countBytes = jsonBytes(nextCounts) - jsonBytes(result.pageEntityCounts)
+    let bytes = jsonBytes(item) + (result.entities.length ? 1 : 0) + countBytes
     if (usedBytes + bytes > maxBytes && item.geometry !== null) {
       item.geometry = null
       item.geometryOmittedReason = 'response-budget'
-      bytes = jsonBytes(item) + (result.entities.length ? 1 : 0)
+      bytes = jsonBytes(item) + (result.entities.length ? 1 : 0) + countBytes
     }
     if (usedBytes + bytes > maxBytes) {
       if (!result.entities.length) throw new KJValidationError('Drawing context entity identity cannot fit the response budget')
@@ -447,6 +454,7 @@ export function createDrawingContext(document: KJDocument, options: KJDrawingCon
     }
     usedBytes += bytes
     result.entities.push(item)
+    result.pageEntityCounts = nextCounts
     addReason(item.geometryOmittedReason)
   }
   let matchedLayers = 0

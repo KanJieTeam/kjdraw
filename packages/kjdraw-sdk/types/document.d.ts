@@ -7,6 +7,46 @@ export interface KJDocumentHistory {
     canRedo: boolean;
     undoLabel: string | null;
     redoLabel: string | null;
+    undoCount: number;
+    redoCount: number;
+    undoTarget: Readonly<KJDocumentHistoryTarget> | null;
+    redoTarget: Readonly<KJDocumentHistoryTarget> | null;
+}
+export interface KJDocumentHistoryTarget {
+    id: string;
+    label: string;
+    revision: number;
+    source: string;
+}
+export interface KJDocumentHistoryPreview {
+    target: Readonly<KJDocumentHistoryTarget>;
+    /** Detached content branch with no history or authority. */
+    document: KJDocument;
+}
+export declare const KJ_DOCUMENT_HISTORY_ARCHIVE_SCHEMA: 'com.kanjie.kjdraw.document-history@1';
+export declare const KJ_DOCUMENT_HISTORY_ARCHIVE_LIMIT = 50;
+export declare const KJ_DOCUMENT_HISTORY_ARCHIVE_MAX_BYTES = 16777216;
+export interface KJDocumentHistoryArchiveEntry {
+    label: string;
+    source: string;
+    revision: number;
+    before: KJDocumentState;
+    after: KJDocumentState;
+}
+/** Optional local recovery data, separate from portable KJD/DXF content and approval plans. */
+export interface KJDocumentHistoryArchive {
+    schema: typeof KJ_DOCUMENT_HISTORY_ARCHIVE_SCHEMA;
+    documentId: string;
+    documentRevision: number;
+    documentFingerprint: string;
+    baselineRevision: number;
+    undo: KJDocumentHistoryArchiveEntry[];
+    redo: KJDocumentHistoryArchiveEntry[];
+}
+export interface KJDocumentHistoryArchiveOptions {
+    /** Nearest undo/redo entries combined, at most 50. */
+    limit?: number;
+    maxBytes?: number;
 }
 export interface KJDocumentAuthority {
     commit(serialized: string, expectedRevision: number): Promise<string | KJDocumentState> | string | KJDocumentState;
@@ -31,6 +71,8 @@ export interface KJDocumentTransactionOptions {
 }
 export interface KJDocumentHistoryOptions {
     expectedRevision?: number;
+    /** Exact next entry captured during review; checked inside the document queue. */
+    targetHistoryId?: string;
     at?: string;
     author?: unknown;
     source?: string;
@@ -72,6 +114,15 @@ export declare class KJDocument {
     get schemaVersion(): number;
     get hasAuthoritativeBackend(): boolean;
     get history(): Readonly<KJDocumentHistory>;
+    /** Preview the actual next history snapshot without invoking or altering history. */
+    previewHistory(kind: 'undo' | 'redo', options?: KJDocumentHistoryOptions): KJDocumentHistoryPreview;
+    /** Establish an import/open baseline without changing content or audit records. Host-only. */
+    clearHistory(options?: Pick<KJDocumentHistoryOptions, 'expectedRevision'>): Promise<Readonly<KJDocumentHistory>>;
+    /** Export bounded engine snapshots for a trusted host's local session store. */
+    exportHistory(options?: KJDocumentHistoryArchiveOptions): ReadonlyDeep<KJDocumentHistoryArchive>;
+    /** Validate a local archive against current content, then install fresh history identities.
+     * No geometry, document revision or saved approval registry is restored here. */
+    restoreHistory(input: unknown, options?: Pick<KJDocumentHistoryOptions, 'expectedRevision'>): Promise<Readonly<KJDocumentHistory>>;
     on<Name extends keyof KJDocumentEvents>(name: Name, listener: (payload: KJDocumentEvents[Name]) => void, options?: {
         signal?: AbortSignal;
     }): () => boolean;

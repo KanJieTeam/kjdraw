@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/kjcore", "crates/kjcore-wasm"]
+members = ["crates/kjcore", "crates/kjcore-wasm", "crates/kjcontour-wasm"]
 resolver = "2"
 
 [workspace.package]

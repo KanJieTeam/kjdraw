@@ -112,6 +112,10 @@ Read, edit and save drawings from code or the CLI, without an AI model. See the 
 
 KJDraw supports native KJD drawings and KJP projects, plus a documented [DXF compatibility range](https://github.com/KanJieTeam/kjdraw/blob/main/docs/dxf-compatibility.md). Direct DWG support is not included.
 
+The source [planar contour module](../../docs/planar-contours.md) offsets and combines closed XY contours while retaining native arcs. Its tolerance includes CIRCLE-to-arc conversion and backend rounding. When circle endpoints cannot represent the original center and radius exactly, only a single-circle offset is supported: boolean and multi-source operations refuse that conversion because near-tangent intersections can amplify its error. Erosion within the conversion uncertainty of a circle's disappearance threshold also refuses. Native polylines and circles with exactly representable endpoints retain the documented boolean and multi-ring support.
+
+For bundled browser commands, create the SDK with `contourBackend: { wasmUrl: '/assets/kjcontour.wasm' }` (or `wasmBytes: localBytes`) and pass it to `createKJDrawEditor(host, { sdk })` or the workbench. All three contour commands inherit that host configuration, including approved command envelopes. Use `sdk.contourBackend` for matching read-only previews; configure each new SDK when reopening a drawing. Asset bytes and URLs are not embedded in saved drawings or command arguments.
+
 ## Contributing
 
 Our mission is to make KJDraw the default open-source CAD engine for the AI era. Explore the [roadmap](https://github.com/KanJieTeam/kjdraw/blob/main/docs/roadmap.md) or [contribute](https://github.com/KanJieTeam/kjdraw#contributing).

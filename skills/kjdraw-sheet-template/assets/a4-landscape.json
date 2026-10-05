@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "id": "community-a4-landscape-v1",
+  "units": "millimeter",
+  "nominalSize": [297, 210],
+  "minimumSize": [240, 160],
+  "maximumSize": [600, 450],
+  "frameMargin": 10,
+  "titleBlock": {
+    "size": [180, 32],
+    "lines": [[0, 0, 0, 32], [0, 32, 180, 32], [0, 18, 180, 18], [100, 0, 100, 18], [130, 0, 130, 18]],
+    "labelHeight": 1.8,
+    "valueHeight": 3,
+    "fields": [
+      {"key": "title", "label": "TITLE", "cell": [0, 18, 180, 32], "labelAt": [2, 28], "valueAt": [2, 22]},
+      {"key": "drawingNumber", "label": "DRAWING", "cell": [0, 0, 100, 18], "labelAt": [2, 13], "valueAt": [2, 5]},
+      {"key": "revision", "label": "REV.", "cell": [100, 0, 130, 18], "labelAt": [102, 13], "valueAt": [102, 5]},
+      {"key": "scaleLabel", "label": "SCALE", "cell": [130, 0, 180, 18], "labelAt": [132, 13], "valueAt": [132, 5]}
+    ]
+  },
+  "symbols": {
+    "revision-triangle": {"vertices": [[0, 0], [4, 0], [2, 3.5]], "closed": true}
+  }
+}

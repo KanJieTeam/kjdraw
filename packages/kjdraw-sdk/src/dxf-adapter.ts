@@ -4,6 +4,7 @@ import { defineFileAdapter } from './file-adapters.js'
 import type { KJFileAdapter, KJFileAdapterContext, KJFileAdapterOptions } from './file-adapters.js'
 import type { KJTableName } from './constants.js'
 import type { KJObjectPayload, KJObjectRecord, KJReadonlyObjectRecord } from './schema.js'
+import { createEmptyDocumentState } from './schema.js'
 import type { KJTransaction } from './transaction.js'
 import { projectDimension, resolveDimensionAnnotationStyle } from './geometry/annotation.js'
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
@@ -11,13 +12,14 @@ import { hatchPatternLines } from './geometry/hatch.js'
 import { normalizeStandardEntityPayload } from './standard-entities.js'
 import { normalizeDimensionAssociations } from './dimension-associations.js'
 import type { KJDimensionPointAssociation } from './dimension-associations.js'
-import { normalizeName } from './utils.js'
+import { canonicalStringify, normalizeName } from './utils.js'
 import { PLOT_SETTING_FIELDS, validatePlotSettings } from './plot-settings.js'
+import { DXF_VIEWPORT_METADATA_KEY, DXF_VIEWPORT_METADATA_UNSUPPORTED_KEY, captureViewportMetadata, prepareViewportMetadata, viewportMetadataReferenceMap, isViewportMetadataReference } from './dxf-viewport-metadata.js'
 import type { KJDxfPlotSettings } from './plot-settings.js'
 import { validateDxfLayoutGeometry } from './layout-geometry.js'
 import type { KJDxfLayoutGeometry } from './layout-geometry.js'
 
-type DxfVersion = 'R12' | 'R14' | '2000' | '2004' | '2010' | '2013' | '2018' | '2024'
+type DxfVersion = 'R12' | 'R14' | '2000' | '2004' | '2007' | '2010' | '2013' | '2018' | '2024'
 type DxfProductVersion = Exclude<DxfVersion, 'R12'>
 type Point3 = [number, number, number]
 
@@ -27,6 +29,18 @@ interface DxfRecord { type: string; tags: DxfTag[]; vertices?: DxfRecord[]; attr
 // DXF per-entity dimension style overrides use ACAD/DSTYLE xdata pairs.
 interface DxfDimensionOverrides { textHeight?: number; precision?: number; angularUnits?: number; linearPrecision?: number; overallScale?: number; arrowSize?: number; extensionOffset?: number; extensionBeyond?: number }
 interface DxfDimensionAssociationHandle extends Omit<KJDimensionPointAssociation, 'entityId'> { entityHandle: string }
+
+// Autodesk LEADER group 340 can reference three native annotation categories.
+// Group 73 records how the leader was created, not a required current binding.
+// This interchange union does not expand the MTEXT-only LEADEREDIT command.
+function leaderAnnotationFlag(type: string): 0 | 1 | 2 | null {
+  switch (type) {
+    case 'MTEXT': return 0
+    case 'TOLERANCE': return 1
+    case 'INSERT': return 2
+    default: return null
+  }
+}
 
 function readDimensionAssociationHandles(record: DxfRecord): DxfDimensionAssociationHandle[] | null {
   const starts = record.tags.map((tag, index) => tag.code === 1001 && tag.value === 'KJDRAW' ? index : -1).filter(index => index >= 0)
@@ -135,7 +149,14 @@ interface DxfWriteContext {
   version: DxfVersion
   allocateHandle: () => string
   linetypeNames?: ReadonlyMap<string, string>
+  viewportGroups?: ReadonlyMap<string, readonly DxfTag[]>
+  viewportMetadataHandles?: ReadonlySet<string>
+  objects?: ReadonlyMap<string, KJReadonlyObjectRecord>
+  sourceEntityIds?: ReadonlyMap<string, string>
+  reactorGroups?: ReadonlyMap<string, readonly DxfTag[]>
+  hatchMetadata?: ReadonlyMap<string, DxfHatchMetadata>
 }
+interface DxfHatchMetadata { groups: DxfTag[]; header: DxfTag[]; body: DxfTag[]; xdata: DxfTag[]; applications: string[]; nativeTail: DxfTag[]; doublePattern: number; spatialXdata: boolean }
 interface DxfVertex { point: Point3; bulge?: number; startWidth?: number; endWidth?: number; dxfFlags?: number }
 interface DxfHatchLineEdge { type: 'LINE'; start: Point3; end: Point3 }
 interface DxfHatchArcEdge { type: 'ARC'; center: Point3; radius: number; startAngle: number; endAngle: number; counterClockwise: boolean }
@@ -143,7 +164,8 @@ interface DxfHatchEllipseEdge { type: 'ELLIPSE'; center: Point3; majorAxis: Poin
 interface DxfHatchSplineEdge { type:'SPLINE';degree:number;periodic:boolean;controlPoints:Point3[];knots:number[];weights:number[];fitPoints:Point3[];startTangent?:Point3;endTangent?:Point3 }
 interface DxfHatchRawEdge { type: 'UNKNOWN'; dxfEdgeType: number; rawTags: DxfTag[] }
 type DxfHatchEdge = DxfHatchLineEdge | DxfHatchArcEdge | DxfHatchEllipseEdge | DxfHatchSplineEdge | DxfHatchRawEdge
-interface DxfHatchLoop { external: boolean; flags: number; closed?: boolean; vertices?: DxfVertex[]; edges?: DxfHatchEdge[] }
+interface DxfHatchLoop { external: boolean; flags: number; closed?: boolean; vertices?: DxfVertex[]; edges?: DxfHatchEdge[]; sourceBoundaryHandles?: readonly string[]; sourceBoundaryIds?: readonly string[] }
+type DxfReactorReference = { id: string } | { metadataHandle: string }
 interface DxfEntitySpec { type: string; payload: Record<string, unknown> }
 
 interface DxfPayload extends KJObjectPayload {
@@ -186,9 +208,14 @@ interface DxfPayload extends KJObjectPayload {
   patternName?: string
   solid?: boolean
   associative?: boolean
+  hatchStyle?: number
   patternAngle?: number
   patternScale?: number
   rawTags?: readonly DxfTag[]
+  dxfReactorIds?: readonly string[]
+  dxfReactorReferences?: readonly DxfReactorReference[]
+  unresolvedDxfReactorHandles?: readonly string[]
+  unresolvedHatchBoundaryHandles?: readonly string[]
   originalType?: string
   annotationHandle?: string | null
   annotationId?: string | null
@@ -196,8 +223,8 @@ interface DxfPayload extends KJObjectPayload {
   arrowEnabled?: boolean
   pathType?: number
   annotationType?: number
-  hookLineDirection?: number
-  hookLineEnabled?: boolean
+  hookLineDirection?: number | null
+  hookLineEnabled?: boolean | null
   horizontalDirection?: Point3
   blockOffset?: Point3
   annotationOffset?: Point3
@@ -314,15 +341,17 @@ function documentTableRecords(document: KJDocument, name: KJTableName): Readonly
 }
 
 const PRODUCT_VERSIONS: readonly DxfProductVersion[] = Object.freeze(['R14', '2000', '2004', '2010', '2013', '2018', '2024'])
-const VERSIONS: readonly DxfVersion[] = Object.freeze(['R12', ...PRODUCT_VERSIONS])
-const ACADVER: Readonly<Record<DxfVersion, string>> = Object.freeze({ R12: 'AC1009', R14: 'AC1014', 2000: 'AC1015', 2004: 'AC1018', 2010: 'AC1024', 2013: 'AC1027', 2018: 'AC1032', 2024: 'AC1032' })
-const VERSION_BY_CODE: Readonly<Record<string, DxfVersion>> = Object.freeze({ AC1009: 'R12', AC1014: 'R14', AC1015: '2000', AC1018: '2004', AC1024: '2010', AC1027: '2013', AC1032: '2018' })
+// Recognize R2007 for source-preserving journeys; it is not promoted to the
+// corpus-certified PRODUCT_VERSIONS matrix by a single regression fixture.
+const VERSIONS: readonly DxfVersion[] = Object.freeze(['R12', '2007', ...PRODUCT_VERSIONS])
+const ACADVER: Readonly<Record<DxfVersion, string>> = Object.freeze({ R12: 'AC1009', R14: 'AC1014', 2000: 'AC1015', 2004: 'AC1018', 2007: 'AC1021', 2010: 'AC1024', 2013: 'AC1027', 2018: 'AC1032', 2024: 'AC1032' })
+const VERSION_BY_CODE: Readonly<Record<string, DxfVersion>> = Object.freeze({ AC1009: 'R12', AC1014: 'R14', AC1015: '2000', AC1018: '2004', AC1021: '2007', AC1024: '2010', AC1027: '2013', AC1032: '2018' })
 const READ_TYPES = Object.freeze(['LINE', 'XLINE', 'RAY', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'TOLERANCE', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
 const WRITE_TYPES = new Set(['LINE', 'XLINE', 'RAY', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'TOLERANCE', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
 
 const DIMENSION_TYPE_BY_CODE: Readonly<Record<number, string>> = Object.freeze({ 0: 'ROTATED', 1: 'ALIGNED', 2: 'ANGULAR', 3: 'DIAMETER', 4: 'RADIUS', 5: 'ANGULAR_3_POINT', 6: 'ORDINATE' })
 const DIMENSION_CODE_BY_TYPE: Readonly<Record<string, number>> = Object.freeze(Object.fromEntries(Object.entries(DIMENSION_TYPE_BY_CODE).map(([code, type]) => [type, Number(code)])))
-const VERSION_RANK: Readonly<Record<DxfVersion, number>> = Object.freeze({ R12: 0, R14: 1, 2000: 2, 2004: 3, 2010: 4, 2013: 5, 2018: 6, 2024: 6 })
+const VERSION_RANK: Readonly<Record<DxfVersion, number>> = Object.freeze({ R12: 0, R14: 1, 2000: 2, 2004: 3, 2007: 3.5, 2010: 4, 2013: 5, 2018: 6, 2024: 6 })
 const MIN_ENTITY_VERSION: Readonly<Record<string, DxfVersion>> = Object.freeze({
   ELLIPSE: 'R14', SPLINE: 'R14', MTEXT: 'R14', LEADER: 'R14', HATCH: 'R14',
   WIPEOUT: '2000', XLINE: '2000', RAY: '2000', VIEWPORT: 'R14',
@@ -499,6 +528,38 @@ function recordOwner(record: DxfRecord): string {
     else if (tag.code === 330 && depth === 0) return String(tag.value).trim().toUpperCase()
   }
   return ''
+}
+
+function reactorHandles(record: DxfRecord): string[] {
+  const handles: string[] = []
+  let active = false
+  for (const tag of record.tags) {
+    if (tag.code === 102) {
+      if (tag.value === '{ACAD_REACTORS') {
+        if (active) throw new KJValidationError('Malformed DXF entity reactor group')
+        active = true
+      } else if (active && tag.value === '}') active = false
+      else if (active) throw new KJValidationError('Unsupported nested DXF entity reactor group')
+    } else if (active) {
+      const handle = tag.value.trim().toUpperCase()
+      if (tag.code !== 330 || !/^[0-9A-F]+$/.test(handle) || handle === '0' || handles.length >= 4096) throw new KJValidationError('Invalid DXF entity reactor reference')
+      handles.push(handle)
+    }
+  }
+  if (active) throw new KJValidationError('Unclosed DXF entity reactor group')
+  return handles
+}
+
+function readHatchStyle(record: DxfRecord): number {
+  const tags = values(record, 75), style = tags.length ? Number(tags[0]) : 0
+  if (tags.length > 1 || tags.length && !/^[ \t]*[+-]?\d+[ \t]*$/.test(String(tags[0])) || ![0, 1, 2].includes(style)) throw new KJValidationError('DXF HATCH island style must be 0, 1 or 2')
+  return style
+}
+
+function nativeHatchStyle(payload: DxfPayload): number {
+  const style = payload.hatchStyle === undefined ? (payload.rawTags ? readHatchStyle({ type: 'HATCH', tags: [...payload.rawTags] }) : 0) : payload.hatchStyle
+  if (typeof style !== 'number' || ![0, 1, 2].includes(style)) throw new KJValidationError('DXF HATCH island style must be 0, 1 or 2')
+  return style
 }
 
 function isSpaceBlock(name: string): boolean { return /^[*$](MODEL_SPACE|PAPER_SPACE(?:_?\d+)?)$/.test(normalizeName(name)) }
@@ -749,7 +810,14 @@ function hatchBoundaryLoops(record: DxfRecord): DxfHatchLoop[] {
     }
     if (tags[cursor]?.code === 97) {
       const sourceCount = Number(tags[cursor++]!.value)
-      cursor += Math.min(sourceCount, tags.slice(cursor).filter(tag => tag.code === 330).length)
+      if (!Number.isInteger(sourceCount) || sourceCount < 0 || sourceCount > 4096) throw new KJValidationError('Invalid DXF HATCH source boundary count')
+      const sourceBoundaryHandles: string[] = []
+      for (let sourceIndex = 0; sourceIndex < sourceCount; sourceIndex++) {
+        const tag = tags[cursor++], handle = tag?.value.trim().toUpperCase()
+        if (tag?.code !== 330 || !handle || !/^[0-9A-F]+$/.test(handle) || handle === '0') throw new KJValidationError('Invalid DXF HATCH source boundary handle')
+        sourceBoundaryHandles.push(handle)
+      }
+      if (sourceBoundaryHandles.length) loops.at(-1)!.sourceBoundaryHandles = sourceBoundaryHandles
     }
   }
   if (!loops.length) throw new KJValidationError('DXF HATCH contains no boundary loops')
@@ -768,7 +836,12 @@ function importedHatchPatternLines(record: DxfRecord): { angle: number; base: [n
     const tag = tags[cursor++]
     if (tag?.code !== code) throw new KJValidationError(`DXF HATCH pattern expected group ${code}`)
     const value = Number(tag.value)
-    if (!Number.isFinite(value) || Math.abs(value) > 1e12) throw new KJValidationError(`DXF HATCH pattern group ${code} is invalid`)
+    // A pattern-family origin is an absolute coordinate, not a spacing or a
+    // rendering budget. Survey drawings can retain far-away family origins.
+    // Preserve those finite values; stroke generation has its own work and
+    // numerical-range guards. Keep the tighter limits on offsets and dashes.
+    const limit = code === 43 || code === 44 ? Number.MAX_SAFE_INTEGER : 1e12
+    if (!Number.isFinite(value) || Math.abs(value) > limit) throw new KJValidationError(`DXF HATCH pattern group ${code} is invalid`)
     return value
   }
   const lines = []
@@ -816,11 +889,16 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
       const patternLines = importedHatchPatternLines(record)
       const patternAngle = number(record, 52, 0) * Math.PI / 180
       const patternScale = number(record, 41, 1)
-      return { type: 'HATCH', payload: { boundaryLoops: hatchBoundaryLoops(record), patternName: first(record, 2, 'SOLID'), solid: number(record, 70, 0) === 1, associative: number(record, 71, 0) === 1, patternAngle, patternScale, ...(patternLines ? { patternLines, patternDefinitionAngle: patternAngle, patternDefinitionScale: patternScale } : {}), rawTags: record.tags } }
+      const hatchStyle = readHatchStyle(record)
+      return { type: 'HATCH', payload: { boundaryLoops: hatchBoundaryLoops(record), patternName: first(record, 2, 'SOLID'), solid: number(record, 70, 0) === 1, associative: number(record, 71, 0) === 1, ...(hatchStyle ? { hatchStyle } : {}), patternAngle, patternScale, ...(patternLines ? { patternLines, patternDefinitionAngle: patternAngle, patternDefinitionScale: patternScale } : {}), rawTags: record.tags } }
     }
     case 'LEADER': return { type: 'LEADER', payload: {
       vertices: repeatedPoints(record), annotationHandle: first(record, 340) || null,
-      arrowEnabled: number(record, 71, 1) !== 0, pathType: number(record, 72, 0), annotationType: number(record, 73, 3), hookLineDirection: number(record, 74, 0), hookLineEnabled: number(record, 75, 0) !== 0,
+      arrowEnabled: number(record, 71, 1) !== 0, pathType: number(record, 72, 0), annotationType: number(record, 73, 3),
+      // Null records an omitted optional DXF flag through KJD serialization.
+      // Keep omission instead of guessing a CAD application's default value.
+      hookLineDirection: values(record, 74).length ? number(record, 74) : null,
+      hookLineEnabled: values(record, 75).length ? number(record, 75) !== 0 : null,
       ...(values(record, 40).length ? { textHeight: number(record, 40) } : {}), ...(values(record, 41).length ? { textWidth: number(record, 41) } : {}),
       ...(optionalPoint(record, 211, 221, 231) ? { horizontalDirection: optionalPoint(record, 211, 221, 231) } : {}),
       ...(optionalPoint(record, 212, 222, 232) ? { blockOffset: optionalPoint(record, 212, 222, 232) } : {}),
@@ -983,7 +1061,19 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
   if (!section(tags, 'ENTITIES').length && !tags.some(tag => tag.code === 0 && normalizeName(tag.value) === 'SECTION')) throw new KJValidationError('DXF has no valid SECTION structure')
   const version = dxfVersion(tags)
   const currentTextStyleName = dxfHeaderText(tags, '$TEXTSTYLE')
-  const document = KJDocument.create({ sourceFormat: 'DXF', sourceVersion: version, codePage: dxfCodePage(tags), ...dxfDrawingUnits(tags), systemVariables: { LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1), PDMODE: dxfHeaderInteger(tags, '$PDMODE') ?? 0, PDSIZE: dxfHeaderReal(tags, '$PDSIZE', 0) }, title: 'Imported DXF' })
+  const initial = createEmptyDocumentState({ sourceFormat: 'DXF', sourceVersion: version, codePage: dxfCodePage(tags), ...dxfDrawingUnits(tags), systemVariables: { LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1), PDMODE: dxfHeaderInteger(tags, '$PDMODE') ?? 0, PDSIZE: dxfHeaderReal(tags, '$PDSIZE', 0) }, title: 'Imported DXF' })
+  // Runtime resource handles are not source identities. Allocate them above all
+  // source handles before importing tables, so adding a layer cannot displace a
+  // low-numbered entity handle on the next DXF open.
+  let highestSourceHandle = 0n
+  for (const tag of tags) if ((tag.code === 5 || tag.code === 105) && /^[0-9a-f]+$/i.test(tag.value)) {
+    const value = BigInt(`0x${tag.value}`)
+    if (value > highestSourceHandle) highestSourceHandle = value
+  }
+  let resourceHandle = highestSourceHandle + 1n
+  for (const object of Object.values(initial.objects)) object.handle = (resourceHandle++).toString(16).toUpperCase()
+  initial.header.handseed = resourceHandle.toString(16).toUpperCase()
+  const document = new KJDocument(initial)
   await document.transact('Import ASCII DXF', async transaction => {
     const tableRecords = records(section(tags, 'TABLES'))
     const resources = importResourceTables(transaction, tableRecords, document)
@@ -1086,11 +1176,32 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
     }
     for (const record of sourceEntityRecords) if (first(record, 410) && normalizeName(first(record, 410)) !== 'MODEL' && !ownerSpaces.has(recordOwner(record))) ensurePaperSpace(String(first(record, 410)))
 
+    // Persistent reactors may target native OBJECTS/table records, not merely
+    // same-space entities. Resolve source aliases to the records we actually
+    // import/export; unsupported opaque objects still remain unresolved.
+    const resourceHandleIds = new Map<string, string>()
+    const registerResourceHandle = (handle: string, id: string): void => {
+      if (handle) resourceHandleIds.set(handle, resourceHandleIds.has(handle) ? '' : id)
+    }
+    const resourceTables: Readonly<Record<string, KJTableName>> = { LAYER: 'layers', LTYPE: 'linetypes', STYLE: 'textStyles', DIMSTYLE: 'dimensionStyles', UCS: 'ucs', VIEW: 'views' }
+    for (const record of tableRecords) {
+      const tableName = resourceTables[record.type], handle = String(first(record, record.type === 'DIMSTYLE' ? 105 : 5) ?? '').toUpperCase()
+      const id = record.type === 'BLOCK_RECORD' ? ownerSpaces.get(handle) ?? blockIds.get(normalizeName(first(record, 2)))
+        : tableName ? transaction._draft().tables[tableName].recordIds.find(id => normalizeName(transaction.getObject(id)?.name) === normalizeName(first(record, 2))) : undefined
+      if (id) registerResourceHandle(handle, id)
+    }
+    for (const layout of sourceLayouts) {
+      const id = transaction._draft().spaces.layoutIds.find(id => normalizeName(transaction.getObject(id)?.name) === normalizeName(layout.name))
+      if (id) registerResourceHandle(layout.handle, id)
+    }
+
     const occupiedHandles = new Set(Object.values(transaction._draft().objects).map(object => object.handle))
     const entityHandleIds = new Map<string, string>()
     const viewportReferences: { id: string; record: DxfRecord }[] = []
-    const leaderReferences: { id: string; annotationHandle: string }[] = []
+    const leaderReferences: { id: string; annotationHandle: string | null }[] = []
     const dimensionReferences: { id: string; associations: DxfDimensionAssociationHandle[] }[] = []
+    const hatchReferences: string[] = []
+    const reactorReferences: { id: string; handles: string[] }[] = []
     const importRecord = (record: DxfRecord, index: number, ownerId: string | undefined, scope: string, parentInsertId?: string): KJObjectRecord => {
       const layerName = normalizeName(first(record, 8, '0'))
       const layerId = layerIds.get(layerName) ?? defaultLayerId
@@ -1098,6 +1209,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       const dimensionAssociations = record.type === 'DIMENSION' ? readDimensionAssociationHandles(record) : null
       const sourceHandle = String(first(record, 5, '')).toUpperCase()
       const handleAvailable = /^[0-9A-F]+$/.test(sourceHandle) && !occupiedHandles.has(sourceHandle)
+      const importedReactorHandles = ['VIEWPORT', 'PROXY_ENTITY'].includes(converted.type) ? [] : reactorHandles(record)
       let created: KJObjectRecord
       try {
         created = transaction.createEntity(converted.type, { ...converted.payload, ...entityDrawingProperties(record, resources), layerId, ...(parentInsertId ? { parentInsertId } : {}) }, {
@@ -1109,7 +1221,10 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
         if (sourceHandle) entityHandleIds.set(sourceHandle, entityHandleIds.has(sourceHandle) ? '' : created.id)
         if (created.type === 'VIEWPORT') viewportReferences.push({ id: created.id, record })
         if (created.type === 'DIMENSION' && dimensionAssociations) dimensionReferences.push({ id: created.id, associations: dimensionAssociations })
-        if (created.type === 'LEADER' && converted.payload.annotationHandle) leaderReferences.push({ id: created.id, annotationHandle: String(converted.payload.annotationHandle).toUpperCase() })
+        if (created.type === 'LEADER') leaderReferences.push({ id: created.id, annotationHandle: converted.payload.annotationHandle ? String(converted.payload.annotationHandle).toUpperCase() : null })
+        if (created.type === 'HATCH') hatchReferences.push(created.id)
+        // VIEWPORT reactor graphs are owned by the existing metadata adapter.
+        if (importedReactorHandles.length) reactorReferences.push({ id: created.id, handles: importedReactorHandles })
       } catch (error) {
         // A proxy cannot preserve the editable parent/attribute relationship.
         if (record.attributes || parentInsertId) throw error
@@ -1168,6 +1283,22 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       importSpaceRecord(record, index, ownerId, paperSpace ? `paper-space:${layoutName}` : 'model-space')
       await importCheckpoint()
     }
+    for (const id of hatchReferences) {
+      const hatch = transaction.getObject(id)!, unresolved: string[] = []
+      const boundaryLoops = (hatch.payload.boundaryLoops as unknown as DxfHatchLoop[]).map(loop => {
+        if (!loop.sourceBoundaryHandles?.length) return loop
+        const sourceBoundaryIds = loop.sourceBoundaryHandles.map(handle => {
+          const boundaryId = entityHandleIds.get(handle), boundary = boundaryId ? transaction.getObject(boundaryId) : null
+          if (!boundary || boundary.kind !== 'entity' || boundary.erased || boundary.ownerId !== hatch.ownerId) {
+            unresolved.push(handle)
+            return ''
+          }
+          return boundary.id
+        })
+        return { ...loop, sourceBoundaryIds }
+      })
+      transaction.updateObject(id, { payload: { boundaryLoops, ...(unresolved.length ? { unresolvedHatchBoundaryHandles: unresolved } : {}) } })
+    }
     for (const { id, associations } of dimensionReferences) {
       const resolved = associations.map(({ entityHandle, ...association }) => {
         const entityId = entityHandleIds.get(entityHandle)
@@ -1177,12 +1308,17 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       transaction.updateObject(id, { payload: { dimensionAssociations: resolved } })
     }
     for (const { id, annotationHandle } of leaderReferences) {
+      const leader = transaction.getObject(id)!
+      // Handle 0 is the DXF null reference, distinct from a missing live target.
+      // Preserve an explicitly stored null handle; do not invent an annotation.
+      if (annotationHandle === null || annotationHandle === '0') {
+        continue
+      }
       const annotationId = entityHandleIds.get(annotationHandle), annotation = annotationId ? transaction.getObject(annotationId) : null
-      if (!annotation || annotation.kind !== 'entity' || annotation.type !== 'MTEXT') {
+      if (!annotation || annotation.erased || annotation.kind !== 'entity' || leaderAnnotationFlag(annotation.type) === null) {
         transaction.updateObject(id, { payload: { unresolvedLeaderAnnotation: annotationHandle } })
         continue
       }
-      const leader = transaction.getObject(id)!
       if (leader.ownerId !== annotation.ownerId) {
         transaction.updateObject(id, { payload: { unresolvedLeaderAnnotation: `${annotationHandle}:wrong-owner` } })
         continue
@@ -1208,8 +1344,42 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       if (clippingBoundaryId && transaction._draft().objects[clippingBoundaryId]?.ownerId !== current.ownerId) unresolved.push('clipping-boundary:wrong-owner')
       transaction.updateObject(id, { payload: { frozenLayerIds, clippingBoundaryId, ...(unresolved.length ? { unresolvedViewportReferences: unresolved } : {}) } })
     }
+    const viewportObjects = records(section(tags, 'OBJECTS'))
+    let viewportMetadata: ReturnType<typeof captureViewportMetadata> = null
+    try {
+      viewportMetadata = captureViewportMetadata(transaction._draft(), viewportObjects, viewportReferences)
+      if (viewportMetadata) transaction.putOpaquePayload(DXF_VIEWPORT_METADATA_KEY, viewportMetadata)
+    } catch (error) {
+      if (!(error instanceof KJValidationError)) throw error
+      // Keep the drawing viewable and its opaque source records intact. Export
+      // is blocked rather than stripping unimplemented metadata or guessing links.
+      transaction.putOpaquePayload(DXF_VIEWPORT_METADATA_UNSUPPORTED_KEY, {
+        schema: 'kjdraw.dxf.viewport-metadata-unsupported.v1',
+        sourceVersion: transaction._draft().header.sourceVersion,
+        reason: error.message,
+        records: viewportObjects,
+      })
+    }
+    const metadataHandles = new Set(viewportMetadata?.records.map(record => String(record.tags.find(tag => tag.code === 5)?.value ?? '').toUpperCase()) ?? [])
+    if (viewportMetadata?.rootHandle) metadataHandles.add(viewportMetadata.rootHandle)
+    for (const { id, handles } of reactorReferences) {
+      const unresolved: string[] = [], dxfReactorIds: string[] = [], references: DxfReactorReference[] = []
+      for (const handle of handles) {
+        const ambiguous = Number(entityHandleIds.has(handle)) + Number(resourceHandleIds.has(handle)) + Number(metadataHandles.has(handle)) > 1
+        const targetId = entityHandleIds.has(handle) ? entityHandleIds.get(handle) : resourceHandleIds.get(handle)
+        const target = targetId ? transaction.getObject(targetId) : null
+        if (!ambiguous && target && !target.erased) {
+          dxfReactorIds.push(target.id); references.push({ id: target.id })
+        } else if (!ambiguous && metadataHandles.has(handle)) references.push({ metadataHandle: handle })
+        else unresolved.push(handle)
+      }
+      transaction.updateObject(id, { payload: { dxfReactorIds,
+        ...(references.some(reference => 'metadataHandle' in reference) ? { dxfReactorReferences: references } : {}),
+        ...(unresolved.length ? { unresolvedDxfReactorHandles: unresolved } : {}) } })
+    }
     reportDXF(options, 'import', importCompleted, 'entities', importTotal)
   }, { source: 'adapter:dxf-ascii' })
+  await document.clearHistory({ expectedRevision: document.revision })
   return document
 }
 
@@ -1482,9 +1652,11 @@ function emitEntityHeader(
   version: DxfVersion,
   payload?: DxfPayload,
   linetypeNames?: ReadonlyMap<string, string>,
+  referenceGroups?: readonly DxfTag[],
 ): void {
   emit(output, 0, type)
   emit(output, 5, handle)
+  for (const tag of referenceGroups ?? []) emit(output, tag.code, tag.value)
   if (isSubclassDXF(version) && ownerHandle) emit(output, 330, ownerHandle)
   emitSubclass(output, version, 'AcDbEntity')
   emit(output, 8, layerName)
@@ -1543,7 +1715,7 @@ function emitLegacyPolyline(
 ): void {
   const { version } = context
   const p = entity.payload ?? {}
-  emitEntityHeader(output, 'POLYLINE', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames)
+  emitEntityHeader(output, 'POLYLINE', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames, context.reactorGroups?.get(entity.handle))
   emitSubclass(output, version, 'AcDb2dPolyline')
   emitPoint(output, [0, 0, p.elevation ?? 0]); emit(output, 70, (Number(p.dxfFlags ?? 0) & ~1) | (p.closed ? 1 : 0))
   emitEntityExtrusion(output, p)
@@ -1579,29 +1751,172 @@ function nativeHatchPatternLines(payload: DxfPayload): readonly DxfHatchPatternL
   return hatchPatternLines(payload).map(line => ({ angleDegrees: ((line.angle * 180 / Math.PI) % 360 + 360) % 360, base: line.base, offset: line.offset, dashes: line.dashes }))
 }
 
-function hasUnchangedHatchGeometry(payload: DxfPayload): payload is DxfPayload & { rawTags: readonly DxfTag[] } {
+function referencedEntityHandle(id: string, ownerId: string | null | undefined, context: DxfWriteContext, label: string): string {
+  const target = context.objects?.get(id)
+  if (!target || target.erased || target.kind !== 'entity' || target.ownerId !== ownerId) throw new KJValidationError(`DXF ${label} requires a live entity in the same owner space`)
+  return target.handle
+}
+
+function hatchBoundaryHandles(loop: DxfHatchLoop, entity: DxfEntity, context: DxfWriteContext): string[] {
+  const ids = loop.sourceBoundaryIds ?? loop.sourceBoundaryHandles?.map(handle => context.sourceEntityIds?.get(handle) ?? '') ?? []
+  if (!Array.isArray(ids) || ids.length > 4096 || ids.some(id => typeof id !== 'string' || !id)) throw new KJValidationError('DXF HATCH has an unavailable or duplicate source boundary reference')
+  if (loop.sourceBoundaryHandles && loop.sourceBoundaryHandles.length !== ids.length) throw new KJValidationError('DXF HATCH source boundary reference count changed without its source metadata')
+  return ids.map(id => referencedEntityHandle(id, entity.ownerId, context, 'HATCH source boundary'))
+}
+
+function hasUnchangedHatchGeometry(payload: DxfPayload, context: DxfWriteContext): payload is DxfPayload & { rawTags: readonly DxfTag[] } {
   if (!payload.rawTags?.length) return false
   const imported = entityPayload({ type: 'HATCH', tags: [...payload.rawTags] }, new Map()).payload
   const normalized = normalizeStandardEntityPayload('HATCH', imported)
-  const state = (value: Readonly<Record<string, unknown>>): string => JSON.stringify([
+  const sourceLoops = imported.boundaryLoops as DxfHatchLoop[]
+  if (payload.boundaryLoops?.some((loop, index) => loop.sourceBoundaryIds !== undefined && canonicalStringify(loop.sourceBoundaryIds) !== canonicalStringify(sourceLoops[index]?.sourceBoundaryHandles?.map(handle => context.sourceEntityIds?.get(handle) ?? '') ?? []))) return false
+  // KJD canonical serialization sorts nested object keys. Compare exact values,
+  // not insertion order, so an untouched OCS hatch can retain its original tags.
+  const state = (value: Readonly<Record<string, unknown>>): string | undefined => canonicalStringify([
     normalizeName(value.patternName), Boolean(value.solid), Boolean(value.associative),
-    Number(value.patternScale ?? 1), Number(value.patternAngle ?? 0), value.boundaryLoops,
+    nativeHatchStyle(value as DxfPayload),
+    Number(value.patternScale ?? 1), Number(value.patternAngle ?? 0), (value.boundaryLoops as DxfHatchLoop[] | undefined)?.map(({ sourceBoundaryIds: _ids, sourceBoundaryHandles: _handles, ...geometry }) => geometry),
     value.patternLines, value.patternDefinitionAngle, value.patternDefinitionScale,
   ])
   return state(payload) === state(normalized)
 }
 
+/** Preserve only validated non-geometric source metadata. Extension dictionaries
+ * reuse the already captured, bounded OBJECTS graph; a raw handle is never proof
+ * that its target will be exported. Unsupported metadata remains available in
+ * KJD, but neither the unchanged nor native DXF route may silently discard it. */
+function hatchSourceMetadata(entity: DxfEntity, references: ReadonlyMap<string, string>, dictionaries: ReadonlyMap<string, { handle: string; owner: string }>, version: DxfVersion): DxfHatchMetadata {
+  const result: DxfHatchMetadata = { groups: [], header: [], body: [], xdata: [], applications: [], nativeTail: [], doublePattern: 0, spatialXdata: false }
+  const raw = entity.payload?.rawTags ?? []
+  const fail = (reason: string): never => { throw new KJValidationError('DXF HATCH source metadata cannot be exported without loss: ' + reason) }
+  const common = new Set([5, 6, 8, 48, 60, 62, 67, 330, 370, 410, 420])
+  const integer = (tag: DxfTag, min: number, max: number): boolean => /^[ \t]*[+-]?\d+[ \t]*$/.test(tag.value) && Number.isSafeInteger(Number(tag.value)) && Number(tag.value) >= min && Number(tag.value) <= max
+  const scalar = (tag: DxfTag): boolean => /^[ \t]*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?[ \t]*$/.test(tag.value) && Number.isFinite(Number(tag.value))
+  const hasSubclass = raw.some(tag => tag.code === 100 && tag.value === 'AcDbHatch')
+  let inBody = false, inXdata = false, depth = 0
+  const groups = new Set<string>(), apps = new Set<string>()
+  for (let index = 0; index < raw.length; index++) {
+    const tag = raw[index]!
+    if (!tag || !Number.isInteger(tag.code) || typeof tag.value !== 'string' || /[\r\n\0]/.test(tag.value)) fail('invalid source tag')
+    if (tag.code === 102) {
+      if (inXdata || !['{ACAD_REACTORS', '{ACAD_XDICTIONARY'].includes(tag.value) || groups.has(tag.value)) fail('unsupported or duplicate reference group')
+      groups.add(tag.value)
+      const start = tag.value, entries: DxfTag[] = []
+      while (++index < raw.length && raw[index]!.code !== 102) entries.push(raw[index]!)
+      if (raw[index]?.value !== '}') fail('unclosed reference group')
+      if (start === '{ACAD_REACTORS') {
+        if (entries.some(entry => entry.code !== 330 || !/^[0-9A-F]+$/i.test(entry.value.trim()))) fail('invalid reactor group')
+        continue // current stable-ID reactor references are emitted separately
+      }
+      if (VERSION_RANK[version] < VERSION_RANK['2000']) fail('extension dictionary requires DXF 2000 or newer')
+      if (entries.length !== 1 || entries[0]!.code !== 360) fail('invalid extension dictionary group')
+      const target = dictionaries.get(entries[0]!.value.trim().toUpperCase())
+      if (!target) return fail('extension dictionary target or owner is unavailable')
+      if (target.owner !== entity.handle) fail('extension dictionary target or owner is unavailable')
+      result.groups.push({ code: 102, value: start }, { code: 360, value: target.handle }, { code: 102, value: '}' })
+      continue
+    }
+    if (tag.code === 1001) {
+      if (depth || !tag.value.trim() || tag.value.length > 255 || apps.has(normalizeName(tag.value))) fail('invalid or duplicate XDATA application')
+      apps.add(normalizeName(tag.value)); result.applications.push(tag.value); result.xdata.push(tag); inXdata = true
+      continue
+    }
+    if (inXdata) {
+      if (result.xdata.length >= 4096) fail('XDATA exceeds its bounded budget')
+      if (tag.code === 1002) {
+        if (tag.value === '{') depth++
+        else if (tag.value === '}') depth--
+        else fail('invalid XDATA control string')
+        if (depth < 0 || depth > 16) fail('unbalanced XDATA control strings')
+      } else if (tag.code === 1005) {
+        const handle = tag.value.trim().toUpperCase(), mapped = handle === '0' ? '0' : references.get(handle)
+        if (!mapped) return fail('XDATA handle target is unavailable')
+        result.xdata.push({ ...tag, value: mapped }); continue
+      } else if (tag.code >= 1010 && tag.code <= 1013) {
+        const pointTags = raw.slice(index, index + 3)
+        if (pointTags.length !== 3 || pointTags.some((entry, axis) => entry.code !== tag.code + axis * 10 || !scalar(entry))) fail('invalid XDATA point')
+        result.spatialXdata = true
+        result.xdata.push(...pointTags); index += 2; continue
+      } else if (!(tag.code === 1000 && tag.value.length <= 255 || tag.code === 1004 && tag.value.length <= 254 && /^(?:[0-9A-F]{2})*$/i.test(tag.value) ||
+          [1040, 1041, 1042].includes(tag.code) && scalar(tag) || tag.code === 1070 && integer(tag, -32768, 32767) || tag.code === 1071 && integer(tag, -2147483648, 2147483647))) fail('unsupported XDATA value or reference')
+      result.xdata.push(tag); continue
+    }
+    if (tag.code >= 1000) fail('XDATA value without an application')
+    if (tag.code === 100) {
+      if (!['AcDbEntity', 'AcDbHatch'].includes(tag.value)) fail('unsupported subclass')
+      if (tag.value === 'AcDbHatch') inBody = true
+      continue
+    }
+    if (!hasSubclass && tag.code === 10) inBody = true
+    if (common.has(tag.code) && !(inBody && tag.code === 330)) continue
+    if (!inBody) {
+      if (tag.code === 430 && tag.value.length <= 255) {
+        if (VERSION_RANK[version] < VERSION_RANK['2004']) fail('color name requires DXF 2004 or newer')
+      } else if (tag.code === 440 && integer(tag, 0, 0xffffffff)) {
+        if (VERSION_RANK[version] < VERSION_RANK['2004']) fail('transparency requires DXF 2004 or newer')
+      } else if (tag.code === 284 && integer(tag, 0, 3)) {
+        if (VERSION_RANK[version] < VERSION_RANK['2007']) fail('shadow mode requires DXF 2007 or newer')
+      } else if (!(isViewportMetadataReference(tag.code) && tag.value === '0' || tag.code === 999)) fail('unsupported entity header field')
+      result.header.push(tag); continue
+    }
+    if (isViewportMetadataReference(tag.code) && tag.code !== 330) fail('unsupported hatch reference')
+    result.body.push(tag)
+  }
+  if (depth) fail('unclosed XDATA control string')
+  if (result.xdata.reduce((total, tag) => total + tag.value.length + 4, 0) > 16384) fail('XDATA exceeds 16 KiB')
+  const record = { type: 'HATCH', tags: result.body }
+  const doubles = values(record, 77)
+  if (doubles.length > 1 || doubles.length && !integer({ code: 77, value: doubles[0]! }, 0, 1)) fail('invalid double-pattern flag')
+  result.doublePattern = doubles.length ? Number(doubles[0]) : 0
+  const pixels = values(record, 47)
+  // Preserve imported zero-valued calculation metadata exactly; the exporter
+  // does not use this optional field to compute boundaries or pattern density.
+  if (pixels.length > 1 || pixels.length && (!scalar({ code: 47, value: pixels[0]! }) || Number(pixels[0]) < 0)) fail('invalid pixel size')
+  if (pixels.length) result.nativeTail.push({ code: 47, value: pixels[0]! })
+  const seeds = result.body.flatMap((tag, index) => tag.code === 98 ? [index] : [])
+  if (seeds.length > 1) fail('duplicate seed count')
+  if (seeds.length) {
+    const start = seeds[0]!, count = result.body[start]!
+    if (!integer(count, 0, 4096)) fail('invalid seed count')
+    const points = result.body.slice(start + 1, start + 1 + Number(count.value) * 2)
+    if (points.length !== Number(count.value) * 2 || points.some((entry, index) => entry.code !== (index % 2 ? 20 : 10) || !scalar(entry))) fail('invalid seed points')
+    result.nativeTail.push(count, ...points)
+  }
+  return result
+}
+
 function emitHatch(output: string[], entity: DxfEntity, layerName: string, ownerHandle: string | null, space: DxfSpace | null, context: DxfWriteContext): void {
   const { version } = context
   const p = entity.payload ?? {}
-  if (hasUnchangedHatchGeometry(p)) {
+  const hatchStyle = nativeHatchStyle(p)
+  const metadata = context.hatchMetadata?.get(entity.handle)
+  const referenceGroups = [...context.reactorGroups?.get(entity.handle) ?? [], ...metadata?.groups ?? []]
+  if (metadata?.spatialXdata && p.rawTags?.length) {
+    const record = { type: 'HATCH', tags: [...p.rawTags] }
+    const original = normalizeStandardEntityPayload('HATCH', entityPayload(record, new Map()).payload) as DxfPayload
+    const sourceNormal = [number(record, 210), number(record, 220), number(record, 230, 1)]
+    const geometry = (payload: DxfPayload): string | undefined => canonicalStringify(payload.boundaryLoops?.map(({ sourceBoundaryIds: _ids, sourceBoundaryHandles: _handles, ...loop }) => loop))
+    // A pattern-only edit leaves the source coordinate system and boundary
+    // geometry intact. Geometry edits need an XDATA-aware transform, not a
+    // guess about which application-specific points/directions should move.
+    if (geometry(p) !== geometry(original) || Number(p.elevation ?? number(record, 30)) !== number(record, 30) ||
+        canonicalStringify(p.normal ?? sourceNormal) !== canonicalStringify(sourceNormal) ||
+        Number(p.thickness ?? number(record, 39)) !== number(record, 39)) throw new KJValidationError('DXF HATCH source metadata cannot be exported without loss: spatial XDATA requires unchanged boundary geometry and coordinate system')
+  }
+  if (p.unresolvedHatchBoundaryHandles?.length) throw new KJValidationError('DXF HATCH has unresolved source boundary references; export stopped to prevent data loss')
+  for (const loop of p.boundaryLoops ?? []) hatchBoundaryHandles(loop, entity, context)
+  if (hasUnchangedHatchGeometry(p, context)) {
     const properties = { ...entityDrawingProperties({ type: 'HATCH', tags: [...p.rawTags] }, {}), ...p }
-    emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version, properties, context.linetypeNames)
+    emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version, properties, context.linetypeNames, referenceGroups)
+    for (const tag of metadata?.header ?? []) emit(output, tag.code, tag.value)
     emitSubclass(output, version, 'AcDbHatch')
-    for (const tag of p.rawTags) {
-      if ([5, 6, 8, 48, 60, 62, 67, 330, 370, 410, 420].includes(tag.code) || tag.code === 100) continue
-      else emit(output, tag.code, tag.value)
+    for (const tag of metadata?.body ?? []) {
+      if (tag.code === 330) {
+        const id = context.sourceEntityIds?.get(tag.value.trim().toUpperCase()) ?? ''
+        emit(output, 330, referencedEntityHandle(id, entity.ownerId, context, 'HATCH source boundary'))
+      } else emit(output, tag.code, tag.value)
     }
+    for (const tag of metadata?.xdata ?? []) emit(output, tag.code, tag.value)
     return
   }
   if (p.rawTags?.length) {
@@ -1609,6 +1924,8 @@ function emitHatch(output: string[], entity: DxfEntity, layerName: string, owner
     if (number(record, 30) !== 0 || number(record, 210) !== 0 || number(record, 220) !== 0 || number(record, 230, 1) !== 1) {
       throw new KJValidationError('Edited non-planar DXF HATCH geometry requires an OCS-aware adapter')
     }
+    const supported = new Set([10, 20, 30, 2, 70, 71, 91, 92, 72, 73, 93, 42, 97, 330, 11, 21, 40, 50, 51, 74, 94, 95, 96, 12, 22, 13, 23, 75, 76, 52, 41, 77, 78, 53, 43, 44, 45, 46, 79, 49, 98, 47, 210, 220, 230])
+    if (metadata?.body.some(tag => !supported.has(tag.code))) throw new KJValidationError('DXF HATCH source metadata cannot be exported without loss: unsupported hatch subclass field')
   }
   const requireXY = (value: readonly number[]): void => {
     if (value.some(component => !Number.isFinite(component)) || (value[2] ?? 0) !== 0) throw new KJValidationError('Native DXF HATCH geometry must use finite XY points at Z=0')
@@ -1630,12 +1947,20 @@ function emitHatch(output: string[], entity: DxfEntity, layerName: string, owner
       } else throw new KJValidationError(`Native DXF HATCH edge type ${edge.type} is not supported; use LINE, ARC, ELLIPSE or SPLINE boundaries`)
     }
   }
-  emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames)
+  emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames, referenceGroups)
+  for (const tag of metadata?.header ?? []) emit(output, tag.code, tag.value)
   emitSubclass(output, version, 'AcDbHatch')
   emitPoint(output, [0, 0, 0]); emit(output, 2, p.patternName ?? 'SOLID'); emit(output, 70, p.solid ? 1 : 0); emit(output, 71, p.associative ? 1 : 0)
   emit(output, 91, p.boundaryLoops?.length ?? 0)
   for (const loop of p.boundaryLoops ?? []) {
-    const pathFlags = (Number(loop.flags ?? 0) & ~1) | (loop.external === false ? 0 : 1)
+    // DXF distinguishes External (1) from Outermost (16). Both are exposed as
+    // external=true by the reader; do not turn an imported Outermost loop into
+    // External as well when rebuilding it after a KJD save/reopen.
+    const originalFlags = Number(loop.flags ?? 0)
+    const external = loop.external ?? (loop.flags == null || Boolean(originalFlags & 17))
+    const pathFlags = external
+      ? (originalFlags & 17 ? originalFlags : originalFlags | 1)
+      : originalFlags & ~17
     if (loop.vertices?.length) {
       emit(output, 92, pathFlags | 2); emit(output, 72, loop.vertices.some(vertex => Number(vertex.bulge)) ? 1 : 0); emit(output, 73, loop.closed === false ? 0 : 1); emit(output, 93, loop.vertices.length)
       for (const vertex of loop.vertices) { const value = vertexPoint(vertex); emit(output, 10, value[0]); emit(output, 20, value[1]); if (vertex.bulge) emit(output, 42, vertex.bulge) }
@@ -1655,17 +1980,21 @@ function emitHatch(output: string[], entity: DxfEntity, layerName: string, owner
         else throw new KJValidationError(`DXF HATCH writer does not support ${edge.type} boundary edges`)
       }
     }
-    emit(output, 97, 0)
+    const sourceHandles = hatchBoundaryHandles(loop, entity, context)
+    emit(output, 97, sourceHandles.length)
+    for (const handle of sourceHandles) emit(output, 330, handle)
   }
-  emit(output, 75, 0); emit(output, 76, 1)
+  emit(output, 75, hatchStyle); emit(output, 76, 1)
   if (!p.solid) {
     const lines = nativeHatchPatternLines(p)
-    emit(output, 52, (p.patternAngle ?? 0) * 180 / Math.PI); emit(output, 41, p.patternScale ?? 1); emit(output, 77, 0); emit(output, 78, lines.length)
+    emit(output, 52, (p.patternAngle ?? 0) * 180 / Math.PI); emit(output, 41, p.patternScale ?? 1); emit(output, 77, metadata?.doublePattern ?? 0); emit(output, 78, lines.length)
     for (const line of lines) {
       emit(output, 53, line.angleDegrees); emit(output, 43, line.base[0]); emit(output, 44, line.base[1]); emit(output, 45, line.offset[0]); emit(output, 46, line.offset[1]); emit(output, 79, line.dashes.length)
       for (const dash of line.dashes) emit(output, 49, dash)
     }
   }
+  for (const tag of metadata?.nativeTail ?? []) emit(output, tag.code, tag.value)
+  for (const tag of metadata?.xdata ?? []) emit(output, tag.code, tag.value)
 }
 
 /** Autodesk VPCLIP supports closed polylines, circles, ellipses, closed splines
@@ -1702,8 +2031,11 @@ function validateViewportBoundary(boundary: KJReadonlyObjectRecord): void {
 function emitRawEntity(output: string[], entity: DxfEntity, layerName: string, ownerHandle: string | null, space: DxfSpace | null, context: DxfWriteContext): void {
   const { version } = context
   const properties = { ...entityDrawingProperties({ type: entity.type, tags: [...(entity.payload?.rawTags ?? [])] }, {}), ...entity.payload }
-  emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version, properties, context.linetypeNames)
+  emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version, properties, context.linetypeNames, context.reactorGroups?.get(entity.handle))
+  let inReactors = false
   for (const tag of entity.payload?.rawTags ?? []) {
+    if (tag.code === 102 && tag.value === '{ACAD_REACTORS' && context.reactorGroups?.has(entity.handle)) { inReactors = true; continue }
+    if (inReactors) { if (tag.code === 102 && tag.value === '}') inReactors = false; continue }
     if ([5, 6, 8, 48, 60, 62, 67, 330, 370, 410, 420].includes(tag.code)) continue
     else if (tag.code === 100 && (!isSubclassDXF(version) || normalizeName(tag.value) === 'ACDBENTITY')) continue
     else emit(output, tag.code, tag.value)
@@ -1820,7 +2152,7 @@ function emitEntity(
     emitRawEntity(output, { ...entity, type: p.originalType ?? 'PROXY_ENTITY' }, layerName, ownerHandle, space, context)
     return
   }
-  emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames)
+  emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames, context.viewportGroups?.get(entity.handle) ?? context.reactorGroups?.get(entity.handle))
   if (entity.type === 'LINE') { emitSubclass(output, version, 'AcDbLine'); emitPoint(output, p.start!); emitPoint(output, p.end!, 11) }
   else if (entity.type === 'XLINE' || entity.type === 'RAY') {
     // DXF requires a WCS unit direction, while the SDK accepts any nonzero vector.
@@ -1884,11 +2216,10 @@ function emitEntity(
     if (entity.type === 'ATTDEF') emit(output, 3, p.prompt)
     emit(output, 2, p.tag); emit(output, 70, p.flags ?? 0); if (p.verticalAlignment) emit(output, 74, p.verticalAlignment); if (p.lockPosition) emit(output, 280, 1)
     if (p.dxfAttributeExtraTags != null) {
-      if (!Array.isArray(p.dxfAttributeExtraTags)) throw new KJValidationError('Invalid opaque attribute subclass tags')
+      attributeExtraApplications(p.dxfAttributeExtraTags, p.alignmentPoint, (p.horizontalAlignment ?? 0) === 0 && (p.verticalAlignment ?? 0) === 0)
       for (const tag of p.dxfAttributeExtraTags as readonly DxfTag[]) {
         // Preserve uninterpreted scalar fields in their original subclass. Never
         // guess that its 71/72 codes are AcDbText mirror/alignment properties.
-        if (![71,72].includes(tag.code) || typeof tag.value !== 'string' || !/^\s*[+-]?\d+\s*$/.test(tag.value)) throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss')
         emit(output, tag.code, tag.value)
       }
     }
@@ -1904,9 +2235,20 @@ function emitEntity(
   else if (entity.type === 'LEADER') {
     if (p.unresolvedLeaderAnnotation) throw new KJValidationError(`DXF LEADER has an unresolved annotation reference: ${p.unresolvedLeaderAnnotation}`)
     const annotation = p.annotationId ? resources.objects?.get(String(p.annotationId)) : null
-    if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || annotation.type !== 'MTEXT' || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT in the same owner space')
-    const textHeight = annotation?.payload.height ?? p.textHeight, textWidth = annotation?.payload.width ?? p.textWidth
-    emitSubclass(output, version, 'AcDbLeader'); emit(output, 3, 'STANDARD'); emit(output, 71, p.arrowEnabled === false ? 0 : 1); emit(output, 72, p.pathType ?? 0); emit(output, 73, annotation ? 0 : p.annotationType ?? 3); emit(output, 74, p.hookLineDirection ?? 0); emit(output, 75, p.hookLineEnabled === true ? 1 : 0); if (textHeight != null) emit(output, 40, textHeight); if (textWidth != null) emit(output, 41, textWidth); emit(output, 76, entityVertices.length); for (const value of entityVertices) emitPoint(output, vertexPoint(value)); emitPoint(output, p.horizontalDirection ?? [1, 0, 0], 211); if (p.blockOffset) emitPoint(output, p.blockOffset, 212); if (p.annotationOffset) emitPoint(output, p.annotationOffset, 213); if (annotation) emit(output, 340, annotation.handle)
+    if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || leaderAnnotationFlag(annotation.type) === null || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT, TOLERANCE or INSERT in the same owner space')
+    if (!p.annotationId && p.annotationHandle && p.annotationHandle !== '0') throw new KJValidationError(`DXF LEADER has an unresolved annotation handle: ${p.annotationHandle}`)
+    const annotationType = p.annotationType ?? (annotation ? 0 : 3)
+    // Preserve native MTEXT sizing behavior. Tolerance/block annotations do not
+    // supply MTEXT layout dimensions; their stored leader sizes remain intact.
+    const textHeight = (annotation?.type === 'MTEXT' ? annotation.payload.height : undefined) ?? p.textHeight, textWidth = (annotation?.type === 'MTEXT' ? annotation.payload.width : undefined) ?? p.textWidth
+    emitSubclass(output, version, 'AcDbLeader'); emit(output, 3, 'STANDARD'); emit(output, 71, p.arrowEnabled === false ? 0 : 1); emit(output, 72, p.pathType ?? 0); emit(output, 73, annotationType)
+    if (p.hookLineDirection !== null) emit(output, 74, p.hookLineDirection ?? 0)
+    if (p.hookLineEnabled !== null) emit(output, 75, p.hookLineEnabled === true ? 1 : 0)
+    if (textHeight != null) emit(output, 40, textHeight); if (textWidth != null) emit(output, 41, textWidth); emit(output, 76, entityVertices.length); for (const value of entityVertices) emitPoint(output, vertexPoint(value))
+    // Group 211 is optional. Preserve its absence instead of introducing a new
+    // stored property on an untouched imported leader after save/reopen.
+    if (p.horizontalDirection) emitPoint(output, p.horizontalDirection, 211)
+    if (p.blockOffset) emitPoint(output, p.blockOffset, 212); if (p.annotationOffset) emitPoint(output, p.annotationOffset, 213); if (annotation) emit(output, 340, annotation.handle); else if (p.annotationHandle === '0') emit(output, 340, '0')
   }
   else if (entity.type === 'DIMENSION') {
     if (!p.definitionPoints?.length) throw new KJValidationError('DXF DIMENSION requires at least one definition point')
@@ -1980,7 +2322,13 @@ function emitEntity(
     // Preserve unmodeled scalar tags, but do not replay stale canonical coordinates or
     // unremapped graph references/XDATA. Such data remains in rawTags for recovery.
     const canonical = new Set([5,6,8,48,60,62,67,330,370,410,420,100,10,20,30,40,41,68,69,12,22,32,16,26,36,17,27,37,42,43,44,45,51,90,331,340,210,220,230])
+    let referenceGroup = false
     for (const tag of p.rawTags ?? []) {
+      if (context.viewportMetadataHandles?.has(entity.handle)) {
+        if (tag.code === 102) { referenceGroup = tag.value !== '}'; continue }
+        if (referenceGroup) continue // emitted in the entity header after graph validation
+        if (tag.code === 348) { emit(output, tag.code, tag.value); continue } // validated preserved VISUALSTYLE graph
+      }
       if (canonical.has(tag.code)) continue
       if (tag.code === 102 || tag.code >= 1000 || ((tag.code >= 320 && tag.code <= 369 || tag.code >= 390 && tag.code <= 399 || tag.code === 480 || tag.code === 481) && tag.value !== '0')) throw new KJValidationError('Cannot safely export unsupported VIEWPORT raw reference or XDATA')
       emit(output, tag.code, tag.value)
@@ -2029,11 +2377,61 @@ function emitSingleLineText(output: string[], p: DxfPayload, version: DxfVersion
 
 function isDxfVersion(value: string): value is DxfVersion { return (VERSIONS as readonly string[]).includes(value) }
 
+/** Preserve bounded attribute scalar/XDATA tails and one redundant native
+ * alignment point only when it exactly matches the canonical alignment point.
+ * XDATA coordinates and nonzero handles still require a graph-aware adapter. */
+function attributeExtraApplications(input: unknown, alignmentPoint?: unknown, inactiveAlignment = false): string[] {
+  if (!Array.isArray(input) || input.length > 4096) throw new KJValidationError('Invalid opaque attribute subclass tags')
+  const names: string[] = []
+  const applicationKeys = new Set<string>()
+  let inXdata = false
+  let seenAlignmentPoint = false
+  for (let index = 0; index < input.length; index++) {
+    const tag = input[index] as DxfTag
+    if (!tag || typeof tag.value !== 'string' || /[\r\n\0]/.test(tag.value)) throw new KJValidationError('Invalid opaque attribute subclass tags')
+    if (!inXdata && [71, 72].includes(tag.code) && /^\s*[+-]?\d+\s*$/.test(tag.value)) continue
+    if (!inXdata && tag.code === 11 && !seenAlignmentPoint) {
+      const pointTags = input.slice(index, index + 3) as DxfTag[]
+      const coordinatesValid = pointTags.length === 3 && pointTags.every((entry, axis) => entry?.code === [11, 21, 31][axis] &&
+        typeof entry.value === 'string' && /^[ \t]*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?[ \t]*$/.test(entry.value) &&
+        Number.isFinite(Number(entry.value)))
+      const canonicalMatch = Array.isArray(alignmentPoint) && alignmentPoint.length === 3 &&
+        pointTags.every((entry, axis) => typeof alignmentPoint[axis] === 'number' && Number.isFinite(alignmentPoint[axis]) && Number(entry?.value) === alignmentPoint[axis])
+      // A default left/baseline attribute may retain an unused zero point only
+      // in its attribute subclass. Do not invent a canonical alignment point
+      // or transform this inactive placeholder with the insertion coordinate.
+      const inactiveZero = alignmentPoint == null && inactiveAlignment && pointTags.every(entry => Number(entry?.value) === 0)
+      const valid = coordinatesValid && (canonicalMatch || inactiveZero)
+      if (valid) { seenAlignmentPoint = true; index += 2; continue }
+    }
+    if (tag.code === 1001 && tag.value.trim() && tag.value.length <= 255) {
+      const key = normalizeName(tag.value)
+      if (applicationKeys.has(key)) throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss: duplicate APPID segment')
+      applicationKeys.add(key)
+      inXdata = true; names.push(tag.value); continue
+    }
+    if (inXdata && [1070, 1071].includes(tag.code) && /^\s*[+-]?\d+\s*$/.test(tag.value)) {
+      const value = Number(tag.value), limit = tag.code === 1070 ? 32768 : 2147483648
+      if (Number.isSafeInteger(value) && value >= -limit && value < limit) continue
+    }
+    if (inXdata && tag.code === 1005 && tag.value === '0') continue
+    throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss')
+  }
+  return names
+}
+
 function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string {
   if (!(document instanceof KJDocument)) throw new KJValidationError('DXF writer requires a KJDocument')
-  const versionText = String(options.version ?? '2018').toUpperCase()
+  // Opaque proxy data cannot be converted to another format code. With no
+  // requested version, preserve a known source version for drawings containing
+  // proxies; an explicit conversion request still fails closed below.
+  const sourceVersion = document.snapshot().header.sourceVersion
+  const viewportMetadata = prepareViewportMetadata(document.toJSON({ includeRevisions: false }))
+  const preserveProxyVersion = (document.listEntities({ type: 'PROXY_ENTITY' }).length > 0 || viewportMetadata !== null) && isDxfVersion(sourceVersion)
+  const versionText = String(options.version ?? (preserveProxyVersion ? sourceVersion : '2018')).toUpperCase()
   if (!isDxfVersion(versionText)) throw new KJValidationError(`Unsupported ASCII DXF version: ${versionText}`)
   const version = versionText
+  if (viewportMetadata && (!isDxfVersion(viewportMetadata.sourceVersion) || ACADVER[viewportMetadata.sourceVersion] !== ACADVER[version])) throw new KJValidationError('DXF viewport metadata: can only be preserved at its known source DXF format code')
   const output: string[] = []
   const layers = documentTableRecords(document, 'layers').map(dxfNamedRecord)
   const layerNames = new Map(layers.map(layer => [layer.id, layer.name]))
@@ -2046,10 +2444,84 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   }
   const layouts = state.spaces.layoutIds.map(id => state.objects[id]!).filter(layout => !layout.erased)
   const layoutHandles = new Map(layouts.map(layout => [String(layout.payload.blockRecordId), layout.handle]))
+  const objects = new Map(Object.values(state.objects).map(record => [record.id, record]))
+  const sourceEntityIds = new Map<string, string>()
+  for (const record of objects.values()) if (record.kind === 'entity' && !record.erased) {
+    const handle = String((record.source as Readonly<Record<string, unknown>> | null)?.originalHandle ?? record.handle).toUpperCase()
+    sourceEntityIds.set(handle, sourceEntityIds.has(handle) ? '' : record.id)
+  }
   const context: DxfWriteContext = {
     version,
-    allocateHandle: createHandleAllocator(Object.values(state.objects).map(record => record.handle)),
+    allocateHandle: createHandleAllocator([...Object.values(state.objects).map(record => record.handle), ...(viewportMetadata?.records.map(record => record.tags.find(tag => tag.code === 5)!.value) ?? [])]),
     linetypeNames: new Map(documentTableRecords(document, 'linetypes').map(record => [record.id, String(record.name)])),
+    objects,
+    sourceEntityIds,
+  }
+  const reactorGroups = new Map<string, DxfTag[]>()
+  const metadataRootHandle = viewportMetadata ? context.allocateHandle() : null
+  const metadataReferences = viewportMetadata ? viewportMetadataReferenceMap(state, viewportMetadata, metadataRootHandle!) : new Map<string, string>()
+  const metadataReactorHandles = new Map(viewportMetadata?.records.map(record => {
+    const handle = String(record.tags.find(tag => tag.code === 5)?.value ?? '').toUpperCase()
+    return [handle, metadataReferences.get(handle) ?? handle] as const
+  }) ?? [])
+  if (viewportMetadata?.rootHandle) metadataReactorHandles.set(viewportMetadata.rootHandle, metadataRootHandle!)
+  const reactorObjectIds = new Set([
+    ...document.listEntities().map(entity => entity.id),
+    ...(['layers', 'linetypes', 'textStyles', 'dimensionStyles', 'ucs', 'views', 'blockRecords'] as const).flatMap(name => documentTableRecords(document, name).map(record => record.id)),
+    ...(VERSION_RANK[version] >= VERSION_RANK['2000'] ? layouts.map(layout => layout.id) : []),
+  ])
+  for (const entity of document.listEntities()) {
+    const payload = dxfPayload(entity)
+    if (payload.unresolvedDxfReactorHandles?.length) throw new KJValidationError('DXF entity has unresolved reactor references; export stopped to prevent data loss')
+    if (payload.dxfReactorIds !== undefined || payload.dxfReactorReferences !== undefined) {
+      if (!Array.isArray(payload.dxfReactorIds) || payload.dxfReactorIds.length > 4096 || payload.dxfReactorIds.some(id => typeof id !== 'string' || !id)) throw new KJValidationError('Invalid DXF entity reactor references')
+      const references: readonly DxfReactorReference[] = payload.dxfReactorReferences ?? payload.dxfReactorIds.map(id => ({ id }))
+      if (!Array.isArray(references) || references.length > 4096 || references.some(reference => !reference || typeof reference !== 'object' || Object.keys(reference).length !== 1 ||
+        !('id' in reference && typeof reference.id === 'string' && reference.id || 'metadataHandle' in reference && typeof reference.metadataHandle === 'string' && /^[0-9A-F]+$/.test(reference.metadataHandle)))) throw new KJValidationError('Invalid DXF entity reactor reference graph')
+      if (canonicalStringify(references.flatMap(reference => 'id' in reference ? [reference.id] : [])) !== canonicalStringify(payload.dxfReactorIds)) throw new KJValidationError('DXF entity reactor reference graph is inconsistent')
+      if (!references.length) continue
+      if (!isSubclassDXF(version)) throw new KJValidationError('DXF R12 cannot preserve entity reactor references')
+      reactorGroups.set(entity.handle, [{ code: 102, value: '{ACAD_REACTORS' }, ...references.map(reference => {
+        if ('metadataHandle' in reference) {
+          const handle = metadataReactorHandles.get(reference.metadataHandle)
+          if (!handle) throw new KJValidationError('DXF entity reactor metadata target is unavailable')
+          return { code: 330, value: handle }
+        }
+        const target = objects.get(reference.id)
+        if (!target || target.erased || !reactorObjectIds.has(reference.id)) throw new KJValidationError('DXF entity reactor requires a live exported DXF object')
+        return { code: 330, value: target.handle }
+      }), { code: 102, value: '}' }])
+    }
+  }
+  context.reactorGroups = reactorGroups
+  const hatchReferences = new Map(metadataReactorHandles)
+  for (const [handle, id] of sourceEntityIds) {
+    const target = objects.get(id)
+    if (target && reactorObjectIds.has(id)) hatchReferences.set(handle, target.handle)
+  }
+  const hatchDictionaries = new Map(viewportMetadata?.records.filter(record => record.type === 'DICTIONARY').map(record => {
+    const handle = String(record.tags.find(tag => tag.code === 5)?.value ?? '').toUpperCase()
+    const owner = recordOwner({ type: record.type, tags: [...record.tags] })
+    return [handle, { handle: metadataReferences.get(handle) ?? handle, owner: metadataReferences.get(owner) ?? owner }] as const
+  }) ?? [])
+  context.hatchMetadata = new Map(document.listEntities({ type: 'HATCH' }).map(entity => [entity.handle, hatchSourceMetadata(dxfEntity(entity), hatchReferences, hatchDictionaries, version)]))
+  if (viewportMetadata) {
+    if (VERSION_RANK[version] < VERSION_RANK['2000']) throw new KJValidationError('DXF viewport metadata: requires DXF 2000 or newer')
+    const groups = new Map<string, DxfTag[]>()
+    for (const viewport of viewportMetadata.viewports) {
+      const entity = state.objects[viewport.id]!, tags: DxfTag[] = []
+      let grouped = false
+      for (const tag of entity.payload.rawTags as DxfTag[]) {
+        if (tag.code === 102) { tags.push(tag); grouped = tag.value !== '}' }
+        else if (grouped) {
+          if (!isViewportMetadataReference(tag.code)) throw new KJValidationError('Unsupported viewport reference group field')
+          tags.push({ ...tag, value: metadataReferences.get(tag.value.toUpperCase()) ?? tag.value })
+        }
+      }
+      groups.set(entity.handle, tags)
+    }
+    context.viewportGroups = groups
+    context.viewportMetadataHandles = new Set(groups.keys())
   }
   const tableHandles = new Map(['LTYPE', 'STYLE', 'DIMSTYLE', 'UCS', 'VIEW', 'LAYER', 'BLOCK_RECORD', 'APPID'].map(name => [name, context.allocateHandle()]))
   const sourceBlocks = documentTableRecords(document, 'blockRecords').map(dxfNamedRecord)
@@ -2085,7 +2557,7 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   const blocks = [...sourceBlocks, ...dimensionExports.blocks.map(block => block.record)]
   const blockNames = new Map(blocks.map(block => [block.id, block.name]))
   const resources: DxfExportResources = {
-    objects: new Map(Object.values(state.objects).map(record => [record.id, record])),
+    objects,
     textStyleNames: new Map(textStyles.map(record => [record.id, record.name])),
     dimensionStyleNames: new Map(dimensionStyles.map(record => [record.id, record.name])),
     dimensions: dimensionExports.dimensions,
@@ -2147,13 +2619,23 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   emitLinetypeTable(output, linetypes, context, tableHandles.get('LTYPE')!)
   emitTextStyleTable(output, textStyles, context, tableHandles.get('STYLE')!)
   emitDimensionStyleTable(output, dimensionStyles, context, tableHandles.get('DIMSTYLE')!)
-  const applicationRecords = [
-    ...(dimensionExports.dimensions.size ? [{ id: 'dxf-acad-appid', type: 'APPID', name: 'ACAD', handle: context.allocateHandle(), payload: {} }] : []),
-    ...(hasDimensionAssociations ? [{ id: 'dxf-kjdraw-appid', type: 'APPID', name: 'KJDRAW', handle: context.allocateHandle(), payload: {} }] : []),
+  const applicationNames = [
+    ...(dimensionExports.dimensions.size ? ['ACAD'] : []),
+    ...(hasDimensionAssociations ? ['KJDRAW'] : []),
+    ...[...context.hatchMetadata.values()].flatMap(metadata => metadata.applications),
+    ...allEntities.flatMap(entity => entity.payload?.dxfAttributeExtraTags == null ? [] : attributeExtraApplications(entity.payload.dxfAttributeExtraTags, entity.payload.alignmentPoint,
+      (entity.payload.horizontalAlignment ?? 0) === 0 && (entity.payload.verticalAlignment ?? 0) === 0)),
   ]
+  const applications = new Map<string, string>()
+  for (const name of applicationNames) {
+    const key = normalizeName(name), previous = applications.get(key)
+    if (previous !== undefined && previous !== name) throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss: conflicting APPID spelling')
+    applications.set(key, name)
+  }
+  const applicationRecords = [...applications.values()].map(name => ({ id: `dxf-appid-${name}`, type: 'APPID', name, handle: context.allocateHandle(), payload: {} }))
   if (applicationRecords.length) emitTable(output, 'APPID', applicationRecords, context, tableHandles.get('APPID')!, (record, ownerHandle, version) => {
     emitSymbolTableRecordHeader(output, 'APPID', record, ownerHandle, version, 'AcDbRegAppTableRecord')
-    emit(output, 2, 'ACAD'); emit(output, 70, 0)
+    emit(output, 2, record.name); emit(output, 70, 0)
   })
   emitUcsTable(output, ucsRecords, context, tableHandles.get('UCS')!)
   emitViewTable(output, views, context, tableHandles.get('VIEW')!)
@@ -2210,10 +2692,11 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   }
   emit(output, 0, 'ENDSEC')
   if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
-    const rootHandle = context.allocateHandle(), dictionaryHandle = context.allocateHandle()
+    const rootHandle = metadataRootHandle ?? context.allocateHandle(), dictionaryHandle = context.allocateHandle()
     emit(output, 0, 'SECTION'); emit(output, 2, 'OBJECTS')
     emit(output, 0, 'DICTIONARY'); emit(output, 5, rootHandle); emit(output, 330, '0'); emit(output, 100, 'AcDbDictionary'); emit(output, 281, 1)
     emit(output, 3, 'ACAD_LAYOUT'); emit(output, 350, dictionaryHandle)
+    for (const entry of viewportMetadata?.rootEntries ?? []) { emit(output, 3, entry.name); emit(output, entry.code, entry.handle) }
     emit(output, 0, 'DICTIONARY'); emit(output, 5, dictionaryHandle); emit(output, 330, rootHandle); emit(output, 100, 'AcDbDictionary'); emit(output, 280, 1); emit(output, 281, 1)
     for (const layout of layouts) { emit(output, 3, layout.name); emit(output, 350, layout.handle) }
     for (const [index, layout] of layouts.entries()) {
@@ -2236,6 +2719,10 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
       emitPoint(output, geometry?.extents?.minimum ?? [1e20,1e20,1e20], 14); emitPoint(output, geometry?.extents?.maximum ?? [-1e20,-1e20,-1e20], 15)
       emitPoint(output, [0, 0, 0], 13); emitPoint(output, [1, 0, 0], 16); emitPoint(output, [0, 1, 0], 17)
       emit(output, 330, state.objects[String(layout.payload.blockRecordId)]!.handle)
+    }
+    for (const record of viewportMetadata?.records ?? []) {
+      emit(output, 0, record.type)
+      for (const tag of record.tags) emit(output, tag.code, isViewportMetadataReference(tag.code) ? metadataReferences.get(tag.value.toUpperCase()) ?? tag.value : tag.value)
     }
     emit(output, 0, 'ENDSEC')
   }

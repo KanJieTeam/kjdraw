@@ -271,7 +271,8 @@ test('chat queries the real drawing, previews native geometry, applies once, sav
   })
   await page.route('**/api/model', async route => {
     const body = route.request().postDataJSON(); requests.push(body)
-    expect(body.tools.map(tool => tool.function.name).sort()).toEqual([...KJDRAW_CHAT_TOOL_NAMES].sort())
+    expect(body.tools.map(tool => tool.function.name).sort()).toEqual([...KJDRAW_CHAT_TOOL_NAMES,
+      'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_plan'].sort())
     if (requests.length === 1) return route.fulfill({ json: wire([['read', 'cad_read_drawing']]) })
     const result = JSON.parse(body.messages.at(-1).content)
     expect(result.ok).toBe(true)
@@ -529,7 +530,8 @@ test('chat keeps general tools for geological, negated and mixed drawing request
   }
   const result=await page.evaluate(()=>({requests:window.ambiguousChat.requests,revision:window.ambiguousChat.document.revision,count:window.ambiguousChat.document.listEntities().length}))
   for(const request of result.requests){
-    expect([...request.tools].sort()).toEqual([...KJDRAW_CHAT_TOOL_NAMES].sort())
+    expect([...request.tools].sort()).toEqual([...KJDRAW_CHAT_TOOL_NAMES,
+      'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_plan'].sort())
     expect(request.instructions??'').not.toContain('Capability builtin.')
   }
   expect(result.revision).toBe(0);expect(result.count).toBe(0)

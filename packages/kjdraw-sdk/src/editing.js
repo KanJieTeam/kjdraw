@@ -2,6 +2,7 @@
 import { KJValidationError } from './errors.js';
 import { add2, arcSweep, cross2, distance2, dot2, ellipseArcLength2, intersectCircleCircle2, intersectLineCircle2, intersectLineLine2, length2, midpoint2, multiply2, normalize2, perpendicular2, projectParameter2, subtract2, vec2 } from './geometry/index.js';
 import { clone, normalizeName } from './utils.js';
+import { breakNativeSplinePayloads, trimNativeSplinePayloads } from './geometry/native-spline-edit.js';
 const TURN = Math.PI * 2;
 function pointInput(value) {
     return value;
@@ -477,6 +478,11 @@ function arcParameter(payload, point) {
 }
 export function breakEntityPayloads(entity, options = {}) {
     const payload = payloadOf(entity), type = normalizeName(entity?.type);
+    if (type === 'SPLINE') return breakNativeSplinePayloads(payload, options).map((result)=>({
+            type,
+            payload: result
+        }));
+    if (options.parameter !== undefined || options.parameters !== undefined) throw new KJValidationError('Native parameter BREAK is supported only for SPLINE');
     const points = options.points ?? [
         options.firstPoint ?? options.point,
         options.secondPoint
@@ -1252,7 +1258,12 @@ function rejectAmbiguousLineBoundaries(target, boundaries, mode) {
         }
     }
 }
-export function trimEntityPayloads(target, boundaries, pickPoint) {
+export function trimEntityPayloads(target, boundaries, pickPoint, options = {}) {
+    if (target?.type === 'SPLINE') return trimNativeSplinePayloads(target.payload, boundaries, pickPoint, options).map((payload)=>({
+            type: 'SPLINE',
+            payload
+        }));
+    if (options.pickParameter !== undefined || options.tolerance !== undefined) throw new KJValidationError('Native parameter/tolerance TRIM options are supported only for SPLINE');
     if (target?.type === 'LINE') {
         rejectAmbiguousLineBoundaries(target, boundaries, 'segment');
         return trimLinePayloads(target, boundaries, pickPoint).map((payload)=>({

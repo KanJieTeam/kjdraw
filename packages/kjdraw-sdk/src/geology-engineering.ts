@@ -1,5 +1,5 @@
 import { KJValidationError } from './errors.js'
-import { stableHash, deepFreeze, type ReadonlyDeep } from './utils.js'
+import { stableHash, canonicalStringify, deepFreeze, type ReadonlyDeep } from './utils.js'
 import type { KJKnowledgeCompileResult } from './knowledge-compiler.js'
 import { validateKnowledgePack, type KJKnowledgePack } from './knowledge-pack.js'
 import { hatchPatternFromKnowledgePack } from './hatch-pattern-catalog.js'
@@ -300,7 +300,7 @@ export interface KJGeologyColumnInput {
   /** Explicit source/template fact. Omit to select from the style pack's standard scales. */
   verticalScaleDenominator?: number
   /** Physical long-log sheet or ordinary A4 sheet, in millimetres. */
-  pageHeightMillimeters?: 297 | 841
+  pageHeightMillimeters?: 297 | 500 | 841
   /** Host-selected, versioned physical table geometry; independent of model text. */
   columnStylePack?: ReadonlyDeep<KJKnowledgePack>
   /** Refuse a source-template mismatch or an unrenderable observation kind. This is a template gate, not 1:1 certification. */
@@ -416,6 +416,10 @@ type SectionSourceBackedStratigraphicGroupLabel = {
   /** Explicit source anchor expressed in section station/elevation coordinates. */
   anchor: [number, number]
 }
+type SectionLegendStyle = {
+  left: number; right: number; bottom: number; top: number; columns: number
+  swatchWidth: number; swatchHeight: number; textHeight: number; textWidthFactor: number; gap: number
+}
 
 interface SectionLayout {
   paperWidth: number
@@ -435,6 +439,8 @@ interface SectionLayout {
   sourceBackedBoundaryPolylines?: SectionSourceBackedBoundaryPolyline[]
   stratigraphicGroupLabelStyle?: SectionStratigraphicGroupLabelStyle
   sourceBackedStratigraphicGroupLabels?: SectionSourceBackedStratigraphicGroupLabel[]
+  /** Optional host-declared reserved strip. Labels and patterns come only from supplied intervals. */
+  legendStyle?: SectionLegendStyle
   plotLeft: number
   sectionReferenceStyle?: { start: KJGeologyFieldHeaderTextPlacement; end: KJGeologyFieldHeaderTextPlacement }
   observationSymbolStyle?: KJGeologySectionObservationSymbolStyle
@@ -599,7 +605,7 @@ const defaultColumnVerticalScales = Object.freeze([50, 100, 150, 200, 250, 500, 
 
 const defaultColumnLabels: Record<string, string> = {
   hole: 'HOLE', collar: 'COLLAR', depth: 'DEPTH', verticalScale: 'VERTICAL SCALE', datum: 'DATUM: collar elevation',
-  project: 'PROJECT', x: 'X', y: 'Y', startDate: 'START', endDate: 'END',
+  project: 'PROJECT', x: 'X', y: 'Y', startDate: 'START', endDate: 'END', initialWaterDepth: 'INITIAL WATER', stableWaterDepth: 'STABLE WATER',
   depthColumn: 'DEPTH m', thicknessColumn: 'THICKNESS m', elevationColumn: 'ELEV. m', codeColumn: 'CODE', hatchColumn: 'LITHOLOGY',
   stratumColumn: 'STRATUM', descriptionColumn: 'DESCRIPTION', sampleColumn: 'SAMPLE', sptColumn: 'SPT N',
   legend: 'LITHOLOGY LEGEND', footer: 'Depth positive downward; elevations from supplied collar. Verify against drilling log.',
@@ -609,7 +615,7 @@ const defaultColumnLabels: Record<string, string> = {
 
 const chineseColumnLabels: Record<string, string> = {
   hole: '钻孔编号', collar: '孔口标高', depth: '孔深', verticalScale: '垂直比例尺', datum: '基准：孔口标高',
-  project: '工程名称', x: 'X坐标', y: 'Y坐标', startDate: '开孔日期', endDate: '终孔日期',
+  project: '工程名称', x: 'X坐标', y: 'Y坐标', startDate: '开孔日期', endDate: '终孔日期', initialWaterDepth: '初见水位', stableWaterDepth: '稳定水位',
   depthColumn: '深度 m', thicknessColumn: '层厚 m', elevationColumn: '层底标高 m', codeColumn: '层号', hatchColumn: '岩土图例',
   stratumColumn: '岩土名称', descriptionColumn: '岩土描述', sampleColumn: '取样', sptColumn: '标贯 N',
   legend: '岩土图例', footer: '深度向下为正；标高按给定孔口标高计算。请与钻孔原始记录核对。',
@@ -633,9 +639,10 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     if (geologyLocale(input) === 'zh-CN')
       return columnLayout({ ...input, columnStylePack: KJDRAW_GEOLOGY_KNOWLEDGE_PACK })
     const height = input.pageHeightMillimeters ?? 297
-    if (height !== 297 && height !== 841) throw new KJValidationError('Geology: column page height must be 297 or 841 mm')
+    if (height !== 297 && height !== 500 && height !== 841) throw new KJValidationError('Geology: column page height must be 297, 500 or 841 mm')
     return { paperWidth: 210, paperHeight: height, left: 15, right: 195, columns: [32, 51, 67, 92, 147],
-      headerDepth: 56, headerRowHeight: 7, fieldHeaderHeight: 10, footerReserve: 57, layerNumberStyle: 'plain', labels: geologyLocale(input) === 'zh-CN' ? chineseColumnLabels : defaultColumnLabels,
+      headerDepth: input.hole.initialWaterDepth != null || input.hole.stableWaterDepth != null ? 64 : 56,
+      headerRowHeight: 7, fieldHeaderHeight: 10, footerReserve: 57, layerNumberStyle: 'plain', labels: geologyLocale(input) === 'zh-CN' ? chineseColumnLabels : defaultColumnLabels,
       verticalScaleDenominators: [...defaultColumnVerticalScales] }
   }
   const pack = validateKnowledgePack(input.columnStylePack)
@@ -654,10 +661,10 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     drawingOrigin = [projectCoordinate(value.drawingOrigin[0], 'column drawing origin X'),
       projectCoordinate(value.drawingOrigin[1], 'column drawing origin Y')]
   }
-  let pageHeightOption: { pageHeightMillimeters: 297 | 841; fieldTextWidthFactors?: Partial<Record<Exclude<FieldRole, 'measurement'>, number>> } | undefined
+  let pageHeightOption: { pageHeightMillimeters: 297 | 500 | 841; fieldTextWidthFactors?: Partial<Record<Exclude<FieldRole, 'measurement'>, number>> } | undefined
   if (value.pageHeightOptions != null) {
-    if (!Array.isArray(value.pageHeightOptions) || value.pageHeightOptions.length < 1 || value.pageHeightOptions.length > 2)
-      throw new KJValidationError('Geology: style page height options must declare one or two bounded sheets')
+    if (!Array.isArray(value.pageHeightOptions) || value.pageHeightOptions.length < 1 || value.pageHeightOptions.length > 3)
+      throw new KJValidationError('Geology: style page height options must declare one to three bounded sheets')
     const seenHeights = new Set<number>()
     const options = value.pageHeightOptions.map((raw, index) => {
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: style page height option must be a declared object')
@@ -665,7 +672,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       if (Object.keys(option).sort().join(',') !== ['pageHeightMillimeters', ...(hasFactors ? ['fieldTextWidthFactors'] : [])].sort().join(','))
         throw new KJValidationError('Geology: style page height option has an undeclared field')
       const height = numeric(option.pageHeightMillimeters, `style page height option ${index + 1}`)
-      if ((height !== 297 && height !== 841) || seenHeights.has(height)) throw new KJValidationError('Geology: style page heights must be unique 297 or 841 mm values')
+      if ((height !== 297 && height !== 500 && height !== 841) || seenHeights.has(height)) throw new KJValidationError('Geology: style page heights must be unique 297, 500 or 841 mm values')
       seenHeights.add(height)
       let fieldTextWidthFactors: Partial<Record<Exclude<FieldRole, 'measurement'>, number>> | undefined
       if (hasFactors) {
@@ -680,7 +687,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
           return [role, factor]
         }))
       }
-      return { pageHeightMillimeters: height as 297 | 841, ...(fieldTextWidthFactors ? { fieldTextWidthFactors } : {}) }
+      return { pageHeightMillimeters: height as 297 | 500 | 841, ...(fieldTextWidthFactors ? { fieldTextWidthFactors } : {}) }
     })
     if (!seenHeights.has(declaredPaperHeight)) throw new KJValidationError('Geology: style page height options must include the declared default height')
     const selectedHeight = input.pageHeightMillimeters ?? declaredPaperHeight
@@ -1514,6 +1521,7 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     ...(value.sourceBackedBoundaryPolylines == null ? [] : ['sourceBackedBoundaryPolylines']),
     ...(value.stratigraphicGroupLabelStyle == null ? [] : ['stratigraphicGroupLabelStyle']),
     ...(value.sourceBackedStratigraphicGroupLabels == null ? [] : ['sourceBackedStratigraphicGroupLabels']),
+    ...(value.legendStyle == null ? [] : ['legendStyle']),
     ...(value.headingTextStyle == null ? [] : ['headingTextStyle']), ...(value.footerFrameStyle == null ? [] : ['footerFrameStyle']), ...(value.sectionReferenceStyle == null ? [] : ['sectionReferenceStyle']), ...(value.observationSymbolStyle == null ? [] : ['observationSymbolStyle'])]
   if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field')
   const scalars = Object.fromEntries(scalarKeys.map(key => [key, numeric(value[key], `section ${key}`)])) as unknown as Omit<SectionLayout, 'footerGrid' | 'drawingOrigin' | 'outerMargins' | 'innerMargins' | 'frameStyle' | 'headingTextStyle'>
@@ -2088,6 +2096,25 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     if (declaredGrid && (index === 0 && Math.abs(cell.start - left) > 1e-6 || index && cell.start <= footerGrid[index - 1]!.start || gridEnd - cell.start < 28))
       throw new KJValidationError('Geology: section footer cell is out of bounds or unreadable')
   }
+  let legendStyle: SectionLegendStyle | undefined
+  if (value.legendStyle != null) {
+    const keys = ['left', 'right', 'bottom', 'top', 'columns', 'swatchWidth', 'swatchHeight', 'textHeight', 'textWidthFactor', 'gap']
+    if (!value.legendStyle || typeof value.legendStyle !== 'object' || Array.isArray(value.legendStyle) ||
+      Object.keys(value.legendStyle).sort().join(',') !== [...keys].sort().join(','))
+      throw new KJValidationError('Geology: section legend needs an exact declarative placement schema')
+    const supplied = value.legendStyle as Record<string, unknown>
+    const style = Object.fromEntries(keys.map(key => [key, numeric(supplied[key], `section legend ${key}`)])) as SectionLegendStyle
+    // The strip is intentionally separate from plot annotations and the title
+    // block. Arbitrary in-plot placement and automatic fit/relayout are forbidden.
+    if (style.left < innerMargins.left || style.right > scalars.paperWidth - innerMargins.right || style.right <= style.left ||
+      style.bottom < scalars.plotTop + 12 || style.top > Math.min(scalars.scaleY - 2, scalars.titleY - 2, scalars.paperHeight - innerMargins.top) ||
+      style.top - style.bottom < 2 || !Number.isInteger(style.columns) || style.columns < 1 || style.columns > 16 ||
+      style.swatchWidth < 2 || style.swatchWidth > 20 || style.swatchHeight < 1.5 || style.swatchHeight > 10 ||
+      style.textHeight < 1.5 || style.textHeight > 5 || style.textWidthFactor < .5 || style.textWidthFactor > 1.5 ||
+      style.gap < .5 || style.gap > 4)
+      throw new KJValidationError('Geology: section legend leaves its reserved strip or is physically unreadable')
+    legendStyle = style
+  }
   return { ...scalars, drawingOrigin, outerMargins, innerMargins, frameStyle, ...(headingTextStyle ? { headingTextStyle } : {}), footerGrid,
     ...(sectionTextStyle ? { sectionTextStyle } : {}),
     ...(sectionHatchPresentation ? { sectionHatchPresentation } : {}),
@@ -2099,6 +2126,7 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     ...(sourceBackedBoundaryPolylines ? { sourceBackedBoundaryPolylines } : {}),
     ...(stratigraphicGroupLabelStyle ? { stratigraphicGroupLabelStyle } : {}),
     ...(sourceBackedStratigraphicGroupLabels ? { sourceBackedStratigraphicGroupLabels } : {}),
+    ...(legendStyle ? { legendStyle } : {}),
     ...(footerFrameStyle ? { footerFrameStyle } : {}), ...(sectionReferenceStyle ? { sectionReferenceStyle } : {}), ...(observationSymbolStyle ? { observationSymbolStyle } : {}) }
 }
 
@@ -2323,13 +2351,75 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     ...(hatches[layer.patternKey ?? layer.lithology] ?? {}),
     ...(presentation ?? {}),
   })
+  const assertRegionClear = (left: number, bottom: number, right: number, top: number): void => {
+    left += drawingOrigin[0]; right += drawingOrigin[0]; bottom += drawingOrigin[1]; top += drawingOrigin[1]
+    const overlaps = (xmin: number, ymin: number, xmax: number, ymax: number): boolean =>
+      xmax > left + 1e-6 && xmin < right - 1e-6 && ymax > bottom + 1e-6 && ymin < top - 1e-6
+    const segmentIntersects = (start: number[], end: number[], halfWidth = 0): boolean => {
+      let lo = 0, hi = 1
+      const dx = end[0]! - start[0]!, dy = end[1]! - start[1]!
+      for (const [p, q] of [[-dx, start[0]! - left + halfWidth - 1e-6], [dx, right - start[0]! + halfWidth - 1e-6],
+        [-dy, start[1]! - bottom + halfWidth - 1e-6], [dy, top - start[1]! + halfWidth - 1e-6]]) {
+        if (p === 0) { if (q! < 0) return false; continue }
+        const ratio = q! / p!
+        if (p! < 0) lo = Math.max(lo, ratio); else hi = Math.min(hi, ratio)
+        if (lo > hi) return false
+      }
+      return true
+    }
+    for (const entity of entities) {
+      const payload = entity.payload as Record<string, unknown>
+      let collision = false
+      if (entity.type === 'LINE') collision = segmentIntersects(payload.start as number[], payload.end as number[])
+      else if (entity.type === 'LWPOLYLINE') {
+        const vertices = payload.vertices as number[][]
+        const halfWidth = ((payload.constantWidth as number | undefined) ?? 0) / 2
+        collision = vertices.some((start, index) => index + 1 < vertices.length
+          ? segmentIntersects(start, vertices[index + 1]!, halfWidth) : payload.closed === true && segmentIntersects(start, vertices[0]!, halfWidth))
+      } else if (entity.type === 'TEXT') {
+        const point = (payload.alignmentPoint ?? payload.position) as number[], height = payload.height as number
+        const width = [...payload.text as string].reduce((sum, character) => sum + (/^[\x20-\x7e]$/u.test(character) ? .8 : 1.2) * height, 0) * ((payload.widthFactor as number | undefined) ?? 1)
+        const alignment = payload.horizontalAlignment
+        // Native TEXT middle alignment (4) forces both horizontal and vertical
+        // centering even when its declared verticalAlignment is baseline (0).
+        const vertical = alignment === 4 ? 2 : payload.verticalAlignment
+        const xmin = point[0]! - (alignment === 1 || alignment === 4 ? width / 2 : alignment === 2 ? width : 0)
+        const ymin = point[1]! - (vertical === 2 ? height / 2 : vertical === 3 ? height : height * .25)
+        if (alignment === 5) {
+          const start = payload.position as number[]
+          collision = overlaps(Math.min(start[0]!, point[0]!), Math.min(start[1]!, point[1]!) - height,
+            Math.max(start[0]!, point[0]!), Math.max(start[1]!, point[1]!) + height)
+        } else {
+          const radians = (payload.rotation as number | undefined) ?? 0
+          const corners = [[xmin, ymin], [xmin + width, ymin], [xmin + width, ymin + height * 1.25], [xmin, ymin + height * 1.25]]
+            .map(([x, y]) => [point[0]! + (x! - point[0]!) * Math.cos(radians) - (y! - point[1]!) * Math.sin(radians),
+              point[1]! + (x! - point[0]!) * Math.sin(radians) + (y! - point[1]!) * Math.cos(radians)])
+          collision = overlaps(Math.min(...corners.map(corner => corner[0]!)), Math.min(...corners.map(corner => corner[1]!)),
+            Math.max(...corners.map(corner => corner[0]!)), Math.max(...corners.map(corner => corner[1]!)))
+        }
+      } else {
+        let points: number[][] = []
+        if (entity.type === 'HATCH') points = (payload.boundaryLoops as { vertices?: number[][]; edges?: { center?: number[]; radius?: number }[] }[])
+          .flatMap(loop => loop.vertices ?? (loop.edges ?? []).flatMap(edge => edge.center && edge.radius
+            ? [[edge.center[0]! - edge.radius, edge.center[1]! - edge.radius], [edge.center[0]! + edge.radius, edge.center[1]! + edge.radius]] : []))
+        else if (entity.type === 'SOLID') points = payload.vertices as number[][]
+        else if (entity.type === 'CIRCLE') {
+          const center = payload.center as number[], radius = payload.radius as number
+          points = [[center[0]! - radius, center[1]! - radius], [center[0]! + radius, center[1]! + radius]]
+        } else throw new KJValidationError('Geology: section legend cannot safely reserve space beside an unsupported annotation primitive')
+        if (points.length) collision = overlaps(Math.min(...points.map(point => point[0]!)), Math.min(...points.map(point => point[1]!)),
+          Math.max(...points.map(point => point[0]!)), Math.max(...points.map(point => point[1]!)))
+      }
+      if (collision) throw new KJValidationError('Geology: section legend overlaps existing native geometry or annotation')
+    }
+  }
   const finish = (parameters?: Record<string, string | number | boolean>): ReadonlyDeep<KJKnowledgeCompileResult> => deepFreeze({
     commandArgs: { entities, resources: { linetypes: [{ id: linetypeId, name: `GEO_${stableHash(prefix).toUpperCase()}_CONT`, pattern: [] }], layers,
       ...(textStyles.length ? { textStyles } : {}) } },
     evidence: { packId: 'geology.core', packVersion: '1.0.0', packHash: stableHash({ pattern, hatches }), intentHash: stableHash(input), templateId, rootObjectId: prefix, expectedRevision, entityCount: entities.length,
       ...(parameters ? { parameters } : {}) },
   })
-  return { line, semanticLine, text, placedText, fitText, mtext, poly, rect, circle, solid, circularHatch, solidPolygonHatch, hatch, finish }
+  return { line, semanticLine, text, placedText, fitText, mtext, poly, rect, circle, solid, circularHatch, solidPolygonHatch, hatch, assertRegionClear, finish }
 }
 
 export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<KJKnowledgeCompileResult> {
@@ -2567,6 +2657,9 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       hole.startDate ? `${labels.startDate} ${hole.startDate}` : '', hole.endDate ? `${labels.endDate} ${hole.endDate}` : ''].filter(Boolean).join('   ')
     if (location) g.text(3, left + 2, pageHeight - 43, location, 2.3)
     g.text(3, left + 2, pageHeight - 50, `${labels.verticalScale} 1:${scaleDenominator(verticalScaleDenominator)}   ${labels.datum}`, 2.6)
+    const water = [hole.initialWaterDepth != null ? `${labels.initialWaterDepth} ${metres(hole.initialWaterDepth)} m` : '',
+      hole.stableWaterDepth != null ? `${labels.stableWaterDepth} ${metres(hole.stableWaterDepth)} m` : ''].filter(Boolean).join('   ')
+    if (water) g.text(3, left + 2, pageHeight - 57, water, 2.3)
   }
   if (titleMarginFacts) {
     const occupied: { left: number; right: number; bottom: number; top: number }[] = []
@@ -2676,13 +2769,19 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     const descriptionBoundaryClearances = new Map<number, { left: number; right: number }>()
     const textBoxes: { role: FieldRole; left: number; right: number; bottom: number; top: number }[] = []
     const emitFieldText = (item: typeof fieldGrid[number], y: number, value: string, height = 1.8): void => {
-      const width = estimatedWidth(value, height) * (item.textWidthFactor ?? 1)
-      if (width > fieldWidth(item) - 2.4) throw new KJValidationError(`Geology: ${item.role} text does not fit its declared field`)
+      const available = fieldWidth(item) - 2.4
+      const preferredWidth = estimatedWidth(value, height) * (item.textWidthFactor ?? 1)
+      // Fit a revised stratum name inside its field without truncating the fact.
+      // Other fields keep their source-declared text geometry.
+      const fittedHeight = item.role === 'layerName' && preferredWidth > available
+        ? Math.max(1.5, height * available / preferredWidth - 1e-6) : height
+      const width = estimatedWidth(value, fittedHeight) * (item.textWidthFactor ?? 1)
+      if (width > available) throw new KJValidationError(`Geology: ${item.role} text does not fit its declared field`)
       const centered = item.role !== 'description'
       const x = centered ? item.start + fieldWidth(item) / 2 : item.start + 1.2
-      g.text(3, x, y, value, height, centered, item.textWidthFactor, undefined, item.role === 'layerName' ? 'layerName' : undefined)
+      g.text(3, x, y, value, fittedHeight, centered, item.textWidthFactor, undefined, item.role === 'layerName' ? 'layerName' : undefined)
       textBoxes.push({ role: item.role, left: x - (centered ? width / 2 : 0) - 0.25,
-        right: x + (centered ? width / 2 : width) + 0.25, bottom: y - 0.25, top: y + height + 0.25 })
+        right: x + (centered ? width / 2 : width) + 0.25, bottom: y - 0.25, top: y + fittedHeight + 0.25 })
     }
     const emitPlacedFieldText = (item: typeof fieldGrid[number], anchorY: number, value: string,
       placement: KJGeologyFieldHeaderTextPlacement): void => {
@@ -3215,9 +3314,16 @@ function validateSectionOccurrenceCoverage(input: KJGeologySectionInput, holes: 
     if (coverage.get(identity) != null) throw new KJValidationError('Geology: duplicate or conflicting interval occurrence declaration')
     coverage.set(identity, status)
   }
-  for (const link of input.correlations) {
-    if (!link.fromIntervalId || !link.toIntervalId || link.fromStratumCode || link.toStratumCode)
-      throw new KJValidationError('Geology: complete occurrence map requires exact interval-ID correlations')
+  for (const [index, link] of input.correlations.entries()) {
+    if (!link.fromIntervalId || !link.toIntervalId || link.fromStratumCode || link.toStratumCode) {
+      const legacy = (['fromStratumCode', 'toStratumCode'] as const).filter(field => link[field])
+      const missing = (['fromIntervalId', 'toIntervalId'] as const).filter(field => !link[field])
+      const problems = [
+        legacy.length ? `remove legacy selector fields ${legacy.join(', ')}; keep the actual source interval IDs` : '',
+        missing.length ? `missing interval-ID fields ${missing.join(', ')}; read the actual source interval IDs; never guess them` : '',
+      ].filter(Boolean).join('; ')
+      throw new KJValidationError(`Geology: complete occurrence map requires exact interval-ID correlations: correlations[${index}] ${problems}. Allowed exact correlation fields: fromHoleId, toHoleId, fromIntervalId, toIntervalId.`)
+    }
     mark(link.fromHoleId, link.toHoleId, link.fromIntervalId, 'linked')
     mark(link.toHoleId, link.fromHoleId, link.toIntervalId, 'linked')
   }
@@ -3282,8 +3388,10 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   const x = (hole: KJGeologyBorehole) => originX + (hole.station! - holes[0]!.station!) * hs
   const y = (hole: KJGeologyBorehole, depth: number) => layout.plotBottom + (hole.collarElevation - depth - datum) * vs
   if (x(holes.at(-1)!) > layout.plotRight - 4 || holes.some(hole => y(hole, 0) > layout.plotTop || y(hole, hole.depth) < layout.plotBottom)) throw new KJValidationError('Geology: section does not fit A3 at the declared scales and datum')
+  const sectionStrata = [...byId.values()].flatMap(value => value.strata)
+  const sectionPatterns = patternDefinitions(input.hatchPack, sectionStrata)
   const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision,
-    patternDefinitions(input.hatchPack, [...byId.values()].flatMap(value => value.strata)), undefined, undefined, layout.drawingOrigin)
+    sectionPatterns, undefined, undefined, layout.drawingOrigin)
   const emitPlaced = (baseX: number, baseY: number, value: string, placement: KJGeologySectionTextPlacement) =>
     g.placedText(3, baseX + placement.offset[0], baseY + placement.offset[1], value, placement.height, placement.textWidthFactor,
       placement.horizontalAlignment === 'middle' ? 4 : placement.horizontalAlignment === 'center' ? 1 : placement.horizontalAlignment === 'right' ? 2 : 0,
@@ -3746,7 +3854,39 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
       throw new KJValidationError(`Geology: source-backed boundary polyline ${boundaryIndex + 1} is physically unreadable`)
     g.poly(1, points, closed)
   }
+  let legendEntryCount = 0, legendHatchCount = 0
+  if (layout.legendStyle) {
+    const style = layout.legendStyle, presentation = layout.sectionHatchPresentation?.boreholeColumn
+    const entries = [...new Map(sectionStrata.map(layer => {
+      const resolved = { patternName: pattern[layer.lithology], solid: false, patternScale: .6, patternAngle: 0,
+        ...(sectionPatterns[layer.patternKey ?? layer.lithology] ?? {}), ...(presentation ?? {}) }
+      return [canonicalStringify({ name: layer.name, resolved, visibility: layer.patternVisibility ?? 'filled' }), layer] as const
+    })).values()]
+    const cellWidth = (style.right - style.left) / style.columns
+    const rowHeight = Math.max(style.swatchHeight, style.textHeight * 1.4) + style.gap
+    if (entries.length > 64 || Math.ceil(entries.length / style.columns) * rowHeight > style.top - style.bottom + 1e-9)
+      throw new KJValidationError('Geology: section legend exceeds its declared entry/row density; names must never be omitted')
+    for (const layer of entries) {
+      const textWidth = [...layer.name].reduce((sum, character) => sum + (/^[\x20-\x7e]$/u.test(character) ? .8 : 1.2) * style.textHeight, 0) * style.textWidthFactor
+      if (textWidth > cellWidth - style.swatchWidth - 3 * style.gap)
+        throw new KJValidationError('Geology: exact source interval name does not fit its declared legend cell')
+    }
+    g.assertRegionClear(style.left, style.bottom, style.right, style.top)
+    for (const [index, layer] of entries.entries()) {
+      const left = style.left + index % style.columns * cellWidth + style.gap
+      const centerY = style.top - Math.floor(index / style.columns) * rowHeight - rowHeight / 2
+      const bottom = centerY - style.swatchHeight / 2, top = centerY + style.swatchHeight / 2
+      g.rect(1, left, bottom, left + style.swatchWidth, top)
+      if (layer.patternVisibility !== 'boundary-only') {
+        g.hatch([[left, bottom], [left + style.swatchWidth, bottom], [left + style.swatchWidth, top], [left, top]], layer, presentation)
+        legendHatchCount++
+      }
+      g.text(3, left + style.swatchWidth + style.gap, centerY - style.textHeight / 2, layer.name, style.textHeight, false, style.textWidthFactor)
+    }
+    legendEntryCount = entries.length
+  }
   return g.finish({ horizontalScaleDenominator: input.horizontalScaleDenominator, verticalScaleDenominator: input.verticalScaleDenominator,
+    ...(layout.legendStyle ? { sourceLinkedLegendEntryCount: legendEntryCount, sourceLinkedLegendHatchCount: legendHatchCount } : {}),
     ...(layout.elevationTickSequence ? { elevationTickCount } : {}),
     ...(layout.elevationScaleRailStyle ? { elevationScaleSolidCount: elevationTickCount } : {}),
     ...(layout.sourceBackedBands ? { sourceBackedBandCount: layout.sourceBackedBands.length } : {}),

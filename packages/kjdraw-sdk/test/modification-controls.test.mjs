@@ -28,13 +28,133 @@ test('strictly-positive continuous controls do not inherit an epsilon-based HTML
   }
 })
 
-test('boundary controls expose executable polyline targets consistently with SDK discovery',()=>{
+test('boundary controls expose executable targets consistently with SDK discovery',()=>{
   const commands=createKJDrawSDK().capabilities().commands
   for(const id of ['trim','extend']){
     const definition=getKJModificationDefinition(id), capability=commands.find(command=>command.id===definition.command).capabilities
     assert.deepEqual(definition.targetEntityTypes,capability.targetEntityTypes)
     for(const type of ['LWPOLYLINE','POLYLINE'])assert.doesNotThrow(()=>validateKJModificationSelection(definition,[{id:'target',type},{id:'boundary',type:'LINE'}]))
-    assert.throws(()=>validateKJModificationSelection(definition,[{id:'target',type:'SPLINE'},{id:'boundary',type:'LINE'}]),/target first/)
+    const splineSelection = [{id:'target',type:'SPLINE'},{id:'boundary',type:'LINE'}]
+    if(id==='trim') assert.doesNotThrow(()=>validateKJModificationSelection(definition,splineSelection))
+    else assert.throws(()=>validateKJModificationSelection(definition,splineSelection),/target first/)
+  }
+})
+
+const breakSnapshot = document => ({ objects: document.listObjects({ includeErased: true }), revision: document.revision, history: { ...document.history } })
+const executeBreakEnvelope = (sdk, document, request) => sdk.executeCommandEnvelope(JSON.parse(JSON.stringify(
+  sdk.createCommandEnvelope(request.command, request.arguments, { document, expectedRevision: document.revision }),
+)), { document })
+
+test('BREAK keeps legacy pick defaults for lines and circles across typed and untyped hosts', async t => {
+  for (const [type, payload, operation, picks, expectedType] of [
+    ['LINE', { start: [0, 0, 0], end: [10, 0, 0] }, 'break', [[5, .05]], 'LINE'],
+    ['CIRCLE', { center: [0, 0, 0], radius: 10 }, 'break-two-point', [[10.05, 0], [0, 10.05]], 'ARC'],
+  ]) for (const mode of ['typed', 'untyped', 'parsed']) await t.test(`${type} ${mode}`, async () => {
+    const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+    const source = await sdk.executeCommand('CREATE', { type, payload }, { document })
+    await sdk.executeCommand('CREATE', { type: 'POINT', payload: { position: [30, 30, 0] } }, { document })
+    await document.undo()
+    const before = breakSnapshot(document)
+    const context = { ids: [source.id], points: picks, ...(mode === 'typed' ? { targetEntityType: type } : {}),
+      ...(mode === 'parsed' ? { values: parseKJModificationCommandValues(operation, []) } : {}) }
+    assert.equal(getKJModificationDefinition(operation, type).fields[0].default, .1)
+    const request = JSON.parse(JSON.stringify(buildKJModificationCommand(operation, context)))
+    if (mode === 'typed') assert.equal(request.arguments.tolerance, .1)
+    else { assert.equal(Object.hasOwn(request.arguments, 'tolerance'), false); assert.equal(request.arguments.toleranceMode, 'entity-default') }
+    const bare = { ...request.arguments }; delete bare.tolerance; delete bare.toleranceMode
+    await assert.rejects(sdk.executeCommand(request.command, bare, { document }), /within tolerance/)
+    assert.deepEqual(breakSnapshot(document), before)
+    for (const toleranceMode of ['unknown', null, true, .1, {}]) {
+      await assert.rejects(sdk.executeCommand(request.command, { ...request.arguments, toleranceMode }, { document }), /toleranceMode must be entity-default/)
+      assert.deepEqual(breakSnapshot(document), before)
+    }
+    const outside = picks.map(([x, y]) => type === 'LINE' ? [x, .2] : [x ? 10.2 : 0, y ? 10.2 : 0])
+    const rejected = buildKJModificationCommand(operation, { ...context, points: outside })
+    await assert.rejects(sdk.executeCommand(rejected.command, rejected.arguments, { document }), /within tolerance/)
+    assert.deepEqual(breakSnapshot(document), before)
+    const explicit = buildKJModificationCommand(operation, { ...context, values: { tolerance: .001 } })
+    assert.equal(explicit.arguments.tolerance, .001)
+    await assert.rejects(sdk.executeCommand(explicit.command, explicit.arguments, { document }), /within tolerance/)
+    assert.deepEqual(breakSnapshot(document), before)
+    await assert.rejects(sdk.executeCommand(explicit.command, { ...explicit.arguments, toleranceMode: 'entity-default' }, { document }), /within tolerance/)
+    assert.deepEqual(breakSnapshot(document), before)
+    const receipt = await executeBreakEnvelope(sdk, document, request)
+    assert.equal(receipt.status, 'committed')
+    const pieces = document.listEntities({ type: expectedType })
+    assert.equal(pieces.length, 2)
+    if (type === 'LINE') assert.equal(pieces[0].id, source.id)
+    else assert.ok(pieces.every(piece => piece.source.derivedFromId === source.id))
+    if (type === 'LINE') assert.deepEqual(pieces.map(piece => [piece.payload.start, piece.payload.end]), [[[0, 0, 0], [5, 0, 0]], [[5, 0, 0], [10, 0, 0]]])
+    else { close(pieces[0].payload.endAngle, Math.PI / 2); close(pieces[1].payload.startAngle, Math.PI / 2) }
+    assert.equal(document.history.undoCount, before.history.undoCount + 1)
+    await document.undo()
+    assert.deepEqual(document.listObjects({ includeErased: true }), before.objects)
+    await document.redo()
+    assert.equal(document.listEntities({ type: expectedType }).length, 2)
+  })
+})
+
+test('BREAK retains native SPLINE defaults and atomic refusals without a target type hint', async t => {
+  for (const operation of ['break', 'break-two-point']) for (const mode of ['typed', 'untyped', 'parsed']) await t.test(`${operation} ${mode}`, async () => {
+    const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+    const source = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+      degree: 2, controlPoints: [[0, 0, 0], [5, 10, 0], [10, 0, 0]], knots: [0, 0, 0, 1, 1, 1],
+    } }, { document })
+    await sdk.executeCommand('CREATE', { type: 'POINT', payload: { position: [30, 30, 0] } }, { document })
+    await document.undo()
+    const before = breakSnapshot(document), points = operation === 'break' ? [[5, 5]] : [[2, 3.2], [8, 3.2]]
+    const context = { ids: [source.id], points, ...(mode === 'typed' ? { targetEntityType: 'SPLINE' } : {}),
+      ...(mode === 'parsed' ? { values: parseKJModificationCommandValues(operation, []) } : {}) }
+    assert.equal(getKJModificationDefinition(operation, 'SPLINE').fields[0].default, 1e-7)
+    const request = JSON.parse(JSON.stringify(buildKJModificationCommand(operation, context)))
+    if (mode === 'typed') assert.equal(request.arguments.tolerance, 1e-7)
+    else { assert.equal(Object.hasOwn(request.arguments, 'tolerance'), false); assert.equal(request.arguments.toleranceMode, 'entity-default') }
+    for (const toleranceMode of ['unknown', null, true, .1, {}]) {
+      await assert.rejects(sdk.executeCommand(request.command, { ...request.arguments, toleranceMode }, { document }), /toleranceMode must be entity-default/)
+      assert.deepEqual(breakSnapshot(document), before)
+    }
+    for (const changed of [ { points: points.map(([x, y]) => [x, y + .05]) }, { values: { tolerance: .1 } } ]) {
+      const rejected = buildKJModificationCommand(operation, { ...context, ...changed })
+      if (changed.values) assert.equal(rejected.arguments.tolerance, .1)
+      await assert.rejects(executeBreakEnvelope(sdk, document, rejected), /Native SPLINE edit:/)
+      assert.deepEqual(breakSnapshot(document), before)
+    }
+    const receipt = await executeBreakEnvelope(sdk, document, request)
+    assert.equal(receipt.status, 'committed')
+    assert.equal(document.listEntities({ type: 'SPLINE' }).length, 2)
+    assert.equal(document.history.undoCount, before.history.undoCount + 1)
+    await document.undo()
+    assert.deepEqual(document.listObjects({ includeErased: true }), before.objects)
+  })
+})
+
+test('spline point controls build executable native BREAK and TRIM commands with atomic undo', async () => {
+  for (const operation of ['break', 'break-two-point', 'trim']) {
+    const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+    const source = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+      degree: 2, controlPoints: [[0, 0, 0], [5, 10, 0], [10, 0, 0]], knots: [0, 0, 0, 1, 1, 1],
+    } }, { document })
+    const boundaries = []
+    if (operation === 'trim') for (const x of [2, 8]) boundaries.push(await sdk.executeCommand('CREATE', {
+      type: 'LINE', payload: { start: [x, -10, 0], end: [x, 10, 0] },
+    }, { document }))
+    const selected = [source, ...boundaries], definition = getKJModificationDefinition(operation)
+    validateKJModificationSelection(definition, selected)
+    const before = document.listObjects({ includeErased: true }), undo = document.history.undoCount
+    const built = buildKJModificationCommand(operation, { ids: selected.map(entity => entity.id),
+      points: operation === 'break-two-point' ? [[2, 3.2], [8, 3.2]] : [[5, 5]], values: {} })
+    await sdk.executeCommand(built.command, built.arguments, { document })
+    const pieces = document.listEntities({ type: 'SPLINE' })
+    assert.equal(pieces.length, 2)
+    assert.equal(document.history.undoCount, undo + 1)
+    assert.equal(pieces[0].id, source.id)
+    assert.ok(pieces.every(entity => entity.payload.degree === 2))
+    const domains = pieces.map(entity => [entity.payload.knots[2], entity.payload.knots[entity.payload.controlPoints.length]])
+    domains.forEach((interval, index) => interval.forEach((value, endpoint) => close(value,
+      operation === 'break' ? [[0, .5], [.5, 1]][index][endpoint] : [[0, .2], [.8, 1]][index][endpoint], 1e-7)))
+    boundaries.forEach(entity => assert.deepEqual(document.getObject(entity.id), entity))
+    await document.undo()
+    assert.deepEqual(document.listObjects({ includeErased: true }), before)
   }
 })
 
@@ -128,7 +248,7 @@ test('all 20 modification controls build exact arguments accepted by the real SD
         const entity = await create('LINE', { start: [0, 0], end: [10, 0] })
         return {
           context: { ids: [entity.id], values: {}, points: [[4, 0]] },
-          expected: { id: entity.id, tolerance: 0.1, point: [4, 0] },
+          expected: { id: entity.id, toleranceMode: 'entity-default', point: [4, 0] },
         }
       },
     },

@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "id": "community-sheet-layer-rules-v1",
+  "layers": [
+    {"role": "frame", "name": "SHEET-FRAME", "color": 7, "lineweight": 35},
+    {"role": "title", "name": "SHEET-TITLE", "color": 7, "lineweight": 25},
+    {"role": "text", "name": "SHEET-TEXT", "color": 7, "lineweight": 18},
+    {"role": "symbol", "name": "SHEET-REVISION", "color": 1, "lineweight": 25}
+  ],
+  "allowedSymbols": ["revision-triangle"]
+}

@@ -18,8 +18,8 @@ export declare function layoutCadText(payload: Readonly<KJObjectPayload> | Data,
     matrix: readonly [number, number, number, number, number, number];
     corners: Point[];
 };
-/** Deterministic plain MTEXT layout. Keeps the source editable while exposing
- * bounded lines shared by Canvas hit testing and vector output. */
+/** Deterministic plain and bounded local-font MTEXT layout. Preserves the raw
+ * source while sharing positioned font runs with Canvas and vector output. */
 export declare function layoutCadMText(payload: Readonly<KJObjectPayload> | Data, style?: Data, measure?: MeasureText): {
     text: string;
     family: string;
@@ -31,6 +31,12 @@ export declare function layoutCadMText(payload: Readonly<KJObjectPayload> | Data
         width: number;
         left: number;
         baseline: number;
+        runs: {
+            text: string;
+            family: string;
+            width: number;
+            left: number;
+        }[];
     }[];
     matrix: readonly [number, number, number, number, number, number];
     corners: Point[];

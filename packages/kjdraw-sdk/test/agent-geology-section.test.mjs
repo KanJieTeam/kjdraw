@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { availableParallelism, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
@@ -48,7 +48,8 @@ test('illustrative loess sections compile from variable parameters without model
     const proposal = accepted(await session.call('cad_propose_geology_section_example', {
       expectedRevision: 0, units: 'millimeter', locale: 'zh-CN', holeCount, depthMeters: 30,
     }))
-    assert.ok(performance.now() - started < 5000)
+    const elapsedMs = performance.now() - started
+    assert.ok(elapsedMs < 5000, `Illustrative section proposal exceeded its unchanged 5000 ms budget: holeCount=${holeCount}, elapsedMs=${elapsedMs.toFixed(2)}, availableParallelism=${availableParallelism()}`)
     assert.equal(proposal.engineeringEvidence.inputKind, 'illustrative-example')
     assert.equal(proposal.engineeringEvidence.measuredData, false)
     assert.equal(document.listEntities().length, 0)

@@ -907,7 +907,7 @@ async function applyBoundaryTarget(location){
   delete workbench.dataset.lastError;replaceSelection(task.session.state.boundaryIds);refresh();updateBoundaryEditHint()
 }
 async function beginModification(id,{boundaryMode='choose',presetValues={}}={}){
-  const definition=getKJModificationDefinition(id),ids=selectedIds(),drawing=doc(),locale=i18n.locale==='zh'?'zh':'en'
+  const ids=selectedIds(),drawing=doc(),definition=getKJModificationDefinition(id,drawing.getObject(ids[0])?.type),locale=i18n.locale==='zh'?'zh':'en'
   $('modification-tool').value=id
   if(id==='trim'||id==='extend'){
     let mode=boundaryMode

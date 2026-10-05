@@ -49,7 +49,116 @@ function assertContinuation(protocol, body) {
   }
 }
 
+test('chat-completions: final read continuation omits empty assistant tool calls while retaining real calls and provider fields', async () => {
+  for (const emptyToolCalls of [[], null, undefined]) {
+    const { session } = fixture(), requests = []
+    const firstResponse = wire('chat-completions', [call('read', 'cad_read_drawing')])
+    const observedMessage = Object.freeze({ role: 'assistant', content: 'The native drawing was read.',
+      tool_calls: emptyToolCalls, reasoning_content: 'opaque-final-read-reasoning',
+      provider_extension: Object.freeze({ signature: 'opaque-provider-signature' }),
+    })
+    const responses = [firstResponse, { choices: [{ finish_reason: 'stop', message: observedMessage }] },
+      wire('chat-completions', [], 'The requested final answer.')]
+    const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'offline-empty-tool-history',
+      request: async ({ body }) => {
+        requests.push(body)
+        // Reproduce the confirmed provider wire boundary, without a live API.
+        for (const message of body.messages) {
+          if (message.role === 'assistant' && Object.hasOwn(message, 'tool_calls')) {
+            assert.ok(Array.isArray(message.tool_calls) && message.tool_calls.length > 0,
+              'assistant text history must omit tool_calls, not serialize an empty array or null')
+          }
+        }
+        return responses[requests.length - 1]
+      },
+    })
+    const conversation = model.createConversation({ instructions: 'Read native data, then answer without edits.',
+      tools: session.definitions, allowTextContinuation: true })
+    const signal = new AbortController().signal
+    const read = await conversation.next({ kind: 'prompt', text: 'Inspect the drawing.' }, signal)
+    assert.equal(read.calls.length, 1)
+    const result = await session.call('cad_read_drawing', {})
+    assert.equal(result.ok, true)
+    const observed = await conversation.next({ kind: 'tool-results', results: [
+      { id: read.calls[0].id, name: read.calls[0].name, result },
+    ] }, signal)
+    assert.equal(observed.text, observedMessage.content)
+    const final = await conversation.next({ kind: 'prompt', text: 'Now provide the requested final answer.' }, signal)
+    assert.equal(final.text, 'The requested final answer.')
+    assert.equal(requests.length, 3)
+    const messages = requests[2].messages
+    assert.deepEqual(messages.map(message => message.role), ['system', 'user', 'assistant', 'tool', 'assistant', 'user'])
+    assert.deepEqual(messages[2], firstResponse.choices[0].message, 'real tool calls, IDs and reasoning are preserved')
+    assert.equal(messages[3].tool_call_id, 'read')
+    assert.equal(Object.hasOwn(messages[4], 'tool_calls'), false)
+    assert.equal(messages[4].reasoning_content, observedMessage.reasoning_content)
+    assert.deepEqual(messages[4].provider_extension, observedMessage.provider_extension)
+    assert.equal(observedMessage.tool_calls, emptyToolCalls, 'the response is not mutated')
+    assert.equal(Object.isFrozen(requests[2]) && Object.isFrozen(messages[4]), true)
+  }
+})
+
 for (const protocol of protocols) {
+  test(`${protocol}: one explicit text continuation retains observations and produces a real proposal`, async () => {
+    const { document, session } = fixture(), before = document.serialize()
+    let step = 0
+    const model = createKJModelAdapter({ protocol, model: 'offline-proposal-correction', request: async ({ body }) => {
+      step++
+      if (step === 1) return wire(protocol, [call('read', 'cad_read_drawing')])
+      if (step === 2) {
+        assert.equal(resultAtEnd(protocol, body).ok, true)
+        return wire(protocol, [], 'The proposal is ready for approval.')
+      }
+      const history = body.input ?? body.messages ?? body.contents
+      assert.equal(history.at(-1).role, 'user')
+      assert.match(history.at(-1).content ?? history.at(-1).parts[0].text, /no reviewable proposal exists/)
+      assert.ok(JSON.stringify(history).includes('read'))
+      return wire(protocol, [call('proposal', 'cad_propose_circles', args)])
+    } })
+    const result = await runKJAgentTask({ session, model, prompt: 'Draw the specified circle.',
+      expectProposal: true, toolNames: ['cad_read_drawing', 'cad_propose_circles'],
+    })
+    assert.equal(result.status, 'awaiting-approval', JSON.stringify(result.error))
+    assert.equal(step, 3)
+    assert.equal(result.proposalRepairAttempts, 1)
+    assert.equal(document.serialize(), before)
+  })
+
+  test(`${protocol}: text continuation requires opt-in and is limited to one prompt`, async () => {
+    for (const allowTextContinuation of [undefined, true]) {
+      let requests = 0
+      const model = createKJModelAdapter({ protocol, model: 'offline-continuation-budget', request: async () => {
+        requests++
+        return wire(protocol, [], 'No proposal was created.')
+      } })
+      const conversation = model.createConversation({ instructions: 'Read only.', tools: [], allowTextContinuation })
+      const signal = new AbortController().signal
+      await conversation.next({ kind: 'prompt', text: 'Inspect.' }, signal)
+      if (allowTextContinuation) await conversation.next({ kind: 'prompt', text: 'Clarify.' }, signal)
+      await assert.rejects(conversation.next({ kind: 'prompt', text: 'Again.' }, signal), /has ended/)
+      assert.equal(requests, allowTextContinuation ? 2 : 1)
+    }
+  })
+
+  test(`${protocol}: continuation cannot resume after transport failure or replace pending tool results`, async () => {
+    for (const failTransport of [true, false]) {
+      let requests = 0
+      const model = createKJModelAdapter({ protocol, model: 'offline-continuation-guard', request: async () => {
+        requests++
+        if (failTransport) throw new Error('fixture transport failed')
+        return wire(protocol, [call('read', 'cad_read_drawing')])
+      } })
+      const conversation = model.createConversation({ instructions: 'Read only.', tools: fixture().session.definitions,
+        allowTextContinuation: true,
+      })
+      const signal = new AbortController().signal
+      if (failTransport) await assert.rejects(conversation.next({ kind: 'prompt', text: 'Inspect.' }, signal), /transport failed/)
+      else await conversation.next({ kind: 'prompt', text: 'Inspect.' }, signal)
+      await assert.rejects(conversation.next({ kind: 'prompt', text: 'Continue.' }, signal), /has ended|pending tool/)
+      assert.equal(requests, 1)
+    }
+  })
+
   test(`${protocol}: actual object checks return failed requirements as successful read results`, async () => {
     const { document, session } = fixture()
     await document.transact('Measured geometry', tx => tx.createEntity('LINE', { start: [0, 0, 0], end: [3, 4, 12] }, { id: 'inspection-line' }))

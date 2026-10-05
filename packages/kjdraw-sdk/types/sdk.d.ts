@@ -11,14 +11,16 @@ import { KJExtensionRegistry } from './extensions.js';
 import type { KJExtensionDefinition, KJExtensionPoint } from './extensions.js';
 import { KJFileAdapterRegistry } from './file-adapters.js';
 import type { KJFileAdapterDefinition, KJFileAdapterOptions } from './file-adapters.js';
+import { type KJHatchPatternCatalog } from './hatch-pattern-catalog.js';
 import type { KJCoreSolidBackend } from './kernel/wasm-solid.js';
+import type { KJContourBackendOptions } from './geometry/contour-wasm.js';
 import type { KJPluginManifest } from './plugin-contract.js';
 import type { KJCommandEnvelope, KJCommandReceipt, KJCreateCommandOptions } from './product-contract.js';
 import type { KJDocumentOptions, KJDocumentState, KJLegacyScene } from './schema.js';
 import { KJSelectionManager } from './selection.js';
 import type { KJSelectionSet } from './selection.js';
 import type { KJSnapCandidate, KJSnapOptions, KJSnapPointInput } from './snapping.js';
-import type { ReadonlyDeep } from './utils.js';
+import { type ReadonlyDeep } from './utils.js';
 export interface KJDocumentAuthorityProvider {
     readonly authoritative: true;
     open(source: string): KJDocumentAuthority;
@@ -27,11 +29,17 @@ export interface KJDrawSDKOptions {
     version?: string;
     documentAuthority?: KJDocumentAuthorityProvider | null;
     solidAuthority?: Readonly<KJCoreSolidBackend> | null;
+    /** Constructor-only host WASM asset for contour commands. Never serialized into drawings or command arguments. */
+    contourBackend?: KJContourBackendOptions;
     agentPlans?: KJAgentPlanRegistry;
     agentPlanOptions?: KJAgentPlanRegistryOptions;
     registerDefaultAdapters?: boolean;
     /** Optional host-owned DWG converter. KJDraw stores neither endpoints nor credentials. */
     dwgConversionProvider?: KJDwgConversionProvider | null;
+    /** Constructor-only host pattern resources, added to the bundled catalog. */
+    hatchPatternCatalogs?: readonly ReadonlyDeep<KJHatchPatternCatalog>[];
+    /** Defaults true. A trusted host may opt out to use its own full bounded catalog. */
+    includeBundledHatchPatterns?: boolean;
 }
 export interface KJExecuteCommandOptions {
     document?: KJDocument | null;
@@ -118,7 +126,13 @@ export interface KJPluginScope {
     dispose(): void;
 }
 type KJOpenDocumentInput = string | KJDocumentState | KJLegacyScene | Record<string, unknown>;
+/** Detached immutable host resources. Exact duplicate catalogs do not consume
+ * the effective 16-catalog / 256-pattern budget; a declared hash is not identity.
+ * No model, document or restored chat field can register patterns through this API.
+ */
+export declare function mergeHatchPatternCatalogs(...sources: readonly (readonly ReadonlyDeep<KJHatchPatternCatalog>[])[]): ReadonlyDeep<KJHatchPatternCatalog[]>;
 export declare class KJDrawSDK {
+    #private;
     readonly version: string;
     readonly events: KJEventBus<KJDrawSDKEvents>;
     readonly extensions: KJExtensionRegistry;
@@ -131,6 +145,10 @@ export declare class KJDrawSDK {
     documentAuthority: KJDocumentAuthorityProvider | null;
     solidAuthority: Readonly<KJCoreSolidBackend> | null;
     constructor(options?: KJDrawSDKOptions);
+    /** Host-selected immutable catalog snapshot. There is intentionally no setter. */
+    get hatchPatternCatalogs(): ReadonlyDeep<KJHatchPatternCatalog[]>;
+    /** Detached host asset options for read-only previews. Commands use the same constructor snapshot. */
+    get contourBackend(): KJContourBackendOptions;
     createDocument(options?: KJDocumentOptions & KJDocumentConstructorOptions): KJDocument;
     openDocument(input: KJOpenDocumentInput, options?: KJDocumentConstructorOptions): KJDocument;
     attachDocument(document: KJDocument): KJDocument;

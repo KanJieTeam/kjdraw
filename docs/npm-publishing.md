@@ -1,6 +1,6 @@
 # npm package and publishing
 
-The distributable SDK package is `@kanjieteam/kjdraw`. The source-tree candidate is `1.0.0-rc.3`. The checkout version does not establish npm publication. Use the live registry queries below to distinguish source changes from the artifacts users can install.
+The distributable SDK package is `@kanjieteam/kjdraw`. The source-tree candidate is `1.0.0-rc.4`. The checkout version does not establish npm publication. Use the live registry queries below to distinguish source changes from the artifacts users can install.
 
 Candidates in the 1.0 release line use the `next` dist-tag; stable promotion will use `latest` only after the release gates pass.
 
@@ -12,7 +12,7 @@ Run `npm run audit:distribution` for a read-only source/registry version compari
 
 ```sh
 npm view @kanjieteam/kjdraw dist-tags
-npm view @kanjieteam/kjdraw@1.0.0-rc.3 version
+npm view @kanjieteam/kjdraw@1.0.0-rc.4 version
 npm install @kanjieteam/kjdraw@next
 ```
 
@@ -49,7 +49,7 @@ The Windows and macOS/Linux one-line AI installers read [`scripts/install-ai-cha
 
 To promote a candidate, first push its source commit, verify the exact-SHA CI, Pages and provenance runs, and run a fresh-user install/MCP smoke test. Only then change the single `sourceSha` field in the channel manifest, test both installer scripts, and merge the channel change. The manifest must name the **already published, verified source commit**, not the manifest-changing commit itself; self-reference is impossible. Do not promote an unverified moving branch, npm tag, or arbitrary URL. A later source change stays out of the desktop channel until a subsequent explicit promotion.
 
-The source install channel updates executable runtime code only when a user reruns the installer and restarts the client. After that one-time upgrade to a launcher with knowledge delivery, published data-only geology JSON packs are checked at the next MCP process start and can arrive without another runtime reinstall. The versioned manifest and pack are fetched over HTTPS, verified against SHA-256, schema and size limits, and cached for offline fallback; a running task never changes underfoot. Set `KJDRAW_KNOWLEDGE_UPDATES=off` to use bundled knowledge only. Other domains and runtime code are not updated this way, old launchers do not gain the feature automatically, and independent cross-version client acceptance remains pending.
+The source install channel updates executable runtime code only when a user reruns the installer and restarts the client. The current source candidate uses bundled geology knowledge by default: remote manifests and cached packs are not trusted unless the host supplies an explicit signature-verification callback. A SHA-256 digest alone checks integrity, not publisher identity. Older installed launchers do not gain this restriction automatically; until upgraded, set `KJDRAW_KNOWLEDGE_UPDATES=off` to disable their remote checks. Other domains and runtime code are not updated in the background, and independent cross-version client acceptance remains pending.
 ## Recommended authentication: npm trusted publishing
 
 KJDraw's release workflows are prepared for [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) with GitHub Actions OIDC. This is the preferred route: it creates short-lived credentials for one verified workflow run and publishes with npm provenance, without storing a long-lived npm token in the repository.
@@ -70,7 +70,7 @@ OIDC is recommended; `NPM_TOKEN` is optional and is not needed after the trusted
 
 ## Release gates
 
-Create an annotated version tag whose name exactly matches the SDK package version, for example `v1.0.0-rc.3` for the current source candidate. A tag is not evidence that npm publication succeeded. The `Release` workflow accepts only a tag whose target is on `main`, then waits for both the exact-SHA `CI` and `Deploy playground` runs to succeed. It rebuilds and tests the SDK, verifies generated sources and declarations, audits an isolated packed-package consumer, creates the GitHub release and delegates npm publication.
+Create an annotated version tag whose name exactly matches the SDK package version, for example `v1.0.0-rc.4` for the current source candidate. A tag is not evidence that npm publication succeeded. The `Release` workflow accepts only a tag whose target is on `main`, then waits for both the exact-SHA `CI` and `Deploy playground` runs to succeed. It rebuilds and tests the SDK, verifies generated sources and declarations, audits an isolated packed-package consumer, creates the GitHub release and delegates npm publication.
 
 The npm workflow independently checks the tag, GitHub release, exact-SHA CI and Pages deployment before publishing. Existing npm versions are immutable: a rerun succeeds only when the expected dist-tag already points to that exact version. The workflow never silently moves `latest` or `next` for an existing version. An existing draft GitHub release is also left untouched; review and publish or delete it manually before rerunning.
 

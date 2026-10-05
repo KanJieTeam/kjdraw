@@ -135,13 +135,69 @@ export function layoutCadText(payload, style = {}, measure) {
         ].map((p)=>transform(p))
     };
 }
-function plainMText(value) {
+function localMTextParagraphs(value, baseFamily) {
     if (value.length > 65_536) throw new KJValidationError('MTEXT exceeds the 65536 character layout budget');
-    if (/[{}]/.test(value)) throw new KJValidationError('Rich MTEXT formatting is not supported');
-    const escaped = '\u0000';
-    const plain = value.replaceAll('\\\\', escaped).replace(/\\P/gi, '\n');
-    if (/\\[A-Za-z~]/.test(plain)) throw new KJValidationError('Rich MTEXT formatting is not supported');
-    return plain.replaceAll(escaped, '\\').replace(/\r\n?/g, '\n');
+    const paragraphs = [
+        []
+    ], scopes = [];
+    let family = baseFamily, pending = [], runCount = 0;
+    const unsupported = (reason)=>{
+        throw new KJValidationError(`Rich MTEXT formatting is not supported: ${reason}`);
+    };
+    const flush = ()=>{
+        if (!pending.length) return;
+        const text = pending.join(''), row = paragraphs.at(-1), previous = row.at(-1);
+        pending = [];
+        if (previous?.family === family) previous.text += text;
+        else {
+            if (++runCount > 4096) throw new KJValidationError('MTEXT exceeds the 4096 font run layout budget');
+            row.push({
+                text,
+                family
+            });
+        }
+    };
+    const paragraph = ()=>{
+        flush();
+        if (paragraphs.length >= 4096) throw new KJValidationError('MTEXT exceeds the 4096 line layout budget');
+        paragraphs.push([]);
+    };
+    for(let index = 0; index < value.length; index++){
+        const char = value[index];
+        if (char === '{') {
+            flush();
+            if (scopes.length >= 8) unsupported('font scopes exceed eight levels');
+            scopes.push(family);
+        } else if (char === '}') {
+            flush();
+            if (!scopes.length) unsupported('unbalanced font scope');
+            family = scopes.pop();
+        } else if (char === '\\') {
+            const control = value[++index];
+            if (control === '\\' || control === '{' || control === '}') pending.push(control);
+            else if (control === 'P') paragraph();
+            else if (control === 'f') {
+                flush();
+                const end = value.indexOf(';', index + 1);
+                if (end < 0) unsupported('unterminated local font control');
+                const name = value.slice(index + 1, end).trim();
+                if (!LOCAL_FONT_NAME.test(name)) unsupported('only a local TrueType family name is supported');
+                family = textFontFamily({
+                    fontFamily: name
+                }, baseFamily);
+                index = end;
+            } else unsupported('unknown control or unsupported font attributes');
+        } else if (char === '\r' || char === '\n') {
+            if (char === '\r' && value[index + 1] === '\n') index++;
+            paragraph();
+        } else {
+            if (char === '\u0000') unsupported('NUL is not displayable text');
+            pending.push(char);
+        }
+    }
+    flush();
+    if (scopes.length) unsupported('unclosed font scope');
+    return paragraphs;
 }
 export function layoutCadMText(payload, style = {}, measure) {
     const family = textFontFamily(style), fixedHeight = number(style.fixedHeight);
@@ -161,8 +217,8 @@ export function layoutCadMText(payload, style = {}, measure) {
     ].every(Number.isFinite) || height <= 0 || widthFactor <= 0 || !Number.isInteger(attachment) || attachment < 1 || attachment > 9 || spacing < .25 || spacing > 4 || referenceWidth != null && referenceWidth <= 0) throw new KJValidationError('Unsupported CAD multiline text placement');
     const shear = Math.tan(oblique);
     if (!Number.isFinite(shear)) throw new KJValidationError('Invalid text oblique angle');
-    const metric = (value)=>{
-        const result = measure ? measure(value, height, family) : Math.max(value ? height * .4 : 0, [
+    const metric = (value, runFamily = family)=>{
+        const result = measure ? measure(value, height, runFamily) : Math.max(value ? height * .4 : 0, [
             ...value
         ].reduce((sum, char)=>sum + (char.codePointAt(0) > 255 ? 1 : .6), 0) * height);
         if (!Number.isFinite(result) || result < 0) throw new KJValidationError('Invalid CAD text metrics');
@@ -170,38 +226,61 @@ export function layoutCadMText(payload, style = {}, measure) {
     };
     const limit = referenceWidth == null ? Infinity : referenceWidth / widthFactor;
     const rows = [];
-    for (const paragraph of plainMText(String(payload.text ?? '')).split('\n')){
-        if (!paragraph || limit === Infinity) {
-            rows.push(paragraph);
+    const pushRow = (row)=>{
+        if (rows.length >= 4096) throw new KJValidationError('MTEXT exceeds the 4096 line layout budget');
+        rows.push(row);
+    };
+    for (const paragraph of localMTextParagraphs(String(payload.text ?? ''), family)){
+        if (!paragraph.length || limit === Infinity) {
+            pushRow(paragraph);
             continue;
         }
-        let line = '', lineWidth = 0;
-        for (const char of paragraph){
-            const charWidth = metric(char);
-            if (line && lineWidth + charWidth > limit) {
-                rows.push(line);
-                line = char === ' ' ? '' : char;
-                lineWidth = char === ' ' ? 0 : charWidth;
-            } else {
-                line += char;
-                lineWidth += charWidth;
+        let line = [], lineWidth = 0;
+        for (const run of paragraph)for (const char of run.text){
+            const charWidth = metric(char, run.family);
+            if (line.length && lineWidth + charWidth > limit) {
+                pushRow(line);
+                line = [];
+                lineWidth = 0;
+                if (char === ' ') continue;
             }
+            const previous = line.at(-1);
+            if (previous?.family === run.family) previous.text += char;
+            else line.push({
+                text: char,
+                family: run.family
+            });
+            lineWidth += charWidth;
         }
-        rows.push(line);
+        pushRow(line);
     }
-    if (!rows.length) rows.push('');
-    if (rows.length > 4096) throw new KJValidationError('MTEXT exceeds the 4096 line layout budget');
-    const widths = rows.map(metric), contentWidth = Math.max(0, ...widths), boxWidth = referenceWidth == null ? contentWidth : limit;
+    const runWidths = rows.map((row)=>row.map((run)=>metric(run.text, run.family)));
+    const widths = runWidths.map((values)=>values.reduce((sum, value)=>sum + value, 0)), contentWidth = Math.max(0, ...widths), boxWidth = referenceWidth == null ? contentWidth : limit;
+    if (!widths.every(Number.isFinite)) throw new KJValidationError('Invalid aggregate CAD text metrics');
     const advance = height * spacing, boxHeight = height + (rows.length - 1) * advance;
     const column = (attachment - 1) % 3, band = Math.floor((attachment - 1) / 3);
     const left = column === 0 ? 0 : column === 1 ? -boxWidth / 2 : -boxWidth;
     const top = band === 0 ? 0 : band === 1 ? boxHeight / 2 : boxHeight;
-    const lines = rows.map((text, index)=>({
-            text,
+    const lines = rows.map((row, index)=>{
+        const lineLeft = column === 0 ? left : column === 1 ? -widths[index] / 2 : -widths[index];
+        let cursor = lineLeft;
+        const runs = row.map((run, runIndex)=>{
+            const width = runWidths[index][runIndex], positioned = {
+                ...run,
+                width,
+                left: cursor
+            };
+            cursor += width;
+            return positioned;
+        });
+        return {
+            text: row.map((run)=>run.text).join(''),
             width: widths[index],
-            left: column === 0 ? left : column === 1 ? -widths[index] / 2 : -widths[index],
-            baseline: top - height - index * advance
-        }));
+            left: lineLeft,
+            baseline: top - height - index * advance,
+            runs
+        };
+    });
     const flags = number(payload.generationFlags), xScale = widthFactor * ((flags & 2) !== 0 || payload.mirrored === true ? -1 : 1), yScale = (flags & 4) !== 0 ? -1 : 1;
     const c = Math.cos(rotation), s = Math.sin(rotation);
     const matrix = [

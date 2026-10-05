@@ -33,6 +33,8 @@ export function portableMcpInputSchema(schema: KJAgentToolSchema): KJAgentToolSc
       properties: Object.fromEntries(Object.entries(schema.properties ?? {}).map(([name, child]) => [name, portableMcpInputSchema(child)])),
       required: [...(schema.required ?? [])],
       ...(schema.additionalProperties === false ? { additionalProperties: false } : {}),
+      ...(schema.additionalProperties && typeof schema.additionalProperties === 'object'
+        ? { additionalProperties: portableMcpInputSchema(schema.additionalProperties) } : {}),
     } as unknown as KJAgentToolSchema
   }
   if (schema.type === 'array') {
@@ -79,6 +81,8 @@ export function assertPortableMcpInputSchema(schema: KJAgentToolSchema, path = '
   if (schema.type === 'object') {
     if (!schema.properties || !Array.isArray(schema.required)) throw new Error(`${path} must declare object properties and required`)
     for (const [name, child] of Object.entries(schema.properties)) assertPortableMcpInputSchema(child, `${path}.properties.${name}`)
+    if (schema.additionalProperties && typeof schema.additionalProperties === 'object')
+      assertPortableMcpInputSchema(schema.additionalProperties, `${path}.additionalProperties`)
   }
   if (schema.type === 'array') {
     if (!schema.items) throw new Error(`${path} must declare array items`)
