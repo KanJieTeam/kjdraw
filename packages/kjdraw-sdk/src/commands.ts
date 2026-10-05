@@ -276,6 +276,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
   arrowEnabled?: unknown
   distance?: unknown
   tolerance?: unknown
+  /** BREAK controls only: resolve omitted pick tolerance from the actual target type. */
+  toleranceMode?: 'entity-default'
   segmentIndex?: unknown
   vertexIndex?: unknown
   bulge?: unknown
@@ -1158,8 +1160,10 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'BREAK', aliases: ['BR'], title: 'Break entity',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id)
-      if (entity.type === 'SPLINE' && Object.keys(args).some(key => !['id', 'point', 'firstPoint', 'secondPoint', 'points', 'parameter', 'parameters', 'tolerance'].includes(key))) throw new KJValidationError('SPLINE BREAK contains unsupported command arguments')
-      const pieces = breakEntityPayloads(entity, args)
+      if (args.toleranceMode !== undefined && args.toleranceMode !== 'entity-default') throw new KJValidationError('BREAK toleranceMode must be entity-default')
+      if (entity.type === 'SPLINE' && Object.keys(args).some(key => !['id', 'point', 'firstPoint', 'secondPoint', 'points', 'parameter', 'parameters', 'tolerance', 'toleranceMode'].includes(key))) throw new KJValidationError('SPLINE BREAK contains unsupported command arguments')
+      const options = args.toleranceMode === 'entity-default' && args.tolerance === undefined && entity.type !== 'SPLINE' ? { ...args, tolerance: 0.1 } : args
+      const pieces = breakEntityPayloads(entity, options)
       if (pieces.length !== 2) throw new KJValidationError('BREAK requires two deterministic native pieces')
       if (pieces.every(piece => piece.type === entity.type)) {
         const leading = transaction.updateObject(entity.id, { payload: pieces[0]!.payload })

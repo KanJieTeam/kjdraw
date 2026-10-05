@@ -203,9 +203,9 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
             'SPLINE'
         ],
         fields: [
-            number('tolerance', 'Pick tolerance', '点选容差', 1e-7, {
+            number('tolerance', 'Pick tolerance', '点选容差', 0.1, {
                 min: 0,
-                step: 'any'
+                step: 0.01
             })
         ],
         pointKeys: [
@@ -227,9 +227,9 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
             'SPLINE'
         ],
         fields: [
-            number('tolerance', 'Pick tolerance', '点选容差', 1e-7, {
+            number('tolerance', 'Pick tolerance', '点选容差', 0.1, {
                 min: 0,
-                step: 'any'
+                step: 0.01
             })
         ],
         pointKeys: [
@@ -523,6 +523,17 @@ const definitionById = new Map(KJ_MODIFICATION_DEFINITIONS.map((definition)=>[
         definition.id,
         definition
     ]));
+const splineBreakDefinitions = new Map(KJ_MODIFICATION_DEFINITIONS.filter((definition)=>definition.id === 'break' || definition.id === 'break-two-point').map((definition)=>[
+        definition.id,
+        Object.freeze({
+            ...definition,
+            fields: Object.freeze(definition.fields.map((field)=>field.key === 'tolerance' ? Object.freeze({
+                    ...field,
+                    default: 1e-7,
+                    step: 'any'
+                }) : field))
+        })
+    ]));
 export function getKJModificationSelectionCenter(entities) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const add = (value)=>{
@@ -569,9 +580,10 @@ export function getKJModificationSelectionCenter(entities) {
         0
     ];
 }
-export function getKJModificationDefinition(id) {
+export function getKJModificationDefinition(id, targetEntityType) {
     const definition = definitionById.get(id);
     if (!definition) throw new RangeError(`Unsupported KJDraw modification: ${String(id)}`);
+    if (targetEntityType === 'SPLINE') return splineBreakDefinitions.get(id) ?? definition;
     return definition;
 }
 export function getKJInteractiveModificationDefinition(command) {
@@ -620,6 +632,7 @@ export function parseKJModificationCommandValues(id, tokens, locale = 'en') {
             source[field.key] = value;
         }
     }
+    if ((id === 'break' || id === 'break-two-point') && !tokens.length) return Object.freeze({});
     return Object.freeze(normalizedValues(definition, source));
 }
 export function validateKJModificationSelection(definition, entities, locale = 'en') {
@@ -677,9 +690,11 @@ function normalizedPoints(definition, points) {
     });
 }
 export function buildKJModificationCommand(id, context) {
-    const definition = getKJModificationDefinition(id);
+    const definition = getKJModificationDefinition(id, context.targetEntityType);
     const ids = normalizedIds(definition, context.ids);
     const values = normalizedValues(definition, context.values ?? {});
+    const entityDefaultTolerance = (id === 'break' || id === 'break-two-point') && context.targetEntityType === undefined && context.values?.tolerance == null;
+    if (entityDefaultTolerance) delete values.tolerance;
     const points = normalizedPoints(definition, context.points ?? []);
     const all = {
         ids,
@@ -742,6 +757,9 @@ export function buildKJModificationCommand(id, context) {
                 arguments: {
                     id: ids[0],
                     ...values,
+                    ...entityDefaultTolerance ? {
+                        toleranceMode: 'entity-default'
+                    } : {},
                     point: points[0]
                 }
             };
@@ -751,6 +769,9 @@ export function buildKJModificationCommand(id, context) {
                 arguments: {
                     id: ids[0],
                     ...values,
+                    ...entityDefaultTolerance ? {
+                        toleranceMode: 'entity-default'
+                    } : {},
                     firstPoint: points[0],
                     secondPoint: points[1]
                 }

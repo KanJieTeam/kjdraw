@@ -4089,7 +4089,8 @@ export class KJDrawWorkbench {
     #renderModificationForm() {
         const select = query(this.root, '[data-modification]');
         const id = select.value;
-        const definition = getKJModificationDefinition(id);
+        const target = this.document?.getObject(this.#selection?.ids[0] ?? '');
+        const definition = getKJModificationDefinition(id, target?.type);
         for (const option of select.options){
             const candidate = KJ_MODIFICATION_DEFINITIONS.find((value)=>value.id === option.value);
             if (candidate) option.textContent = this.#localizedControlText(candidate.label);
@@ -4197,7 +4198,7 @@ export class KJDrawWorkbench {
         }
         const drawing = this.document;
         if (!drawing) throw new Error('No active KJDraw document');
-        const definition = getKJModificationDefinition(query(this.root, '[data-modification]').value);
+        const definition = getKJModificationDefinition(query(this.root, '[data-modification]').value, drawing.getObject(this.#selection?.ids[0] ?? '')?.type);
         if ((definition.id === 'trim' || definition.id === 'extend') && form.querySelector('[data-boundary-workflow]')?.value === 'boundaries') {
             this.#beginBoundaryEdit(definition.id);
             return;

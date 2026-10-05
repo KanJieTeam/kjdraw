@@ -241,6 +241,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
     arrowEnabled?: unknown;
     distance?: unknown;
     tolerance?: unknown;
+    /** BREAK controls only: resolve omitted pick tolerance from the actual target type. */
+    toleranceMode?: 'entity-default';
     segmentIndex?: unknown;
     vertexIndex?: unknown;
     bulge?: unknown;

@@ -78,9 +78,21 @@ is available through the shared workbench controls: point BREAK, two-point
 BREAK and TRIM retain native SPLINE pieces. Continuous boundary TRIM previews
 the same native pieces before applying one undoable command. Workbench cutting
 boundaries remain LINE/RAY/XLINE/CIRCLE/ARC; ELLIPSE/SPLINE boundaries and explicit
-native parameters are SDK options. BREAK controls default to a `1e-7` pick
-tolerance; explicit larger tolerances still work for the existing non-spline
-targets, while SPLINE retains the supported `1e-9` to `1e-2` range.
+native parameters are SDK options. BREAK controls preserve the existing `0.1`
+pick tolerance for non-spline targets and use `1e-7` for SPLINE. SPLINE retains
+the supported `1e-9` to `1e-2` range; explicit values are validated rather than
+replaced by defaults.
+
+Hosts can pass `targetEntityType` to `buildKJModificationCommand`, or the target
+type as the second argument of `getKJModificationDefinition`, to select the same
+form defaults. Without a type hint or an explicit tolerance, BREAK controls
+emit the serializable `toleranceMode: 'entity-default'` policy. The command
+registry resolves it using the actual entity: `0.1` for existing non-spline
+targets and the native `1e-7` default for SPLINE. An explicit tolerance always
+takes precedence. Bare SDK commands without this policy retain their existing
+defaults, including `1e-8` for non-spline BREAK. Unsupported policy values are
+refused before changing the drawing.
+
 Mouse picks within the existing nine-pixel hit aperture are projected onto
 the selected native spline before certification. The core still recovers all
 matching branches and rejects ambiguous points; it does not use the nearest
