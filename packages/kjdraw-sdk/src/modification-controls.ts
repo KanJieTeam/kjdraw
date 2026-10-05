@@ -66,6 +66,8 @@ export interface KJModificationDefinition {
 
 export interface KJModificationBuildContext {
   readonly ids: readonly string[]
+  /** Selected target type, used to choose entity-specific form defaults. */
+  readonly targetEntityType?: string
   readonly values?: Readonly<Record<string, unknown>>
   readonly points?: readonly KJModificationPoint[]
   readonly selectionCenter?: KJModificationPoint
@@ -184,17 +186,17 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
   },
   {
     id: 'break', command: 'BREAK', label: text('Break', '打断'),
-    description: text('Split one line, circular/elliptical arc or open polyline at an exact point.', '在精确点打断直线、圆弧、椭圆弧或开放多段线。'),
+    description: text('Split one line, circular/elliptical arc, open polyline or control-point spline at an exact point. Spline tolerance: 1e-9 to 1e-2.', '在精确点打断直线、圆弧、椭圆弧、开放多段线或控制点样条。样条容差范围：1e-9 至 1e-2。'),
     minSelection: 1, maxSelection: 1,
-    supportedEntityTypes: ['LINE', 'ARC', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'],
+    supportedEntityTypes: ['LINE', 'ARC', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE', 'SPLINE'],
     fields: [number('tolerance', 'Pick tolerance', '点选容差', 0.1, { min: 0, step: 0.01 })],
     pointKeys: [pick('point', 'Pick the break point', '在画布上指定打断点')],
   },
   {
     id: 'break-two-point', command: 'BREAK', label: text('Two-point break', '两点打断'),
-    description: text('Split one circle, full ellipse or closed polyline at two exact points.', '在两个精确点拆分圆、完整椭圆或闭合多段线。'),
+    description: text('Split one circle, full ellipse or closed polyline, or remove an interior spline interval at two exact points.', '在两个精确点拆分圆、完整椭圆或闭合多段线，或删除开放样条的内部区间。'),
     minSelection: 1, maxSelection: 1,
-    supportedEntityTypes: ['CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'],
+    supportedEntityTypes: ['CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE', 'SPLINE'],
     fields: [number('tolerance', 'Pick tolerance', '点选容差', 0.1, { min: 0, step: 0.01 })],
     pointKeys: [pick('firstPoint', 'Pick the first break point', '指定第一个打断点'), pick('secondPoint', 'Pick the second break point', '指定第二个打断点')],
   },
@@ -215,9 +217,9 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
   },
   {
     id: 'trim', command: 'TRIM', label: text('Trim', '修剪'),
-    description: text('Select the line, arc, circle, ellipse or open polyline first, then Shift-select the cutting boundaries.', '先选择待修剪的直线、圆弧、圆、椭圆或开放多段线，再按住 Shift 选择切割边界。'),
+    description: text('Select the line, arc, circle, ellipse, open polyline or control-point spline first, then Shift-select the cutting boundaries.', '先选择待修剪的直线、圆弧、圆、椭圆、开放多段线或控制点样条，再按住 Shift 选择切割边界。'),
     minSelection: 2,
-    targetEntityTypes: ['LINE', 'ARC', 'CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'],
+    targetEntityTypes: ['LINE', 'ARC', 'CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE', 'SPLINE'],
     boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'],
     fields: [],
     pointKeys: [pick('pickPoint', 'Pick the portion of the target to remove', '在目标图形上指定要删除的区段')],
@@ -308,6 +310,12 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
 ] satisfies readonly KJModificationDefinition[])
 
 const definitionById = new Map(KJ_MODIFICATION_DEFINITIONS.map(definition => [definition.id, definition] as const))
+const splineBreakDefinitions = new Map(KJ_MODIFICATION_DEFINITIONS
+  .filter(definition => definition.id === 'break' || definition.id === 'break-two-point')
+  .map(definition => [definition.id, Object.freeze({
+    ...definition,
+    fields: Object.freeze(definition.fields.map(field => field.key === 'tolerance' ? Object.freeze({ ...field, default: 1e-7, step: 'any' as const }) : field)),
+  })] as const))
 
 /** Center of the selected entities' defining points, used as the non-rotating array anchor. */
 export function getKJModificationSelectionCenter(entities: readonly { readonly payload: Readonly<Record<string, unknown>> }[]): KJModificationPoint {
@@ -330,9 +338,11 @@ export function getKJModificationSelectionCenter(entities: readonly { readonly p
   return Number.isFinite(minX)?[(minX+maxX)/2,(minY+maxY)/2]:[0,0]
 }
 
-export function getKJModificationDefinition(id: KJModificationId): KJModificationDefinition {
+/** Resolve form defaults for the selected target without changing explicit user values. */
+export function getKJModificationDefinition(id: KJModificationId, targetEntityType?: string): KJModificationDefinition {
   const definition = definitionById.get(id)
   if (!definition) throw new RangeError(`Unsupported KJDraw modification: ${String(id)}`)
+  if (targetEntityType === 'SPLINE') return splineBreakDefinitions.get(id) ?? definition
   return definition
 }
 
@@ -373,6 +383,8 @@ export function parseKJModificationCommandValues(
       source[field.key] = value
     }
   }
+  // An untyped BREAK must defer its omitted tolerance to the target-aware core.
+  if ((id === 'break' || id === 'break-two-point') && !tokens.length) return Object.freeze({})
   return Object.freeze(normalizedValues(definition, source))
 }
 
@@ -428,9 +440,13 @@ function normalizedPoints(definition: KJModificationDefinition, points: readonly
 
 /** Build a core command from UI-neutral form values and ordered canvas picks. */
 export function buildKJModificationCommand(id: KJModificationId, context: KJModificationBuildContext): KJModificationCommand {
-  const definition = getKJModificationDefinition(id)
+  const definition = getKJModificationDefinition(id, context.targetEntityType)
   const ids = normalizedIds(definition, context.ids)
   const values = normalizedValues(definition, context.values ?? {})
+  const entityDefaultTolerance = (id === 'break' || id === 'break-two-point') && context.targetEntityType === undefined && context.values?.tolerance == null
+  // Serialize the form policy so the registry can resolve the actual target type.
+  // Bare SDK commands retain their existing omitted-tolerance semantics.
+  if (entityDefaultTolerance) delete values.tolerance
   const points = normalizedPoints(definition, context.points ?? [])
   const all = { ids, ...values } as KJCommandArguments
   switch (id) {
@@ -443,8 +459,8 @@ export function buildKJModificationCommand(id: KJModificationId, context: KJModi
       arguments: { ...all, center: points[0]!, ...(values.rotateItems === false ? { basePoint: context.selectionCenter ?? points[0]! } : {}) },
     }
     case 'offset': return { command: definition.command, arguments: { id: ids[0]!, ...values, sidePoint: points[0]! } }
-    case 'break': return { command: definition.command, arguments: { id: ids[0]!, ...values, point: points[0]! } }
-    case 'break-two-point': return { command: definition.command, arguments: { id: ids[0]!, ...values, firstPoint: points[0]!, secondPoint: points[1]! } }
+    case 'break': return { command: definition.command, arguments: { id: ids[0]!, ...values, ...(entityDefaultTolerance ? { toleranceMode: 'entity-default' } : {}), point: points[0]! } }
+    case 'break-two-point': return { command: definition.command, arguments: { id: ids[0]!, ...values, ...(entityDefaultTolerance ? { toleranceMode: 'entity-default' } : {}), firstPoint: points[0]!, secondPoint: points[1]! } }
     case 'join': return { command: definition.command, arguments: { id: ids[0]!, ids, ...values } }
     case 'explode': return { command: definition.command, arguments: { id: ids[0]! } }
     case 'trim': return { command: definition.command, arguments: { id: ids[0]!, boundaryIds: ids.slice(1), pickPoint: points[0]! } }

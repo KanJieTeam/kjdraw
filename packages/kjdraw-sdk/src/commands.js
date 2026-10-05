@@ -209,9 +209,11 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'CIRCLE',
             'ELLIPSE',
             'LWPOLYLINE',
-            'POLYLINE'
+            'POLYLINE',
+            'SPLINE'
         ],
-        deterministicPieces: true
+        deterministicPieces: true,
+        splineContract: 'bounded-clamped-XY-control-points-native-knots'
     },
     JOIN: {
         domain: 'topology',
@@ -244,7 +246,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'CIRCLE',
             'ELLIPSE',
             'LWPOLYLINE',
-            'POLYLINE'
+            'POLYLINE',
+            'SPLINE'
         ],
         boundaryEntityTypes: [
             'LINE',
@@ -252,7 +255,17 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'XLINE',
             'CIRCLE',
             'ARC'
-        ]
+        ],
+        splineBoundaryEntityTypes: [
+            'LINE',
+            'RAY',
+            'XLINE',
+            'CIRCLE',
+            'ARC',
+            'ELLIPSE',
+            'SPLINE'
+        ],
+        splineContract: 'bounded-clamped-XY-control-points-native-knots-transverse-cuts'
     },
     EXTEND: {
         domain: 'topology',
@@ -2014,7 +2027,24 @@ export function registerCoreCommands(registry) {
         ],
         title: 'Break entity',
         execute: ({ document, transaction }, args)=>{
-            const entity = requiredEntity(document, args.id), pieces = breakEntityPayloads(entity, args);
+            const entity = requiredEntity(document, args.id);
+            if (args.toleranceMode !== undefined && args.toleranceMode !== 'entity-default') throw new KJValidationError('BREAK toleranceMode must be entity-default');
+            if (entity.type === 'SPLINE' && Object.keys(args).some((key)=>![
+                    'id',
+                    'point',
+                    'firstPoint',
+                    'secondPoint',
+                    'points',
+                    'parameter',
+                    'parameters',
+                    'tolerance',
+                    'toleranceMode'
+                ].includes(key))) throw new KJValidationError('SPLINE BREAK contains unsupported command arguments');
+            const options = args.toleranceMode === 'entity-default' && args.tolerance === undefined && entity.type !== 'SPLINE' ? {
+                ...args,
+                tolerance: 0.1
+            } : args;
+            const pieces = breakEntityPayloads(entity, options);
             if (pieces.length !== 2) throw new KJValidationError('BREAK requires two deterministic native pieces');
             if (pieces.every((piece)=>piece.type === entity.type)) {
                 const leading = transaction.updateObject(entity.id, {
@@ -2164,7 +2194,14 @@ export function registerCoreCommands(registry) {
         title: 'Trim entity',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds, entity.id);
-            const pieces = trimEntityPayloads(entity, boundaries, args.pickPoint);
+            if (entity.type === 'SPLINE' && Object.keys(args).some((key)=>![
+                    'id',
+                    'boundaryIds',
+                    'pickPoint',
+                    'pickParameter',
+                    'tolerance'
+                ].includes(key))) throw new KJValidationError('SPLINE TRIM contains unsupported command arguments');
+            const pieces = trimEntityPayloads(entity, boundaries, args.pickPoint, args);
             const first = pieces[0];
             if (!first) throw new KJValidationError('Trim must retain a non-empty entity');
             if (pieces.length !== 1 || first.type !== entity.type || entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'TRIM');

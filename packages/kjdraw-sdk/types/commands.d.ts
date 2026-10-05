@@ -198,6 +198,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
     pattern?: unknown;
     settings?: Record<string, unknown>;
     parameters?: unknown;
+    /** SPLINE BREAK only: parameter in the native knot domain. */
+    parameter?: number;
     position?: unknown;
     insertionPoint?: unknown;
     center?: KJPointInput;
@@ -215,6 +217,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
     secondVector?: KJPointInput;
     vertex?: KJPointInput;
     pickPoint?: KJPointInput;
+    /** SPLINE TRIM only: disambiguates a pick in the native knot domain. */
+    pickParameter?: number;
     sidePoint?: KJPointInput;
     points?: readonly KJPointInput[];
     origin?: unknown;
@@ -237,6 +241,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
     arrowEnabled?: unknown;
     distance?: unknown;
     tolerance?: unknown;
+    /** BREAK controls only: resolve omitted pick tolerance from the actual target type. */
+    toleranceMode?: 'entity-default';
     segmentIndex?: unknown;
     vertexIndex?: unknown;
     bulge?: unknown;
@@ -441,6 +447,7 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly precision: string;
         readonly supportedEntityTypes: readonly string[];
         readonly deterministicPieces: boolean;
+        readonly splineContract: string;
     };
     readonly JOIN: {
         readonly domain: string;
@@ -458,6 +465,8 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly precision: string;
         readonly targetEntityTypes: readonly string[];
         readonly boundaryEntityTypes: readonly string[];
+        readonly splineBoundaryEntityTypes: readonly string[];
+        readonly splineContract: string;
     };
     readonly EXTEND: {
         readonly domain: string;

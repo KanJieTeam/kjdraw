@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:be83c94b8c58c3876821c062a01928c96e8f904880d309feff978c8f7bcbbb43",
+  "sourceDigest": "sha256:566e00a0a4b5579f397719a883377953572d60138d0a9a993fe5b8c87d70ac1e",
   "entries": [
     {
       "name": "buildCadSkillJsonContract",
@@ -2866,7 +2866,7 @@
       "module": "@kanjieteam/kjdraw/core",
       "href": "./api/reference/#core-interface-kjbreakoptions",
       "anchor": "core-interface-kjbreakoptions",
-      "summary": "export interface KJBreakOptions { readonly point?: unknown; readonly firstPoint?: unknown; readonly secondPoint?: unknown; readonly points?: readonly unknown[]; readonly tolerance?: unknown; }"
+      "summary": "export interface KJBreakOptions { readonly point?: unknown; readonly firstPoint?: unknown; readonly secondPoint?: unknown; readonly points?: readonly unknown[]; readonly tolerance?: unknown; /** SPLINE only: parameter(s)"
     },
     {
       "name": "KJCapabilityCommand",
@@ -4997,6 +4997,14 @@
       "summary": "export type KJSpaceName = typeof KJ_SPACE_NAMES[keyof typeof KJ_SPACE_NAMES];"
     },
     {
+      "name": "KJSplineTrimOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-interface-kjsplinetrimoptions",
+      "anchor": "core-interface-kjsplinetrimoptions",
+      "summary": "export interface KJSplineTrimOptions { readonly tolerance?: unknown; /** SPLINE only: native knot-domain pick parameter for ambiguous points. */ readonly pickParameter?: unknown; }"
+    },
+    {
       "name": "KJStandardEntityType",
       "kind": "type",
       "module": "@kanjieteam/kjdraw/core",
@@ -5738,7 +5746,7 @@
       "module": "@kanjieteam/kjdraw/core",
       "href": "./api/reference/#core-function-trimentitypayloads",
       "anchor": "core-function-trimentitypayloads",
-      "summary": "export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];"
+      "summary": "export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown, options?: KJSplineTrimOptions): KJDerivedEntityPayload[];"
     },
     {
       "name": "trimLinePayload",
@@ -9314,7 +9322,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjbreakoptions",
       "anchor": "root-interface-kjbreakoptions",
-      "summary": "export interface KJBreakOptions { readonly point?: unknown; readonly firstPoint?: unknown; readonly secondPoint?: unknown; readonly points?: readonly unknown[]; readonly tolerance?: unknown; }"
+      "summary": "export interface KJBreakOptions { readonly point?: unknown; readonly firstPoint?: unknown; readonly secondPoint?: unknown; readonly points?: readonly unknown[]; readonly tolerance?: unknown; /** SPLINE only: parameter(s)"
     },
     {
       "name": "KJCapabilityCommand",
@@ -13389,6 +13397,14 @@
       "summary": "export type KJSpaceName = typeof KJ_SPACE_NAMES[keyof typeof KJ_SPACE_NAMES];"
     },
     {
+      "name": "KJSplineTrimOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjsplinetrimoptions",
+      "anchor": "root-interface-kjsplinetrimoptions",
+      "summary": "export interface KJSplineTrimOptions { readonly tolerance?: unknown; /** SPLINE only: native knot-domain pick parameter for ambiguous points. */ readonly pickParameter?: unknown; }"
+    },
+    {
       "name": "KJStandardEntityType",
       "kind": "type",
       "module": "@kanjieteam/kjdraw",
@@ -14322,7 +14338,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-function-trimentitypayloads",
       "anchor": "root-function-trimentitypayloads",
-      "summary": "export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];"
+      "summary": "export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown, options?: KJSplineTrimOptions): KJDerivedEntityPayload[];"
     },
     {
       "name": "trimLinePayload",
@@ -14978,7 +14994,7 @@
       "module": "@kanjieteam/kjdraw/editing",
       "href": "./api/reference/#editing-interface-kjbreakoptions",
       "anchor": "editing-interface-kjbreakoptions",
-      "summary": "export interface KJBreakOptions { readonly point?: unknown; readonly firstPoint?: unknown; readonly secondPoint?: unknown; readonly points?: readonly unknown[]; readonly tolerance?: unknown; }"
+      "summary": "export interface KJBreakOptions { readonly point?: unknown; readonly firstPoint?: unknown; readonly secondPoint?: unknown; readonly points?: readonly unknown[]; readonly tolerance?: unknown; /** SPLINE only: parameter(s)"
     },
     {
       "name": "KJDerivedEntityPayload",
@@ -15077,6 +15093,14 @@
       "summary": "export interface KJPolylineEditOptions { readonly operation?: unknown; readonly segmentIndex?: unknown; readonly vertexIndex?: unknown; readonly point?: unknown; readonly tolerance?: unknown; readonly bulge?: unknown; re"
     },
     {
+      "name": "KJSplineTrimOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/editing",
+      "href": "./api/reference/#editing-interface-kjsplinetrimoptions",
+      "anchor": "editing-interface-kjsplinetrimoptions",
+      "summary": "export interface KJSplineTrimOptions { readonly tolerance?: unknown; /** SPLINE only: native knot-domain pick parameter for ambiguous points. */ readonly pickParameter?: unknown; }"
+    },
+    {
       "name": "KJStretchOptions",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw/editing",
@@ -15122,7 +15146,7 @@
       "module": "@kanjieteam/kjdraw/editing",
       "href": "./api/reference/#editing-function-trimentitypayloads",
       "anchor": "editing-function-trimentitypayloads",
-      "summary": "export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];"
+      "summary": "export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown, options?: KJSplineTrimOptions): KJDerivedEntityPayload[];"
     },
     {
       "name": "trimLinePayload",

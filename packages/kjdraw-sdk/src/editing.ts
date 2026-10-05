@@ -22,6 +22,7 @@ import type { ArcDefinition, LineDomain, Point2, Point2Input, Point3 } from './g
 import type { KJObjectPayload } from './schema.js'
 import { clone, normalizeName } from './utils.js'
 import type { ReadonlyDeep } from './utils.js'
+import { breakNativeSplinePayloads, trimNativeSplinePayloads } from './geometry/native-spline-edit.js'
 
 const TURN = Math.PI * 2
 
@@ -41,6 +42,15 @@ export interface KJBreakOptions {
   readonly secondPoint?: unknown
   readonly points?: readonly unknown[]
   readonly tolerance?: unknown
+  /** SPLINE only: parameter(s) in its native knot domain. */
+  readonly parameter?: unknown
+  readonly parameters?: unknown
+}
+
+export interface KJSplineTrimOptions {
+  readonly tolerance?: unknown
+  /** SPLINE only: native knot-domain pick parameter for ambiguous points. */
+  readonly pickParameter?: unknown
 }
 
 export interface KJLinePairOptions {
@@ -493,6 +503,8 @@ function arcParameter(payload: KJObjectPayload, point: unknown): number {
 
 export function breakEntityPayloads(entity: KJEditingEntity | null | undefined, options: KJBreakOptions = {}): KJDerivedEntityPayload[] {
   const payload = payloadOf(entity), type = normalizeName(entity?.type)
+  if (type === 'SPLINE') return breakNativeSplinePayloads(payload, options).map(result => ({ type, payload: result }))
+  if (options.parameter !== undefined || options.parameters !== undefined) throw new KJValidationError('Native parameter BREAK is supported only for SPLINE')
   const points = options.points ?? [options.firstPoint ?? options.point, options.secondPoint].filter(value => value != null)
   if (type === 'LINE') {
     const parameters = lineBreakParameters(payload, { ...options, points })
@@ -1024,8 +1036,10 @@ function rejectAmbiguousLineBoundaries(target: KJEditingEntity, boundaries: read
   }
 }
 
-/** Remove the picked interval from a line, polyline, circular curve or native ellipse. */
-export function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[] {
+/** Remove the picked interval from a line, polyline, circular curve, native ellipse or supported native spline. */
+export function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown, options: KJSplineTrimOptions = {}): KJDerivedEntityPayload[] {
+  if (target?.type === 'SPLINE') return trimNativeSplinePayloads(target.payload, boundaries, pickPoint, options).map(payload => ({ type: 'SPLINE', payload }))
+  if (options.pickParameter !== undefined || options.tolerance !== undefined) throw new KJValidationError('Native parameter/tolerance TRIM options are supported only for SPLINE')
   if (target?.type === 'LINE') {
     rejectAmbiguousLineBoundaries(target, boundaries, 'segment')
     return trimLinePayloads(target, boundaries, pickPoint).map(payload => ({ type: 'LINE', payload }))
