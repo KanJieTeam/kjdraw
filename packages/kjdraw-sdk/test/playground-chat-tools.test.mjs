@@ -168,7 +168,14 @@ test('read-only text inspection keeps discovery tools instead of forcing an edit
     'Inspect this label without editing anything.',
     '先读一下孔号文字和图层，别改图。',
     '只读检查标题栏字段，不修改图纸。',
-  ]) assert.equal(getKJDrawChatToolNamesForRequest(document, prompt), KJDRAW_CHAT_TOOL_NAMES)
+  ]) {
+    const names = getKJDrawChatToolNamesForRequest(document, prompt)
+    assert.ok(names.includes('cad_find_text'))
+    assert.ok(names.includes('cad_query_drawing'))
+    assert.ok(names.includes('cad_read_drawing'))
+    assert.ok(names.every(name => !name.startsWith('cad_propose_')))
+    assert.ok(names.length < KJDRAW_CHAT_TOOL_NAMES.length)
+  }
 })
 
 test('workbench circle radius tool produces a reviewable exact native edit', async () => {

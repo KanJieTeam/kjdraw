@@ -7,7 +7,10 @@ import { KJDRAW_AGENT_TOOLS } from '../packages/kjdraw-sdk/src/agent-tools.js'
 // Offline provider fixtures, not real-model acceptance. Native reads, impact
 // checks, proposals, host approval, DXF export and history all use the engine.
 const clone = structuredClone
-const readOnlyPrompt = 'Read-only inspect the structural edit prerequisites without modifying the drawing.'
+// This fixture deliberately invokes proposal tools to exercise their separate
+// exact-impact prerequisite. A global read-only request now rejects those
+// calls before dispatch; that policy has its own runtime regression test.
+const reviewPrompt = 'Inspect structural edit prerequisites and prepare a removal proposal for review only; do not apply any drawing change.'
 
 async function fixture() {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
@@ -37,7 +40,7 @@ function nativeRecords(state) {
     resources: drawing.resources, opaquePayloads: drawing.opaquePayloads, header: drawing.header }
 }
 
-async function exercise(t, steps, prompt = readOnlyPrompt, options = {}) {
+async function exercise(t, steps, prompt = reviewPrompt, options = {}) {
   const requests = [], receipts = [], context = {}, dxf = await fixture()
   const chat = createAiChatRuntime({ endpoint: 'https://impact-fixture.invalid/v1/chat/completions',
     model: 'offline-impact-fixture', captureToolOutputs: true, ...options,
