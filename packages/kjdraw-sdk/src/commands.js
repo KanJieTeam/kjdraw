@@ -2055,13 +2055,14 @@ export function registerCoreCommands(registry) {
         id: 'CONTOUROFFSET',
         title: 'Offset closed planar contours',
         transactional: false,
-        execute: ({ document, expectedRevision, author, commandEnvelope }, args)=>{
+        execute: ({ sdk, document, expectedRevision, author, commandEnvelope }, args)=>{
             if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOUROFFSET requires matching explicit expectedRevision in context and arguments');
             if (args.operation !== undefined && args.operation !== 'offset') throw new KJValidationError('CONTOUROFFSET operation must be offset');
             return applyPlanarContourEdit(document, {
                 ...args,
                 operation: 'offset'
             }, {
+                ...sdk?.contourBackend,
                 author,
                 ...commandEnvelope ? {
                     commandEnvelope: {
@@ -2080,9 +2081,10 @@ export function registerCoreCommands(registry) {
         id: 'CONTOURBOUNDARIES',
         title: 'Create reviewed planar boundaries',
         transactional: false,
-        execute: ({ document, expectedRevision, author, commandEnvelope }, args)=>{
+        execute: ({ sdk, document, expectedRevision, author, commandEnvelope }, args)=>{
             if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOURBOUNDARIES requires matching explicit expectedRevision in context and arguments');
             return applyPlanarBoundaryExtraction(document, args, {
+                ...sdk?.contourBackend,
                 author,
                 ...commandEnvelope ? {
                     commandEnvelope: {
@@ -2101,7 +2103,7 @@ export function registerCoreCommands(registry) {
         id: 'CONTOURBOOLEAN',
         title: 'Combine closed planar contours',
         transactional: false,
-        execute: ({ document, expectedRevision, author, commandEnvelope }, args)=>{
+        execute: ({ sdk, document, expectedRevision, author, commandEnvelope }, args)=>{
             if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOURBOOLEAN requires matching explicit expectedRevision in context and arguments');
             if (![
                 'union',
@@ -2109,6 +2111,7 @@ export function registerCoreCommands(registry) {
                 'difference'
             ].includes(args.operation)) throw new KJValidationError('CONTOURBOOLEAN operation must be union, intersection or difference');
             return applyPlanarContourEdit(document, args, {
+                ...sdk?.contourBackend,
                 author,
                 ...commandEnvelope ? {
                     commandEnvelope: {

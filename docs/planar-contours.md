@@ -119,6 +119,49 @@ copied by your build. Relative URLs in a script bundle resolve against the
 page's base URL; direct ESM continues to use its module URL. Missing bundle
 configuration refuses the contour request before changing the drawing.
 
+For registered commands, configure the asset on the **host SDK**, then pass that
+SDK to the editor or workbench. `CONTOUROFFSET`, `CONTOURBOOLEAN` and
+`CONTOURBOUNDARIES` use this same configuration through SDK calls, UI command
+envelopes and host-confirmed AI envelopes:
+
+```js
+import { createKJDrawSDK, createKJDrawEditor, previewPlanarContourEdit } from '@kanjieteam/kjdraw'
+
+const sdk = createKJDrawSDK({
+  contourBackend: { wasmUrl: '/assets/kjcontour.wasm' },
+  // Alternatively: contourBackend: { wasmBytes: localUint8ArrayOrArrayBuffer }
+})
+const editor = createKJDrawEditor('#drawing', { sdk, document: 'blank' })
+await editor.ready
+
+const drawing = editor.document
+const request = {
+  operation: 'offset', ids: [sourceEntityId], distance: 2,
+  units: drawing.toJSON().header.units, expectedRevision: drawing.revision,
+}
+const preview = await previewPlanarContourEdit(drawing, request, sdk.contourBackend)
+// Present the preview before executing the command.
+await editor.execute('CONTOUROFFSET', {
+  ...request, expectedGeometryDigest: preview.receipt.geometryDigest,
+})
+```
+
+`contourBackend` is selected once at SDK construction and accepts either local
+bytes or a URL. The SDK copies supplied bytes and URL objects; its read-only
+getter returns a detached copy for preview calls. The host must supply the
+configuration again when creating a new SDK after reopening a saved drawing.
+WASM assets and URLs are not stored in KJD, DXF, command arguments or AI plans.
+Existing command revision, preview digest and AI approval checks still apply.
+AI integrations can use the command envelope protocol; this does not add new
+tools to the agent tool catalog.
+
+For a standalone workbench, use `new KJDrawWorkbench(host, { sdk })` from
+`@kanjieteam/kjdraw/workbench`. Direct compute/apply functions still accept their
+own backend options. An SDK without `contourBackend` uses the existing default
+asset in Node and direct browser ESM; an IIFE command without an asset refuses
+atomically. Explicit assets retain the loader's existing instantiation behavior;
+this option does not change kernel caching or geometry calculations.
+
 ## Build and verification
 
 With Rust 1.88+ and its `wasm32-unknown-unknown` target installed:

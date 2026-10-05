@@ -15,6 +15,7 @@ import { editHatch } from './hatch-edit.js'
 import { insertCatalogComponent, searchComponentCatalog } from './component-library.js'
 import { applyPlanarContourEdit, type KJPlanarContourEditRequest } from './planar-contours.js'
 import { applyPlanarBoundaryExtraction, type KJPlanarBoundaryEditRequest } from './planar-boundary-edit.js'
+import type { KJContourBackendOptions } from './geometry/contour-wasm.js'
 import type { KJRoadDrawingResult } from './road-drawing.js'
 import {
   entityArea2,
@@ -96,6 +97,7 @@ export interface KJSolidAuthority extends Record<string, unknown> {
 
 export interface KJCommandSDKContext {
   readonly solidAuthority?: unknown
+  readonly contourBackend?: KJContourBackendOptions
   getSelectionManager(documentId?: string | null): KJSelectionManager | null
 }
 
@@ -1151,25 +1153,25 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'CONTOUROFFSET', title: 'Offset closed planar contours', transactional: false,
-    execute: ({ document, expectedRevision, author, commandEnvelope }, args) => {
+    execute: ({ sdk, document, expectedRevision, author, commandEnvelope }, args) => {
       if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOUROFFSET requires matching explicit expectedRevision in context and arguments')
       if (args.operation !== undefined && args.operation !== 'offset') throw new KJValidationError('CONTOUROFFSET operation must be offset')
-      return applyPlanarContourEdit(document, { ...args, operation: 'offset' } as unknown as KJPlanarContourEditRequest, { author, ...(commandEnvelope ? { commandEnvelope: { id: commandEnvelope.id, schema: commandEnvelope.schema, schemaVersion: commandEnvelope.schemaVersion, origin: commandEnvelope.origin } } : {}) })
+      return applyPlanarContourEdit(document, { ...args, operation: 'offset' } as unknown as KJPlanarContourEditRequest, { ...sdk?.contourBackend, author, ...(commandEnvelope ? { commandEnvelope: { id: commandEnvelope.id, schema: commandEnvelope.schema, schemaVersion: commandEnvelope.schemaVersion, origin: commandEnvelope.origin } } : {}) })
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'CONTOURBOUNDARIES', title: 'Create reviewed planar boundaries', transactional: false,
-    execute: ({ document, expectedRevision, author, commandEnvelope }, args) => {
+    execute: ({ sdk, document, expectedRevision, author, commandEnvelope }, args) => {
       if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOURBOUNDARIES requires matching explicit expectedRevision in context and arguments')
-      return applyPlanarBoundaryExtraction(document, args as unknown as KJPlanarBoundaryEditRequest, { author, ...(commandEnvelope ? { commandEnvelope: { id: commandEnvelope.id, schema: commandEnvelope.schema, schemaVersion: commandEnvelope.schemaVersion, origin: commandEnvelope.origin } } : {}) })
+      return applyPlanarBoundaryExtraction(document, args as unknown as KJPlanarBoundaryEditRequest, { ...sdk?.contourBackend, author, ...(commandEnvelope ? { commandEnvelope: { id: commandEnvelope.id, schema: commandEnvelope.schema, schemaVersion: commandEnvelope.schemaVersion, origin: commandEnvelope.origin } } : {}) })
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'CONTOURBOOLEAN', title: 'Combine closed planar contours', transactional: false,
-    execute: ({ document, expectedRevision, author, commandEnvelope }, args) => {
+    execute: ({ sdk, document, expectedRevision, author, commandEnvelope }, args) => {
       if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOURBOOLEAN requires matching explicit expectedRevision in context and arguments')
       if (!['union', 'intersection', 'difference'].includes(args.operation as string)) throw new KJValidationError('CONTOURBOOLEAN operation must be union, intersection or difference')
-      return applyPlanarContourEdit(document, args as unknown as KJPlanarContourEditRequest, { author, ...(commandEnvelope ? { commandEnvelope: { id: commandEnvelope.id, schema: commandEnvelope.schema, schemaVersion: commandEnvelope.schemaVersion, origin: commandEnvelope.origin } } : {}) })
+      return applyPlanarContourEdit(document, args as unknown as KJPlanarContourEditRequest, { ...sdk?.contourBackend, author, ...(commandEnvelope ? { commandEnvelope: { id: commandEnvelope.id, schema: commandEnvelope.schema, schemaVersion: commandEnvelope.schemaVersion, origin: commandEnvelope.origin } } : {}) })
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({

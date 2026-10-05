@@ -1,4 +1,5 @@
 import type { KJDxfPlotSettings } from './plot-settings.js';
+import type { KJContourBackendOptions } from './geometry/contour-wasm.js';
 import type { ReadonlyDeep } from './utils.js';
 import type { KJPointInput } from './grips.js';
 import type { KJDocument } from './document.js';
@@ -34,6 +35,7 @@ export interface KJSolidAuthority extends Record<string, unknown> {
 }
 export interface KJCommandSDKContext {
     readonly solidAuthority?: unknown;
+    readonly contourBackend?: KJContourBackendOptions;
     getSelectionManager(documentId?: string | null): KJSelectionManager | null;
 }
 export interface KJCommandContext {

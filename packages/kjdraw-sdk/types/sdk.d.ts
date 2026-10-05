@@ -13,6 +13,7 @@ import { KJFileAdapterRegistry } from './file-adapters.js';
 import type { KJFileAdapterDefinition, KJFileAdapterOptions } from './file-adapters.js';
 import { type KJHatchPatternCatalog } from './hatch-pattern-catalog.js';
 import type { KJCoreSolidBackend } from './kernel/wasm-solid.js';
+import type { KJContourBackendOptions } from './geometry/contour-wasm.js';
 import type { KJPluginManifest } from './plugin-contract.js';
 import type { KJCommandEnvelope, KJCommandReceipt, KJCreateCommandOptions } from './product-contract.js';
 import type { KJDocumentOptions, KJDocumentState, KJLegacyScene } from './schema.js';
@@ -28,6 +29,8 @@ export interface KJDrawSDKOptions {
     version?: string;
     documentAuthority?: KJDocumentAuthorityProvider | null;
     solidAuthority?: Readonly<KJCoreSolidBackend> | null;
+    /** Constructor-only host WASM asset for contour commands. Never serialized into drawings or command arguments. */
+    contourBackend?: KJContourBackendOptions;
     agentPlans?: KJAgentPlanRegistry;
     agentPlanOptions?: KJAgentPlanRegistryOptions;
     registerDefaultAdapters?: boolean;
@@ -144,6 +147,8 @@ export declare class KJDrawSDK {
     constructor(options?: KJDrawSDKOptions);
     /** Host-selected immutable catalog snapshot. There is intentionally no setter. */
     get hatchPatternCatalogs(): ReadonlyDeep<KJHatchPatternCatalog[]>;
+    /** Detached host asset options for read-only previews. Commands use the same constructor snapshot. */
+    get contourBackend(): KJContourBackendOptions;
     createDocument(options?: KJDocumentOptions & KJDocumentConstructorOptions): KJDocument;
     openDocument(input: KJOpenDocumentInput, options?: KJDocumentConstructorOptions): KJDocument;
     attachDocument(document: KJDocument): KJDocument;
