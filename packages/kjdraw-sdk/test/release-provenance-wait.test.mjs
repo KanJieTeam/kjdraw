@@ -13,6 +13,11 @@ assert.ok(run, 'execute the actual workflow script, not a copied polling impleme
 const bash = process.env.KJDRAW_BASH ?? (process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : '/bin/bash')
 assert.ok(existsSync(bash), `Bash is required to validate the real workflow (override KJDRAW_BASH): ${bash}`)
 const sha = 'a'.repeat(40)
+const waitBudget = Number(/poll_wait_seconds=(\d+)/.exec(run)?.[1])
+assert.ok(Number.isSafeInteger(waitBudget) && waitBudget >= 3600 && waitBudget <= 5400,
+  'the finite queue-aware window must allow one hour without exceeding 90 minutes')
+const maxWaits = waitBudget / 30
+assert.ok(Number.isInteger(maxWaits))
 
 // Shell function fixtures replace GitHub, Git, time and sleep only. The actual
 // workflow body runs unchanged, with a deterministic clock and no network/sleep.
@@ -98,33 +103,43 @@ test('provenance re-queries checks that complete during the previous final sleep
   assert.equal(waits(result).length, 50)
 })
 
-test('provenance performs a fresh successful terminal query at the 35-minute deadline', () => {
-  const result = poll({ MOCK_CI_FINISH_AT: '2100', MOCK_PAGES_FINISH_AT: '2100' })
+test('provenance accepts queued CI completing after the previous 35-minute window', () => {
+  const result = poll({ MOCK_CI_FINISH_AT: '3600', MOCK_PAGES_FINISH_AT: '2400' })
   successful(result)
-  assert.equal(queries(result).length, 142)
-  assert.equal(queries(result).at(-1)[1], '2100')
-  assert.equal(waits(result).length, 70)
-  assert.equal(waits(result).reduce((sum, seconds) => sum + seconds, 0), 2100)
-  assert.match(result.stderr.trimEnd(), /^QUERY:2100:.*pages\.yml/m)
+  assert.equal(queries(result).length, 242)
+  assert.equal(queries(result).at(-1)[1], '3600')
+  assert.equal(waits(result).length, 120)
+})
+
+test('provenance performs a fresh successful terminal query at the finite deadline', () => {
+  const result = poll({ MOCK_CI_FINISH_AT: String(waitBudget), MOCK_PAGES_FINISH_AT: String(waitBudget) })
+  successful(result)
+  assert.equal(queries(result).length, (maxWaits + 1) * 2)
+  assert.equal(queries(result).at(-1)[1], String(waitBudget))
+  assert.equal(waits(result).length, maxWaits)
+  assert.equal(waits(result).reduce((sum, seconds) => sum + seconds, 0), waitBudget)
+  assert.match(result.stderr.trimEnd(), new RegExp(`^QUERY:${waitBudget}:.*pages\\.yml`, 'm'))
 })
 
 test('provenance times out explicitly after its last fresh query, never sleeping afterward', () => {
   const result = poll({ MOCK_CI_FINISH_AT: '9999', MOCK_CI_BEFORE: 'missing:' })
   assert.equal(result.status, 1)
-  assert.equal(queries(result).length, 142)
-  assert.equal(waits(result).length, 70)
-  assert.match(result.stdout, new RegExp(`Timed out waiting for exact-main checks for ${sha} after 2100 seconds`))
-  assert.match(result.stdout, /attempt=71; CI status=missing conclusion=pending; Pages status=completed conclusion=success/)
+  assert.equal(queries(result).length, (maxWaits + 1) * 2)
+  assert.equal(waits(result).length, maxWaits)
+  assert.match(result.stdout, new RegExp(`Timed out waiting for exact-main checks for ${sha} after ${waitBudget} seconds`))
+  assert.match(result.stdout, new RegExp(`attempt=${maxWaits + 1}; CI status=missing conclusion=pending; Pages status=completed conclusion=success`))
   assert.doesNotMatch(result.stdout, /^sha=/m)
-  assert.match(result.stderr.trimEnd().split('\n').at(-1), /^QUERY:2100:.*pages\.yml/)
+  assert.match(result.stderr.trimEnd().split('\n').at(-1), new RegExp(`^QUERY:${waitBudget}:.*pages\\.yml`))
 })
 
-test('provenance bounds elapsed time rather than adding 35 minutes of sleeps after delays', () => {
+test('provenance bounds elapsed time rather than adding the wait budget after delays', () => {
   const result = poll({ MOCK_CI_FINISH_AT: '9999', MOCK_WAIT_OVERHEAD: '11' })
   assert.equal(result.status, 1)
-  assert.equal(waits(result).at(-1), 9, 'the last wait must be clipped to the remaining deadline')
-  assert.equal(waits(result).length, 52)
-  assert.equal(queries(result).length, 106)
+  const fullWaits = Math.floor(waitBudget / 41)
+  const remainder = waitBudget % 41
+  assert.equal(waits(result).at(-1), Math.min(30, remainder), 'the last wait must be clipped to the remaining deadline')
+  assert.equal(waits(result).length, fullWaits + 1)
+  assert.equal(queries(result).length, (fullWaits + 2) * 2)
   assert.match(result.stdout, /Timed out waiting for exact-main checks/)
 })
 

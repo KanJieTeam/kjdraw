@@ -152,6 +152,19 @@ test('CI verifies the packed editor lifecycle in a clean offline browser consume
   assert.match(workflow, /node scripts\/audits\/verify-packed-editor-lifecycle\.mjs/)
 })
 
+test('CI retains every SDK matrix result and requires bounded-thread independent DXF validation', async () => {
+  const workflow = await read('.github/workflows/ci.yml')
+  const sdk = workflow.split('  sdk:')[1]?.split('  rust:')[0]
+  assert.ok(sdk)
+  assert.match(sdk, /fail-fast:\s*false/)
+  for (const variable of ['OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'KJDRAW_BENCH_INTEGRATION_REQUIRED', 'KJDRAW_VIEWPORT_EZDXF']) {
+    assert.match(sdk, new RegExp(`${variable}: '1'`))
+  }
+  assert.match(sdk, /python -m pip install -r scripts\/audits\/requirements-dxf\.txt/)
+  assert.match(sdk, /KJDRAW_PYTHON: \$\{\{ steps\.setup-python\.outputs\.python-path \}\}/)
+  assert.match(sdk, /run: node scripts\/test\.mjs/)
+})
+
 test('publishing guide distinguishes reusable and standalone trusted publishers', async () => {
   const guide = await read('docs/npm-publishing.md')
 

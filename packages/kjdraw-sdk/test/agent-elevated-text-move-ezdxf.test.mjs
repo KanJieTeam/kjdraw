@@ -38,7 +38,11 @@ test('independent ezdxf preserves reviewed TEXT XY movement, constant native ele
   assert.equal(committed.ok, true, JSON.stringify(committed.error))
   const data = await sdk.writeDocument(document, { format: 'DXF' })
   const result = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON ?? 'python', ['-c', validator], data, {
-    encoding: 'utf8', timeout: 30_000, maxBuffer: 1024 * 1024,
+    // A process-startup budget, not a CAD operation performance assertion.
+    // Windows hosted runners can spend over 30 seconds importing ezdxf while
+    // other test workers run; timeouts still fail and no retry hides a failure.
+    encoding: 'utf8', windowsHide: true,
+    timeout: process.platform === 'win32' ? 90_000 : 30_000, maxBuffer: 1024 * 1024,
     env: { ...process.env, PYTHONIOENCODING: 'utf-8',
       PYTHONPATH: [process.env.KJDRAW_EZDXF_PATH, process.env.PYTHONPATH].filter(Boolean).join(delimiter) },
   })

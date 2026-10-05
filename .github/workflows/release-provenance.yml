@@ -20,7 +20,7 @@ concurrency:
 jobs:
   verify-candidate:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 110
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -41,14 +41,16 @@ jobs:
           git fetch --no-tags origin main
           test "$(git rev-parse refs/remotes/origin/main)" = "$sha"
 
-          poll_wait_seconds=2100
+          # Includes hosted runner queueing, not just the browser execution time.
+          poll_wait_seconds=5400
+          poll_max_attempts=$((poll_wait_seconds / 30 + 1))
           poll_started_at="$(date +%s)"
           poll_deadline=$((poll_started_at + poll_wait_seconds))
           exact_run_query='[.workflow_runs[] | select(.head_sha == "'"$sha"'" and .head_branch == "main" and .event == "push")][0] | (.status // "missing") + ":" + (.conclusion // "")'
           ci_conclusion=""
           pages_conclusion=""
-          # At most 70 waits, with a fresh terminal-state query after the last wait.
-          for attempt in $(seq 1 71); do
+          # Bounded waits, with a fresh terminal-state query after the last wait.
+          for attempt in $(seq 1 "$poll_max_attempts"); do
             ci_state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=20" --jq "$exact_run_query")"
             pages_state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pages.yml/runs?head_sha=$sha&event=push&per_page=20" --jq "$exact_run_query")"
             ci_status="${ci_state%%:*}"
@@ -64,7 +66,7 @@ jobs:
               fi
             done
             poll_remaining=$((poll_deadline - $(date +%s)))
-            if (( poll_remaining <= 0 || attempt == 71 )); then
+            if (( poll_remaining <= 0 || attempt == poll_max_attempts )); then
               echo "::error::Timed out waiting for exact-main checks for $sha after $poll_wait_seconds seconds (attempt=$attempt; CI status=$ci_status conclusion=${ci_conclusion:-pending}; Pages status=$pages_status conclusion=${pages_conclusion:-pending})"
               exit 1
             fi
