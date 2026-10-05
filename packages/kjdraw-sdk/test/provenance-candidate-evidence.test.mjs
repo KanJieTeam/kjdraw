@@ -34,20 +34,32 @@ test('provenance evidence rejects another commit, non-push runs, skipped attesta
   assert.equal(isProvenanceCandidateEvidence(evidence, options), false)
 })
 
-test('provenance collector records only a successful exact-main fixture', async () => {
+test('provenance collector records only a successful exact-main fixture', async t => {
   const scratch = await mkdtemp(join(tmpdir(), 'kjdraw-provenance-test-'))
   try {
     const fixturePath = join(scratch, 'github.json')
     const outputPath = join(scratch, 'evidence.json')
     await writeFile(fixturePath, JSON.stringify(fixture()))
     const script = resolve('scripts/audits/verify-provenance-candidate.mjs')
-    execFileSync(process.execPath, [script, '--fixture', fixturePath, '--commit', commit, '--output', outputPath], { encoding: 'utf8', windowsHide: true })
+    execFileSync(process.execPath, [script, '--repository', options.repository, '--fixture', fixturePath, '--commit', commit, '--output', outputPath], { encoding: 'utf8', windowsHide: true })
     const evidence = JSON.parse(await readFile(outputPath, 'utf8'))
     assert.equal(isProvenanceCandidateEvidence(evidence, options), true)
+    await t.test('collector uses the fork repository when no explicit repository is provided', async () => {
+      const repository = 'fixture-fork/kjdraw', fork = fixture()
+      fork.run.html_url = `https://github.com/${repository}/actions/runs/101`
+      const forkFixturePath = join(scratch, 'fork-github.json'), forkOutputPath = join(scratch, 'fork-evidence.json')
+      await writeFile(forkFixturePath, JSON.stringify(fork))
+      execFileSync(process.execPath, [script, '--fixture', forkFixturePath, '--commit', commit, '--output', forkOutputPath], {
+        encoding: 'utf8', windowsHide: true, env: { ...process.env, GITHUB_REPOSITORY: repository },
+      })
+      const forkEvidence = JSON.parse(await readFile(forkOutputPath, 'utf8'))
+      assert.equal(isProvenanceCandidateEvidence(forkEvidence, { ...options, repository }), true)
+      assert.equal(isProvenanceCandidateEvidence(forkEvidence, options), false)
+    })
     const invalid = fixture()
     invalid.jobs[0].steps[2].conclusion = 'skipped'
     await writeFile(fixturePath, JSON.stringify(invalid))
-    assert.throws(() => execFileSync(process.execPath, [script, '--fixture', fixturePath, '--commit', commit, '--output', outputPath], { encoding: 'utf8', windowsHide: true, stdio: 'pipe' }))
+    assert.throws(() => execFileSync(process.execPath, [script, '--repository', options.repository, '--fixture', fixturePath, '--commit', commit, '--output', outputPath], { encoding: 'utf8', windowsHide: true, stdio: 'pipe' }))
   } finally {
     await rm(scratch, { recursive: true, force: true })
   }
