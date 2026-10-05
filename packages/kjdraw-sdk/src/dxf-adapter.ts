@@ -30,6 +30,18 @@ interface DxfRecord { type: string; tags: DxfTag[]; vertices?: DxfRecord[]; attr
 interface DxfDimensionOverrides { textHeight?: number; precision?: number; angularUnits?: number; linearPrecision?: number; overallScale?: number; arrowSize?: number; extensionOffset?: number; extensionBeyond?: number }
 interface DxfDimensionAssociationHandle extends Omit<KJDimensionPointAssociation, 'entityId'> { entityHandle: string }
 
+// Autodesk LEADER group 340 can reference three native annotation categories.
+// Group 73 records how the leader was created, not a required current binding.
+// This interchange union does not expand the MTEXT-only LEADEREDIT command.
+function leaderAnnotationFlag(type: string): 0 | 1 | 2 | null {
+  switch (type) {
+    case 'MTEXT': return 0
+    case 'TOLERANCE': return 1
+    case 'INSERT': return 2
+    default: return null
+  }
+}
+
 function readDimensionAssociationHandles(record: DxfRecord): DxfDimensionAssociationHandle[] | null {
   const starts = record.tags.map((tag, index) => tag.code === 1001 && tag.value === 'KJDRAW' ? index : -1).filter(index => index >= 0)
   if (!starts.length) return null
@@ -187,6 +199,7 @@ interface DxfPayload extends KJObjectPayload {
   alignmentPoint?: Point3
   horizontalAlignment?: number
   verticalAlignment?: number
+  flowDirection?: number
   tag?: string
   prompt?: string
   flags?: number
@@ -211,8 +224,8 @@ interface DxfPayload extends KJObjectPayload {
   arrowEnabled?: boolean
   pathType?: number
   annotationType?: number
-  hookLineDirection?: number
-  hookLineEnabled?: boolean
+  hookLineDirection?: number | null
+  hookLineEnabled?: boolean | null
   horizontalDirection?: Point3
   blockOffset?: Point3
   annotationOffset?: Point3
@@ -336,6 +349,11 @@ const ACADVER: Readonly<Record<DxfVersion, string>> = Object.freeze({ R12: 'AC10
 const VERSION_BY_CODE: Readonly<Record<string, DxfVersion>> = Object.freeze({ AC1009: 'R12', AC1014: 'R14', AC1015: '2000', AC1018: '2004', AC1021: '2007', AC1024: '2010', AC1027: '2013', AC1032: '2018' })
 const READ_TYPES = Object.freeze(['LINE', 'XLINE', 'RAY', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'TOLERANCE', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
 const WRITE_TYPES = new Set(['LINE', 'XLINE', 'RAY', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'TOLERANCE', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
+function lightweightPolylineFlags(payload: DxfPayload): number {
+  const flags = payload.dxfFlags ?? 0
+  if (![0, 1, 128, 129].includes(flags)) throw new KJValidationError('DXF LWPOLYLINE dxfFlags must contain only the Closed and Plinegen bits')
+  return (flags & 128) | (payload.closed ? 1 : 0)
+}
 
 const DIMENSION_TYPE_BY_CODE: Readonly<Record<number, string>> = Object.freeze({ 0: 'ROTATED', 1: 'ALIGNED', 2: 'ANGULAR', 3: 'DIAMETER', 4: 'RADIUS', 5: 'ANGULAR_3_POINT', 6: 'ORDINATE' })
 const DIMENSION_CODE_BY_TYPE: Readonly<Record<string, number>> = Object.freeze(Object.fromEntries(Object.entries(DIMENSION_TYPE_BY_CODE).map(([code, type]) => [type, Number(code)])))
@@ -853,7 +871,11 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
     case 'POINT': return { type: 'POINT', payload: { position: point(record) } }
     case 'CIRCLE': return { type: 'CIRCLE', payload: { center: point(record), radius: number(record, 40) } }
     case 'ARC': return { type: 'ARC', payload: { center: point(record), radius: number(record, 40), startAngle: number(record, 50) * Math.PI / 180, endAngle: number(record, 51) * Math.PI / 180 } }
-    case 'LWPOLYLINE': return { type: 'LWPOLYLINE', payload: { vertices: polylineVertices(record), closed: (number(record, 70, 0) & 1) === 1, elevation: number(record, 38, 0) } }
+    case 'LWPOLYLINE': {
+      const dxfFlags = number(record, 70, 0)
+      lightweightPolylineFlags({ dxfFlags })
+      return { type: 'LWPOLYLINE', payload: { vertices: polylineVertices(record), closed: (dxfFlags & 1) === 1, elevation: number(record, 38, 0), ...(dxfFlags & 128 ? { dxfFlags } : {}) } }
+    }
     case 'POLYLINE': return { type: 'POLYLINE', payload: { vertices: legacyPolylineVertices(record), closed: (number(record, 70, 0) & 1) === 1, elevation: number(record, 30, 0), dxfFlags: number(record, 70, 0) } }
     case 'ELLIPSE': return { type: 'ELLIPSE', payload: { center: point(record), majorAxis: point(record, 11, 21, 31), ratio: number(record, 40), startParameter: number(record, 41, 0), endParameter: number(record, 42, Math.PI * 2) } }
     case 'SPLINE': {
@@ -863,7 +885,7 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
     case 'TEXT': return { type: 'TEXT', payload: { ...readSingleLineText(record, resources), verticalAlignment: number(record, 73, 0) } }
     case 'MTEXT': {
       const width = values(record, 41).length ? number(record, 41) : null
-      return { type: 'MTEXT', payload: { position: point(record), text: values(record, 3).join('') + first(record, 1, ''), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, attachmentPoint: number(record, 71, 1), ...(width !== null && width !== 0 ? { width } : {}), styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
+      return { type: 'MTEXT', payload: { position: point(record), text: values(record, 3).join('') + first(record, 1, ''), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, attachmentPoint: number(record, 71, 1), ...(values(record, 72).length ? { flowDirection: number(record, 72) } : {}), ...(width !== null && width !== 0 ? { width } : {}), styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
     }
     case 'ATTDEF':
     case 'ATTRIB': {
@@ -882,7 +904,11 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
     }
     case 'LEADER': return { type: 'LEADER', payload: {
       vertices: repeatedPoints(record), annotationHandle: first(record, 340) || null,
-      arrowEnabled: number(record, 71, 1) !== 0, pathType: number(record, 72, 0), annotationType: number(record, 73, 3), hookLineDirection: number(record, 74, 0), hookLineEnabled: number(record, 75, 0) !== 0,
+      arrowEnabled: number(record, 71, 1) !== 0, pathType: number(record, 72, 0), annotationType: number(record, 73, 3),
+      // Null records an omitted optional DXF flag through KJD serialization.
+      // Keep omission instead of guessing a CAD application's default value.
+      hookLineDirection: values(record, 74).length ? number(record, 74) : null,
+      hookLineEnabled: values(record, 75).length ? number(record, 75) !== 0 : null,
       ...(values(record, 40).length ? { textHeight: number(record, 40) } : {}), ...(values(record, 41).length ? { textWidth: number(record, 41) } : {}),
       ...(optionalPoint(record, 211, 221, 231) ? { horizontalDirection: optionalPoint(record, 211, 221, 231) } : {}),
       ...(optionalPoint(record, 212, 222, 232) ? { blockOffset: optionalPoint(record, 212, 222, 232) } : {}),
@@ -1182,7 +1208,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
     const occupiedHandles = new Set(Object.values(transaction._draft().objects).map(object => object.handle))
     const entityHandleIds = new Map<string, string>()
     const viewportReferences: { id: string; record: DxfRecord }[] = []
-    const leaderReferences: { id: string; annotationHandle: string }[] = []
+    const leaderReferences: { id: string; annotationHandle: string | null }[] = []
     const dimensionReferences: { id: string; associations: DxfDimensionAssociationHandle[] }[] = []
     const hatchReferences: string[] = []
     const reactorReferences: { id: string; handles: string[] }[] = []
@@ -1205,7 +1231,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
         if (sourceHandle) entityHandleIds.set(sourceHandle, entityHandleIds.has(sourceHandle) ? '' : created.id)
         if (created.type === 'VIEWPORT') viewportReferences.push({ id: created.id, record })
         if (created.type === 'DIMENSION' && dimensionAssociations) dimensionReferences.push({ id: created.id, associations: dimensionAssociations })
-        if (created.type === 'LEADER' && converted.payload.annotationHandle) leaderReferences.push({ id: created.id, annotationHandle: String(converted.payload.annotationHandle).toUpperCase() })
+        if (created.type === 'LEADER') leaderReferences.push({ id: created.id, annotationHandle: converted.payload.annotationHandle ? String(converted.payload.annotationHandle).toUpperCase() : null })
         if (created.type === 'HATCH') hatchReferences.push(created.id)
         // VIEWPORT reactor graphs are owned by the existing metadata adapter.
         if (importedReactorHandles.length) reactorReferences.push({ id: created.id, handles: importedReactorHandles })
@@ -1292,12 +1318,17 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       transaction.updateObject(id, { payload: { dimensionAssociations: resolved } })
     }
     for (const { id, annotationHandle } of leaderReferences) {
+      const leader = transaction.getObject(id)!
+      // Handle 0 is the DXF null reference, distinct from a missing live target.
+      // Preserve an explicitly stored null handle; do not invent an annotation.
+      if (annotationHandle === null || annotationHandle === '0') {
+        continue
+      }
       const annotationId = entityHandleIds.get(annotationHandle), annotation = annotationId ? transaction.getObject(annotationId) : null
-      if (!annotation || annotation.kind !== 'entity' || annotation.type !== 'MTEXT') {
+      if (!annotation || annotation.erased || annotation.kind !== 'entity' || leaderAnnotationFlag(annotation.type) === null) {
         transaction.updateObject(id, { payload: { unresolvedLeaderAnnotation: annotationHandle } })
         continue
       }
-      const leader = transaction.getObject(id)!
       if (leader.ownerId !== annotation.ownerId) {
         transaction.updateObject(id, { payload: { unresolvedLeaderAnnotation: `${annotationHandle}:wrong-owner` } })
         continue
@@ -2121,6 +2152,8 @@ function emitEntity(
   const p = entity.payload ?? {}
   const entityVertices = p.vertices ?? []
   if (!WRITE_TYPES.has(entity.type)) throw new KJValidationError(`ASCII DXF writer does not support ${entity.type}; export stopped to prevent data loss`)
+  // Validate before legacy conversion too; POLYLINE has its own distinct flags.
+  if (entity.type === 'LWPOLYLINE') lightweightPolylineFlags(p)
   if (entity.type === 'POLYLINE' || (version === 'R12' && entity.type === 'LWPOLYLINE')) {
     emitLegacyPolyline(output, entity, layerName, ownerHandle, space, context)
     return
@@ -2181,12 +2214,12 @@ function emitEntity(
     for (const value of p.controlPoints ?? []) emitPoint(output, value)
     for (const value of p.fitPoints ?? []) emitPoint(output, value, 11)
   }
-  else if (['LWPOLYLINE', 'POLYLINE'].includes(entity.type)) {
+  else if (entity.type === 'LWPOLYLINE') {
     emitSubclass(output, version, 'AcDbPolyline')
-    emit(output, 90, entityVertices.length); emit(output, 70, p.closed ? 1 : 0); emit(output, 38, p.elevation ?? 0)
+    emit(output, 90, entityVertices.length); emit(output, 70, lightweightPolylineFlags(p)); emit(output, 38, p.elevation ?? 0)
     for (const vertex of entityVertices) { const pointValue = vertexPoint(vertex); const details = Array.isArray(vertex) ? null : vertex as DxfVertex; emit(output, 10, pointValue[0]); emit(output, 20, pointValue[1]); if (details?.bulge) emit(output, 42, details.bulge); if (details?.startWidth) emit(output, 40, details.startWidth); if (details?.endWidth) emit(output, 41, details.endWidth) }
   } else if (entity.type === 'MTEXT') {
-    emitSubclass(output, version, 'AcDbMText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); emit(output, 71, p.attachmentPoint ?? 1); if (p.width != null) emit(output, 41, p.width); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
+    emitSubclass(output, version, 'AcDbMText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); emit(output, 71, p.attachmentPoint ?? 1); if (p.flowDirection != null) { if (![1, 3, 5].includes(p.flowDirection)) throw new KJValidationError('DXF MTEXT flowDirection must be 1, 3, or 5'); emit(output, 72, p.flowDirection) }; if (p.width != null) emit(output, 41, p.width); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
   } else if (entity.type === 'TEXT') {
     emitSingleLineText(output, p, version, resources); emitSubclass(output, version, 'AcDbText'); if (p.verticalAlignment) emit(output, 73, p.verticalAlignment)
   } else if (entity.type === 'ATTDEF' || entity.type === 'ATTRIB') {
@@ -2214,13 +2247,20 @@ function emitEntity(
   else if (entity.type === 'LEADER') {
     if (p.unresolvedLeaderAnnotation) throw new KJValidationError(`DXF LEADER has an unresolved annotation reference: ${p.unresolvedLeaderAnnotation}`)
     const annotation = p.annotationId ? resources.objects?.get(String(p.annotationId)) : null
-    if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || annotation.type !== 'MTEXT' || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT in the same owner space')
-    const textHeight = annotation?.payload.height ?? p.textHeight, textWidth = annotation?.payload.width ?? p.textWidth
-    emitSubclass(output, version, 'AcDbLeader'); emit(output, 3, 'STANDARD'); emit(output, 71, p.arrowEnabled === false ? 0 : 1); emit(output, 72, p.pathType ?? 0); emit(output, 73, annotation ? 0 : p.annotationType ?? 3); emit(output, 74, p.hookLineDirection ?? 0); emit(output, 75, p.hookLineEnabled === true ? 1 : 0); if (textHeight != null) emit(output, 40, textHeight); if (textWidth != null) emit(output, 41, textWidth); emit(output, 76, entityVertices.length); for (const value of entityVertices) emitPoint(output, vertexPoint(value))
+    if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || leaderAnnotationFlag(annotation.type) === null || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT, TOLERANCE or INSERT in the same owner space')
+    if (!p.annotationId && p.annotationHandle && p.annotationHandle !== '0') throw new KJValidationError(`DXF LEADER has an unresolved annotation handle: ${p.annotationHandle}`)
+    const annotationType = p.annotationType ?? (annotation ? 0 : 3)
+    // Preserve native MTEXT sizing behavior. Tolerance/block annotations do not
+    // supply MTEXT layout dimensions; their stored leader sizes remain intact.
+    const textHeight = (annotation?.type === 'MTEXT' ? annotation.payload.height : undefined) ?? p.textHeight, textWidth = (annotation?.type === 'MTEXT' ? annotation.payload.width : undefined) ?? p.textWidth
+    emitSubclass(output, version, 'AcDbLeader'); emit(output, 3, 'STANDARD'); emit(output, 71, p.arrowEnabled === false ? 0 : 1); emit(output, 72, p.pathType ?? 0); emit(output, 73, annotationType)
+    if (p.hookLineDirection !== null) emit(output, 74, p.hookLineDirection ?? 0)
+    if (p.hookLineEnabled !== null) emit(output, 75, p.hookLineEnabled === true ? 1 : 0)
+    if (textHeight != null) emit(output, 40, textHeight); if (textWidth != null) emit(output, 41, textWidth); emit(output, 76, entityVertices.length); for (const value of entityVertices) emitPoint(output, vertexPoint(value))
     // Group 211 is optional. Preserve its absence instead of introducing a new
     // stored property on an untouched imported leader after save/reopen.
     if (p.horizontalDirection) emitPoint(output, p.horizontalDirection, 211)
-    if (p.blockOffset) emitPoint(output, p.blockOffset, 212); if (p.annotationOffset) emitPoint(output, p.annotationOffset, 213); if (annotation) emit(output, 340, annotation.handle)
+    if (p.blockOffset) emitPoint(output, p.blockOffset, 212); if (p.annotationOffset) emitPoint(output, p.annotationOffset, 213); if (annotation) emit(output, 340, annotation.handle); else if (p.annotationHandle === '0') emit(output, 340, '0')
   }
   else if (entity.type === 'DIMENSION') {
     if (!p.definitionPoints?.length) throw new KJValidationError('DXF DIMENSION requires at least one definition point')

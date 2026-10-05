@@ -9,10 +9,21 @@ import { isDeepStrictEqual } from 'node:util'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { agentPreviewMatchesDocument, createAgentGeometryPreview } from '../src/agent-preview.js'
+import { readDesignRelations } from '../src/design-relations.js'
 
 const MAX_LEDGER_BYTES = 16 * 1024 * 1024
 const MAX_SOURCE_BYTES = 64 * 1024 * 1024
 const SHA = /^[a-f0-9]{64}$/u
+const COMMAND_TOOLS = Object.freeze({
+  CREATEBATCH: ['cad_propose_lines', 'cad_propose_circles', 'cad_propose_drawing', 'cad_propose_drawing_basic',
+    'cad_propose_drawing_compact', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated',
+    'cad_propose_manufacturing_sheet', 'cad_propose_mechanical_flange', 'cad_propose_architecture_plan',
+    'cad_propose_site_plan', 'cad_propose_cartesian_chart', 'cad_propose_road_drawing',
+    'cad_propose_road_drawing_from_asset', 'cad_propose_geology_column', 'cad_propose_geology_section',
+    'cad_propose_geology_section_example', 'cad_propose_geology_plan', 'cad_propose_geology_plan_example'],
+  DESIGNCREATE: ['cad_propose_design_bind'],
+  DESIGNUPDATE: ['cad_propose_design_update'],
+})
 
 function sha(bytes) { return createHash('sha256').update(bytes).digest('hex') }
 function fail(message) { throw new Error(message) }
@@ -62,6 +73,15 @@ function counts(document) {
   return Object.fromEntries(Object.entries(values).sort(([a], [b]) => a.localeCompare(b)))
 }
 function fingerprint(document) { return sha(JSON.stringify(document.serialize())) }
+function reversibleState(document) {
+  const state = document.toJSON()
+  // Undo/redo append audit entries and advance revision/time. All CAD objects,
+  // dictionaries, resources, header fields and other metadata must restore exactly.
+  delete state.revision
+  delete state.revisions
+  delete state.metadata.modifiedAt
+  return state
+}
 function exactProposal(ledger, sequence) {
   if (ledger?.schema !== 'com.kanjie.kjdraw.mcp-pending-proposals@1' || !ledger.source || !Array.isArray(ledger.proposals)) fail('Unsupported proposal ledger')
   const source = ledger.source
@@ -70,9 +90,13 @@ function exactProposal(ledger, sequence) {
   const item = ledger.proposals[sequence - 1]
   if (!item || item.sequence !== sequence || item.sourceRevision !== source.revision || item.sourceFingerprint !== source.fingerprint || typeof item.tool !== 'string' || !item.tool.startsWith('cad_propose_')) fail('Selected proposal is not bound to this source and sequence')
   const value = item.result
-  if (!value || value.command !== 'CREATEBATCH' || value.status !== 'awaiting-host-approval' || value.documentId !== source.documentId || value.expectedRevision !== source.revision || value.units !== source.units || typeof value.planId !== 'string' || !value.planId || !value.arguments || !Array.isArray(value.arguments.entities) || !value.preview) fail('Selected proposal is not an exact CREATEBATCH preview')
-  if (value.preview.documentId !== source.documentId || value.preview.revision !== source.revision || value.preview.command !== 'CREATEBATCH') fail('Reviewed preview belongs to another drawing or command')
-  if (Object.keys(value.arguments).some(key => !['entities', 'resources', 'layout'].includes(key))) fail('CREATEBATCH has unexpected native arguments')
+  if (!value || !Object.hasOwn(COMMAND_TOOLS, value.command)) fail('Selected proposal command is unsupported by host review')
+  if (!COMMAND_TOOLS[value.command].includes(item.tool)) fail('Proposal tool does not match its native command')
+  if (value.status !== 'awaiting-host-approval' || value.documentId !== source.documentId || value.expectedRevision !== source.revision || value.units !== source.units || typeof value.planId !== 'string' || !value.planId || !value.arguments || typeof value.arguments !== 'object' || Array.isArray(value.arguments) || !value.preview) fail('Selected proposal is not an exact supported native preview')
+  if (value.preview.documentId !== source.documentId || value.preview.revision !== source.revision || value.preview.command !== value.command) fail('Reviewed preview belongs to another drawing or command')
+  const fields = value.command === 'CREATEBATCH' ? ['entities', 'resources', 'layout'] : value.command === 'DESIGNCREATE' ? ['id', 'name', 'definition'] : ['id', 'parameters']
+  if (Object.keys(value.arguments).some(key => !fields.includes(key))) fail(`${value.command} has unexpected native arguments`)
+  if (value.command === 'CREATEBATCH' && !Array.isArray(value.arguments.entities)) fail('CREATEBATCH requires native entities')
   return { source, item, value }
 }
 async function stagedLink(path, bytes, created, stages) {
@@ -112,6 +136,7 @@ async function withExclusiveClaim(ledgerPath, sequence, oldPlanId, proposalSha, 
 
 /** Host-side core. This is deliberately not an MCP tool or package export. */
 export async function reviewLedger(options, confirm) {
+  if (options.flattenDesignRelations !== undefined && typeof options.flattenDesignRelations !== 'boolean') fail('--flatten-design-relations must be an explicit boolean flag')
   if (!Number.isSafeInteger(options.sequence) || options.sequence < 1 || options.sequence > 128) fail('--sequence must be 1–128')
   if (!isAbsolute(options.workspace)) fail('--workspace must be an explicit absolute directory')
   const rootInfo = await entry(options.workspace)
@@ -139,6 +164,22 @@ export async function reviewLedger(options, confirm) {
   const document = await sdk.readDocument(new TextDecoder('utf-8', { fatal: true }).decode(sourceBytes), { format: source.format })
   if (!document.validate().valid || document.id !== source.documentId || document.revision !== source.revision || document.snapshot().header.units !== source.units || fingerprint(document) !== source.fingerprint) fail('Ledger document identity or fingerprint disagrees with independently reopened source')
   const nativeArgs = value.arguments
+  const command = value.command
+  const beforeState = reversibleState(document)
+  const sourceDesignCount = readDesignRelations(document).length
+  const designCount = sourceDesignCount + (command === 'DESIGNCREATE' ? 1 : 0)
+  if (designCount && options.flattenDesignRelations !== true) fail('DXF cannot preserve design relations; explicitly provide --flatten-design-relations while KJD retains them')
+  const designRelations = { count: designCount, kjd: designCount ? 'preserved' : 'none', dxf: designCount ? 'explicitly-flattened' : 'none' }
+  if (command === 'DESIGNCREATE' || command === 'DESIGNUPDATE') {
+    if (!item.input || typeof item.input !== 'object' || Array.isArray(item.input)) fail('Design proposal requires its original tool input')
+    const replay = await new KJAgentToolSession(sdk, document).call(item.tool, item.input)
+    // DESIGNCREATE allocates a fresh ID on each replay. Only that allocation is
+    // replaced with the ledger's ID; every user-supplied field stays exact.
+    const replayArgs = replay.ok ? JSON.parse(JSON.stringify(replay.value.arguments)) : null
+    if (replayArgs && command === 'DESIGNCREATE') replayArgs.id = nativeArgs.id
+    if (!replay.ok || replay.value.command !== command || !isDeepStrictEqual(replayArgs, nativeArgs)
+      || document.revision !== source.revision || fingerprint(document) !== source.fingerprint) fail('Native design arguments disagree with the original tool input')
+  }
   if (nativeArgs.layout !== undefined) {
     if (!['cad_propose_mechanical_flange', 'cad_propose_geology_plan', 'cad_propose_geology_plan_example'].includes(item.tool)
       || !item.input || typeof item.input !== 'object' || Array.isArray(item.input)) fail('Layout proposal requires its original compiler input')
@@ -149,40 +190,43 @@ export async function reviewLedger(options, confirm) {
       fail('Native layout arguments disagree with the original compiler input')
     }
   }
-  const recomputed = await createAgentGeometryPreview(document, 'CREATEBATCH', nativeArgs, { maxCreatedEntities: 512 })
+  const recomputed = await createAgentGeometryPreview(document, command, nativeArgs, { maxCreatedEntities: 512 })
   // The ledger is JSON. Native preview objects can contain optional undefined
   // fields that JSON omits, so compare the same serialized representation.
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(recomputed)), value.preview)) fail('Native preview disagrees with the ledger; arguments or preview may be forged')
+  if (document.revision !== source.revision || fingerprint(document) !== source.fingerprint) fail('Source changed while recomputing the native preview')
   const previewSha = sha(JSON.stringify(recomputed))
   const proposalSha = sha(JSON.stringify(item))
   return withExclusiveClaim(ledgerPath, options.sequence, value.planId, proposalSha, sha(ledgerBytes), source.sha256, relative(root, candidatePath), async claim => {
-  const summary = { product: 'KJDraw', command: 'CREATEBATCH', source: source.path, sourceSha256: source.sha256,
+  const summary = { product: 'KJDraw', command, source: source.path, sourceSha256: source.sha256,
     ledger: options.ledger, sequence: options.sequence, oldPlanId: value.planId, proposalSha256: proposalSha,
-    previewSha256: previewSha, createdEntityCount: recomputed.after.length,
+    previewSha256: previewSha, createdEntityCount: command === 'CREATEBATCH' ? recomputed.after.length : 0,
+    changedEntityCount: recomputed.after.length, designRelations,
     candidate: relative(root, candidatePath).split(sep).join('/'), preview: recomputed }
   const confirmation = typeof confirm === 'function' ? await confirm(summary) : false
   if (confirmation !== true && confirmation !== 'tty') fail('Host did not confirm this exact reviewed proposal')
   if (sha(await readFile(ledgerPath)) !== sha(ledgerBytes)) fail('Proposal ledger changed during host review')
   await sourceState(sourcePath, source)
-  const definition = sdk.commands.resolve('CREATEBATCH')
-  if (!definition || definition.owner !== '@kanjieteam/kjdraw' || definition.transactional === false) fail('Native CREATEBATCH command is not the built-in transactional implementation')
-  const planned = sdk.createCommandEnvelope('CREATEBATCH', nativeArgs, { document, mode: 'plan', origin: 'ai', expectedRevision: source.revision })
+  const definition = sdk.commands.resolve(command)
+  if (!definition || definition.owner !== '@kanjieteam/kjdraw' || definition.transactional === false) fail(`Native ${command} command is not the built-in transactional implementation`)
+  const planned = sdk.createCommandEnvelope(command, nativeArgs, { document, mode: 'plan', origin: 'ai', expectedRevision: source.revision })
   await sdk.executeCommandEnvelope(planned, { document })
-  const execution = sdk.createCommandEnvelope('CREATEBATCH', nativeArgs, { document, origin: 'ai', expectedRevision: source.revision,
+  if (fingerprint(document) !== source.fingerprint) fail('Planning changed the source before approved execution')
+  const execution = sdk.createCommandEnvelope(command, nativeArgs, { document, origin: 'ai', expectedRevision: source.revision,
     confirmation: { status: 'confirmed', planId: planned.id, confirmedBy: String(options.reviewer ?? 'interactive-local-reviewer') } })
   const committed = await sdk.executeCommandEnvelope(execution, { document, expectedCommandDefinition: definition })
   if (committed.status !== 'committed' || document.revision !== source.revision + 1 || !document.validate().valid || !agentPreviewMatchesDocument(document, recomputed)) fail('Approved candidate did not match the reviewed native preview in one valid transaction')
   const committedRevision = document.revision
+  const committedState = reversibleState(document)
   const kjdBytes = await sdk.writeDocument(document, { format: 'KJD' })
-  const dxfBytes = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const dxfBytes = await sdk.writeDocument(document, { format: 'DXF', version: '2018', ...(designCount ? { designRelations: 'flatten' } : {}) })
   const kjd = await createKJDrawSDK().readDocument(kjdBytes, { format: 'KJD' })
   const dxf = await createKJDrawSDK().readDocument(dxfBytes, { format: 'DXF' })
   if (!kjd.validate().valid || kjd.id !== document.id || kjd.revision !== document.revision || fingerprint(kjd) !== fingerprint(document) || !agentPreviewMatchesDocument(kjd, recomputed)) fail('Candidate KJD did not independently reopen with exact document state')
   if (!dxf.validate().valid || !isDeepStrictEqual(counts(dxf), counts(document))) fail(`Candidate DXF did not independently reopen with the same editable native entity types: ${JSON.stringify(counts(document))} -> ${JSON.stringify(counts(dxf))}`)
-  await document.undo()
-  if (!document.validate().valid || document.listEntities().length !== kjd.listEntities().length - recomputed.after.length) fail('Live approved transaction undo did not remove exactly the reviewed creation batch')
-  await document.redo()
-  if (!document.validate().valid || !agentPreviewMatchesDocument(document, recomputed)) fail('Live approved transaction redo did not restore the exact reviewed creation batch')
+  if (readDesignRelations(kjd).length !== designCount || readDesignRelations(dxf).length !== 0) fail('Candidate design relations did not preserve in KJD and flatten in DXF as reviewed')
+  if (!await document.undo() || !document.validate().valid || !isDeepStrictEqual(reversibleState(document), beforeState)) fail('Live approved transaction undo did not restore the exact source state')
+  if (!await document.redo() || !document.validate().valid || !isDeepStrictEqual(reversibleState(document), committedState) || !agentPreviewMatchesDocument(document, recomputed)) fail('Live approved transaction redo did not restore the exact approved state')
   await sourceState(sourcePath, source)
   const receipt = { schema: 'com.kanjie.kjdraw.host-review@1', product: 'KJDraw', hostConfirmed: confirmation === 'tty',
     confirmationMethod: confirmation === 'tty' ? 'interactive-tty-challenge' : 'internal-test-fixture',
@@ -190,13 +234,16 @@ export async function reviewLedger(options, confirm) {
     ledger: { path: options.ledger, sha256: sha(ledgerBytes), sequence: options.sequence, oldPlanId: value.planId, proposalSha256: proposalSha },
     exclusiveClaim: { path: relative(root, claim.path).split(sep).join('/'), sha256: claim.sha256, retainedAsConsumedMarker: true },
     source: { path: source.path, sha256: source.sha256, fingerprint: source.fingerprint, documentId: source.documentId, revision: source.revision },
-    execution: { command: 'CREATEBATCH', nativeArgumentsSha256: sha(JSON.stringify(nativeArgs)), previewSha256: previewSha,
+    designRelations,
+    execution: { command, nativeArgumentsSha256: sha(JSON.stringify(nativeArgs)), previewSha256: previewSha,
       newHostPlanId: planned.id, beforeRevision: source.revision, afterRevision: committedRevision,
-      createdEntityCount: recomputed.after.length, liveUndoRedoVerified: true, reopenUndoHistory: false, candidateValid: true },
+      createdEntityCount: command === 'CREATEBATCH' ? recomputed.after.length : 0, changedEntityCount: recomputed.after.length,
+      liveUndoRedoVerified: true, reopenUndoHistory: false, candidateValid: true },
     candidates: { kjd: { path: relative(root, candidatePath).split(sep).join('/'), sha256: sha(kjdBytes), bytes: Buffer.byteLength(kjdBytes), exactKjdReopen: true },
       dxf: { path: relative(root, dxfPath).split(sep).join('/'), sha256: sha(dxfBytes), bytes: Buffer.byteLength(dxfBytes), nativeTypesMatchOnReopen: true } },
     risks: ['A shell-capable agent can forge a TTY, change a self-consistent plan ID, or delete a workspace claim; this CLI does not authenticate a physical person or defeat a malicious project writer.',
-      'KJD independently reopens exact saved geometry, but this format does not restore the previous session undo stack.',
+      'KJD independently reopens exact saved geometry and design relations, but this format does not restore the previous session undo stack.',
+      ...(designCount ? ['The explicitly flattened DXF retains supported geometry, not design relations; continue parameter edits from KJD.'] : []),
       'The source drawing is never overwritten; another process can change it after the final byte check, so the receipt binds the reviewed source SHA.'] }
   const receiptBytes = Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`)
   const created = [], stages = []
@@ -224,6 +271,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index++) {
     const key = argv[index]
     if (key === '--approve' && !value.approve) { value.approve = true; continue }
+    if (key === '--flatten-design-relations' && !value.flattenDesignRelations) { value.flattenDesignRelations = true; continue }
     if (!['--workspace', '--ledger', '--sequence', '--candidate', '--reviewer'].includes(key) || !argv[index + 1] || Object.hasOwn(value, key.slice(2))) fail('Unknown, duplicate or incomplete review option')
     value[key.slice(2)] = argv[++index]
   }
@@ -235,7 +283,7 @@ function parseArgs(argv) {
 async function main() {
   const options = parseArgs(process.argv.slice(2))
   if (options.help) {
-    process.stdout.write('KJDraw host review (CREATEBATCH only)\nUsage: kjdraw-review --workspace <absolute-project> --ledger <relative-session.json> --sequence <1-128> --candidate <new-relative.kjd> --approve [--reviewer <local-label>]\nRequires an interactive TTY challenge. Never overwrites the input drawing. No MCP tool can call this as part of the KJDraw server.\n')
+    process.stdout.write('KJDraw host review (CREATEBATCH, DESIGNCREATE, DESIGNUPDATE)\nUsage: kjdraw-review --workspace <absolute-project> --ledger <relative-session.json> --sequence <1-128> --candidate <new-relative.kjd> --approve [--reviewer <local-label>] [--flatten-design-relations]\nRequires an interactive TTY challenge. Drawings with design relations require explicit DXF flattening; KJD preserves them for further parameter edits. Never overwrites the input drawing. No MCP tool can call this as part of the KJDraw server.\n')
     return
   }
   if (!process.stdin.isTTY || !process.stdout.isTTY) fail('Interactive host TTY is required; no non-interactive --approve shortcut exists')

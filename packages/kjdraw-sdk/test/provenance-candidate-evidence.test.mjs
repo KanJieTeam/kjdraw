@@ -41,13 +41,14 @@ test('provenance collector records only a successful exact-main fixture', async 
     const outputPath = join(scratch, 'evidence.json')
     await writeFile(fixturePath, JSON.stringify(fixture()))
     const script = resolve('scripts/audits/verify-provenance-candidate.mjs')
-    execFileSync(process.execPath, [script, '--fixture', fixturePath, '--commit', commit, '--output', outputPath], { encoding: 'utf8', windowsHide: true })
+    const argumentsForFixture = [script, '--repository', options.repository, '--fixture', fixturePath, '--commit', commit, '--output', outputPath]
+    execFileSync(process.execPath, argumentsForFixture, { encoding: 'utf8', windowsHide: true })
     const evidence = JSON.parse(await readFile(outputPath, 'utf8'))
     assert.equal(isProvenanceCandidateEvidence(evidence, options), true)
     const invalid = fixture()
     invalid.jobs[0].steps[2].conclusion = 'skipped'
     await writeFile(fixturePath, JSON.stringify(invalid))
-    assert.throws(() => execFileSync(process.execPath, [script, '--fixture', fixturePath, '--commit', commit, '--output', outputPath], { encoding: 'utf8', windowsHide: true, stdio: 'pipe' }))
+    assert.throws(() => execFileSync(process.execPath, argumentsForFixture, { encoding: 'utf8', windowsHide: true, stdio: 'pipe' }))
   } finally {
     await rm(scratch, { recursive: true, force: true })
   }
