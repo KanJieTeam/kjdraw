@@ -4,6 +4,7 @@ import { mkdir, readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { chromium, expect } from '@playwright/test'
 import { createKJDrawSDK, KJProjectSession } from '../../packages/kjdraw-sdk/src/index.js'
+import { INDUSTRY_SAMPLES } from '../../packages/kjdraw-sdk/src/samples.js'
 
 // Run after Pages succeeds, from the checkout that was deployed.
 // Example: node scripts/audits/verify-live-site.mjs https://kanjieteam.github.io/kjdraw/
@@ -23,32 +24,49 @@ const checks = []
 try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', reducedMotion: 'reduce' })
   const sha256 = value => createHash('sha256').update(value).digest('hex')
-  for (const path of [
+  for (const asset of [
     'apps/playground/app.js', 'apps/playground/precision.css', 'apps/playground/theme-tokens.css', 'packages/kjdraw-sdk/src/theme.js',
     'packages/kjdraw-sdk/src/editor.js', 'packages/kjdraw-sdk/src/workbench.js', 'packages/kjdraw-sdk/src/layout.js',
     'packages/kjdraw-sdk/src/drafting.js', 'packages/kjdraw-sdk/src/modification-controls.js', 'packages/kjdraw-sdk/src/canvas-renderer.js', 'packages/kjdraw-sdk/src/dxf-adapter.js',
     'packages/kjdraw-sdk/src/selection-geometry.js', 'packages/kjdraw-sdk/src/edit-policy.js', 'packages/kjdraw-sdk/src/grips.js',
     'packages/kjdraw-sdk/src/react.js', 'packages/kjdraw-sdk/src/vue.js',
     'packages/kjdraw-sdk/src/geometry/annotation.js', 'packages/kjdraw-sdk/src/samples.js',
+    // build.mjs copies this source HTML verbatim to the independent /ai/ route.
+    ['ai/index.html', 'apps/playground/ai/index.html'],
+    'apps/playground/ai/ai.js', 'apps/playground/ai/ai.css', 'apps/playground/ai/runtime.js',
+    'apps/playground/ai/model-response.js', 'apps/playground/ai/local-history.js',
+    'apps/playground/ai/drawing-viewer.js', 'apps/playground/ai/message-markdown.js',
+    'apps/playground/ai/geology-source-changes.js', 'apps/playground/ai/scene-context.js',
+    'apps/playground/chat-model-settings.js', 'apps/playground/chat-model-presets.js', 'apps/playground/agent-chat.js',
+    'packages/kjdraw-sdk/src/sdk.js', 'packages/kjdraw-sdk/src/agent-tools.js', 'packages/kjdraw-sdk/src/agent-runner.js',
+    'packages/kjdraw-sdk/src/agent-hatch-pattern.js', 'packages/kjdraw-sdk/src/hatch-pattern-catalog.js',
+    'packages/kjdraw-sdk/src/geometry/hatch.js', 'packages/kjdraw-sdk/src/geology-stratum-changes.js',
+    'packages/kjdraw-sdk/src/geology-drawing-update.js', 'packages/kjdraw-sdk/src/geology-engineering.js',
     'docs/latest/site-manifest.json', 'docs/latest/app.js', 'docs/latest/search-index.json', 'docs/latest/workbench/index.html',
     'docs/latest/api/search-index.json',
     'docs/latest/api/editor-api.json', 'docs/latest/api/app.js',
     'docs/media/kjdraw-workflow.gif', 'docs/media/kjdraw-workflow-zh.gif',
+    'docs/media/ai-geology-live-20261003/index.html', 'docs/media/ai-geology-live-20261003/style.css',
+    'docs/media/ai-geology-live-20261003/synthetic-live-model-highlights.gif',
+    'docs/media/ai-geology-live-20261003/synthetic-live-model-workflow.webm',
+    'docs/media/ai-geology-live-20261003/synthetic-live-final.dxf',
+    'docs/media/ai-geology-live-20261003/synthetic-geology-section.dxf',
   ]) {
+    const [path, source] = typeof asset === 'string' ? [asset, asset] : asset
     const url = new URL(path, base)
     url.searchParams.set('verify', String(Date.now()))
     const response = await context.request.get(url.href, { timeout: 30_000 })
     assert.equal(response.status(), 200, `${path}: HTTP status`)
-    assert.equal(sha256(await response.body()), sha256(await readFile(new URL(path, root))), `${path}: deployed content differs from this checkout`)
+    assert.equal(sha256(await response.body()), sha256(await readFile(new URL(source, root))), `${path}: deployed content differs from this checkout`)
   }
-  checks.push('Deployed SDK, workbench, docs and GIF assets match this checkout')
+  checks.push('Deployed SDK, workbench, AI route/modules, docs and original synthetic GIF/WebM/DXF assets match this checkout')
 
   const page = await context.newPage()
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
   await page.goto(base.href)
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
-  await expect(page.locator('#sample-select option')).toHaveCount(5)
+  await expect(page.locator('#sample-select option')).toHaveCount(INDUSTRY_SAMPLES.length + 1)
   const selectDrawing = async id => {
     await expect(page.locator('.workbench')).toHaveAttribute('aria-busy', 'false')
     await page.locator('#sample-select').selectOption(id)
@@ -66,8 +84,6 @@ try {
 
   await selectDrawing('sample-resilient-campus')
   await page.locator('#agent-tab').click()
-  await page.locator('#agent-examples > summary').click()
-  await expect(page.locator('#agent-examples')).toHaveAttribute('open', '')
   await page.locator('#plan').click()
   await expect(page.locator('#plan-state')).toContainText('NO MUTATION')
   await page.locator('#confirm').click()
@@ -160,8 +176,12 @@ try {
   await expect(page.locator('#method-setlayout')).toContainText('setLayout')
   await page.screenshot({ path: fileURLToPath(new URL('editor-api.png', output)) })
   await page.locator('#api-search').fill('KJCanvasRenderer')
-  await page.locator('#api-results a[href^="./reference/#"]').first().click()
-  await expect(page.locator(':target')).toBeVisible()
+  const apiResult = page.locator('#api-results a[href^="./reference/#"]').first()
+  const apiAnchor = (await apiResult.getAttribute('href')).split('#')[1]
+  await apiResult.click()
+  await page.waitForLoadState('domcontentloaded', { timeout: 30_000 })
+  await expect(page.locator(`[id="${apiAnchor}"]`)).toBeVisible({ timeout: 30_000 })
+  await expect(page.locator(':target')).toHaveAttribute('id', apiAnchor)
   await page.goto(new URL('docs/latest/react/', base).href)
   await page.locator('#search-button').click()
   await page.locator('#search').fill('KJDrawEditor')

@@ -46,6 +46,63 @@ print(json.dumps({'root':dict(root.attrib),'lines':lines,'groups':groups,'texts'
 }
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`)
 
+test('named built-in pattern HATCH exports bounded SVG previews without silently omitting CAD fill', async () => {
+  const { document, layoutId, create } = await fixture()
+  for (const [index, name] of ['ANSI31', 'ANSI37', 'CROSS'].entries()) {
+    const x = index * 30
+    await create('HATCH', { boundaryLoops: [{ external: true, closed: true, vertices: [[x, 0], [x + 20, 0], [x + 20, 20], [x, 20]] }], patternName: name, patternScale: 0.6, patternAngle: 0 })
+  }
+  const output = exportDrawingSvg(document, { layoutId })
+  assert.equal(output.report.diagnostics.length, 0)
+  assert.equal(output.report.rendered, 3)
+  assert.equal(output.report.approximations.filter(item => item.type === 'HATCH').length, 3)
+  assert.equal((output.svg.match(/<pattern id="kj-hatch-/g) ?? []).length, 3)
+  assert.equal((output.svg.match(/fill="url\(#kj-hatch-/g) ?? []).length, 3)
+  assert.ok(output.report.approximations.every(item => /CAD hatch/.test(item.reason)))
+})
+
+test('custom PAT SVG clips bounded edge loops including curved boundaries', async () => {
+  const { document, layoutId, create } = await fixture()
+  const patternLines = [{ angle: 0, base: [0, 0], offset: [0, 2], dashes: [] }]
+  await create('HATCH', {
+    boundaryLoops: [{ external: true, closed: true, edges: [
+      { type: 'LINE', start: [0, 0], end: [20, 0] },
+      { type: 'LINE', start: [20, 0], end: [20, 10] },
+      { type: 'LINE', start: [20, 10], end: [0, 10] },
+      { type: 'LINE', start: [0, 10], end: [0, 0] },
+    ] }], patternName: 'LOCAL', patternScale: 1, patternAngle: 0, patternLines,
+  })
+  await create('HATCH', {
+    boundaryLoops: [{ external: true, closed: true, edges: [
+      { type: 'ARC', center: [40, 10], radius: 10, startAngle: 0, endAngle: Math.PI * 2, counterClockwise: true },
+    ] }], patternName: 'LOCAL', patternScale: 1, patternAngle: 0, patternLines,
+  })
+  const result = exportDrawingSvg(document, { layoutId, allowPartial: false })
+  assert.equal(result.report.diagnostics.length, 0, JSON.stringify(result.report.diagnostics))
+  assert.equal(result.report.rendered, 2)
+  assert.equal((result.svg.match(/id="kj-pat-clip-/g) ?? []).length, 2)
+  assert.match(result.svg, /A 10 10 0 0 1/)
+  assert.match(result.svg, /clip-path="url\(#kj-pat-clip-/)
+  parseSvg(result.svg)
+})
+
+test('custom PAT SVG keeps OCS row offsets for vertical geology marks at scaled spacing', async () => {
+  const { document, layoutId, create } = await fixture()
+  const hatch = await create('HATCH', {
+    boundaryLoops: [{ external: true, closed: true, vertices: [[0, 0], [10, 0], [10, 10], [0, 10]] }],
+    patternName: 'VERTICAL_PORE_MARKS', solid: false, patternScale: 0.5, patternAngle: 0,
+    patternDefinitionScale: 1, patternDefinitionAngle: 0,
+    patternLines: [{ angle: Math.PI / 2, base: [0, 0], offset: [3, 0], dashes: [1, -3] }],
+  })
+  const output = exportDrawingSvg(document, { layoutId })
+  assert.equal(output.report.diagnostics.length, 0)
+  const rows = parseSvg(output.svg).lines.filter(line => line.id === hatch.id)
+  assert.ok(rows.length >= 6)
+  const x = [...new Set(rows.map(line => Number(line.start[0].toFixed(6))))].sort((a, b) => a - b)
+  assert.ok(x.length >= 6)
+  for (let index = 1; index < x.length; index++) near(x[index] - x[index - 1], 1.5)
+})
+
 test('A3 vector SVG has physical millimeters and exact 1:100 viewport geometry, clips, layer styles and native dimension values',async()=>{
   const {sdk,document,layoutId,create}=await fixture(),model=document.snapshot().spaces.modelSpaceId
   let dashed,frozen,noPlot
@@ -125,6 +182,20 @@ test('SVG retains exact arc and bulge commands and expands nested blocks with co
   assert.match(result.svg,/M 0 0 L 10 0 L 10 10 L 0 10 L 0 0 Z/)
   assert.match(result.svg,/A 5 5 0 1 1/);assert.match(result.svg,/M 0 0 A 5 5 0 0 1 10 0/)
   assert.equal(result.report.status,'complete');assert.equal(result.report.rendered,4)
+})
+
+test('SVG orthographically projects XY-parallel block INSERT Z translations but rejects tilted extrusion',async()=>{
+  const {document,layoutId,ownerId}=await fixture();let member,insert
+  await document.transact('planar block at nonzero Z',tx=>{
+    const block=tx.upsertTableRecord('blockRecords',{name:'PLANAR_Z',type:'BLOCK_RECORD',payload:{basePoint:[0,0,0],isSpace:false}})
+    member=tx.createEntity('LINE',{start:[0,0,0],end:[10,0,0]},{ownerId:block.id})
+    insert=tx.createEntity('INSERT',{blockRecordId:block.id,position:[20,30,20],scale:[1,1,1]},{ownerId})
+  })
+  const result=exportDrawingSvg(document,{layoutId}),projected=parseSvg(result.svg).lines.find(row=>row.id===member.id)
+  assert.ok(projected);assert.equal(result.report.status,'approximate')
+  assert.ok(result.report.approximations.some(row=>row.entityId===insert.id&&row.reason.includes('nonzero Z translation')))
+  await document.transact('tilt planar block',tx=>tx.updateObject(insert.id,{payload:{normal:[0,1,0]}}))
+  assert.throws(()=>exportDrawingSvg(document,{layoutId}),error=>error.details?.diagnostics.some(row=>row.entityId===insert.id&&row.reason.includes('non-XY extrusion')))
 })
 
 test('SVG resolves ByLayer and block ByBlock lineweight and linetype inheritance',async()=>{

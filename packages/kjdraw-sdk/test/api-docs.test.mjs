@@ -54,6 +54,20 @@ test('complete API reference covers every package export with stable deep links'
     }
   }
   assert.equal(new Set(anchors).size, anchors.length, 'API deep-link anchors must be globally unique')
+  assert.match(html, /data-copy-import="import type \{ KJDrawEditorOptions \} from &#39;@kanjieteam\/kjdraw\/editor&#39;"/)
+  assert.match(html, /<details class="symbol-declaration" data-symbol="[^"]+"><summary>/)
+  assert.doesNotMatch(html, /<pre data-language="ts">/, 'declarations should load only when expanded')
+  assert.ok(Buffer.byteLength(html, 'utf8') < 2_500_000, 'initial reference HTML must stay below 2.5 MB')
+  const referenceApp = await generated('reference/app.js')
+  assert.match(referenceApp, /fetch\('\.\/api-reference\.json'\)/)
+  assert.match(referenceApp, /document\.addEventListener\('toggle'/)
+  assert.match(html, /id="reference-search-status"[^>]*role="status" hidden/)
+  assert.match(html, /id="retry-reference-search"/)
+  assert.match(referenceApp, /searchStatus\.hidden=false/)
+  assert.match(referenceApp, /document\.getElementById\('retry-reference-search'\)\.onclick=search/)
+  const groupedTypeExports = html.match(/<article class="api-symbol" id="editor-type-default"[\s\S]*?<\/article>/)?.[0]
+  assert.ok(groupedTypeExports, 'grouped type exports must remain visible in their source declaration')
+  assert.doesNotMatch(groupedTypeExports, /data-copy-import/, 'grouped type exports must not advertise a fictitious default import')
 
   assert.equal(search.schema, 'com.kanjie.kjdraw.api-search-index@1')
   assert.equal(search.sourceDigest, reference.sourceDigest)
@@ -77,9 +91,14 @@ test('Editor API is task-oriented, bilingual and deep-linkable', async () => {
   assert.match(guide.sourceDigest, /^sha256:[a-f0-9]{64}$/)
   const installTarget = guide.distribution?.version === packageJson.version && guide.distribution?.channel === 'github-release'
     ? `https://github.com/KanJieTeam/kjdraw/releases/download/v${packageJson.version}/kanjieteam-kjdraw-${packageJson.version}.tgz`
-    : `${packageJson.name}@${packageJson.version}`
+    : guide.distribution?.channel === 'source' ? `${packageJson.name}@next` : `${packageJson.name}@${packageJson.version}`
   assert.ok(html.includes(`data-copy-value="npm install ${installTarget}"`), 'the install command must select the available distribution of the documented version')
+  if (guide.distribution?.channel === 'source') {
+    assert.match(html, /npm view @kanjieteam\/kjdraw@next version/)
+    assert.ok(!html.includes(`npm install ${packageJson.name}@${packageJson.version}`))
+  }
   assert.match(html, /createKJDrawEditor/)
+  assert.doesNotMatch(guide.quickstartCode, /setLayout|layout:/)
   assert.match(html, /@kanjieteam\/kjdraw\/react/)
   assert.match(html, /@kanjieteam\/kjdraw\/vue/)
   assert.match(html, /href="\.\/reference\/"/)
@@ -107,6 +126,12 @@ test('Editor API is task-oriented, bilingual and deep-linkable', async () => {
   assert.match(app, /href\.replace/)
 })
 
+test('Editor API publishes its active navigation and table-of-contents styling', async () => {
+  const css = await generated('style.css')
+  assert.match(css, /\.api-sidebar nav a\.active\{background:/)
+  assert.match(css, /\.api-toc a\.active\{color:/)
+  assert.match(css, /\.api-page-action:hover\{border-color:/)
+})
 test('guide search loads the generated reference index and exposes Editor API', async () => {
   const home = await readFile(new URL('docs/latest/index.html', repositoryRoot), 'utf8')
   const app = await readFile(new URL('docs/latest/app.js', repositoryRoot), 'utf8')

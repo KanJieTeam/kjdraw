@@ -102,6 +102,8 @@ node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs
 
 Your application supplies the AI model; KJDraw supplies the CAD tools. Connect your agent to create and modify drawing objects, preview supported changes for approval, and apply edits that users can continue working on or undo. Follow the [Agent guide](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) to get started.
 
+For a text-only model client, the opt-in [`agent-skill-json`](./src/agent-skill-json.js) interface generates a concise JSON operation contract from real SDK tool definitions. Use `routeCompactCadTools({ prompt, hasEditableSeed })` from [`agent-compact-tool-surface`](./src/agent-compact-tool-surface.js) to select the supported plate/slot tools from the public user request, then `buildCadSkillJsonContract({ definitions: session.definitions, names })` as the system instruction. Parse the model's `{"calls":[{"tool":"...","args":{...}}]}` with `parseCadSkillJsonResponse({ content, names })`. Map stable feature IDs and supply the current document revision and units in the host before calling the original `KJAgentToolSession`; parsing does **not** validate geometry, execute a proposal, or grant approval. A real user or authorized review gate must approve a proposal before it is applied. This is an opt-in integration API, not the default Skill or CLI behavior.
+
 The built-in Agent Demo uses preset scenarios, not a connected language model.
 
 ## Files and automation
@@ -109,6 +111,10 @@ The built-in Agent Demo uses preset scenarios, not a connected language model.
 Read, edit and save drawings from code or the CLI, without an AI model. See the [file guide](https://kanjieteam.github.io/kjdraw/docs/latest/files/) for examples.
 
 KJDraw supports native KJD drawings and KJP projects, plus a documented [DXF compatibility range](https://github.com/KanJieTeam/kjdraw/blob/main/docs/dxf-compatibility.md). Direct DWG support is not included.
+
+The source [planar contour module](../../docs/planar-contours.md) offsets and combines closed XY contours while retaining native arcs. Its tolerance includes CIRCLE-to-arc conversion and backend rounding. When circle endpoints cannot represent the original center and radius exactly, only a single-circle offset is supported: boolean and multi-source operations refuse that conversion because near-tangent intersections can amplify its error. Erosion within the conversion uncertainty of a circle's disappearance threshold also refuses. Native polylines and circles with exactly representable endpoints retain the documented boolean and multi-ring support.
+
+For bundled browser commands, create the SDK with `contourBackend: { wasmUrl: '/assets/kjcontour.wasm' }` (or `wasmBytes: localBytes`) and pass it to `createKJDrawEditor(host, { sdk })` or the workbench. All three contour commands inherit that host configuration, including approved command envelopes. Use `sdk.contourBackend` for matching read-only previews; configure each new SDK when reopening a drawing. Asset bytes and URLs are not embedded in saved drawings or command arguments.
 
 ## Contributing
 

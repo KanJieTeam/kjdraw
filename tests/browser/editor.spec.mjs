@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test.use({ bypassCSP: true })
+if (process.env.KJDRAW_TEST_BASE_URL) test.use({ baseURL: process.env.KJDRAW_TEST_BASE_URL })
 
 async function mount(page, options = {}) {
   await page.goto('/')
@@ -71,6 +72,34 @@ test('editor DXF save/open retains populated and empty sheets through native his
     })
   })
   expect(result).toEqual([{ name: 'Model', lines: [] }, { name: 'Layout1', lines: [] }, { name: 'Sheet 7', lines: [[11, 22, 0]] }, { name: 'Empty 42', lines: [] }])
+})
+
+test('editor preserves Blob sources for streaming and cancellable host adapters', async ({ page }) => {
+  await mount(page)
+  const result = await page.evaluate(async () => {
+    const { editor } = window.editorTest
+    let receivedBlob = false, receivedTag = '', workbenchTag = ''
+    const originalOpen = editor.workbench.open.bind(editor.workbench)
+    editor.workbench.open = (source, options) => {
+      workbenchTag = Object.prototype.toString.call(source)
+      return originalOpen(source, options)
+    }
+    editor.sdk.fileAdapters.register({
+      id: 'blob-probe',
+      formats: { PROBE: { read: ['*'] } },
+      read(source) {
+        receivedBlob = source instanceof Blob
+        receivedTag = Object.prototype.toString.call(source)
+        return editor.document.snapshot()
+      },
+    })
+    await editor.open(new Blob(['probe'], { type: 'application/octet-stream' }), { format: 'PROBE', fileName: 'probe.bin' })
+    return { receivedBlob, receivedTag, workbenchTag, id: editor.document.id }
+  })
+  expect(result.workbenchTag).toBe('[object Blob]')
+  expect(result.receivedTag).toBe('[object Blob]')
+  expect(result.receivedBlob).toBe(true)
+  expect(result.id).toBeTruthy()
 })
 
 test('typing in command input never invokes canvas shortcuts or erases a selection', async ({ page }) => {

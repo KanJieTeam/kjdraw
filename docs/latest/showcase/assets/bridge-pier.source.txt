@@ -1,0 +1,39 @@
+// examples/curated-infrastructure-sheets.mjs#L176-L211
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+export async function bridgePierElevation() {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'curated-bridge-pier', title: 'Bridge pier elevation', units: 'millimeter' })
+  await document.transact('Draw bridge pier and pile group elevation', tx => {
+    const d = drawing(tx, 'PIER', 'BRIDGE PIER ELEVATION', 'Cap beam / twin columns / pile foundation')
+    d.text(18, 169, 'ELEVATION  /  DIAGRAMMATIC', 4, 'view-heading')
+    d.line(17, 139, 260, 139, 'deck-top', 'CONTEXT')
+    d.rect(27, 130, 250, 136, 'deck-slab')
+    d.rect(39, 119, 238, 129, 'cap-beam')
+    d.rect(72, 129, 104, 132, 'bearing-left', 'CONTEXT')
+    d.rect(174, 129, 206, 132, 'bearing-right', 'CONTEXT')
+    d.rect(79, 62, 96, 119, 'column-left')
+    d.rect(181, 62, 198, 119, 'column-right')
+    d.rect(51, 50, 225, 63, 'pile-cap')
+    d.hatch([[52,51],[224,51],[224,61],[52,61]], 'pile-cap-hatch')
+    for (const [x, id] of [[67, 'pile-1'], [113, 'pile-2'], [163, 'pile-3'], [209, 'pile-4']]) {
+      d.rect(x - 4, 30, x + 4, 50, id)
+      d.line(x - 4, 30, x, 26, `${id}-tip-a`)
+      d.line(x, 26, x + 4, 30, `${id}-tip-b`)
+    }
+    d.line(17, 66, 51, 66, 'ground-left', 'CONTEXT')
+    d.line(225, 66, 260, 66, 'ground-right', 'CONTEXT')
+    d.line(34, 66, 34, 76, 'ground-marker-left', 'CONTEXT')
+    d.line(243, 66, 243, 76, 'ground-marker-right', 'CONTEXT')
+    d.line(138, 25, 138, 153, 'pier-centerline', 'CONTEXT')
+    d.line(94, 98, 57, 104, 'column-leader', 'ANNO')
+    d.text(18, 107, 'PIER COLUMN', 2.8, 'column-label')
+    d.line(225, 55, 249, 46, 'cap-leader', 'ANNO')
+    d.text(222, 41, 'PILE CAP', 2.8, 'cap-label')
+    d.line(210, 38, 248, 33, 'pile-leader', 'ANNO')
+    d.text(214, 27, 'PILE GROUP', 2.8, 'pile-label')
+    d.text(19, 149, 'DECK', 2.8, 'deck-label')
+    d.text(20, 33, 'Example arrangement; pier and pile sizes are not design values.', 2.6, 'qualification')
+  })
+  return complete(sdk, document, 'bridge-pier', 'Bridge pier elevation', { columns: 2, piles: 4 })
+}

@@ -1,0 +1,89 @@
+name: Domain task, rule or reusable module / 领域贡献
+description: Propose a public-safe task, fixture, planner, drawing rule or Skill workflow from any industry
+title: "[Domain]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with one daily task and explicit input/output boundaries. You do not need to develop the CAD kernel.
+        不限行业。从一个日常任务开始，写清输入与产物；不要求修改 CAD 内核。
+        No UUID lookup or coding is needed first: describe the natural task, public-safe sketch/range and expected result; the implementer binds IDs through native reads and clarifies ambiguity, never guesses your data.
+        无需先找 UUID 或写代码：提供自然需求、可公开示意／范围和预期；实施者通过原生读取绑定 ID，模糊需求先确认，不猜数据。
+        Read [English contributing guidance](https://github.com/KanJieTeam/kjdraw/blob/main/CONTRIBUTING.md) or [中文贡献指南](https://github.com/KanJieTeam/kjdraw/blob/main/CONTRIBUTING.zh-CN.md).
+        For an independent Skill, see [Skill developer guide](https://github.com/KanJieTeam/kjdraw/blob/main/docs/contributing-skills.md) / [技能包开发指南](https://github.com/KanJieTeam/kjdraw/blob/main/docs/contributing-skills.zh-CN.md).
+        Synthetic or explicitly redistributable, de-identified material only. No customer files, project coordinates, API keys or proprietary fonts/templates are required or permitted here. Private-use permission is not publication permission. Report security issues privately via SECURITY.md.
+  - type: dropdown
+    id: contribution_type
+    attributes:
+      label: Contribution type / 贡献类型
+      options:
+        - Daily task or synthetic fixture / 日常任务或合成样本
+        - Domain planner or host plugin / 领域 planner 或宿主插件
+        - Data rule or knowledge pack / 数据规则或知识包
+        - Drawing layout, labels or hatch mapping / 版式、文字或花纹
+        - Skill or agent workflow / Skill 或 Agent 工作流
+        - Documentation or translation / 文档或翻译
+    validations:
+      required: true
+  - type: input
+    id: industry
+    attributes:
+      label: Industry or workflow / 行业或工作流
+      description: Any industry is welcome; this is not a supported-industry certification or a fixed allowlist.
+      placeholder: "Mechanical hole pattern, electrical tag audit, interior layout, or your own domain / 机械孔阵列、电气标签核对、室内排布或其他行业"
+    validations:
+      required: true
+  - type: textarea
+    id: daily_task
+    attributes:
+      label: Daily task and users / 日常任务与使用者
+      description: Describe one real workflow in your own words; do not start with an implementation or a large bundle.
+      placeholder: "Create six holes from supplied pitch and hole diameters; or audit caller-required tag strings without editing. / 按给定分布圆及孔径生成六孔；或只读核对指定标签。"
+    validations:
+      required: true
+  - type: textarea
+    id: caller_inputs
+    attributes:
+      label: Supplied facts, units and source / 已提供事实、单位与来源
+      description: State drawing/source units, scale, owner/space, exact targets, field meanings and synthetic/redistributable provenance. Mark missing facts explicitly; do not infer them from DXF labels.
+      placeholder: "Synthetic millimeter model-space drawing; caller supplies center [0,0], pitchDiameter 90, holeDiameter 10, count 6 and startAngle 0; no inferred tolerances or engineering certification."
+    validations:
+      required: true
+  - type: textarea
+    id: expected_result
+    attributes:
+      label: Observable output and preservation / 可检查产物与保留要求
+      description: Give exact expected text/data/geometry, untouched objects/resources, and the preview-before-approval boundary. For edits, describe one transaction, real undo/redo and KJD/DXF reopen checks; for read-only tasks, require zero mutation and zero approval.
+    validations:
+      required: true
+  - type: textarea
+    id: failure_conditions
+    attributes:
+      label: Refusal or clarification conditions / 拒绝或询问条件
+      description: Include missing data, invalid units/ranges, stale revisions, ambiguous targets and unsupported operations. Failure must not partly modify the drawing; AI must not invent facts or approve itself.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction or sample / 最小复现或样本
+      description: A public synthetic generator, small authorized fixture, steps or a sketch is enough. State KJDraw/Node/Python/browser and entity/file types if relevant. Do not upload a private original; no paid API key is needed.
+  - type: textarea
+    id: module_scope
+    attributes:
+      label: Proposed module boundary / 拟贡献模块边界
+      description: Optional package name/path, versioned input/output schema, bounded output, runtime/tool requirements, dependencies and license. Independent Skills use skills/kjdraw-<topic>; planners can start from examples/domain-planner-starter. Existing geology knowledge schemas are not universal loaders for other industries. New tools or installer changes need maintainer agreement; Skills must be merged into the default source before its shorthand install command can discover them.
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification already performed / 已实际执行的验证
+      description: List exact commands/results and skips, or write not run yet. Distinguish fixture selftests, independent ezdxf checks, browser runs and actual model/provider runs. Never claim unexecuted checks passed.
+  - type: checkboxes
+    id: publication_rights
+    attributes:
+      label: Public-safe contribution / 公开授权确认
+      options:
+        - label: I own or have explicit publication/redistribution rights for attached material and state its provenance/license; I attach no private/customer data, secrets or restricted assets. / 有明确公开再分发授权并说明来源许可，不附私有客户数据、密钥或受限素材。
+          required: true
+        - label: Expected facts are supplied, not guessed; proposals require authorized host review, not AI self-approval. / 事实有明确输入，不猜测；提案由授权宿主审核，不由 AI 自批准。
+          required: true

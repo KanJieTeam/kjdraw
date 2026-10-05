@@ -1,58 +1,79 @@
-<p align="center"><img src="docs/assets/mark.svg" alt="KJDraw" width="80" height="80"></p>
+<div align="center">
 
-<h1 align="center">KJDraw</h1>
+<img src="docs/assets/mark.svg" width="72" alt="KJDraw logo" />
 
-<p align="center"><strong>CAD infrastructure for engineering applications and AI agents.</strong></p>
+# KJDraw
 
-<p align="center">An open-source CAD engine and ready-to-use editor.<br>Create, edit, and automate engineering drawings — with code, with an agent, or by hand.</p>
+### The open-source CAD engine for the AI era
+
+The model describes engineering intent. KJDraw compiles it into real CAD drawings<br/>
+that stay editable, verifiable, undoable, and reopenable.
+
+[**Quick start**](#-quick-start) · [**Try with AI**](https://kanjieteam.github.io/kjdraw/ai/) · [**Live editor**](https://kanjieteam.github.io/kjdraw/) · [**Docs**](https://kanjieteam.github.io/kjdraw/docs/latest/) · [**Contribute Skills**](docs/contributing-skills.md) · [简体中文](README.zh-CN.md)
+
+[![GitHub release](https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0)](https://github.com/KanJieTeam/kjdraw/releases)
+[![npm next](https://img.shields.io/npm/v/@kanjieteam/kjdraw/next?style=flat-square&label=npm&labelColor=30363d&color=2863f0)](https://www.npmjs.com/package/@kanjieteam/kjdraw)
+[![License](https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d)](LICENSE)
+
+</div>
 
 <p align="center">
-  <a href="https://kanjieteam.github.io/kjdraw/"><strong>Try the editor</strong></a> ·
-  <a href="#add-cad-to-your-app"><strong>Add CAD to your app</strong></a> ·
-  <a href="#give-your-agent-cad-tools"><strong>Build a CAD agent</strong></a> ·
-  <a href="README.zh-CN.md">简体中文</a>
+  <a href="https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/">
+    <img src="docs/media/ai-geology-live-20261003/synthetic-live-model-highlights.gif" alt="Real DeepSeek session: ten reviewed edits to one synthetic geological section, followed by undo, redo and DXF reopening" width="100%" />
+  </a>
+  <br/>
+  <sub>Real DeepSeek · ten edits on one synthetic section · condensed recording. <a href="https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/">Full recording and checks ↗</a></sub>
 </p>
 
-<p align="center">
-  <a href="https://github.com/KanJieTeam/kjdraw/releases"><img src="https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0" alt="GitHub release"></a>
-  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/v/@kanjieteam/kjdraw/next?style=flat-square&label=npm_next&labelColor=30363d&color=2863f0" alt="npm release candidate"></a>
-  <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><img src="https://img.shields.io/badge/Docs-get_started-2863f0?style=flat-square&labelColor=30363d" alt="Documentation"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
-</p>
+## Draw it. Then keep editing it.
 
-<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow.gif" alt="KJDraw AI creates, edits, saves and reopens a verified 409-object fixture-plate drawing" width="100%"></a></p>
+KJDraw creates editable CAD objects, not a one-off picture. Ask your agent to draw a part, then change a hole diameter, move an object or revise a layer without starting over. Review each proposed change before applying it; undo, save and reopen the drawing when you need to.
 
-<p align="center"><sub>Recorded real-model workflow: 2 model requests · 5,439 total tokens · 409 editable objects · one exact edit · saved and reopened.</sub></p>
+**The model decides what to draw. KJDraw handles the CAD operations.**
 
-## Why KJDraw?
+## 🚀 Quick start
 
-- **Give your agent CAD tools.** Read drawing objects, call drawing commands, and review proposed changes through a programmable API.
-- **Add CAD without starting from scratch.** Bring drawing tools, layers, properties and file operations into your JavaScript, React or Vue application.
-- **Use the editor. Extend the engine.** Start with the packaged interface, customize the workspace, or build your own tools on the CAD engine.
-
-## Try the editor
-
-[Open the editor](https://kanjieteam.github.io/kjdraw/)—no account or upload required to try the samples.
-
-1. Choose a mechanical detail, building floor plan, site plan or road profile.
-2. Select objects, move them, inspect their layers or start drawing a part of your own.
-3. Undo a change, save the drawing, and open it again to keep working.
-
-The included sample drawings are for exploration, not construction. The [workbench guide](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/) explains drawing, selection, dimensions and saving.
-
-## Add CAD to your app
-
-Install the release-candidate channel:
+For Codex, Claude Code, Cursor and other terminal-enabled agents (Node.js 22+), run these once:
 
 ```sh
-npm install @kanjieteam/kjdraw@next
+npm install -g @kanjieteam/kjdraw@next
+npx skills add KanJieTeam/kjdraw -g
 ```
 
-These examples require **1.0.0-rc.3 or newer**. Use the `next` channel; `latest` may be older. See [release status](docs/status.md) for published versions and source changes not yet on npm.
+The first command installs the CAD engine. In the second, select `kjdraw-cad` and your agent. Restart your agent, then ask:
 
-### JavaScript / TypeScript
+```text
+Use KJDraw to draw a circle with a radius of 5 mm.
+```
 
-Give the editor a container with a height:
+Review the proposed change, approve it, then export the drawing as **DXF**. The Skill calls the local CAD engine through `kjdraw agent`; **MCP registration is optional**. [Approval and export guide](docs/try-in-ai.md#skill-first-local-cli).
+
+Prefer not to install? [Try with AI](https://kanjieteam.github.io/kjdraw/ai/) in your browser and connect your model. Your requests and drawing context go to that provider; conversations, drawings and the key stay saved in this browser. Clear site data on shared devices. [Connection requirements and other agents](docs/try-in-ai.md).
+
+## What you can build
+
+| Workflow | Current scope |
+| --- | --- |
+| **Understand existing drawings** | Available: paged reads, spatial and property queries, stable IDs within a live/KJD document, layers, block references, topology and change-impact inspection for supported objects. DXF reimport may assign new internal IDs |
+| **Generate engineering drawings** | Sample workflows: manufacturing parts, floor plans, site and utility plans, road alignments, borehole logs, geological sections and charts. Complete production workflows are still being validated |
+| **Keep editing through conversation** | Available command subset: select, move, copy, rotate, scale, offset, stretch, lengthen, edit text, change layers and delete for supported objects and combinations; model-guided multi-turn tasks still need real-world validation |
+| **Review and revise safely** | Available: revision-bound proposals, human approval, one-transaction changes, undo and save/reopen checks for the supported workflow |
+| **Embed CAD in your product** | Available: TypeScript/JavaScript SDK, React and Vue components, packaged editor, CLI, MCP and local file workflows on the same engine |
+
+## Is KJDraw right for you?
+
+| ✅ Good fit | ⏳ Not a fit yet |
+| --- | --- |
+| You want an AI agent to generate and repeatedly revise engineering drawings | You need to open and save DWG directly |
+| You're building an AI product that changes drawings, with a human in the loop | You need full desktop-CAD parity or 3D solid modeling |
+| You need a CAD editor inside a web product (review, inspection, configurators, internal tools) | You need certified plotting or print output |
+| You process DXF/KJD in scripts or CI, headless, with no upload | |
+
+KJDraw is a CAD engine and execution layer. It is not trying to replace desktop CAD.
+
+## 📦 Embed CAD in your app
+
+Building a JavaScript or TypeScript app? Use the separate [SDK quickstart](https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/) for project installation. You do not need the agent setup above. The embed API looks like this:
 
 ```html
 <div id="cad" style="height: 720px"></div>
@@ -65,17 +86,16 @@ const editor = createKJDrawEditor('#cad', {
   document: 'sample',
   locale: 'en',
   theme: 'dark',
-  layout: 'classic',
+  layout: 'classic', // 'classic' | 'compact' | 'focus'
 })
 
 await editor.ready
-// await editor.open(file) // File from your file picker
+// await editor.open(file)                              // a File from your file picker
 // await editor.save({ format: 'DXF', download: true })
 ```
 
-### React
-
-In an existing React application:
+<details>
+<summary><b>React</b></summary>
 
 ```tsx
 import { KJDraw } from '@kanjieteam/kjdraw/react'
@@ -85,9 +105,10 @@ export default function DrawingPage() {
 }
 ```
 
-### Vue
+</details>
 
-In an existing Vue 3 application:
+<details>
+<summary><b>Vue 3</b></summary>
 
 ```vue
 <script setup lang="ts">
@@ -99,45 +120,96 @@ import { KJDraw } from '@kanjieteam/kjdraw/vue'
 </template>
 ```
 
-Choose **Classic**, **Compact** or **Focus** to suit your application. Changing the layout keeps the drawing and Undo history.
+</details>
 
-[Quickstart](https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/) · [React guide](https://kanjieteam.github.io/kjdraw/docs/latest/react/) · [Vue guide](https://kanjieteam.github.io/kjdraw/docs/latest/vue/) · [Runnable examples](packages/kjdraw-sdk/examples)
+[Quickstart](https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/) · [React guide](https://kanjieteam.github.io/kjdraw/docs/latest/react/) · [Vue guide](https://kanjieteam.github.io/kjdraw/docs/latest/vue/) · [Runnable examples](packages/kjdraw-sdk/examples) · [API reference](https://kanjieteam.github.io/kjdraw/docs/latest/api/)
 
-## Give your agent CAD tools
+## 🤖 Build a CAD agent into your own product
 
-Your application supplies the AI model; KJDraw supplies the CAD tools. Connect your agent to create and modify drawing objects, preview supported changes for approval, and apply edits that users can continue working on or undo.
+Your app brings the model. KJDraw brings the CAD tools, the review step and the undo history.
 
-For example, an agent host can turn a request to move selected equipment into a proposed move, ask the user to approve it, and apply it to the same drawing. The approved edit can be undone like a manual edit.
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant M as Your model
+    participant K as KJDraw
+    U->>M: "Move the pump 500 mm east"
+    M->>K: Query drawing (layers, entities, geometry)
+    K-->>M: Read-only, revision-bound results
+    M->>K: Propose move
+    K-->>U: Preview the exact change
+    U->>K: Approve
+    K->>K: Commit as one transaction (undoable)
+```
 
-- [Build an Agent workflow](https://kanjieteam.github.io/kjdraw/docs/latest/agent/): call drawing tools, review a change and apply it.
-- [Agent integration guide](docs/agent.md): integration instructions for coding agents.
-- [Run the command example](examples/agent-command.mjs): exercise a proposed edit, approval and Undo without a model or API key.
+Each proposal is bound to the revision it was made against, can be used only once, and commits as a single transaction that undoes like a manual edit.
 
-## Files and automation
+- [Agent workflow guide](https://kanjieteam.github.io/kjdraw/docs/latest/agent/): call drawing tools, review a change and apply it
+- [Connecting a model](https://kanjieteam.github.io/kjdraw/docs/latest/models/): the host owns transport, budgets and approval
+- [Instructions for coding agents](docs/agent.md)
+- [Command example](examples/agent-command.mjs): propose, approve and undo without a model or API key
 
-Read, edit and save drawings from code or the CLI, without an AI model. See the [file guide](https://kanjieteam.github.io/kjdraw/docs/latest/files/) for examples.
+## Formats and scope
 
-KJDraw supports native KJD drawings and KJP projects, plus a documented [DXF compatibility range](docs/dxf-compatibility.md). Direct DWG support is not included.
+Use **DXF** to exchange drawings with other CAD tools. KJD and KJP are optional native formats for KJDraw document and project state.
+
+| Area | Status |
+| --- | --- |
+| **DXF** (ASCII) | ✅ Documented subset, R14–2024 version labels — [compatibility details](docs/dxf-compatibility.md) |
+| Binary DXF | ❌ Not supported |
+| **DWG** | ❌ Not in 1.0 — convert to DXF first (for example with ODA File Converter) |
+| **KJD** native drawings | ✅ Read/write, validation, transactions, revisions, undo/redo |
+| **KJP** projects | ✅ Multiple drawings in one package with snapshots, hashes and command journals |
+| **3D** | 🧪 Experimental meshes, primitives and box booleans |
+| CLI | ✅ Inspect, validate and convert KJD, KJP and DXF headless — [file guide](https://kanjieteam.github.io/kjdraw/docs/latest/files/) |
+
+Unsupported content is rejected rather than silently dropped. Full boundaries: [release status](docs/status.md) · [1.0 scope](docs/1.0-scope.md).
 
 ## Contributing
 
-**Our mission is to make KJDraw the default open-source CAD engine for the AI era.**
+**Contribute a Skill for your industry.** Start with the [Skill catalog](skills/README.md) and [developer guide](docs/contributing-skills.md). An industry pack is one `skills/kjdraw-<industry-task>/` directory containing a workflow and any useful templates, rules or helpers.
 
-Bring a drawing that exposes a bug, build an integration, or help improve the engine. Work that directly helps users includes geometry and file compatibility, editing tools, Agent examples, accessibility, performance and documentation.
+**Fork → add `skills/kjdraw-<topic>/` → test your workflow → open a PR.**
 
-Read [Contributing](CONTRIBUTING.md) for the development workflow and [Governance](GOVERNANCE.md) for how decisions and maintenance work. For substantial changes, open an [issue](https://github.com/KanJieTeam/kjdraw/issues) to discuss the design first.
+[Skill developer guide](docs/contributing-skills.md) · [Skill catalog and samples](skills/README.md) · [All contribution types](CONTRIBUTING.md) · [中文技能包指南](docs/contributing-skills.zh-CN.md).
+
+Define the inputs, outputs and acceptance checks. Reusing existing operations normally does not require a kernel change; propose missing planner, plugin or engine capabilities separately.
+
+For a new Skill, include `SKILL.md` and a human README in **English or Chinese**; maintainers can help with the translation. Add a focused `tests/community-<topic>.spec.mjs`, then run one command from the repository root:
 
 ```sh
+npm run check:skill
+```
+
+This checks package structure and runs workflow tests with public synthetic inputs; it does not certify model behavior. To check only your pack, append `-- skills/kjdraw-your-topic`. List the Skill in [the catalog](skills/README.md).
+
+The most useful contributions right now:
+
+- **An installable domain Skill.** Start from [read-only text audit](skills/kjdraw-text-audit/README.md), [mechanical hole patterns](skills/kjdraw-hole-pattern/README.md) or [drawing templates and layer rules](skills/kjdraw-sheet-template/README.md); keep its own short `SKILL.md` and useful resources, and add tests for your actual workflow.
+- **A reproducible drawing problem.** Share a small synthetic DXF or a reduced example you are authorized to publish, with the request and expected result. Do not upload private customer drawings.
+- **A reusable engineering workflow.** Explicit inputs, editable CAD output, and tests for changes, undo and DXF reopening. Start from the [domain planner example](examples/domain-planner-starter/README.md).
+- **Try it in your AI client and report back**, especially failed generations or multi-turn edits that go wrong.
+- **Editing tools, drawing types, performance, accessibility and docs.**
+
+```bash
 git clone https://github.com/KanJieTeam/kjdraw.git
 cd kjdraw
 npm ci --ignore-scripts
-npm run dev
+npm run dev          # http://localhost:4173
 ```
 
-Open **http://localhost:4173**. Before submitting changes, run `npm run typecheck` and `npm test`; UI changes also need `npm run test:browser`.
+Open the editor at <http://localhost:4173>. For a Skill-only PR, use `npm run check:skill`; SDK or UI changes also need the checks in [Contributing](CONTRIBUTING.md). Choose a task from the [industry-pack claim list](docs/industry-skill-tasks.md) and [claim it here](https://github.com/KanJieTeam/kjdraw/issues/4), or propose your own. See [Governance](GOVERNANCE.md) · [Roadmap](docs/roadmap.md) · [Support](SUPPORT.md).
 
-[Documentation](https://kanjieteam.github.io/kjdraw/docs/latest/) · [API reference](https://kanjieteam.github.io/kjdraw/docs/latest/api/) · [Roadmap](docs/roadmap.md) · [Support](SUPPORT.md) · [Release status](docs/status.md) · [License](LICENSE)
+## Star History
 
-**Built by [KanJieTeam](https://github.com/KanJieTeam), open to contributors everywhere.**
+[![KJDraw Star History](https://api.star-history.com/svg?repos=KanJieTeam/kjdraw&type=Date)](https://www.star-history.com/#KanJieTeam/kjdraw&Date)
 
-[kanjieteam@163.com](mailto:kanjieteam@163.com) · Apache-2.0
+---
+
+<div align="center">
+
+If KJDraw is useful to you, a ⭐ helps other engineers find it.
+
+Built by [KanJieTeam](https://github.com/KanJieTeam), open to contributors everywhere · [kanjieteam@163.com](mailto:kanjieteam@163.com) · [Apache-2.0](LICENSE)
+
+</div>

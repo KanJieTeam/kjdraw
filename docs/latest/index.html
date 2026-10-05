@@ -4,36 +4,40 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="KJDraw is a programmable CAD foundation for engineering applications, browser workbenches and reviewable AI-agent changes.">
+  <meta name="description" content="Build editable engineering CAD in your application, browser, or AI workflow.">
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/">
   <link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./style.css?v=994141127dc1c271">
-  <title>Introduction · KJDraw Docs</title>
+  <link rel="stylesheet" href="./style.css?v=8849933ba42c87c9">
+  <title>KJDraw · KJDraw Docs</title>
 </head>
 <body>
   <header class="topbar">
     <button id="menu-button" class="icon-button menu-button" type="button" aria-label="Open navigation">☰</button>
     <a class="brand" href="./"><img src="../assets/mark.svg" alt=""><b>KJDraw</b><span>Docs</span></a>
+    <nav class="product-nav" aria-label="KJDraw products"><a href="./" class="active" aria-current="page"><span class="lang-en">Overview</span><span class="lang-zh">概览</span></a><a href="./quickstart/"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="./showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例</span></a><a href="./api/">API</a></nav>
     <button id="search-button" class="search-button" type="button" aria-keyshortcuts="Control+K Meta+K"><span aria-hidden="true">⌕</span><span class="lang-en">Search guides and API</span><span class="lang-zh">搜索指南与 API</span><kbd>Ctrl K</kbd></button>
-    <nav class="top-links"><a href="./api/">API</a><a href="https://kanjieteam.github.io/kjdraw/"><span class="lang-en">Demo</span><span class="lang-zh">演示</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="https://kanjieteam.github.io/kjdraw/">Playground</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
-      <div class="version"><span><span class="lang-en">Current documentation</span><span class="lang-zh">当前文档</span></span><select id="docs-version" aria-label="Documentation version"><option>v1.0.0-rc.3 · current</option></select></div>
+      <div class="version"><span><span class="lang-en">Current documentation</span><span class="lang-zh">当前文档</span></span><select id="docs-version" aria-label="Documentation version"><option>v1.0.0-rc.4 · current</option></select></div>
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
-          <a href="./" class="active" aria-current="page"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
+          <a href="./" class="active" aria-current="page"><span class="lang-en">KJDraw</span><span class="lang-zh">KJDraw</span></a>
+          <a href="./showcase/"><span class="lang-en">Showcase</span><span class="lang-zh">案例库</span></a>
           <a href="./quickstart/"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
+          <a href="./starters/"><span class="lang-en">Starter projects</span><span class="lang-zh">起步工程</span></a>
           <a href="./installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
-          <a href="./workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
-          <a href="./architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
-          <a href="./files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="./concepts/"><span class="lang-en">Core concepts</span><span class="lang-zh">核心概念</span></a>
+          <a href="./workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
           <a href="./commands/"><span class="lang-en">Commands and transactions</span><span class="lang-zh">命令与事务</span></a>
+          <a href="./files/"><span class="lang-en">Files and projects</span><span class="lang-zh">文件与工程</span></a>
+          <a href="./architecture/"><span class="lang-en">Architecture</span><span class="lang-zh">架构</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Frameworks</h3><h3 class="lang-zh">前端框架</h3>
@@ -44,11 +48,14 @@
           <h3 class="lang-en">Extend and deploy</h3><h3 class="lang-zh">扩展与部署</h3>
           <a href="./agent/"><span class="lang-en">Agent workflows</span><span class="lang-zh">Agent 工作流</span></a>
           <a href="./models/"><span class="lang-en">Connect your model</span><span class="lang-zh">接入你的模型</span></a>
+          <a href="./mcp/"><span class="lang-en">MCP integration</span><span class="lang-zh">MCP 集成</span></a>
+          <a href="./knowledge-packs/"><span class="lang-en">Compile knowledge packs</span><span class="lang-zh">编译知识包</span></a>
           <a href="./plugins/"><span class="lang-en">Plugins</span><span class="lang-zh">插件</span></a>
           <a href="./deployment/"><span class="lang-en">Deployment</span><span class="lang-zh">部署</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Reference</h3><h3 class="lang-zh">参考</h3>
+          <a href="./reference/"><span class="lang-en">API reference</span><span class="lang-zh">API 参考</span></a>
           <a href="./capabilities/"><span class="lang-en">Capabilities</span><span class="lang-zh">功能能力</span></a>
         </section>
         <section class="nav-group reference-group">
@@ -56,54 +63,74 @@
           <a class="api-nav" href="./api/"><b>API</b><span class="lang-en">Editor API and type reference</span><span class="lang-zh">Editor API 与类型参考</span></a>
         </section>
       </nav>
-      <footer><a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/site/pages/introduction.md"><span class="lang-en">Edit this page</span><span class="lang-zh">编辑此页</span> ↗</a><span>1.0.0-rc.3</span></footer>
+      <footer><a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/site/pages/introduction.md"><span class="lang-en">Edit this page</span><span class="lang-zh">编辑此页</span> ↗</a><span>1.0.0-rc.4</span></footer>
     </aside>
     <main>
       <div class="content">
         <article class="lang-en" lang="en" id="en-introduction">
-          <p class="eyebrow">KJDRAW / INTRODUCTION</p>
-          <h1>Introduction</h1>
-          <p class="lead">KJDraw is a programmable CAD foundation for engineering applications, browser workbenches and reviewable AI-agent changes.</p>
-          <h2 id="en-introduction-what-it-is">What KJDraw is<a class="heading-anchor" href="#en-introduction-what-it-is" aria-label="Link to What KJDraw is">#</a></h2>
-<p>KJDraw gives web applications a complete embeddable CAD editor and a TypeScript SDK for building specialized drawing experiences. One <code>createKJDrawEditor()</code> call mounts the canvas, tools, layers, properties and file actions. React and Vue components provide the same editor with framework-native lifecycles.</p>
-<p>Use it to display and edit engineering drawings, open or export KJD and DXF files, add product-specific tools, automate repeatable changes, or let an AI assistant prepare changes for a person to review.</p>
-<h2 id="en-introduction-starting-point">Choose your starting point<a class="heading-anchor" href="#en-introduction-starting-point" aria-label="Link to Choose your starting point">#</a></h2>
-<div class="table-wrap"><table><thead><tr><th>What you are building</th><th>Start with</th><th>You get</th></tr></thead><tbody><tr><td>JavaScript or TypeScript app</td><td><code>createKJDrawEditor()</code></td><td>A ready-to-use editor and a small imperative API</td></tr><tr><td>React app</td><td><code>@kanjieteam/kjdraw/react</code></td><td><code>&lt;KJDraw&gt;</code> plus a typed editor ref</td></tr><tr><td>Vue app</td><td><code>@kanjieteam/kjdraw/vue</code></td><td><code>&lt;KJDraw&gt;</code> plus exposed editor methods</td></tr><tr><td>Custom CAD interface</td><td><code>@kanjieteam/kjdraw/core</code></td><td>Documents, commands, files and your own UI</td></tr><tr><td>AI-assisted workflow</td><td><code>@kanjieteam/kjdraw/agent</code></td><td>Reviewable plans, approval and execution receipts</td></tr></tbody></table></div>
-<h2 id="en-introduction-what-you-can-do">What you can do<a class="heading-anchor" href="#en-introduction-what-you-can-do" aria-label="Link to What you can do">#</a></h2>
-<ul>
-<li>Start with a sample drawing or an empty canvas, then zoom, select, draw and inspect objects.</li>
-<li>Open and save KJD or DXF, manage projects, and integrate your own storage flow.</li>
-<li>Execute typed commands with undo and redo, or subscribe to document and selection changes.</li>
-<li>Switch English or Chinese UI, light or dark appearance, and classic, compact or canvas-first focus layouts at runtime.</li>
-<li>Add plugins, custom commands, renderers and AI-assisted workflows as your product grows.</li>
-</ul>
-<p>Start with <strong>Quickstart</strong>, then keep the task-oriented <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a> beside your code. The <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/reference/">complete TypeScript reference</a> covers every public package entry.</p>
+          <header class="home-hero">
+    <p class="eyebrow">KJDraw</p>
+    <h1><span class="lang-en">Open-source engineering CAD</span><span class="lang-zh">开源工程 CAD</span></h1>
+    <p class="home-promise"><span class="lang-en">One editable model for every engineering workflow.</span><span class="lang-zh">一份可编辑图档，贯通每一种工程工作流。</span></p>
+    <p class="lead"><span class="lang-en">Geometry, dimensions and agent actions — kept together.</span><span class="lang-zh">几何、尺寸与智能体操作，始终围绕同一份图档。</span></p>
+    <div class="home-actions"><a class="primary" href="./quickstart/"><span class="lang-en">Start building</span><span class="lang-zh">开始构建</span> <span aria-hidden="true">→</span></a><a href="./concepts/"><span class="lang-en">Explore the model</span><span class="lang-zh">了解图档模型</span></a></div>
+  </header>
+  <figure class="home-visual"><img src="../assets/home-model.svg" alt="Abstract editable CAD model showing native geometry, references and constraints" width="1200" height="680"></figure>
+  <div class="home-value-strip" aria-label="KJDraw capabilities"><span><span class="lang-en">Native geometry</span><span class="lang-zh">原生几何</span></span><span><span class="lang-en">Deterministic edits</span><span class="lang-zh">确定性编辑</span></span><span><span class="lang-en">Open integrations</span><span class="lang-zh">开放集成</span></span></div>
+  <section class="home-story home-paths"><div class="home-section-intro"><p class="eyebrow">01 / BUILD</p><h2><span class="lang-en">Make CAD part of your workflow.</span><span class="lang-zh">让 CAD 进入你的工作流。</span></h2><p><span class="lang-en">Use the editor directly, embed its typed API in a product, or connect an agent to a reviewable drawing workflow.</span><span class="lang-zh">直接使用编辑器、将类型化 API 嵌入产品，或让智能体接入可审核的绘图流程。</span></p></div><div class="home-path-list"><a href="./workbench/"><span>01</span><strong><span class="lang-en">Browser editor</span><span class="lang-zh">浏览器编辑器</span></strong><small><span class="lang-en">Draw, select and revise in a complete workbench.</span><span class="lang-zh">在完整工作台中绘制、选择与修改。</span></small><b aria-hidden="true">↗</b></a><a href="./api/"><span>02</span><strong>TypeScript SDK</strong><small><span class="lang-en">Build with typed commands and document state.</span><span class="lang-zh">用类型化命令和图档状态构建应用。</span></small><b aria-hidden="true">↗</b></a><a href="./mcp/"><span>03</span><strong><span class="lang-en">Agent workflow</span><span class="lang-zh">智能体工作流</span></strong><small><span class="lang-en">Propose changes, review, then verify the result.</span><span class="lang-zh">先提案，再审核，并核验执行结果。</span></small><b aria-hidden="true">↗</b></a></div></section>
+  <section class="home-story home-examples"><div class="home-section-intro"><p class="eyebrow">02 / EXPLORE</p><h2><span class="lang-en">Different disciplines. The same editable core.</span><span class="lang-zh">不同专业，同一套可编辑内核。</span></h2><p><span class="lang-en">Open an editable example, inspect its objects, then continue editing in the Playground.</span><span class="lang-zh">打开可编辑示例，检查对象，再到工作台继续编辑。</span></p></div><div class="home-example-grid"><a href="./showcase/mechanical-bracket/"><img src="./showcase/assets/mechanical-bracket.svg" alt="" loading="lazy"><span><span class="lang-en">Mechanical part</span><span class="lang-zh">机械零件</span></span><b aria-hidden="true">↗</b></a><a href="./showcase/architecture-floor-plan/"><img src="./showcase/assets/architecture-floor-plan.svg" alt="" loading="lazy"><span><span class="lang-en">Floor plan</span><span class="lang-zh">建筑平面图</span></span><b aria-hidden="true">↗</b></a><a href="./showcase/site-plan/"><img src="./showcase/assets/site-plan.svg" alt="" loading="lazy"><span><span class="lang-en">Site plan</span><span class="lang-zh">场地平面图</span></span><b aria-hidden="true">↗</b></a></div><a class="home-text-link" href="./showcase/"><span class="lang-en">Browse all examples</span><span class="lang-zh">浏览全部案例</span> <span aria-hidden="true">→</span></a></section>
+  <section class="home-story home-developer"><div class="home-dev-copy"><p class="eyebrow">03 / DEVELOP</p><h2><span class="lang-en">Start with one editor.</span><span class="lang-zh">从一个编辑器开始。</span></h2><p><span class="lang-en">A small TypeScript entry point mounts the workbench. From there, the same document can be inspected, edited, saved and reopened.</span><span class="lang-zh">用简洁的 TypeScript 入口挂载工作台，再检查、编辑、保存与重开同一份图档。</span></p><a class="home-text-link" href="./quickstart/"><span class="lang-en">Five-minute quickstart</span><span class="lang-zh">五分钟快速上手</span> <span aria-hidden="true">→</span></a></div><div class="home-code"><div><span>TypeScript</span><a href="./api/">API ↗</a></div><pre><code>import { createKJDrawEditor } from '@kanjieteam/kjdraw'
+
+const editor = createKJDrawEditor('#cad', {
+  document: 'sample',
+})
+
+await editor.ready
+await editor.execute('CREATE', {
+  type: 'CIRCLE',
+  payload: { center: [40, 30, 0], radius: 12 },
+})
+
+editor.fit()</code></pre></div></section>
+  <section class="home-story home-evidence"><div class="home-section-intro"><p class="eyebrow">04 / VERIFY</p><h2><span class="lang-en">Not just a picture.</span><span class="lang-zh">交付的，不只是一张图片。</span></h2><p><span class="lang-en">KJDraw keeps engineering objects editable and makes changes and file exchange inspectable.</span><span class="lang-zh">KJDraw 保留可编辑的工程对象，让修改和文件交换都可以检查。</span></p></div><div class="home-evidence-grid"><a href="./concepts/"><strong><span class="lang-en">Native objects</span><span class="lang-zh">原生对象</span></strong><span><span class="lang-en">Entities, layers, dimensions and references.</span><span class="lang-zh">图元、图层、尺寸与引用。</span></span></a><a href="./commands/"><strong><span class="lang-en">Reviewable changes</span><span class="lang-zh">可审核修改</span></strong><span><span class="lang-en">Commands, revisions, undo and redo.</span><span class="lang-zh">命令、版本、撤销与重做。</span></span></a><a href="./files/"><strong><span class="lang-en">Portable files</span><span class="lang-zh">可交换文件</span></strong><span><span class="lang-en">Save KJD; export and reopen DXF.</span><span class="lang-zh">保存 KJD，导出并重开 DXF。</span></span></a></div></section>
+  <footer class="home-closing"><p><span class="lang-en">The next generation of engineering CAD, created by you and AI.</span><span class="lang-zh">下一代工程 CAD，由你和 AI 一起创造。</span></p><div class="home-actions"><a class="primary" href="./quickstart/"><span class="lang-en">Start building</span><span class="lang-zh">开始构建</span> <span aria-hidden="true">→</span></a><a href="./showcase/"><span class="lang-en">Explore examples</span><span class="lang-zh">浏览案例</span></a></div></footer>
+          <span class="showcase-anchor" id="en-introduction-starting-point" aria-hidden="true"></span>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-introduction">
-          <p class="eyebrow">KJDRAW / 简介</p>
-          <h1>简介</h1>
-          <p class="lead">KJDraw 是面向工程应用、浏览器工作台与可审核 AI Agent 修改的可编程 CAD 基础设施。</p>
-          <h2 id="zh-introduction-what-it-is">KJDraw 是什么<a class="heading-anchor" href="#zh-introduction-what-it-is" aria-label="Link to KJDraw 是什么">#</a></h2>
-<p>KJDraw 为 Web 应用提供可直接嵌入的完整 CAD 编辑器，以及用于构建专业绘图体验的 TypeScript SDK。一次调用 <code>createKJDrawEditor()</code> 就能挂载画布、工具、图层、属性与文件操作；React 和 Vue 组件用各自框架熟悉的生命周期提供同一编辑器。</p>
-<p>你可以用它显示和编辑工程图纸、打开或导出 KJD 与 DXF、增加产品专用工具、自动完成重复修改，或让 AI 助手先准备修改，再由人员确认执行。</p>
-<h2 id="zh-introduction-starting-point">选择接入方式<a class="heading-anchor" href="#zh-introduction-starting-point" aria-label="Link to 选择接入方式">#</a></h2>
-<div class="table-wrap"><table><thead><tr><th>你要构建的产品</th><th>从这里开始</th><th>直接获得</th></tr></thead><tbody><tr><td>JavaScript 或 TypeScript 应用</td><td><code>createKJDrawEditor()</code></td><td>可直接使用的编辑器与简洁控制 API</td></tr><tr><td>React 应用</td><td><code>@kanjieteam/kjdraw/react</code></td><td><code>&lt;KJDraw&gt;</code> 与类型化编辑器 ref</td></tr><tr><td>Vue 应用</td><td><code>@kanjieteam/kjdraw/vue</code></td><td><code>&lt;KJDraw&gt;</code> 与暴露的编辑器方法</td></tr><tr><td>自定义 CAD 界面</td><td><code>@kanjieteam/kjdraw/core</code></td><td>图档、命令、文件能力与自定义 UI</td></tr><tr><td>AI 辅助流程</td><td><code>@kanjieteam/kjdraw/agent</code></td><td>可审核计划、批准与执行回执</td></tr></tbody></table></div>
-<h2 id="zh-introduction-what-you-can-do">现在可以完成什么<a class="heading-anchor" href="#zh-introduction-what-you-can-do" aria-label="Link to 现在可以完成什么">#</a></h2>
-<ul>
-<li>从示例图纸或空白画布开始，完成缩放、选择、绘制与对象检查。</li>
-<li>打开和保存 KJD 或 DXF，管理工程，并接入自己的存储流程。</li>
-<li>执行类型化命令并撤销、重做，或监听图档与选择变化。</li>
-<li>运行时切换中英文、明暗外观，以及经典、紧凑或画布优先的专注布局。</li>
-<li>随产品成长继续增加插件、自定义命令、渲染器与 AI 辅助流程。</li>
-</ul>
-<p>先阅读<strong>快速上手</strong>，开发时可随时查看按任务组织的 <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a>。<a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/reference/">完整 TypeScript 参考</a>覆盖全部公开包入口。</p>
+          <header class="home-hero">
+    <p class="eyebrow">KJDraw</p>
+    <h1><span class="lang-en">Open-source engineering CAD</span><span class="lang-zh">开源工程 CAD</span></h1>
+    <p class="home-promise"><span class="lang-en">One editable model for every engineering workflow.</span><span class="lang-zh">一份可编辑图档，贯通每一种工程工作流。</span></p>
+    <p class="lead"><span class="lang-en">Geometry, dimensions and agent actions — kept together.</span><span class="lang-zh">几何、尺寸与智能体操作，始终围绕同一份图档。</span></p>
+    <div class="home-actions"><a class="primary" href="./quickstart/"><span class="lang-en">Start building</span><span class="lang-zh">开始构建</span> <span aria-hidden="true">→</span></a><a href="./concepts/"><span class="lang-en">Explore the model</span><span class="lang-zh">了解图档模型</span></a></div>
+  </header>
+  <figure class="home-visual"><img src="../assets/home-model.svg" alt="Abstract editable CAD model showing native geometry, references and constraints" width="1200" height="680"></figure>
+  <div class="home-value-strip" aria-label="KJDraw capabilities"><span><span class="lang-en">Native geometry</span><span class="lang-zh">原生几何</span></span><span><span class="lang-en">Deterministic edits</span><span class="lang-zh">确定性编辑</span></span><span><span class="lang-en">Open integrations</span><span class="lang-zh">开放集成</span></span></div>
+  <section class="home-story home-paths"><div class="home-section-intro"><p class="eyebrow">01 / BUILD</p><h2><span class="lang-en">Make CAD part of your workflow.</span><span class="lang-zh">让 CAD 进入你的工作流。</span></h2><p><span class="lang-en">Use the editor directly, embed its typed API in a product, or connect an agent to a reviewable drawing workflow.</span><span class="lang-zh">直接使用编辑器、将类型化 API 嵌入产品，或让智能体接入可审核的绘图流程。</span></p></div><div class="home-path-list"><a href="./workbench/"><span>01</span><strong><span class="lang-en">Browser editor</span><span class="lang-zh">浏览器编辑器</span></strong><small><span class="lang-en">Draw, select and revise in a complete workbench.</span><span class="lang-zh">在完整工作台中绘制、选择与修改。</span></small><b aria-hidden="true">↗</b></a><a href="./api/"><span>02</span><strong>TypeScript SDK</strong><small><span class="lang-en">Build with typed commands and document state.</span><span class="lang-zh">用类型化命令和图档状态构建应用。</span></small><b aria-hidden="true">↗</b></a><a href="./mcp/"><span>03</span><strong><span class="lang-en">Agent workflow</span><span class="lang-zh">智能体工作流</span></strong><small><span class="lang-en">Propose changes, review, then verify the result.</span><span class="lang-zh">先提案，再审核，并核验执行结果。</span></small><b aria-hidden="true">↗</b></a></div></section>
+  <section class="home-story home-examples"><div class="home-section-intro"><p class="eyebrow">02 / EXPLORE</p><h2><span class="lang-en">Different disciplines. The same editable core.</span><span class="lang-zh">不同专业，同一套可编辑内核。</span></h2><p><span class="lang-en">Open an editable example, inspect its objects, then continue editing in the Playground.</span><span class="lang-zh">打开可编辑示例，检查对象，再到工作台继续编辑。</span></p></div><div class="home-example-grid"><a href="./showcase/mechanical-bracket/"><img src="./showcase/assets/mechanical-bracket.svg" alt="" loading="lazy"><span><span class="lang-en">Mechanical part</span><span class="lang-zh">机械零件</span></span><b aria-hidden="true">↗</b></a><a href="./showcase/architecture-floor-plan/"><img src="./showcase/assets/architecture-floor-plan.svg" alt="" loading="lazy"><span><span class="lang-en">Floor plan</span><span class="lang-zh">建筑平面图</span></span><b aria-hidden="true">↗</b></a><a href="./showcase/site-plan/"><img src="./showcase/assets/site-plan.svg" alt="" loading="lazy"><span><span class="lang-en">Site plan</span><span class="lang-zh">场地平面图</span></span><b aria-hidden="true">↗</b></a></div><a class="home-text-link" href="./showcase/"><span class="lang-en">Browse all examples</span><span class="lang-zh">浏览全部案例</span> <span aria-hidden="true">→</span></a></section>
+  <section class="home-story home-developer"><div class="home-dev-copy"><p class="eyebrow">03 / DEVELOP</p><h2><span class="lang-en">Start with one editor.</span><span class="lang-zh">从一个编辑器开始。</span></h2><p><span class="lang-en">A small TypeScript entry point mounts the workbench. From there, the same document can be inspected, edited, saved and reopened.</span><span class="lang-zh">用简洁的 TypeScript 入口挂载工作台，再检查、编辑、保存与重开同一份图档。</span></p><a class="home-text-link" href="./quickstart/"><span class="lang-en">Five-minute quickstart</span><span class="lang-zh">五分钟快速上手</span> <span aria-hidden="true">→</span></a></div><div class="home-code"><div><span>TypeScript</span><a href="./api/">API ↗</a></div><pre><code>import { createKJDrawEditor } from '@kanjieteam/kjdraw'
+
+const editor = createKJDrawEditor('#cad', {
+  document: 'sample',
+})
+
+await editor.ready
+await editor.execute('CREATE', {
+  type: 'CIRCLE',
+  payload: { center: [40, 30, 0], radius: 12 },
+})
+
+editor.fit()</code></pre></div></section>
+  <section class="home-story home-evidence"><div class="home-section-intro"><p class="eyebrow">04 / VERIFY</p><h2><span class="lang-en">Not just a picture.</span><span class="lang-zh">交付的，不只是一张图片。</span></h2><p><span class="lang-en">KJDraw keeps engineering objects editable and makes changes and file exchange inspectable.</span><span class="lang-zh">KJDraw 保留可编辑的工程对象，让修改和文件交换都可以检查。</span></p></div><div class="home-evidence-grid"><a href="./concepts/"><strong><span class="lang-en">Native objects</span><span class="lang-zh">原生对象</span></strong><span><span class="lang-en">Entities, layers, dimensions and references.</span><span class="lang-zh">图元、图层、尺寸与引用。</span></span></a><a href="./commands/"><strong><span class="lang-en">Reviewable changes</span><span class="lang-zh">可审核修改</span></strong><span><span class="lang-en">Commands, revisions, undo and redo.</span><span class="lang-zh">命令、版本、撤销与重做。</span></span></a><a href="./files/"><strong><span class="lang-en">Portable files</span><span class="lang-zh">可交换文件</span></strong><span><span class="lang-en">Save KJD; export and reopen DXF.</span><span class="lang-zh">保存 KJD，导出并重开 DXF。</span></span></a></div></section>
+  <footer class="home-closing"><p><span class="lang-en">The next generation of engineering CAD, created by you and AI.</span><span class="lang-zh">下一代工程 CAD，由你和 AI 一起创造。</span></p><div class="home-actions"><a class="primary" href="./quickstart/"><span class="lang-en">Start building</span><span class="lang-zh">开始构建</span> <span aria-hidden="true">→</span></a><a href="./showcase/"><span class="lang-en">Explore examples</span><span class="lang-zh">浏览案例</span></a></div></footer>
+          <span class="showcase-anchor" id="zh-introduction-starting-point" aria-hidden="true"></span>
         </article>
-        <nav class="pager" aria-label="Adjacent documentation"><span></span><a href="./quickstart/"><strong class="lang-en">Quickstart</strong><strong class="lang-zh">快速上手</strong></a></nav>
+        <nav class="pager" aria-label="Adjacent documentation"><span></span><a href="./showcase/"><strong class="lang-en">Showcase</strong><strong class="lang-zh">案例库</strong></a></nav>
       </div>
-      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-introduction-what-it-is">What KJDraw is</a><a class="toc-level-2" href="#en-introduction-starting-point">Choose your starting point</a><a class="toc-level-2" href="#en-introduction-what-you-can-do">What you can do</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-introduction-what-it-is">KJDraw 是什么</a><a class="toc-level-2" href="#zh-introduction-starting-point">选择接入方式</a><a class="toc-level-2" href="#zh-introduction-what-you-can-do">现在可以完成什么</a></div></aside>
+      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-introduction-starting-point">Build with KJDraw</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-introduction-starting-point">用 KJDraw 开始构建</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="./app.js?v=994141127dc1c271"></script>
+  <script type="module" src="./app.js?v=8849933ba42c87c9"></script>
 </body>
 </html>

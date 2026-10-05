@@ -18,8 +18,21 @@ async function workbenchPoint(page, world) {
 }
 
 async function playgroundPoint(page, world) {
-  const box = await page.locator('#canvas').boundingBox(), scale = Math.min((box.width - 164) / 50, (box.height - 164) / 40)
-  return { x: box.x + box.width / 2 + (world[0] - 15) * scale, y: box.y + box.height / 2 - world[1] * scale }
+  return page.evaluate(world => {
+    const renderer = window.__fitSplinePlaygroundRenderer, rect = document.querySelector('#canvas').getBoundingClientRect()
+    if (!renderer) throw new Error('Playground renderer was not captured')
+    const point = renderer.worldToScreen(world)
+    return { x: rect.left + point[0], y: rect.top + point[1] }
+  }, world)
+}
+
+async function capturePlaygroundRenderer(page) {
+  await page.evaluate(async () => {
+    const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js'), original = KJCanvasRenderer.prototype.screenToWorld
+    KJCanvasRenderer.prototype.screenToWorld = function (point) { window.__fitSplinePlaygroundRenderer = this; return original.call(this, point) }
+  })
+  const canvas = await page.locator('#canvas').boundingBox()
+  await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2)
 }
 
 async function drag(page, point, from, to) {
@@ -59,6 +72,13 @@ function expectPoint(actual, expected, digits = 5) {
   for (const [index, value] of expected.entries()) expect(actual[index]).toBeCloseTo(value, digits)
 }
 
+function expectPointerPoint(actual, expected, scale) {
+  expect(actual).toHaveLength(expected.length)
+  expect(Math.abs(actual[0] - expected[0])).toBeLessThanOrEqual(2 / scale)
+  expect(Math.abs(actual[1] - expected[1])).toBeLessThanOrEqual(2 / scale)
+  expect(actual[2]).toBe(expected[2])
+}
+
 test('fit-point spline grips rebuild visible native geometry in Workbench and Playground', async ({ page }) => {
   await page.goto('/')
   await page.evaluate(async points => {
@@ -79,6 +99,7 @@ test('fit-point spline grips rebuild visible native geometry in Workbench and Pl
   await page.locator('[data-action=redo]').click(); await expect.poll(() => page.evaluate(() => window.__fitSpline.drawing.getObject(window.__fitSpline.spline.id).payload.fitPoints[1])).toEqual([10,15,2])
 
   await page.goto('/'); await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await capturePlaygroundRenderer(page)
   await page.locator('#file-input').setInputFiles({ name: 'fit-spline.kjd', mimeType: 'application/json', buffer: await fixtureBuffer() }); await expect(page.locator('#entity-count')).toHaveText('5 entities')
   if (await page.locator('#snap').getAttribute('aria-pressed') === 'true') await page.locator('#snap').click()
   const endpoint = await playgroundPoint(page, [0,0]); await page.mouse.click(endpoint.x, endpoint.y); await expect(page.locator('#selection-count')).toHaveText('1 selected')
@@ -115,12 +136,14 @@ test('rational SPLINE control grip previews without mutation and commits in Work
   await page.locator('[data-action=redo]').click(); await expect.poll(() => page.evaluate(() => window.__controlSpline.drawing.getObject(window.__controlSpline.spline.id).payload.controlPoints[1])).toEqual([11,22,3])
 
   await page.goto('/'); await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await capturePlaygroundRenderer(page)
   await page.locator('#file-input').setInputFiles({ name: 'control-spline.kjd', mimeType: 'application/json', buffer: await controlFixtureBuffer() }); await expect(page.locator('#entity-count')).toHaveText('5 entities')
   if (await page.locator('#snap').getAttribute('aria-pressed') === 'true') await page.locator('#snap').click()
   const endpoint = await playgroundPoint(page, [0,0]); await page.mouse.click(endpoint.x, endpoint.y); await expect(page.locator('#selection-count')).toHaveText('1 selected')
+  const playgroundScale = await page.evaluate(() => window.__fitSplinePlaygroundRenderer.camera.scale)
   await drag(page, playgroundPoint, [8,18], [11,19]); await expect(page.locator('#status')).toContainText('Grip edit applied')
   let snapshot = await savedPlayground(page), payload = snapshot.objects['control-spline'].payload
-  expectPoint(payload.controlPoints[1], [11,19,3]); expect(payload.knots).toEqual(rationalKnots); expect(payload.weights).toEqual(rationalWeights); expect(payload.startTangent).toEqual([2,1,0]); expect(payload.endTangent).toEqual([3,-1,0])
+  expectPointerPoint(payload.controlPoints[1], [11,19,3], playgroundScale); expect(payload.knots).toEqual(rationalKnots); expect(payload.weights).toEqual(rationalWeights); expect(payload.startTangent).toEqual([2,1,0]); expect(payload.endTangent).toEqual([3,-1,0])
   await page.locator('#undo').click(); snapshot = await savedPlayground(page); expect(snapshot.objects['control-spline'].payload.controlPoints[1]).toEqual([8,18,3])
-  await page.locator('#redo').click(); snapshot = await savedPlayground(page); expectPoint(snapshot.objects['control-spline'].payload.controlPoints[1], [11,19,3])
+  await page.locator('#redo').click(); snapshot = await savedPlayground(page); expectPointerPoint(snapshot.objects['control-spline'].payload.controlPoints[1], [11,19,3], playgroundScale)
 })

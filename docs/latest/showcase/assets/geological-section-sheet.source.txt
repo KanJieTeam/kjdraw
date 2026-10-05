@@ -1,0 +1,31 @@
+// examples/curated-geology-sheets.mjs#L142-L169
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+export async function geologicalSectionSheet() {
+  const id = 'geological-section-sheet', title = 'Geological section'
+  const { sdk, document } = await createDocument(id, title)
+  const holes = HOLE_IDS.map((_, i) => borehole(i))
+  const correlations = []
+  for (let i = 0; i < holes.length - 1; i++) for (let j = 0; j < STRATUM_DEFINITIONS.length; j++) {
+    correlations.push({
+      fromHoleId: holes[i].id, toHoleId: holes[i + 1].id,
+      fromIntervalId: `${holes[i].id}-L${j + 1}`,
+      toIntervalId: `${holes[i + 1].id}-L${j + 1}`,
+    })
+  }
+  const compiled = compileGeologySection({
+    locale: 'en', holes, correlations, sourceFactMode: 'illustrative',
+    horizontalScaleDenominator: GEOLOGY_SAMPLE_FACTS.horizontalScaleDenominator,
+    verticalScaleDenominator: GEOLOGY_SAMPLE_FACTS.sectionVerticalScaleDenominator,
+    datumElevation: 265, surfaceRule: 'straight-between-supplied-collars',
+    expectedRevision: document.revision,
+    title: 'GEOLOGICAL SECTION A-A / SYNTHETIC, NOT MEASURED',
+  })
+  await sdk.executeCommand('CREATEBATCH', structuredClone(compiled.commandArgs), { document })
+  await setPaper(sdk, document, 420, 297)
+  return finish(id, title, sdk, document, {
+    boreholeIds: [...HOLE_IDS], depthMeters: 30, horizontalScaleDenominator: 500,
+    verticalScaleDenominator: 200, hatchCount: document.listEntities({ type: 'HATCH' }).length,
+    correlationCount: correlations.length,
+  })
+}

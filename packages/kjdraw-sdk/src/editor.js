@@ -85,9 +85,8 @@ export class KJDrawEditor {
             const bytes = typeof source === 'string' ? new TextEncoder().encode(source).byteLength : source instanceof Blob ? source.size : source.byteLength;
             if (bytes > this.#maxFileBytes) throw new RangeError(`Input file exceeds maxFileBytes (${bytes} > ${this.#maxFileBytes})`);
             const fileName = options.fileName ?? (typeof File !== 'undefined' && source instanceof File ? source.name : undefined);
-            const data = source instanceof Blob ? new Uint8Array(await source.arrayBuffer()) : source;
             this.#assertMounted();
-            return this.workbench.open(data, {
+            return this.workbench.open(source, {
                 ...options,
                 ...fileName === undefined ? {} : {
                     fileName

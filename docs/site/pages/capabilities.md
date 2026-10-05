@@ -42,7 +42,7 @@ Use `sdk.capabilities()` when an application needs to inspect the commands, enti
 
 ## Compatibility details {#compatibility-details}
 
-For format-specific coverage and reproducible issue reporting, use the maintained [compatibility matrix](https://github.com/KanJieTeam/kjdraw/blob/main/docs/capability-matrix.md) and [current status](https://github.com/KanJieTeam/kjdraw/blob/main/docs/status.md). Never attach private customer drawings to a public issue; use a minimal redistributable example.
+For format-specific coverage and reproducible issue reporting, use the versioned [compatibility matrix](https://github.com/KanJieTeam/kjdraw/blob/main/docs/capability-matrix.md). Never attach private customer drawings to a public issue; use a minimal redistributable example.
 :::
 :::zh
 ## 完整编辑器体验 {#editor-experience}
@@ -81,5 +81,5 @@ KJD 保存单张图档，KJP 打包多图档工程及相关资源，DXF 用于�
 
 ## 兼容性说明 {#compatibility-details}
 
-各格式的具体覆盖范围与问题复现要求，见持续维护的[兼容矩阵](https://github.com/KanJieTeam/kjdraw/blob/main/docs/capability-matrix.md)和[当前状态](https://github.com/KanJieTeam/kjdraw/blob/main/docs/status.md)。请勿在公开 issue 中附加客户私有图纸，应改用可再分发的最小示例。
+各格式的具体覆盖范围与问题复现要求，见版本化的[兼容矩阵](https://github.com/KanJieTeam/kjdraw/blob/main/docs/capability-matrix.md)。请勿在公开 issue 中附加客户私有图纸，应改用可再分发的最小示例。
 :::

@@ -17,8 +17,11 @@ export type KJPolylineDimensionAssociationEdit = {
 } | {
     operation: 'DELETE';
     vertexIndex: number;
+} | {
+    operation: 'REVERSE';
+    vertexCount: number;
 };
-/** Keep LWPOLYLINE vertex references on the same physical vertices after PEDIT index changes. */
+/** Keep polyline vertex references on the same physical vertices after PEDIT index changes. */
 export declare function migratePolylineDimensionAssociations(transaction: KJTransaction, sourceId: string, edit: KJPolylineDimensionAssociationEdit): KJObjectRecord[];
 /** Preserve unique endpoint references when BREAK keeps the leading piece identity. */
 export interface KJBreakVertexAssociationTarget {

@@ -127,7 +127,14 @@ export function captureAgentBlockDependencies(document, ids) {
                     payload.textPosition
                 ] : []
             ];
-            if (!projectDimension(payload, document.getObject(String(payload.styleId ?? ''))?.payload)) fail('unsupported or degenerate dimension');
+            const dimensionType = String(payload.dimensionType ?? 'ALIGNED').toUpperCase();
+            if (![
+                'ALIGNED',
+                'ROTATED',
+                'RADIUS',
+                'DIAMETER',
+                'ANGULAR_3_POINT'
+            ].includes(dimensionType) || !projectDimension(payload, document.getObject(String(payload.styleId ?? ''))?.payload)) fail('unsupported or degenerate dimension');
         } else if (type === 'LWPOLYLINE') {
             for (const key of [
                 'constantWidth',

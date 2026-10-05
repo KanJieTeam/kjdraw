@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { openAiChat } from './ai-chat-ui.mjs'
 import { readFile } from 'node:fs/promises'
 import {
   KJDRAW_MANUFACTURING_SHEET_VERSION,
@@ -21,12 +22,13 @@ const sheet = {
   width: 180,
   thickness: 12,
   holePatterns: [
-    { rows: 8, columns: 12, origin: [12.5, 15], spacing: [25, 21], throughDiameter: 5 },
-    { rows: 2, columns: 2, origin: [20, 20], spacing: [260, 140], throughDiameter: 9, counterboreDiameter: 16, counterboreDepth: 6 },
+    { rows: 4, columns: 12, origin: [25, 25], spacing: [22, 18], throughDiameter: 5 },
+    { rows: 4, columns: 12, origin: [25, 105], spacing: [22, 18], throughDiameter: 5 },
+    { rows: 2, columns: 2, origin: [10, 10], spacing: [280, 160], throughDiameter: 9, counterboreDiameter: 16, counterboreDepth: 6 },
   ],
   slots: [
-    { center: [150, 90], length: 40, width: 10, orientationDegrees: 0 },
-    { center: [80, 90], length: 30, width: 8, orientationDegrees: 90 },
+    { center: [150, 92], length: 40, width: 10, orientationDegrees: 0 },
+    { center: [80, 92], length: 30, width: 8, orientationDegrees: 90 },
   ],
   sheet: { origin: [0, 0], size: [594, 420] },
   textHeight: 3.5,
@@ -144,8 +146,7 @@ async function openBlankChat(page, bytes) {
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
   await page.locator('#file-input').setInputFiles({ name: 'blank-millimeter-drawing.kjd', mimeType: 'application/json', buffer: Buffer.from(bytes) })
   await expect(page.locator('#entity-count')).toHaveText('0 entities')
-  await page.locator('#agent-tab').click()
-  await expect(page.locator('#chat-input')).toBeVisible()
+  await openAiChat(page)
 }
 
 async function connectFixtureTransport(page) {
@@ -212,6 +213,7 @@ test('public Playground builds a dense manufacturing sheet from one visible AI r
   await expect(page.locator('#entity-count')).toHaveText(`${source.count} entities`)
 
   await page.locator('#page-setup').click()
+  await page.locator('#dialog-fields [name="scaleMode"]').selectOption('custom')
   for (const [name, value] of Object.entries({ width: 420, height: 297, margin: 10, denominator: 2, x0: 0, y0: 0, x1: 594, y1: 420 })) {
     await page.locator(`#dialog-fields [name="${name}"]`).fill(String(value))
   }

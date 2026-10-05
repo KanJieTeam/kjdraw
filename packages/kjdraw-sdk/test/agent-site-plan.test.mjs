@@ -76,6 +76,14 @@ test('site plan compiler deterministically expands compact intent into useful na
   assert.equal(first.commandArgs.layout.viewport.modelUnits, 'meter')
 })
 
+test('site plan localizes compiler-generated annotations for Chinese requests', () => {
+  const document = KJDocument.create({ documentId: 'site-plan-zh', units: 'meter' })
+  const compiled = buildAgentSitePlan(document, practicalInput({ locale: 'zh-CN', title: '园区总平面图' }))
+  const texts = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  for (const expected of ['图号 SITE-GENERAL-001', '版本 C3', '比例 1:500', '用地面积', '东坐标=', '北坐标=', '北']) assert.ok(texts.some(value => value.includes(expected)), expected)
+  assert.ok(!texts.some(value => /DRAWING|REV |SCALE 1:500|SITE AREA/u.test(value)))
+})
+
 test('site plan compiles to one atomic CREATEBATCH and survives undo, redo, KJD and DXF reopening', async () => {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: 'site-plan-roundtrip', units: 'meter' })

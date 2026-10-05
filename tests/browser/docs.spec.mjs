@@ -31,12 +31,51 @@ test('Editor API switches languages, searches the complete reference and preserv
   await expect(generatedResult).toBeVisible()
   const generatedHash = await generatedResult.getAttribute('href')
   await generatedResult.click()
+  await page.waitForLoadState('domcontentloaded', { timeout: 30_000 })
   await expect(page).toHaveURL(new RegExp(`/docs/latest/api/reference/#${generatedHash.split('#')[1]}$`))
-  await expect(page.locator(':target')).toBeVisible()
+  await expect(page.locator(`[id="${generatedHash.split('#')[1]}"]`)).toBeVisible({ timeout: 30_000 })
+  await expect(page.locator(':target')).toHaveAttribute('id', generatedHash.split('#')[1])
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await expect(page.locator('.reference-toc')).toBeVisible()
+  await expect(page.locator('#reference-toc-links a').first()).toBeVisible()
+  await page.locator('#api-search').fill('KJCanvasRenderer')
+  const visibleSymbols = await page.locator('.api-symbol:not([hidden])').count()
+  expect(visibleSymbols).toBeGreaterThan(0)
+  const moduleLinks = page.locator('#reference-toc-links a')
+  expect(await moduleLinks.count()).toBeGreaterThan(0)
+  const firstHref = await moduleLinks.first().getAttribute('href')
+  await expect(page.locator(firstHref)).toBeVisible()
 
   await page.goto('/docs/latest/api/#editor-class-kjdraweditor')
   await expect(page).toHaveURL(/\/docs\/latest\/api\/reference\/#editor-class-kjdraweditor$/)
   await expect(page.locator('#editor-class-kjdraweditor')).toBeVisible()
+})
+
+test('complete API reference provides verifiable imports and on-demand declarations', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async value => { window.__copiedImport = value } },
+    })
+  })
+  await page.goto('/docs/latest/api/reference/#editor-interface-kjdraweditoroptions')
+
+  const type = page.locator('#editor-interface-kjdraweditoroptions')
+  const importText = "import type { KJDrawEditorOptions } from '@kanjieteam/kjdraw/editor'"
+  await expect(type.locator('.symbol-import code')).toHaveText(importText)
+  await expect(type.locator('.symbol-declaration')).not.toHaveAttribute('open')
+  await type.locator('.symbol-declaration summary').click()
+  await expect(type.locator('.symbol-declaration')).toHaveAttribute('open', '')
+  await expect(type.locator('.symbol-declaration code').first()).toContainText('export interface KJDrawEditorOptions')
+  await type.locator('[data-copy-import]').click()
+  await expect.poll(() => page.evaluate(() => window.__copiedImport)).toBe(importText)
+
+  const groupedReexport = page.locator('#editor-type-default')
+  await expect(groupedReexport.locator('[data-copy-import]')).toHaveCount(0)
+  await expect(groupedReexport.locator('.symbol-declaration')).toBeVisible()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
 })
 
 test('390px guides keep search and React-to-Vue navigation inside the viewport', async ({ page }) => {
@@ -147,4 +186,21 @@ test('model integration guide exposes all connection routes in both languages on
   await page.locator('#search-button').click()
   await page.locator('#search').fill('chatTokenParameter')
   await expect(page.locator('#results a[href*="/models/#zh-models-quickstart"]')).toBeVisible()
+})
+
+test('reference full-text search reports offline failure and retries without false empty state', async ({ page }) => {
+  await page.route('**/api-reference.json', route => route.abort())
+  await page.goto('/docs/latest/api/reference/')
+  const totalSymbols = await page.locator('.api-symbol').count()
+  await page.locator('#api-search').fill('onSelectionChange')
+
+  await expect(page.locator('#reference-search-status')).toBeVisible()
+  await expect(page.locator('#empty-state')).toBeHidden()
+  await expect(page.locator('.api-symbol:not([hidden])')).toHaveCount(totalSymbols)
+
+  await page.unroute('**/api-reference.json')
+  await page.locator('#retry-reference-search').click()
+  await expect(page.locator('#reference-search-status')).toBeHidden()
+  await expect(page.locator('.api-symbol:not([hidden])')).toHaveCount(3)
+  await expect(page.locator('#editor-interface-kjdraweditoroptions')).toBeVisible()
 })

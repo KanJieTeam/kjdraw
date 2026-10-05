@@ -1,5 +1,5 @@
 // Generated from agent-drawing-compact.ts by scripts/build-typescript.mjs. Do not edit directly.
-export function decodeAgentCompactDrawing(input) {
+export function decodeAgentCompactDrawing(input, options = {}) {
     const point = (x, y)=>({
             x,
             y
@@ -42,10 +42,14 @@ export function decodeAgentCompactDrawing(input) {
                     ]
                 } : {}
             })),
-        polylines: input.polylines.map(({ points, closed })=>({
-                vertices: points.map(([x, y])=>point(x, y)),
+        polylines: input.polylines.map(({ points, closed })=>{
+            const redundantEnd = options.normalizeClosedEndpoint && closed && points.length > 1 && points[0][0] === points.at(-1)[0] && points[0][1] === points.at(-1)[1];
+            const vertices = redundantEnd ? points.slice(0, -1) : points;
+            return {
+                vertices: vertices.map(([x, y])=>point(x, y)),
                 closed
-            })),
+            };
+        }),
         hatches: (input.hatches ?? []).map((hatch)=>({
                 ...hatch,
                 loops: hatch.loops.map((loop)=>({

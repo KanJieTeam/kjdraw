@@ -35,6 +35,7 @@ const mod = (a: number): number => (a % TAU + TAU) % TAU
 const curveAt = (c: Curve, angle: number): Point => add(add(c.center, c.u, Math.cos(angle)), c.v, Math.sin(angle))
 const angleOn = (c: Curve, angle: number): boolean => Math.abs(c.sweep) >= TAU - 1e-10 || mod((angle - c.start) * Math.sign(c.sweep)) <= Math.abs(c.sweep) + 1e-10
 const curveExtrema = (c: Curve): Point[] => [c.start, c.start + c.sweep, Math.atan2(c.v[0], c.u[0]), Math.atan2(c.v[0], c.u[0]) + Math.PI, Math.atan2(c.v[1], c.u[1]), Math.atan2(c.v[1], c.u[1]) + Math.PI].filter(a => angleOn(c, a)).map(a => curveAt(c, a))
+const toleranceDisplayText = (value: unknown): string => String(value ?? '').replace(/\{\\Fgdt;([a-z])\}/gu, (_, code: string) => ({ j: '⌖', r: '◎', i: '≡', f: '∥', b: '⊥', a: '∠', g: '⌭', c: '▱', e: '○', u: '—', d: '⌒', k: '⌢', h: '↗', t: '⇗', n: '⌀', m: 'Ⓜ', l: 'Ⓛ', s: 'Ⓢ' }[code] ?? code)).replace(/%%v/gu, '|').replace(/\^J/gu, ' ')
 
 function vertex(value: unknown): Point | null { return point((value as { point?: unknown })?.point ?? value) }
 function circle(center: Point, radius: number, start = 0, sweep = TAU): Curve {
@@ -111,7 +112,7 @@ function textBox(position: Point, text: string, height: number, rotation: number
 
 /** Shared selection projection. Curves use analytic extrema/intersections; NURBS and text use their 2D display projection. */
 function project(entity: KJReadonlyObjectRecord, document: KJDocument, depth = 0, inheritedMatrix?: readonly number[]): Projection {
-  if (inheritedMatrix && !['INSERT','DIMENSION','TEXT','MTEXT','ATTRIB','ATTDEF'].includes(entity.type)) return project({ ...entity, payload: transformEntityPayload(entity.type, structuredClone(entity.payload) as KJObjectPayload, inheritedMatrix) }, document, depth)
+  if (inheritedMatrix && !['INSERT','DIMENSION','TOLERANCE','TEXT','MTEXT','ATTRIB','ATTDEF'].includes(entity.type)) return project({ ...entity, payload: transformEntityPayload(entity.type, structuredClone(entity.payload) as KJObjectPayload, inheritedMatrix) }, document, depth)
   const payload = entity.payload, result: Projection = { parts: [], fills: [], complete: true }
   if (attributeHidden(entity)) return result
   const path = (values: readonly unknown[], closed = false, filled = false) => {
@@ -165,6 +166,11 @@ function project(entity: KJReadonlyObjectRecord, document: KJDocument, depth = 0
       for (const [a, b] of annotation.lines) result.parts.push({ kind: 'segment', a, b })
       for (const arrow of annotation.arrows) path(arrow, true, true)
       path(textBox(annotation.label.position, annotation.label.text, annotation.label.height, annotation.label.rotation, true), true, true)
+      break
+    }
+    case 'TOLERANCE': {
+      const position = point(payload.position), axis = point(payload.xAxisDirection) ?? [1, 0], style = document.getObject(String(payload.styleId ?? ''))?.payload
+      if (position) path(textBox(position, toleranceDisplayText(payload.text), finite(style?.textHeight, 2.5), Math.atan2(axis[1], axis[0]), false), true, true)
       break
     }
     case 'TEXT': case 'MTEXT': case 'ATTDEF': case 'ATTRIB': {

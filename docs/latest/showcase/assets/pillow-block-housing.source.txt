@@ -1,0 +1,28 @@
+// examples/curated-machine-components.mjs#L141-L165
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+function drawHousing(d) {
+  // Conceptual pillow-block elevation and top view; bore and base holes remain editable.
+  d.rect(55, 77, 179, 93)
+  d.poly([[76, 93], [82, 132], [92, 144], [142, 144], [152, 132], [158, 93]], true)
+  d.circle(117, 119, 15)
+  d.circle(117, 119, 25)
+  d.center(117, 119, 30)
+  d.line(55, 85, 179, 85, 'center')
+  d.rect(55, 54, 179, 69)
+  d.line(70, 54, 70, 69)
+  d.line(164, 54, 164, 69)
+  for (const x of [70, 164]) {
+    d.circle(x, 61.5, 5)
+    d.center(x, 61.5, 8)
+  }
+  d.dim(70, 54, 164, 54, 117, 50)
+  d.dim(55, 77, 55, 144, 39, 110.5)
+  d.text(58, 158, 'FRONT ELEVATION', 3.2)
+  d.text(190, 145, 'SHAFT BORE DIA 30', 3)
+  d.text(190, 133, '2X DIA 10 MOUNT', 3)
+  d.text(190, 121, 'MOUNT PITCH 94', 3)
+  d.text(190, 109, 'BASE LENGTH 124', 3)
+  d.text(190, 97, 'BASE DEPTH 54', 3)
+  d.text(190, 85, 'BOSS / FILLET CONCEPT', 2.8)
+}

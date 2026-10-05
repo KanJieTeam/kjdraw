@@ -75,6 +75,8 @@ export interface KJProjectSessionOptions {
   createdAt?: string
   metadata?: Record<string, unknown>
   migrations?: readonly unknown[]
+  /** Project-owned binary or JSON diagnostics persisted below diagnostics/. */
+  diagnostics?: ReadonlyMap<string, KjpEntryValue> | Readonly<Record<string, KjpEntryValue>>
 }
 
 export interface KJProjectCreateOptions extends KJProjectSessionOptions {
@@ -112,6 +114,10 @@ function entryMap(entries: ReadonlyMap<string, Uint8Array> | undefined, prefix: 
   return result
 }
 
+function optionalEntryMap(entries: KJProjectSessionOptions['diagnostics']): Map<string, KjpEntryValue> {
+  return new Map(entries instanceof Map ? entries : Object.entries(entries ?? {}))
+}
+
 function documentRows(input: KJProjectCreateOptions['documents']): [string | undefined, KJOpenInput | KJDocument][] {
   if (input instanceof Map) return [...input]
   if (Array.isArray(input)) return input.map(document => [document instanceof KJDocument ? document.id : undefined, document])
@@ -144,13 +150,14 @@ export class KJProjectSession {
   activeDocumentId: string | null = null
   commands: ReadonlyDeep<KJProjectCommandRecord>[] = []
   assets = new Map<string, KjpEntryValue>()
+  diagnostics = new Map<string, KjpEntryValue>()
   snapshots = new Map<string, KjpEntryValue>()
   snapshotLedger: ReadonlyDeep<KJProjectSnapshotRecord>[] = []
   dirty = false
   state: KJProjectState = 'unbound'
   lastError: Error | null = null
 
-  constructor({ sdk, id, title = '未命名工程', createdAt, metadata = {}, migrations = [] }: KJProjectSessionOptions = {}) {
+  constructor({ sdk, id, title = '未命名工程', createdAt, metadata = {}, migrations = [], diagnostics }: KJProjectSessionOptions = {}) {
     if (!sdk?.attachDocument || !sdk?.events) throw new KJValidationError('KJProjectSession 需要 KJDrawSDK')
     this.sdk = sdk
     this.id = projectId(id ?? createId('project'))
@@ -159,6 +166,7 @@ export class KJProjectSession {
     this.modifiedAt = this.createdAt
     this.metadata = clone(metadata)
     this.migrations = clone([...migrations])
+    this.diagnostics = optionalEntryMap(diagnostics)
     this.#sdkOff.push(sdk.events.on('command:committed', value => this.#recordCommand(value)))
   }
 
@@ -187,6 +195,7 @@ export class KJProjectSession {
     session.modifiedAt = opened.manifest.modifiedAt
     session.commands = clone(opened.commands) as ReadonlyDeep<KJProjectCommandRecord>[]
     session.assets = entryMap(opened.entries, 'assets/')
+    session.diagnostics = entryMap(opened.entries, 'diagnostics/')
     session.snapshots = entryMap(opened.entries, 'snapshots/')
     const snapshots = opened.manifest.metadata.snapshots
     session.snapshotLedger = Array.isArray(snapshots) ? clone(snapshots) as ReadonlyDeep<KJProjectSnapshotRecord>[] : []
@@ -313,7 +322,7 @@ export class KJProjectSession {
       metadata: { ...clone(this.metadata), snapshots: clone(this.snapshotLedger) },
       ...(options.writerVersion === undefined ? {} : { writerVersion: options.writerVersion }),
       ...(options.recovery === undefined ? {} : { recovery: options.recovery }),
-      ...(options.diagnostics === undefined ? {} : { diagnostics: options.diagnostics }),
+      diagnostics: options.diagnostics ?? this.diagnostics,
     })
   }
 

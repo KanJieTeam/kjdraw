@@ -34,6 +34,19 @@ test('bulk import preserves mixed explicit, missing and duplicate handles', asyn
   assert.deepEqual(entities.at(-1).payload.end, [2048, 1, 0])
 })
 
+test('low entity handles remain stable after adding layers and repeated DXF reopens', async () => {
+  const adapter = createDXFFileAdapter()
+  let document = await adapter.read(source(['1', '2', 'A', 'B', 'F']))
+  const expected = document.listEntities().map(entity => ({ handle: entity.handle, start: entity.payload.start }))
+  assert.deepEqual(expected.map(entity => entity.handle), ['1', '2', 'A', 'B', 'F'])
+  for (let round = 0; round < 3; round++) {
+    await document.transact('New layer', tx => tx.upsertTableRecord('layers', { name: 'Review-' + round }))
+    document = await adapter.read(adapter.write(document, { version: '2018' }))
+    assert.deepEqual(document.listEntities().map(entity => ({ handle: entity.handle, start: entity.payload.start })), expected)
+    assert.equal(document.validate().valid, true)
+  }
+})
+
 test('transaction handle index preserves duplicate, purge and rollback semantics', async () => {
   const doc = KJDocument.create()
   let retained

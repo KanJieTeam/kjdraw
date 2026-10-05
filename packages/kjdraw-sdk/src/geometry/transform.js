@@ -3,6 +3,32 @@ import { KJValidationError } from '../errors.js';
 import { clone } from '../utils.js';
 import { hatchPatternLines } from './hatch.js';
 import { determinant3, similarityScale3, transformPoint3, transformVector3 } from './matrix3.js';
+function withoutUndefined(record) {
+    for (const key of Object.keys(record))if (record[key] === undefined) delete record[key];
+    return record;
+}
+function transformedAttributeAlignmentTags(payload, matrix) {
+    if (!Array.isArray(payload.dxfAttributeExtraTags) || !Array.isArray(payload.alignmentPoint) || payload.alignmentPoint.length !== 3) return {};
+    const tags = payload.dxfAttributeExtraTags;
+    for(let index = 0; index < tags.length; index++){
+        if (tags[index].code === 1001) break;
+        if (tags[index].code !== 11) continue;
+        const point = tags.slice(index, index + 3);
+        if (point.length !== 3 || !point.every((tag, axis)=>tag.code === [
+                11,
+                21,
+                31
+            ][axis] && typeof tag.value === 'string' && /^[ \t]*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?[ \t]*$/.test(tag.value) && Number.isFinite(Number(tag.value)) && Number(tag.value) === payload.alignmentPoint[axis])) return {};
+        const next = transformPoint3(matrix, payload.alignmentPoint);
+        return {
+            dxfAttributeExtraTags: tags.map((tag, tagIndex)=>tagIndex >= index && tagIndex < index + 3 ? {
+                    ...tag,
+                    value: String(next[tagIndex - index])
+                } : tag)
+        };
+    }
+    return {};
+}
 function angleOf(vector) {
     const record = vector;
     const coordinates = Array.isArray(vector) ? vector : [
@@ -13,6 +39,7 @@ function angleOf(vector) {
 }
 function transformAngle(matrix, angle) {
     const number = Number(angle);
+    if (Number(matrix[0]) === 1 && Number(matrix[1]) === 0 && Number(matrix[2]) === 0 && Number(matrix[3]) === 1) return number;
     return angleOf(transformVector3(matrix, [
         Math.cos(number),
         Math.sin(number)
@@ -130,7 +157,6 @@ export function transformEntityPayload(type, source, matrix) {
             };
         case 'LWPOLYLINE':
         case 'POLYLINE':
-        case 'WIPEOUT':
         case 'REVISION_CLOUD':
             return {
                 ...payload,
@@ -159,6 +185,10 @@ export function transformEntityPayload(type, source, matrix) {
                 ...payload,
                 position: transformPoint3(matrix, payload.position),
                 alignmentPoint: payload.alignmentPoint && transformPoint3(matrix, payload.alignmentPoint),
+                ...[
+                    'ATTDEF',
+                    'ATTRIB'
+                ].includes(normalizedType) ? transformedAttributeAlignmentTags(payload, matrix) : {},
                 height: payload.height == null ? undefined : Number(payload.height) * scale(),
                 ...normalizedType === 'MTEXT' && payload.width != null ? {
                     width: Number(payload.width) * scale()
@@ -177,6 +207,14 @@ export function transformEntityPayload(type, source, matrix) {
                     mirrored: mirrored ? !payload.mirrored : payload.mirrored
                 };
             }
+        case 'WIPEOUT':
+            return withoutUndefined({
+                ...payload,
+                position: payload.position == null ? undefined : transformPoint3(matrix, payload.position),
+                uVector: payload.uVector == null ? undefined : transformVector3(matrix, payload.uVector),
+                vVector: payload.vVector == null ? undefined : transformVector3(matrix, payload.vVector),
+                vertices: (payload.vertices ?? payload.points ?? []).map((vertex)=>transformVertex(matrix, vertex, mirrored, scale()))
+            });
         case 'IMAGE':
             return {
                 ...payload,
@@ -250,6 +288,24 @@ export function transformEntityPayload(type, source, matrix) {
                 textPosition: payload.textPosition && transformPoint3(matrix, payload.textPosition),
                 rotation: transformAngle(matrix, payload.rotation ?? 0)
             };
+        case 'TOLERANCE':
+            {
+                const axis = transformVector3(matrix, payload.xAxisDirection ?? [
+                    1,
+                    0,
+                    0
+                ]), z = Number(axis[2] ?? 0), length = Math.hypot(axis[0], axis[1], z);
+                if (!(length > 1e-15)) throw new KJValidationError('TOLERANCE x-axis direction became degenerate');
+                return {
+                    ...payload,
+                    position: transformPoint3(matrix, payload.position),
+                    xAxisDirection: [
+                        axis[0] / length,
+                        axis[1] / length,
+                        z / length
+                    ]
+                };
+            }
         case 'VIEWPORT':
             return {
                 ...payload,

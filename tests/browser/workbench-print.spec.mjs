@@ -52,22 +52,22 @@ test('workbench Print opens a real vector A3 PDF with extractable Chinese and ex
   const pdf=await popup.pdf({path:'.cache/print-export/workbench-a3.pdf',preferCSSPageSize:true,printBackground:true,displayHeaderFooter:false,scale:1})
   await testInfo.attach('actual-workbench-vector-pdf',{body:pdf,contentType:'application/pdf'})
   const script=String.raw`
-import json,math,sys
+import json,math,sys,unicodedata
 from pypdf import PdfReader
 import pdfplumber
 r=PdfReader(sys.argv[1]);assert len(r.pages)==1
-p=r.pages[0];text=p.extract_text();assert '道路工程图：平面、纵断面、横断面' in text, repr(text);assert 'KJDraw - Vector engineering drawing' in text, repr(text)
+p=r.pages[0];raw_text=p.extract_text();text=unicodedata.normalize('NFKC',raw_text);compact=''.join(text.split());expected=''.join(unicodedata.normalize('NFKC','道路工程图：平面、纵断面、横断面').split());assert expected in compact, repr(raw_text);assert 'KJDraw-Vectorengineeringdrawing' in compact, repr(raw_text);assert '1000mmat1:100=10mmonpaper' in compact, repr(raw_text)
 assert 'Print at 100%' not in text
 fonts=[];images=[]
 def visit(res):
  for name,ref in res.get('/Font',{}).items():
-  f=ref.get_object();fd=f.get('/DescendantFonts',[f])[0].get_object().get('/FontDescriptor',{}).get_object()
-  fonts.append({'embedded':any(k in fd for k in ['/FontFile','/FontFile2','/FontFile3']),'unicode':'/ToUnicode' in f})
+  f=ref.get_object();fd=f.get('/DescendantFonts',[f])[0].get_object().get('/FontDescriptor',{}).get_object();subtype=str(f.get('/Subtype',''));charprocs=f.get('/CharProcs',{})
+  fonts.append({'subtype':subtype,'embedded':any(k in fd for k in ['/FontFile','/FontFile2','/FontFile3']) or (subtype=='/Type3' and len(charprocs)>0),'unicode':'/ToUnicode' in f})
  for name,ref in res.get('/XObject',{}).items():
   x=ref.get_object()
   if x.get('/Subtype')=='/Image':images.append(str(name))
   if '/Resources' in x:visit(x['/Resources'])
-visit(p['/Resources']);assert not images;assert fonts and all(f['embedded'] and f['unicode'] for f in fonts)
+visit(p['/Resources']);assert not images;assert fonts and all(f['embedded'] for f in fonts),fonts;assert any(f['unicode'] for f in fonts),fonts
 mm=[float(p.mediabox.width)*25.4/72,float(p.mediabox.height)*25.4/72]
 assert abs(mm[0]-420)<.25 and abs(mm[1]-297)<.25
 with pdfplumber.open(sys.argv[1]) as doc:

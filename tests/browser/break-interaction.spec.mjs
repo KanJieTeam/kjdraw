@@ -31,6 +31,76 @@ async function workbenchPoint(page, world) {
   }, world)
 }
 
+for (const type of ['LINE', 'CIRCLE']) test(`Workbench ${type} BREAK keeps the default pick tolerance for real off-curve mouse clicks`, async ({ page }) => {
+  await mountWorkbench(page)
+  const before = await page.evaluate(async type => {
+    const { sdk, editor } = window.__breakWorkbench, document = editor.document
+    await sdk.executeCommand('ERASE', { ids: document.listEntities().map(entity => entity.id) }, { document })
+    const target = await sdk.executeCommand('CREATE', { type, payload: type === 'LINE'
+      ? { start: [0, 40, 0], end: [10, 40, 0] } : { center: [0, 40, 0], radius: 10 } }, { document })
+    await sdk.executeCommand('SELECT', { ids: [target.id], operation: 'replace' }, { document })
+    await sdk.executeCommand('CREATE', { type: 'POINT', payload: { position: [30, 40, 0] } }, { document })
+    await document.undo()
+    window.__breakWorkbench.pickTarget = target
+    const execute = sdk.executeCommand.bind(sdk)
+    sdk.executeCommand = async (name, args, options) => {
+      if (name === 'BREAK') window.__breakWorkbench.lastBreak = structuredClone(args)
+      return execute(name, args, options)
+    }
+    editor.fit()
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    return { revision: document.revision, history: { ...document.history }, snapshot: document.serialize(), objects: document.listObjects({ includeErased: true }) }
+  }, type)
+  const root = '#break-host', command = page.locator(`${root} [data-command]`)
+  await command.fill('BREAK'); await command.press('Enter')
+  await expect(page.locator(`${root} [data-modification-field="tolerance"]`)).toHaveValue('0.1')
+  await page.locator(`${root} [data-action="start-modification"]`).click()
+  const outside = await workbenchPoint(page, type === 'LINE' ? [5, 40.3] : [10.3, 40])
+  await page.mouse.click(outside.x, outside.y)
+  if (type === 'CIRCLE') { const other = await workbenchPoint(page, [0, 50.05]); await page.mouse.click(other.x, other.y) }
+  await expect(page.locator(`${root} [data-hint]`)).toContainText('tolerance')
+  expect(await page.evaluate(() => {
+    const document = window.__breakWorkbench.editor.document
+    return { revision: document.revision, history: { ...document.history }, snapshot: document.serialize(), objects: document.listObjects({ includeErased: true }) }
+  })).toEqual(before)
+  // Escape clears both circle picks before retrying the default form.
+  await page.keyboard.press('Escape')
+  await command.fill('BREAK'); await command.press('Enter')
+  await expect(page.locator(`${root} [data-modification-field="tolerance"]`)).toHaveValue('0.1')
+  await page.locator(`${root} [data-action="start-modification"]`).click()
+  const near = await workbenchPoint(page, type === 'LINE' ? [5, 40.05] : [10.05, 40])
+  await page.mouse.click(near.x, near.y)
+  if (type === 'CIRCLE') { const other = await workbenchPoint(page, [0, 50.05]); await page.mouse.click(other.x, other.y) }
+  await expect.poll(() => page.evaluate(() => window.__breakWorkbench.editor.document.revision)).toBe(before.revision + 1)
+  const result = await page.evaluate(() => {
+    const { editor, pickTarget } = window.__breakWorkbench, document = editor.document
+    return { scale: editor.workbench.renderer.camera.scale, undoCount: document.history.undoCount,
+      request: window.__breakWorkbench.lastBreak,
+      pieces: document.listEntities().filter(entity => entity.id === pickTarget.id || entity.source?.derivedFromId === pickTarget.id).map(entity => ({ type: entity.type, payload: entity.payload })) }
+  })
+  expect(result.pieces).toHaveLength(2)
+  const picks = type === 'LINE' ? [result.request.point] : [result.request.firstPoint, result.request.secondPoint]
+  for (const [x, y] of picks) {
+    const distance = type === 'LINE' ? Math.abs(y - 40) : Math.abs(Math.hypot(x, y - 40) - 10)
+    expect(distance).toBeGreaterThan(1e-7); expect(distance).toBeLessThan(.1)
+  }
+  expect(result.undoCount).toBe(before.history.undoCount + 1)
+  if (type === 'LINE') {
+    expect(result.pieces.map(piece => piece.type)).toEqual(['LINE', 'LINE'])
+    expect(result.pieces[0].payload.end[1]).toBe(40); expect(result.pieces[1].payload.start[1]).toBe(40)
+    expect(Math.abs(result.pieces[0].payload.end[0] - 5)).toBeLessThan(2 / result.scale)
+    expect(result.pieces[1].payload.start).toEqual(result.pieces[0].payload.end)
+  } else {
+    expect(result.pieces.map(piece => piece.type)).toEqual(['ARC', 'ARC'])
+    for (const piece of result.pieces) { expect(piece.payload.center).toEqual([0, 40, 0]); expect(piece.payload.radius).toBe(10) }
+    expect(Math.abs(result.pieces[0].payload.endAngle - Math.PI / 2)).toBeLessThan(2 / (result.scale * 10))
+  }
+  await page.evaluate(() => window.__breakWorkbench.editor.document.undo())
+  expect(await page.evaluate(() => window.__breakWorkbench.editor.document.listObjects({ includeErased: true }))).toEqual(before.objects)
+  await page.evaluate(() => window.__breakWorkbench.editor.document.redo())
+  await expect.poll(() => page.evaluate(() => window.__breakWorkbench.editor.document.revision)).toBe(before.revision + 3)
+})
+
 test('Workbench BREAK command retries an invalid pick and commits an exact non-mutating polyline ghost', async ({ page }) => {
   await mountWorkbench(page)
   const root = '#break-host', input = page.locator(`${root} [data-command]`)
@@ -85,12 +155,18 @@ test('Workbench BREAK selects one-point elliptical-arc and two-point full-ellips
   await expect.poll(() => page.evaluate(() => window.__breakWorkbench.editor.document.revision)).toBe(revision + 1)
   const result = await page.evaluate(() => {
     const { editor, ellipses } = window.__breakWorkbench
-    return editor.document.listEntities({ type: 'ELLIPSE' }).filter(item => item.id === ellipses.full.id || item.source?.derivedFromId === ellipses.full.id).map(item => ({ id: item.id, start: item.payload.startParameter, end: item.payload.endParameter }))
+    return { scale: editor.workbench.renderer.camera.scale, pieces: editor.document.listEntities({ type: 'ELLIPSE' }).filter(item => item.id === ellipses.full.id || item.source?.derivedFromId === ellipses.full.id).map(item => ({ id: item.id, start: item.payload.startParameter, end: item.payload.endParameter })) }
   })
-  expect(result).toHaveLength(2)
-  expect(result[0].id).toBe(await page.evaluate(() => window.__breakWorkbench.ellipses.full.id))
-  expect(result[0].start).toBe(0); expect(result[0].end).toBeCloseTo(Math.PI / 2, 6)
-  expect(result[1].start).toBeCloseTo(Math.PI / 2, 6); expect(result[1].end).toBeCloseTo(Math.PI * 2, 6)
+  expect(result.pieces).toHaveLength(2)
+  expect(result.pieces[0].id).toBe(await page.evaluate(() => window.__breakWorkbench.ellipses.full.id))
+  // A real pointer is quantized to CSS pixels. Verify the two break parameters
+  // remain within two pixels on the ellipse instead of requiring synthetic,
+  // sub-pixel-identical pointer coordinates from every browser engine.
+  const parameterTolerance = 2 / (result.scale * 5)
+  expect(Math.abs(result.pieces[0].start)).toBeLessThanOrEqual(parameterTolerance)
+  expect(Math.abs(result.pieces[0].end - Math.PI / 2)).toBeLessThanOrEqual(parameterTolerance)
+  expect(Math.abs(result.pieces[1].start - Math.PI / 2)).toBeLessThanOrEqual(parameterTolerance)
+  expect(Math.abs(result.pieces[1].end - Math.PI * 2)).toBeLessThanOrEqual(parameterTolerance)
 })
 
 test('Workbench JOIN applies two selected elliptical arcs as one native ellipse with history, hit testing and KJD reopen', async ({ page }) => {
@@ -145,27 +221,38 @@ async function circleDrawing() {
 }
 
 async function playgroundPoint(page, x, y) {
-  const box = await page.locator('#canvas').boundingBox(), scale = Math.min((box.width - 164) / 40, (box.height - 164) / 40)
-  return { x: box.x + box.width / 2 + x * scale, y: box.y + box.height / 2 - y * scale }
+  return page.evaluate(([x, y]) => {
+    const renderer = window.__breakPlaygroundRenderer, rect = document.querySelector('#canvas').getBoundingClientRect()
+    if (!renderer) throw new Error('Playground renderer was not captured')
+    const point = renderer.worldToScreen([x, y])
+    return { x: rect.left + point[0], y: rect.top + point[1] }
+  }, [x, y])
 }
 
 test('Playground BREAK command chooses the two-point circle flow, previews two arcs, cancels and then commits', async ({ page }) => {
   await page.goto('/'); await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await page.evaluate(async () => {
+    const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js'), original = KJCanvasRenderer.prototype.screenToWorld
+    KJCanvasRenderer.prototype.screenToWorld = function (point) { window.__breakPlaygroundRenderer = this; return original.call(this, point) }
+  })
   await page.locator('#file-input').setInputFiles({ name: 'break.kjd', mimeType: 'application/json', buffer: await circleDrawing() })
   await expect(page.locator('#entity-count')).toHaveText('3 entities')
   if (await page.locator('#snap').getAttribute('aria-pressed') === 'true') await page.locator('#snap').click()
+  const canvas = await page.locator('#canvas').boundingBox(); await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2)
   const right = await playgroundPoint(page, 10, 0); await page.mouse.click(right.x, right.y); await expect(page.locator('#selection-count')).toHaveText('1 selected')
   const revision = Number((await page.locator('#revision').textContent()).replace('REV ', ''))
   const command = async () => { await page.locator('#command-input').fill('BREAK'); await page.locator('#command-input').press('Enter'); await expect(page.locator('#app-dialog')).toBeVisible() }
   await command(); await expect(page.locator('#modification-tool')).toHaveValue('break-two-point')
+  await expect(page.locator('#dialog-fields input[name="tolerance"]')).toHaveValue('0.1')
   await page.locator('#dialog-fields input[name="tolerance"]').fill('0.2'); await page.locator('#dialog-submit').click()
+  await expect(page.locator('.workbench')).toHaveAttribute('aria-busy', 'false')
   const top = await playgroundPoint(page, 0, 10), bottom = await playgroundPoint(page, 0, -10)
   await page.mouse.click(top.x, top.y); await page.mouse.move(bottom.x, bottom.y)
   await expect(page.locator('.workbench')).toHaveAttribute('data-modification-preview-count', '2')
   await expect(page.locator('#revision')).toHaveText(`REV ${revision}`)
   await page.keyboard.press('Escape'); await expect(page.locator('#revision')).toHaveText(`REV ${revision}`)
 
-  await command(); await page.locator('#dialog-submit').click(); await page.mouse.click(top.x, top.y); await page.mouse.move(bottom.x, bottom.y)
+  await command(); await page.locator('#dialog-submit').click(); await expect(page.locator('.workbench')).toHaveAttribute('aria-busy', 'false'); await page.mouse.click(top.x, top.y); await page.mouse.move(bottom.x, bottom.y)
   await expect(page.locator('.workbench')).toHaveAttribute('data-modification-preview-count', '2'); await page.mouse.click(bottom.x, bottom.y)
   await expect(page.locator('#revision')).toHaveText(`REV ${revision + 1}`); await expect(page.locator('#entity-count')).toHaveText('4 entities')
   await page.locator('#undo').click(); await expect(page.locator('#entity-count')).toHaveText('3 entities')

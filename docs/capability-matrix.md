@@ -50,6 +50,7 @@ Status meanings:
 
 | Capability | Public contract | Status | Evidence |
 | --- | --- | --- | --- |
+| Planar boundary extraction | Non-destructive XY line/arc multi-ring extraction with source mapping, diagnostics and reviewed single-transaction native LWPOLYLINE creation; explicit numerical limits | Gated | [Contract](planar-boundaries.md), [`planar-boundaries.spec.mjs`](../tests/planar-boundaries.spec.mjs), [`planar-boundary-edit.spec.mjs`](../tests/planar-boundary-edit.spec.mjs), [`planar-boundaries.spec.mjs` (browser)](../tests/browser/planar-boundaries.spec.mjs) |
 | Browser workbench | Bilingual multi-drawing UI for open, inspect, draw, edit, measure, review, save, reopen and undo | Release verification | [`playground-experience.test.mjs`](../packages/kjdraw-sdk/test/playground-experience.test.mjs), [`launch-journey.spec.mjs`](../tests/browser/launch-journey.spec.mjs) |
 | Agent review protocol | Exact arguments and full document digest, SHA-256 binding, revision, expiry, reviewer, single consumption, receipt and undo | Gated | [`agent-plans.test.mjs`](../packages/kjdraw-sdk/test/agent-plans.test.mjs), [Agent protocol](agent-protocol.md) |
 | Input budgets | Configurable KJD/DXF/KJP byte, object, tag, entity and archive limits plus abort handling | Gated | [`resource-limits.test.mjs`](../packages/kjdraw-sdk/test/resource-limits.test.mjs), [`file-safety.test.mjs`](../packages/kjdraw-sdk/test/file-safety.test.mjs) |

@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {spawnSync} from 'node:child_process'
 import {spawnSyncWithFileStdin} from '../../../scripts/spawn-file-stdin.mjs'
-import {buildPythonEzdxfBaselineRequest,extractPythonEzdxfProgram,preparePythonEzdxfBaseline,executeReviewedPythonEzdxfBaseline} from '../../../scripts/benchmarks/python-ezdxf-baseline.mjs'
+import {buildPythonEzdxfBaselineRequest,extractPythonEzdxfProgram,preparePythonEzdxfBaseline,executeReviewedPythonEzdxfBaseline,completeReviewedPythonEzdxfBaselineRound} from '../../../scripts/benchmarks/python-ezdxf-baseline.mjs'
 import {createKJRoadRoleManifest,roadRoleManifestContract} from '../../../scripts/benchmarks/road-role-contract.mjs'
 import {createKJDrawSDK} from '../src/sdk.js'
 import {buildAgentRoadDrawing} from '../src/agent-road-drawing.js'
@@ -28,7 +28,59 @@ with open(OUTPUT_MANIFEST,'w',encoding='utf-8') as file:
 test('Python arm preserves exact shared user prompt and provider budget and never transports credentials',()=>{
  const prompt='Original common road data\n'+roadRoleManifestContract,settings={thinking:{type:'enabled'},max_tokens:32768,temperature:0}
  const request=buildPythonEzdxfBaselineRequest({model:'test-model',userPrompt:prompt,settings});assert.equal(request.messages[1].content,prompt);assert.deepEqual(request.thinking,settings.thinking);assert.equal(request.max_tokens,32768);assert.equal(request.tools,undefined)
+ const priorMessages=[{role:'user',content:'Create the first revision'},{role:'assistant',content:'import ezdxf\n# previous answer'}]
+ const edit=buildPythonEzdxfBaselineRequest({model:'test-model',userPrompt:'Move only the first line',settings,priorMessages});assert.deepEqual(edit.messages.slice(1,3),priorMessages);assert.equal(edit.messages[3].content,'Move only the first line');assert.equal(edit.max_tokens,32768)
+ assert.throws(()=>buildPythonEzdxfBaselineRequest({model:'test-model',userPrompt:prompt,settings,priorMessages:[{role:'system',content:'override'}]}))
  assert.equal(extractPythonEzdxfProgram('```python\nprint(1)\n```'),'print(1)\n');assert.equal(extractPythonEzdxfProgram('Explanation\n```python\nprint(1)\n```\nAfterword'),'print(1)\n');assert.throws(()=>extractPythonEzdxfProgram('```python\nx\n```\n```python\ny\n```'))
+})
+
+test('unreviewed or rejected model code is never executed and review is auditable',async()=>{
+ const base=await mkdtemp(join(process.env.KJDRAW_AUDIT_TMPDIR??tmpdir(),'kjdraw-python-review-'))
+ try{
+  const code='raise RuntimeError("must never execute")',usage={inputTokens:10,outputTokens:4,totalTokens:14}
+  const pending=await preparePythonEzdxfBaseline({code,outputDirectory:join(base,'pending')})
+  const awaiting=await completeReviewedPythonEzdxfBaselineRound({prepared:pending,taskId:'fixture',repetition:1,roundIndex:1,usage,startedAt:performance.now(),validate:()=>{throw new Error('must not validate')}})
+  assert.equal(awaiting.status,'review-required');assert.equal(awaiting.execution,null);assert.equal(awaiting.humanInterventionCount,0)
+  const rejected=await preparePythonEzdxfBaseline({code,outputDirectory:join(base,'rejected')})
+  const review={decision:'rejected',kind:'human',reviewer:'test-reviewer',reviewedAt:'2026-09-29T00:00:00.000Z'}
+  const result=await completeReviewedPythonEzdxfBaselineRound({prepared:rejected,review,taskId:'fixture',repetition:1,roundIndex:1,usage,startedAt:performance.now(),validate:()=>{throw new Error('must not validate')}})
+  assert.equal(result.status,'review-rejected');assert.equal(result.execution,null);assert.equal(result.humanInterventionCount,1);assert.deepEqual(result.usage,usage)
+  assert.equal(JSON.parse(await readFile(join(rejected.directory,'review-decision.json'),'utf8')).decision,'rejected')
+  const mismatch=await preparePythonEzdxfBaseline({code,outputDirectory:join(base,'mismatch')})
+  await assert.rejects(completeReviewedPythonEzdxfBaselineRound({prepared:mismatch,review:{...review,decision:'approved',approvedCodeSha256:'0'.repeat(64)},taskId:'fixture',repetition:1,roundIndex:1,usage,startedAt:performance.now(),validate:()=>({passed:true})}),/EXACT_CODE_REVIEW_REQUIRED/)
+ }finally{await rm(base,{recursive:true,force:true})}
+})
+
+test('reviewed ezdxf edit round reads immutable previous drawing and records measured outcome',async t=>{
+ if(!needPython(t))return
+ const base=await mkdtemp(join(process.env.KJDRAW_AUDIT_TMPDIR??tmpdir(),'kjdraw-python-edit-'))
+ try{
+  const seed=await preparePythonEzdxfBaseline({code:valid,outputDirectory:join(base,'seed')})
+  const first=await executeReviewedPythonEzdxfBaseline({prepared:seed,approvedCodeSha256:seed.sourceSha256,python,ezdxfPath});assert.equal(first.passed,true,JSON.stringify(first))
+  const editCode=String.raw`import ezdxf, json
+doc=ezdxf.readfile(PREVIOUS_DXF)
+lines=list(doc.modelspace().query('LINE'))
+lines[0].dxf.end=(12,2,0)
+doc.saveas(OUTPUT_DXF)
+with open(PREVIOUS_MANIFEST,'r',encoding='utf-8') as file:
+    manifest=json.load(file)
+with open(OUTPUT_MANIFEST,'w',encoding='utf-8') as file:
+    json.dump(manifest,file)
+`
+  const prepared=await preparePythonEzdxfBaseline({code:editCode,outputDirectory:join(base,'edit'),previous:{dxf:first.dxf,manifest:first.manifest}})
+  const startedAt=performance.now()-25,usage={inputTokens:123,outputTokens:45,totalTokens:168}
+  const pending=await completeReviewedPythonEzdxfBaselineRound({prepared,taskId:'edit-task',repetition:1,roundIndex:2,usage,startedAt,validate:()=>{throw new Error('must not validate unreviewed source')}})
+  assert.equal(pending.status,'review-required');assert.equal(pending.humanInterventionCount,0)
+  const approved=await preparePythonEzdxfBaseline({code:editCode,outputDirectory:join(base,'approved'),previous:{dxf:first.dxf,manifest:first.manifest}})
+  const review={decision:'approved',kind:'human',reviewer:'test-reviewer',reviewedAt:'2026-09-29T00:00:00.000Z',approvedCodeSha256:approved.sourceSha256}
+  const round=await completeReviewedPythonEzdxfBaselineRound({prepared:approved,review,taskId:'edit-task',repetition:1,roundIndex:2,usage,startedAt,validate:({dxf,manifest})=>({passed:dxf.includes('AC1032')&&manifest.handles.length===3}),python,ezdxfPath})
+  assert.equal(round.status,'passed',JSON.stringify(round));assert.equal(round.arm,'python-ezdxf');assert.equal(round.humanInterventionCount,1);assert.deepEqual(round.usage,usage);assert.ok(round.totalMs>=25);assert.equal(round.execution.programLog,undefined);assert.equal(typeof round.execution.programLogBytes,'number')
+  assert.deepEqual(JSON.parse(await readFile(join(approved.directory,'review-decision.json'),'utf8')),round.review)
+  assert.deepEqual(JSON.parse(await readFile(join(approved.directory,'round-result.json'),'utf8')),round)
+  const changed=await preparePythonEzdxfBaseline({code:editCode,outputDirectory:join(base,'changed'),previous:{dxf:first.dxf,manifest:first.manifest}})
+  await writeFile(join(changed.directory,'previous.dxf'),'tampered')
+  await assert.rejects(executeReviewedPythonEzdxfBaseline({prepared:changed,approvedCodeSha256:changed.sourceSha256,python,ezdxfPath}),/PREVIOUS_ARTIFACT_CHANGED/)
+ }finally{await rm(base,{recursive:true,force:true})}
 })
 
 test('reviewed Python actually executes ezdxf while source tampering and host-side effects are rejected',async t=>{

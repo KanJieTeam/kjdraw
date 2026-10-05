@@ -110,6 +110,7 @@ export declare class KJCanvasRenderer {
     setDocument(document: KJDocument | null): this;
     setTheme(theme: KJCanvasTheme): this;
     setGrid(enabled: boolean): this;
+    setBackground(background: string | null): this;
     setSelection(ids?: readonly string[]): this;
     setSpace(spaceId: string | null): this;
     setSceneProvider(provider: KJCanvasSceneProvider | null): this;
@@ -117,7 +118,9 @@ export declare class KJCanvasRenderer {
     worldToScreen(input: Point2): Point2;
     screenToWorld(input: Point2): Point2;
     panBy(screenDx: number, screenDy: number): this;
-    zoomAt(factor: number, screenPoint?: Point2): this;
+    zoomAt(factor: number, screenPoint?: Point2, options?: {
+        render?: boolean;
+    }): this;
     fit(): this;
     hitTest(screenPoint: Point2, tolerancePixels?: number, options?: KJCanvasSelectionOptions): KJCanvasHit | null;
     /** Screen-coordinate box query. Left to right defaults to window; right to left to crossing. */

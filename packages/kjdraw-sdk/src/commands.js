@@ -4,12 +4,20 @@ import { validatePlotSettings } from './plot-settings.js';
 import { paperLimitsFromPlotSettings } from './layout-geometry.js';
 import { createCommandEditScope } from './edit-policy.js';
 import { applyRoadDrawingRevision } from './road-drawing-update.js';
-import { createDesignRelations, updateDesignRelations } from './design-relations.js';
+import { applyGeologyDrawingRevision, createGeologyDrawingRecipe } from './geology-drawing-update.js';
+import { KJDocument as GeologyRecipeDocument } from './document.js';
+import { createDesignRelations, deleteDesignRelations, readDesignRelations, updateDesignRelations } from './design-relations.js';
+import { createEraseImpact } from './erase-impact.js';
+import { applyTextEdits, validateTextEdits } from './text-edit.js';
+import { applyHatchPatternEdits, validateHatchPatternEdits, nativeHatchPattern } from './agent-hatch-pattern.js';
 import { editHatch } from './hatch-edit.js';
 import { insertCatalogComponent, searchComponentCatalog } from './component-library.js';
+import { applyPlanarContourEdit } from './planar-contours.js';
+import { applyPlanarBoundaryExtraction } from './planar-boundary-edit.js';
 import { entityArea2, entityLength2, distance2, dot2, invert3, multiply3, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
+import { layoutCadText } from './geometry/text-layout.js';
 import { migrateBreakDimensionAssociations, migrateCircleBreakDimensionAssociations, migratePolylineDimensionAssociations, normalizeDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
@@ -38,6 +46,7 @@ const AFFINE_ENTITY_TYPES = Object.freeze([
     'LEADER',
     'MLEADER',
     'DIMENSION',
+    'TOLERANCE',
     'VIEWPORT',
     'SOLID',
     'TRACE',
@@ -77,10 +86,46 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         atomic: true,
         maximumEntities: 100000
     },
+    STRUCTURALEDIT: {
+        domain: 'topology',
+        precision: 'exact',
+        operations: [
+            'erase',
+            'reconnect',
+            'relayer'
+        ],
+        atomic: true,
+        stableIdentity: true,
+        maximumChangedEntities: 64,
+        maximumReconnections: 16,
+        reconnectEntityTypes: [
+            'LINE',
+            'LWPOLYLINE'
+        ],
+        semanticInference: 'none'
+    },
+    TEXTEDIT: {
+        domain: 'annotation',
+        precision: 'exact',
+        supportedEntityTypes: [
+            'TEXT',
+            'MTEXT'
+        ],
+        atomic: true,
+        stableIdentity: true,
+        maximumChangedEntities: 64,
+        requiresExpectedText: true
+    },
     ROAD_DRAWING_UPDATE: {
         domain: 'road-drawing',
         atomic: true,
         stableIds: true,
+        requiresUnmodifiedPrevious: true
+    },
+    GEOLOGY_DRAWING_UPDATE: {
+        domain: 'geology-drawing',
+        atomic: true,
+        preservesUnchangedObjects: true,
         requiresUnmodifiedPrevious: true
     },
     ERASE: {
@@ -157,6 +202,55 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'ARC'
         ]
     },
+    CONTOUROFFSET: {
+        domain: 'geometry',
+        precision: 'native-arcs',
+        supportedEntityTypes: [
+            'LWPOLYLINE',
+            'CIRCLE'
+        ],
+        atomic: true,
+        preservesSources: true,
+        multipleResults: true,
+        emptyResultCommits: false,
+        requiresExpectedRevision: true,
+        requiresUnits: true
+    },
+    CONTOURBOOLEAN: {
+        domain: 'geometry',
+        precision: 'native-arcs',
+        operations: [
+            'union',
+            'intersection',
+            'difference'
+        ],
+        supportedEntityTypes: [
+            'LWPOLYLINE',
+            'CIRCLE'
+        ],
+        atomic: true,
+        preservesSources: true,
+        multipleResults: true,
+        emptyResultCommits: false,
+        requiresExpectedRevision: true,
+        requiresUnits: true
+    },
+    CONTOURBOUNDARIES: {
+        domain: 'geometry',
+        precision: 'native-arcs',
+        supportedEntityTypes: [
+            'LINE',
+            'ARC',
+            'CIRCLE',
+            'LWPOLYLINE'
+        ],
+        atomic: true,
+        preservesSources: true,
+        multipleResults: true,
+        requiresExpectedRevision: true,
+        requiresUnits: true,
+        requiresReviewedGeometry: true
+    },
     BREAK: {
         domain: 'topology',
         precision: 'exact',
@@ -166,9 +260,11 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'CIRCLE',
             'ELLIPSE',
             'LWPOLYLINE',
-            'POLYLINE'
+            'POLYLINE',
+            'SPLINE'
         ],
-        deterministicPieces: true
+        deterministicPieces: true,
+        splineContract: 'bounded-clamped-XY-control-points-native-knots'
     },
     JOIN: {
         domain: 'topology',
@@ -201,7 +297,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'CIRCLE',
             'ELLIPSE',
             'LWPOLYLINE',
-            'POLYLINE'
+            'POLYLINE',
+            'SPLINE'
         ],
         boundaryEntityTypes: [
             'LINE',
@@ -209,7 +306,17 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'XLINE',
             'CIRCLE',
             'ARC'
-        ]
+        ],
+        splineBoundaryEntityTypes: [
+            'LINE',
+            'RAY',
+            'XLINE',
+            'CIRCLE',
+            'ARC',
+            'ELLIPSE',
+            'SPLINE'
+        ],
+        splineContract: 'bounded-clamped-XY-control-points-native-knots-transverse-cuts'
     },
     EXTEND: {
         domain: 'topology',
@@ -234,7 +341,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         precision: 'exact',
         supportedEntityTypes: [
             'LINE',
-            'ARC'
+            'ARC',
+            'ELLIPSE'
         ],
         modes: [
             'TOTAL',
@@ -267,7 +375,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'INSERT',
             'DELETE',
             'SET_BULGE',
-            'SET_WIDTH'
+            'SET_WIDTH',
+            'REVERSE'
         ],
         stableIdentity: true
     },
@@ -447,6 +556,11 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         atomic: true,
         stableIdentity: true,
         requiresUnmodifiedGeometry: true
+    },
+    DESIGNDELETE: {
+        domain: 'design-relations',
+        atomic: true,
+        preservesGeometry: true
     },
     HATCH: {
         domain: 'entity',
@@ -643,6 +757,21 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         precision: 'exact-mesh'
     }
 });
+function executeHistoryCommand(context, args, kind) {
+    if (!context.document) throw new KJValidationError(`${kind.toUpperCase()} requires a document`);
+    if (Object.keys(args).some((key)=>key !== 'author' && key !== 'targetHistoryId')) throw new KJValidationError('History commands accept only author and targetHistoryId');
+    if (Object.hasOwn(args, 'targetHistoryId') && (typeof args.targetHistoryId !== 'string' || !args.targetHistoryId)) throw new KJValidationError('History target identity must be a nonempty string');
+    const origin = context.commandEnvelope?.origin;
+    if (origin?.kind === 'ai' && !args.targetHistoryId) throw new KJValidationError('AI history approval requires the exact reviewed targetHistoryId');
+    return context.document[kind]({
+        author: args.author ?? context.author,
+        source: `command:${kind.toUpperCase()}`,
+        expectedRevision: context.expectedRevision,
+        ...args.targetHistoryId ? {
+            targetHistoryId: args.targetHistoryId
+        } : {}
+    });
+}
 export class KJCommandRegistry {
     #commands = new Map();
     register(definition, { owner = 'application', replace = false } = {}) {
@@ -698,8 +827,17 @@ export class KJCommandRegistry {
         const command = this.resolve(id);
         if (!command) throw new KJValidationError(`Unknown command: ${id}`);
         if (context.expectedDefinition && command !== context.expectedDefinition) throw new KJValidationError(`Command changed before execution: ${command.id}`);
-        if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && (Object.hasOwn(args, 'resources') || Object.hasOwn(args, 'layout'))) validateCommandData(args);
+        if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'entities')) validateCommandData(args, 'CREATEBATCH');
+        if (command.id === 'STRUCTURALEDIT' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'STRUCTURALEDIT');
+        if (command.id === 'TEXTEDIT' && command.owner === '@kanjieteam/kjdraw') validateTextEdits(args);
+        if (command.id === 'HATCHPATTERN' && command.owner === '@kanjieteam/kjdraw') validateHatchPatternEdits(args);
         if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
+        if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE');
+        if ([
+            'CONTOUROFFSET',
+            'CONTOURBOOLEAN',
+            'CONTOURBOUNDARIES'
+        ].includes(command.id) && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, command.id);
         if (command.transactional === false) {
             if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
             return command.execute({
@@ -735,8 +873,17 @@ export class KJCommandRegistry {
         if (!command || this.resolve(command.id) !== command) throw new KJValidationError('Command changed before transactional composition');
         if (command.transactional === false) throw new KJValidationError(`Command cannot be composed transactionally: ${command.id}`);
         if (!context.document || !context.transaction) throw new KJValidationError(`Command ${command.id} requires a document transaction`);
-        if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && (Object.hasOwn(args, 'resources') || Object.hasOwn(args, 'layout'))) validateCommandData(args);
+        if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'entities')) validateCommandData(args, 'CREATEBATCH');
+        if (command.id === 'STRUCTURALEDIT' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'STRUCTURALEDIT');
+        if (command.id === 'TEXTEDIT' && command.owner === '@kanjieteam/kjdraw') validateTextEdits(args);
+        if (command.id === 'HATCHPATTERN' && command.owner === '@kanjieteam/kjdraw') validateHatchPatternEdits(args);
         if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
+        if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE');
+        if ([
+            'CONTOUROFFSET',
+            'CONTOURBOOLEAN',
+            'CONTOURBOUNDARIES'
+        ].includes(command.id) && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, command.id);
         if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
         const scope = createCommandEditScope(context.transaction, command.id);
         const result = await command.execute({
@@ -749,6 +896,20 @@ export class KJCommandRegistry {
 }
 export function registerCoreCommands(registry) {
     const disposers = [];
+    disposers.push(registry.register({
+        id: 'GEOLOGY_DRAWING_UPDATE',
+        title: 'Update geology source facts and drawing',
+        transactional: false,
+        execute: ({ document, expectedRevision }, args)=>{
+            if (!document || expectedRevision === undefined) throw new KJValidationError('GEOLOGY_DRAWING_UPDATE requires a document and expectedRevision');
+            if (Object.keys(args).length !== 2 || !Object.hasOwn(args, 'previous') || !Object.hasOwn(args, 'next')) throw new KJValidationError('GEOLOGY_DRAWING_UPDATE requires exactly previous recipe and next source facts');
+            return applyGeologyDrawingRevision(document, args.previous, args.next, {
+                expectedRevision
+            });
+        }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
     disposers.push(registry.register({
         id: 'ROAD_DRAWING_UPDATE',
         title: 'Update road drawing',
@@ -770,11 +931,7 @@ export function registerCoreCommands(registry) {
         ],
         title: 'Undo',
         transactional: false,
-        execute: ({ document, expectedRevision }, args)=>document.undo({
-                author: args.author,
-                source: 'command:UNDO',
-                expectedRevision
-            })
+        execute: (context, args)=>executeHistoryCommand(context, args, 'undo')
     }, {
         owner: '@kanjieteam/kjdraw'
     }));
@@ -782,11 +939,7 @@ export function registerCoreCommands(registry) {
         id: 'REDO',
         title: 'Redo',
         transactional: false,
-        execute: ({ document, expectedRevision }, args)=>document.redo({
-                author: args.author,
-                source: 'command:REDO',
-                expectedRevision
-            })
+        execute: (context, args)=>executeHistoryCommand(context, args, 'redo')
     }, {
         owner: '@kanjieteam/kjdraw'
     }));
@@ -900,6 +1053,27 @@ export function registerCoreCommands(registry) {
         owner: '@kanjieteam/kjdraw'
     }));
     disposers.push(registry.register({
+        id: 'STRUCTURALEDIT',
+        title: 'Apply exact structural edit',
+        execute: (context, args)=>applyStructuralEdit(context, args)
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'TEXTEDIT',
+        title: 'Replace exact annotation text',
+        execute: ({ document, transaction }, args)=>applyTextEdits(document, transaction, args)
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'HATCHPATTERN',
+        title: 'Replace exact native hatch patterns',
+        execute: ({ document, transaction }, args)=>applyHatchPatternEdits(document, transaction, args)
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
         id: 'ERASE',
         aliases: [
             'DELETE'
@@ -926,7 +1100,7 @@ export function registerCoreCommands(registry) {
             if (args.ids == null) {
                 assertGenericPropertyBoundary(document, args.id, args.patch);
                 const updated = transaction.updateObject(args.id, args.patch);
-                refreshAssociativeDimensions(transaction, [
+                if (propertyPatchMayChangeGeometry(args.patch)) refreshAssociativeDimensions(transaction, [
                     updated.id
                 ]);
                 return updated;
@@ -944,7 +1118,7 @@ export function registerCoreCommands(registry) {
                 assertGenericPropertyBoundary(document, id, args.patch);
             }
             const updated = ids.map((id)=>transaction.updateObject(id, args.patch));
-            refreshAssociativeDimensions(transaction, ids);
+            if (propertyPatchMayChangeGeometry(args.patch)) refreshAssociativeDimensions(transaction, ids);
             return updated;
         }
     }, {
@@ -1211,6 +1385,13 @@ export function registerCoreCommands(registry) {
         id: 'DESIGNUPDATE',
         title: 'Update design parameters and dependent geometry',
         execute: ({ document, transaction }, args)=>updateDesignRelations(document, transaction, args.id, args.parameters)
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'DESIGNDELETE',
+        title: 'Remove design parameters and keep current geometry',
+        execute: ({ document, transaction }, args)=>deleteDesignRelations(document, transaction, args.id)
     }, {
         owner: '@kanjieteam/kjdraw'
     }));
@@ -1884,6 +2065,81 @@ export function registerCoreCommands(registry) {
         owner: '@kanjieteam/kjdraw'
     }));
     disposers.push(registry.register({
+        id: 'CONTOUROFFSET',
+        title: 'Offset closed planar contours',
+        transactional: false,
+        execute: ({ sdk, document, expectedRevision, author, commandEnvelope }, args)=>{
+            if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOUROFFSET requires matching explicit expectedRevision in context and arguments');
+            if (args.operation !== undefined && args.operation !== 'offset') throw new KJValidationError('CONTOUROFFSET operation must be offset');
+            return applyPlanarContourEdit(document, {
+                ...args,
+                operation: 'offset'
+            }, {
+                ...sdk?.contourBackend,
+                author,
+                ...commandEnvelope ? {
+                    commandEnvelope: {
+                        id: commandEnvelope.id,
+                        schema: commandEnvelope.schema,
+                        schemaVersion: commandEnvelope.schemaVersion,
+                        origin: commandEnvelope.origin
+                    }
+                } : {}
+            });
+        }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'CONTOURBOUNDARIES',
+        title: 'Create reviewed planar boundaries',
+        transactional: false,
+        execute: ({ sdk, document, expectedRevision, author, commandEnvelope }, args)=>{
+            if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOURBOUNDARIES requires matching explicit expectedRevision in context and arguments');
+            return applyPlanarBoundaryExtraction(document, args, {
+                ...sdk?.contourBackend,
+                author,
+                ...commandEnvelope ? {
+                    commandEnvelope: {
+                        id: commandEnvelope.id,
+                        schema: commandEnvelope.schema,
+                        schemaVersion: commandEnvelope.schemaVersion,
+                        origin: commandEnvelope.origin
+                    }
+                } : {}
+            });
+        }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'CONTOURBOOLEAN',
+        title: 'Combine closed planar contours',
+        transactional: false,
+        execute: ({ sdk, document, expectedRevision, author, commandEnvelope }, args)=>{
+            if (!document || expectedRevision === undefined || args.expectedRevision !== expectedRevision) throw new KJValidationError('CONTOURBOOLEAN requires matching explicit expectedRevision in context and arguments');
+            if (![
+                'union',
+                'intersection',
+                'difference'
+            ].includes(args.operation)) throw new KJValidationError('CONTOURBOOLEAN operation must be union, intersection or difference');
+            return applyPlanarContourEdit(document, args, {
+                ...sdk?.contourBackend,
+                author,
+                ...commandEnvelope ? {
+                    commandEnvelope: {
+                        id: commandEnvelope.id,
+                        schema: commandEnvelope.schema,
+                        schemaVersion: commandEnvelope.schemaVersion,
+                        origin: commandEnvelope.origin
+                    }
+                } : {}
+            });
+        }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
         id: 'OFFSET',
         aliases: [
             'O'
@@ -1907,7 +2163,24 @@ export function registerCoreCommands(registry) {
         ],
         title: 'Break entity',
         execute: ({ document, transaction }, args)=>{
-            const entity = requiredEntity(document, args.id), pieces = breakEntityPayloads(entity, args);
+            const entity = requiredEntity(document, args.id);
+            if (args.toleranceMode !== undefined && args.toleranceMode !== 'entity-default') throw new KJValidationError('BREAK toleranceMode must be entity-default');
+            if (entity.type === 'SPLINE' && Object.keys(args).some((key)=>![
+                    'id',
+                    'point',
+                    'firstPoint',
+                    'secondPoint',
+                    'points',
+                    'parameter',
+                    'parameters',
+                    'tolerance',
+                    'toleranceMode'
+                ].includes(key))) throw new KJValidationError('SPLINE BREAK contains unsupported command arguments');
+            const options = args.toleranceMode === 'entity-default' && args.tolerance === undefined && entity.type !== 'SPLINE' ? {
+                ...args,
+                tolerance: 0.1
+            } : args;
+            const pieces = breakEntityPayloads(entity, options);
             if (pieces.length !== 2) throw new KJValidationError('BREAK requires two deterministic native pieces');
             if (pieces.every((piece)=>piece.type === entity.type)) {
                 const leading = transaction.updateObject(entity.id, {
@@ -2057,7 +2330,14 @@ export function registerCoreCommands(registry) {
         title: 'Trim entity',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds, entity.id);
-            const pieces = trimEntityPayloads(entity, boundaries, args.pickPoint);
+            if (entity.type === 'SPLINE' && Object.keys(args).some((key)=>![
+                    'id',
+                    'boundaryIds',
+                    'pickPoint',
+                    'pickParameter',
+                    'tolerance'
+                ].includes(key))) throw new KJValidationError('SPLINE TRIM contains unsupported command arguments');
+            const pieces = trimEntityPayloads(entity, boundaries, args.pickPoint, args);
             const first = pieces[0];
             if (!first) throw new KJValidationError('Trim must retain a non-empty entity');
             if (pieces.length !== 1 || first.type !== entity.type || entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'TRIM');
@@ -2170,6 +2450,10 @@ export function registerCoreCommands(registry) {
             if (operation === 'DELETE') migratePolylineDimensionAssociations(transaction, entity.id, {
                 operation,
                 vertexIndex: location.vertexIndex
+            });
+            if (operation === 'REVERSE') migratePolylineDimensionAssociations(transaction, entity.id, {
+                operation,
+                vertexCount: payload.vertices.length
             });
             refreshAssociativeDimensions(transaction, [
                 entity.id
@@ -2463,6 +2747,9 @@ function normalizePlotSettings(value = {}) {
         outputQualityDpi: Number(value.outputQualityDpi ?? 600)
     };
 }
+const MAX_BATCH_BLOCK_RECORDS = 256;
+const MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION = 1024;
+const MAX_BATCH_BLOCK_MEMBERS_TOTAL = 2048;
 const BATCH_LINEWEIGHTS = new Set([
     -3,
     -2,
@@ -2646,13 +2933,445 @@ function resolveOwnedLeaderPairSelection(document, inputIds, command) {
     };
 }
 function eraseEntities({ document, transaction }, args) {
-    const selected = resolveOwnedLeaderPairSelection(document, entityIds(args), 'ERASE');
-    const roots = compoundRootIds(document, selected.ids);
-    const erased = roots.map((id)=>transaction.eraseObject(id)).filter((object)=>object !== null);
-    if (selected.pairIds.size) replaceEntityMemberships(transaction, [
-        ...selected.pairIds
-    ], []);
+    const state = document.snapshot();
+    const impact = createEraseImpact(document, {
+        expectedRevision: document.revision,
+        units: state.header.units,
+        operation: 'erase',
+        ids: entityIds(args),
+        tolerance: 1e-9,
+        maxBytes: 1024
+    }, {
+        maxIds: 4096,
+        maxObjectsLimit: Math.max(1, Object.keys(state.objects).length),
+        allowCompoundRecords: true,
+        analyzeConnectivity: false,
+        mode: 'decision'
+    });
+    if (!impact.canErase) {
+        const blocker = impact.blockers[0];
+        if (blocker.kind === 'protected-entity') throw new KJValidationError(blocker.message, {
+            policy: 'layer-editability',
+            commandId: 'ERASE',
+            entityId: blocker.sourceId,
+            reason: blocker.reason
+        });
+        throw new KJValidationError(blocker.message);
+    }
+    const erased = impact.eraseRootIds.map((id)=>transaction.eraseObject(id)).filter((object)=>object !== null);
+    replaceEntityMemberships(transaction, impact.effectiveEraseIds, []);
     return erased;
+}
+function structuralRecord(value, allowed, required, label) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || ![
+        Object.prototype,
+        null
+    ].includes(Object.getPrototypeOf(value))) throw new KJValidationError(`${label} must be a plain object`);
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    if (Reflect.ownKeys(value).some((key)=>typeof key !== 'string' || !allowed.includes(key) || !descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key], 'value')) || required.some((key)=>!Object.hasOwn(value, key))) throw new KJValidationError(`${label} fields do not match the declared data format`);
+    return value;
+}
+function structuralId(value, label) {
+    if (typeof value !== 'string' || !value.trim() || value !== value.trim() || value.length > 256 || /[\u0000-\u001f\u007f]/.test(value) || [
+        '__proto__',
+        'constructor',
+        'prototype'
+    ].includes(value)) throw new KJValidationError(`${label} must be a bounded nonempty exact object ID`);
+    return value;
+}
+function structuralIds(value, label) {
+    if (!Array.isArray(value) || !value.length || value.length > 64) throw new KJValidationError(`${label} must contain 1 to 64 exact object IDs`);
+    const ids = value.map((id, index)=>structuralId(id, `${label}[${index}]`));
+    if (new Set(ids).size !== ids.length) throw new KJValidationError(`${label} must not contain duplicate object IDs`);
+    return ids;
+}
+function structuralLayer(document, value, label) {
+    const id = structuralId(value, label), layer = document.getObject(id);
+    if (!layer || layer.kind !== 'table-record' || layer.type !== 'LAYER') throw new KJValidationError(`${label} does not identify a live layer record: ${id}`);
+    const reason = layer.payload.locked === true ? 'locked' : layer.payload.frozen === true ? 'frozen' : layer.payload.visible === false ? 'hidden' : null;
+    if (reason) throw new KJValidationError(`STRUCTURALEDIT: layer "${layer.name ?? id}" is ${reason}; unlock, thaw or show it before editing`, {
+        policy: 'layer-editability',
+        commandId: 'STRUCTURALEDIT',
+        layerId: id,
+        layerName: layer.name,
+        entityId: null,
+        reason
+    });
+    return layer;
+}
+function structuralEntity(document, id) {
+    const entity = document.getObject(id);
+    if (!entity || entity.kind !== 'entity') throw new KJValidationError(`STRUCTURALEDIT relayer entity does not exist: ${id}`);
+    if (entity.ownerId !== document.spaces.modelSpaceId) throw new KJValidationError(`STRUCTURALEDIT relayer entity must be in model space: ${id}`);
+    const layer = structuralLayer(document, effectiveEntityLayerId(document, entity), `STRUCTURALEDIT source layer for ${id}`);
+    const reason = entity.payload.locked === true ? 'locked' : entity.payload.frozen === true ? 'frozen' : entity.payload.visible === false ? 'hidden' : null;
+    if (reason) throw new KJValidationError(`STRUCTURALEDIT: entity ${id} is ${reason}; unlock, thaw or show it before editing`, {
+        policy: 'layer-editability',
+        commandId: 'STRUCTURALEDIT',
+        layerId: layer.id,
+        layerName: layer.name,
+        entityId: id,
+        reason
+    });
+    return entity;
+}
+function structuralPoint(value, label) {
+    if (!Array.isArray(value) || value.length !== 3 || value.some((coordinate)=>typeof coordinate !== 'number' || !Number.isFinite(coordinate) || Math.abs(coordinate) > 1e12) || value[2] !== 0) throw new KJValidationError(`${label} must be an exact finite [x,y,0] point within ±1e12`);
+    return [
+        value[0],
+        value[1],
+        0
+    ];
+}
+function requireStructuralEraseScope(document, ids, includedIds) {
+    for (const id of ids){
+        const record = document.getObject(id);
+        if (!record) throw new KJValidationError(`STRUCTURALEDIT erase entity does not exist: ${id}`);
+        if (record.kind === 'entity' && record.ownerId === document.spaces.modelSpaceId) continue;
+        if (record.type === 'SEQEND' && typeof record.ownerId === 'string' && includedIds.has(record.ownerId)) {
+            const insert = document.getObject(record.ownerId);
+            if (insert?.kind === 'entity' && insert.type === 'INSERT' && insert.ownerId === document.spaces.modelSpaceId) continue;
+        }
+        throw new KJValidationError(`STRUCTURALEDIT erase is limited to model-space entities and their owned INSERT sequence records: ${id}`);
+    }
+}
+function validateStructuralCreationData(value) {
+    let count = 0;
+    const seen = new Set();
+    const visit = (item, depth)=>{
+        if (++count > 32768 || depth > 16) throw new KJValidationError('STRUCTURALEDIT creation data exceeds its bounded working set');
+        if (item === null || typeof item === 'boolean') return;
+        if (typeof item === 'number' && Number.isFinite(item) && Math.abs(item) <= 1e12) return;
+        if (typeof item === 'string' && item.length <= 4096) return;
+        if (!item || typeof item !== 'object' || seen.has(item) || (Array.isArray(item) ? Object.getPrototypeOf(item) !== Array.prototype : ![
+            Object.prototype,
+            null
+        ].includes(Object.getPrototypeOf(item)))) throw new KJValidationError('STRUCTURALEDIT creations require acyclic finite plain data');
+        seen.add(item);
+        const descriptors = Object.getOwnPropertyDescriptors(item);
+        if (Array.isArray(item) && (item.length > 4096 || Object.keys(item).length !== item.length)) throw new KJValidationError('STRUCTURALEDIT creation arrays must be dense and bounded');
+        for (const key of Reflect.ownKeys(item)){
+            if (Array.isArray(item) && key === 'length') continue;
+            const descriptor = typeof key === 'string' ? descriptors[key] : undefined;
+            if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value') || Array.isArray(item) && !/^(0|[1-9]\d*)$/.test(String(key))) throw new KJValidationError('STRUCTURALEDIT creations reject accessors, symbols and opaque fields');
+            visit(descriptor.value, depth + 1);
+        }
+        seen.delete(item);
+    };
+    visit(value, 0);
+    if (new TextEncoder().encode(JSON.stringify(value)).length > 1048576) throw new KJValidationError('STRUCTURALEDIT creations exceed 1 MiB');
+}
+function structuralVertices(value, closed, maximum, label) {
+    if (!Array.isArray(value) || value.length < (closed ? 3 : 2) || value.length > maximum) throw new KJValidationError(`${label} requires ${closed ? '3' : '2'} to ${maximum} vertices`);
+    const points = value.map((point, index)=>structuralPoint(point, `${label}[${index}]`));
+    if (points.some((point, index)=>index > 0 && Math.hypot(point[0] - points[index - 1][0], point[1] - points[index - 1][1]) <= 1e-12) || closed && Math.hypot(points[0][0] - points.at(-1)[0], points[0][1] - points.at(-1)[1]) <= 1e-12) throw new KJValidationError(`${label} must not repeat vertices at a segment or implicit closure`);
+    return points;
+}
+function structuralSegmentsMeet(a, b, c, d) {
+    const cross = (p, q, r)=>(q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    const on = (p, q, r)=>Math.abs(cross(p, q, r)) <= 1e-12 && r[0] >= Math.min(p[0], q[0]) - 1e-12 && r[0] <= Math.max(p[0], q[0]) + 1e-12 && r[1] >= Math.min(p[1], q[1]) - 1e-12 && r[1] <= Math.max(p[1], q[1]) + 1e-12;
+    const ac = cross(a, b, c), ad = cross(a, b, d), ca = cross(c, d, a), cb = cross(c, d, b);
+    return (ac > 1e-12 && ad < -1e-12 || ac < -1e-12 && ad > 1e-12) && (ca > 1e-12 && cb < -1e-12 || ca < -1e-12 && cb > 1e-12) || on(a, b, c) || on(a, b, d) || on(c, d, a) || on(c, d, b);
+}
+function structuralInside(point, polygon) {
+    let inside = false;
+    for(let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++){
+        const a = polygon[index], b = polygon[previous];
+        if (a[1] > point[1] !== b[1] > point[1] && point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+    }
+    return inside;
+}
+function structuralHatchLoops(value) {
+    if (!Array.isArray(value) || !value.length || value.length > 32) throw new KJValidationError('STRUCTURALEDIT HATCH requires 1 to 32 polygon loops');
+    const loops = value.map((raw, index)=>{
+        const loop = structuralRecord(raw, [
+            'external',
+            'closed',
+            'vertices'
+        ], [
+            'external',
+            'closed',
+            'vertices'
+        ], 'STRUCTURALEDIT HATCH loop');
+        if (loop.external !== (index === 0) || loop.closed !== true) throw new KJValidationError('STRUCTURALEDIT HATCH first loop must be outer and later closed loops empty islands');
+        const vertices = structuralVertices(loop.vertices, true, 256, 'STRUCTURALEDIT HATCH vertices'), origin = vertices[0];
+        const twiceArea = vertices.reduce((sum, a, vertex)=>{
+            const b = vertices[(vertex + 1) % vertices.length];
+            return sum + (a[0] - origin[0]) * (b[1] - origin[1]) - (b[0] - origin[0]) * (a[1] - origin[1]);
+        }, 0);
+        if (Math.abs(twiceArea) <= 1e-12) throw new KJValidationError('STRUCTURALEDIT HATCH loops must have nonzero area');
+        for(let a = 0; a < vertices.length; a++)for(let b = a + 1; b < vertices.length; b++){
+            if (b === a + 1 || a === 0 && b === vertices.length - 1) continue;
+            if (structuralSegmentsMeet(vertices[a], vertices[(a + 1) % vertices.length], vertices[b], vertices[(b + 1) % vertices.length])) throw new KJValidationError('STRUCTURALEDIT HATCH loops must be simple polygons');
+        }
+        return {
+            external: index === 0,
+            closed: true,
+            vertices
+        };
+    });
+    if (loops.reduce((sum, loop)=>sum + loop.vertices.length, 0) > 4096) throw new KJValidationError('STRUCTURALEDIT HATCH boundary exceeds 4096 vertices');
+    for(let a = 0; a < loops.length; a++)for(let b = a + 1; b < loops.length; b++){
+        const first = loops[a].vertices, second = loops[b].vertices;
+        for(let i = 0; i < first.length; i++)for(let j = 0; j < second.length; j++)if (structuralSegmentsMeet(first[i], first[(i + 1) % first.length], second[j], second[(j + 1) % second.length])) throw new KJValidationError('STRUCTURALEDIT HATCH loops must not intersect or touch');
+        if (a === 0 ? !structuralInside(second[0], first) : structuralInside(second[0], first) || structuralInside(first[0], second)) throw new KJValidationError('STRUCTURALEDIT HATCH islands must be strictly inside the outer loop and disjoint');
+    }
+    return loops;
+}
+export function prepareStructuralEdit(document, args) {
+    const input = structuralRecord(args, [
+        'eraseIds',
+        'reconnections',
+        'relayer',
+        'creations'
+    ], [
+        'eraseIds',
+        'reconnections'
+    ], 'STRUCTURALEDIT');
+    const eraseIds = structuralIds(input.eraseIds, 'STRUCTURALEDIT eraseIds'), state = document.snapshot();
+    requireStructuralEraseScope(document, eraseIds, new Set(eraseIds));
+    const impact = createEraseImpact(document, {
+        expectedRevision: document.revision,
+        units: state.header.units,
+        operation: 'erase',
+        ids: eraseIds,
+        tolerance: 1e-9,
+        maxBytes: 1024
+    }, {
+        maxIds: 64,
+        maxObjectsLimit: Math.max(1, Object.keys(state.objects).length),
+        allowCompoundRecords: true,
+        analyzeConnectivity: false,
+        mode: 'decision'
+    });
+    if (!impact.canErase) {
+        const blocker = impact.blockers[0];
+        if (blocker.kind === 'protected-entity') throw new KJValidationError(blocker.message, {
+            policy: 'layer-editability',
+            commandId: 'STRUCTURALEDIT',
+            entityId: blocker.sourceId,
+            reason: blocker.reason
+        });
+        throw new KJValidationError(blocker.message);
+    }
+    requireStructuralEraseScope(document, impact.effectiveEraseIds, new Set(impact.effectiveEraseIds));
+    if (!Array.isArray(input.reconnections) || input.reconnections.length > 16) throw new KJValidationError('STRUCTURALEDIT reconnections must contain 0 to 16 exact entities');
+    const reconnectionIds = new Set(), reconnections = input.reconnections.map((value, index)=>{
+        const item = structuralRecord(value, [
+            'id',
+            'type',
+            'points',
+            'layerId'
+        ], [
+            'id',
+            'type',
+            'points',
+            'layerId'
+        ], `STRUCTURALEDIT reconnections[${index}]`);
+        const id = structuralId(item.id, `STRUCTURALEDIT reconnections[${index}].id`);
+        if (reconnectionIds.has(id)) throw new KJValidationError('STRUCTURALEDIT reconnection IDs must be unique');
+        reconnectionIds.add(id);
+        if (Object.hasOwn(state.objects, id)) throw new KJValidationError(`STRUCTURALEDIT reconnection ID already exists: ${id}`);
+        const type = String(item.type);
+        if (type !== 'LINE' && type !== 'LWPOLYLINE') throw new KJValidationError('STRUCTURALEDIT reconnects only exact LINE or LWPOLYLINE geometry');
+        if (!Array.isArray(item.points) || item.points.length < 2 || item.points.length > 64 || type === 'LINE' && item.points.length !== 2) throw new KJValidationError(`STRUCTURALEDIT ${type} requires ${type === 'LINE' ? 'exactly 2' : '2 to 64'} points`);
+        const points = item.points.map((point, pointIndex)=>structuralPoint(point, `STRUCTURALEDIT reconnections[${index}].points[${pointIndex}]`));
+        if (points.some((point, pointIndex)=>pointIndex > 0 && Math.hypot(point[0] - points[pointIndex - 1][0], point[1] - points[pointIndex - 1][1]) <= 1e-12)) throw new KJValidationError(`STRUCTURALEDIT reconnection ${id} has duplicate consecutive points`);
+        const layer = structuralLayer(document, item.layerId, `STRUCTURALEDIT reconnection layer for ${id}`);
+        return {
+            id,
+            type,
+            points,
+            layerId: layer.id
+        };
+    });
+    const creations = [];
+    if (input.creations !== undefined) {
+        validateStructuralCreationData(input.creations);
+        if (!Array.isArray(input.creations) || !input.creations.length || input.creations.length + reconnections.length > 16) throw new KJValidationError('STRUCTURALEDIT supports at most 16 total creations and reconnections; creations must be nonempty');
+        for (const raw of input.creations){
+            const item = structuralRecord(raw, [
+                'id',
+                'type',
+                'payload'
+            ], [
+                'id',
+                'type',
+                'payload'
+            ], 'STRUCTURALEDIT creation'), id = structuralId(item.id, 'STRUCTURALEDIT creation ID');
+            if (reconnectionIds.has(id) || Object.hasOwn(state.objects, id)) throw new KJValidationError(`STRUCTURALEDIT creation ID must be unique and new: ${id}`);
+            reconnectionIds.add(id);
+            const type = item.type;
+            const patternFields = [
+                'patternName',
+                'solid',
+                'patternLines',
+                'patternDefinitionAngle',
+                'patternDefinitionScale',
+                'patternScale',
+                'patternAngle'
+            ];
+            const fields = type === 'LINE' ? [
+                'start',
+                'end',
+                'layerId'
+            ] : type === 'LWPOLYLINE' ? [
+                'vertices',
+                'closed',
+                'layerId'
+            ] : type === 'HATCH' ? [
+                'boundaryLoops',
+                ...patternFields,
+                'layerId'
+            ] : type === 'TEXT' ? [
+                'text',
+                'position',
+                'height',
+                'rotation',
+                'layerId'
+            ] : null;
+            if (!fields) throw new KJValidationError('STRUCTURALEDIT creations support only native LINE, LWPOLYLINE, HATCH and TEXT');
+            const payload = structuralRecord(item.payload, fields, fields, 'STRUCTURALEDIT creation payload');
+            const layer = structuralLayer(document, payload.layerId, `STRUCTURALEDIT creation layer for ${id}`);
+            if (!document.getTable('layers')?.records.some((record)=>record.id === layer.id)) throw new KJValidationError('STRUCTURALEDIT creation layer must belong to the live layer table');
+            let geometry;
+            if (type === 'LINE') {
+                const points = structuralVertices([
+                    payload.start,
+                    payload.end
+                ], false, 2, 'STRUCTURALEDIT LINE');
+                geometry = {
+                    start: points[0],
+                    end: points[1]
+                };
+            } else if (type === 'LWPOLYLINE') {
+                if (typeof payload.closed !== 'boolean') throw new KJValidationError('STRUCTURALEDIT LWPOLYLINE closed must be explicit');
+                geometry = {
+                    vertices: structuralVertices(payload.vertices, payload.closed, 64, 'STRUCTURALEDIT LWPOLYLINE'),
+                    closed: payload.closed
+                };
+            } else if (type === 'HATCH') {
+                const supplied = Object.fromEntries(patternFields.map((key)=>[
+                        key,
+                        payload[key]
+                    ])), pattern = nativeHatchPattern(supplied);
+                if (!Array.isArray(payload.patternLines) || payload.solid !== true && !payload.patternLines.length || stableHash(pattern) !== stableHash(supplied)) throw new KJValidationError('STRUCTURALEDIT HATCH requires a complete canonical native PAT definition');
+                geometry = {
+                    boundaryLoops: structuralHatchLoops(payload.boundaryLoops),
+                    ...pattern
+                };
+            } else {
+                if (typeof payload.text !== 'string' || !payload.text.trim() || payload.text.length > 4096 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(payload.text) || typeof payload.height !== 'number' || payload.height <= 1e-12 || typeof payload.rotation !== 'number') throw new KJValidationError('STRUCTURALEDIT TEXT requires explicit bounded text, height and rotation');
+                geometry = {
+                    text: payload.text,
+                    position: structuralPoint(payload.position, 'STRUCTURALEDIT TEXT position'),
+                    height: payload.height,
+                    rotation: payload.rotation
+                };
+                if (layoutCadText(geometry).corners.some((point)=>point.some((coordinate)=>!Number.isFinite(coordinate) || Math.abs(coordinate) > 1e12))) throw new KJValidationError('STRUCTURALEDIT TEXT exceeds the finite ±1e12 display budget');
+            }
+            creations.push({
+                id,
+                type: type,
+                payload: {
+                    ...geometry,
+                    layerId: layer.id
+                }
+            });
+        }
+        if (creations.reduce((sum, spec)=>sum + (spec.type === 'HATCH' ? spec.payload.boundaryLoops.reduce((count, loop)=>count + loop.vertices.length, 0) : 0), 0) > 4096) throw new KJValidationError('STRUCTURALEDIT creation batch exceeds 4096 hatch vertices');
+    }
+    let relayer = null;
+    if (input.relayer !== undefined) {
+        const relayerInput = structuralRecord(input.relayer, [
+            'ids',
+            'layerId'
+        ], [
+            'ids',
+            'layerId'
+        ], 'STRUCTURALEDIT relayer');
+        const requestedIds = structuralIds(relayerInput.ids, 'STRUCTURALEDIT relayer.ids');
+        const resolved = resolveOwnedLeaderPairSelection(document, requestedIds, 'STRUCTURALEDIT');
+        if (resolved.ids.length !== requestedIds.length || resolved.ids.some((id)=>!requestedIds.includes(id))) throw new KJValidationError('STRUCTURALEDIT relayer must explicitly include both members of every owned LEADER + MTEXT pair');
+        const erased = new Set(impact.effectiveEraseIds);
+        if (requestedIds.some((id)=>erased.has(id))) throw new KJValidationError('STRUCTURALEDIT eraseIds and relayer.ids must not overlap, including owned or attached erase records');
+        const targetLayer = structuralLayer(document, relayerInput.layerId, 'STRUCTURALEDIT target layer');
+        for (const id of requestedIds){
+            const entity = structuralEntity(document, id);
+            if (effectiveEntityLayerId(document, entity) === targetLayer.id) throw new KJValidationError(`STRUCTURALEDIT relayer contains an unchanged entity: ${id}`);
+        }
+        relayer = {
+            ids: requestedIds,
+            layerId: targetLayer.id
+        };
+    }
+    const changedIds = new Set([
+        ...impact.effectiveEraseIds,
+        ...relayer?.ids ?? [],
+        ...reconnectionIds
+    ]);
+    if (creations.length) {
+        const erasedIds = new Set(impact.effectiveEraseIds);
+        for (const record of Object.values(state.objects))if (!record.erased && record.kind === 'group' && [
+            'GROUP',
+            'SELECTION_SET'
+        ].includes(record.type) && Array.isArray(record.payload.memberIds) && record.payload.memberIds.some((id)=>typeof id === 'string' && erasedIds.has(id))) changedIds.add(record.id);
+        for (const id of impact.effectiveEraseIds){
+            const record = document.getObject(id);
+            if (record.kind === 'entity') structuralEntity(document, id);
+            else if (record.type === 'SEQEND') {
+                if (record.payload.locked === true || record.payload.frozen === true || record.payload.visible === false) throw new KJValidationError('STRUCTURALEDIT attached sequence record must be visible and editable');
+                structuralLayer(document, record.payload.layerId ?? document.getTable('layers')?.currentId, `STRUCTURALEDIT attached record layer for ${id}`);
+            }
+        }
+    }
+    if (changedIds.size > 64) throw new KJValidationError('STRUCTURALEDIT supports at most 64 total erased records, relayered entities and creations/reconnections, including affected memberships when creating');
+    return {
+        eraseIds,
+        effectiveEraseIds: impact.effectiveEraseIds,
+        reconnections,
+        creations,
+        relayer
+    };
+}
+function applyStructuralEdit(context, args) {
+    const prepared = prepareStructuralEdit(context.document, args);
+    const erased = eraseEntities(context, {
+        ids: prepared.eraseIds
+    });
+    const relayered = prepared.relayer?.ids.map((id)=>context.transaction.updateObject(id, {
+            payload: {
+                layerId: prepared.relayer.layerId
+            }
+        })) ?? [];
+    const reconnected = prepared.reconnections.map((spec)=>context.transaction.createEntity(spec.type, spec.type === 'LINE' ? {
+            start: spec.points[0],
+            end: spec.points[1],
+            layerId: spec.layerId
+        } : {
+            vertices: spec.points,
+            closed: false,
+            layerId: spec.layerId
+        }, {
+            id: spec.id,
+            ownerId: context.document.spaces.modelSpaceId
+        }));
+    const created = prepared.creations.map((spec)=>context.transaction.createEntity(spec.type, spec.payload, {
+            id: spec.id,
+            ownerId: context.document.spaces.modelSpaceId
+        }));
+    return deepFreeze({
+        semanticInference: 'none',
+        effectiveEraseIds: [
+            ...prepared.effectiveEraseIds
+        ],
+        erased,
+        relayered,
+        reconnected,
+        ...created.length ? {
+            created
+        } : {}
+    });
 }
 function leaderPoints(value) {
     if (!Array.isArray(value) || value.length < 2 || value.length > 4096) throw new KJValidationError('LEADER requires 2 to 4096 vertices');
@@ -2788,7 +3507,7 @@ function editLeaderAnnotation(document, transaction, args) {
             textPosition,
             annotationId: updatedAnnotation.id,
             ownsAnnotation: annotation ? source.payload.ownsAnnotation : true,
-            annotationType: 0,
+            annotationType: annotation ? source.payload.annotationType ?? 0 : 0,
             arrowEnabled: args.arrowEnabled ?? source.payload.arrowEnabled ?? true,
             ...layerId == null ? {} : {
                 layerId
@@ -2810,15 +3529,21 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
         'linetypes'
     ].every((key)=>resourceKeys.includes(key)) || resourceKeys.some((key)=>![
             'blocks',
+            'dimensionStyles',
             'layers',
-            'linetypes'
+            'linetypes',
+            'textStyles'
         ].includes(key))) throw new KJValidationError('CREATEBATCH resource fields do not match the declared format');
-    const blocks = resources.blocks ?? [];
+    const blocks = resources.blocks ?? [], textStyles = resources.textStyles ?? [], dimensionStyles = resources.dimensionStyles ?? [];
     for (const group of [
         resources.linetypes,
         resources.layers,
-        blocks
-    ])if (!Array.isArray(group) || group.length > 16) throw new KJValidationError('CREATEBATCH resources allow at most 16 records per table');
+        textStyles,
+        dimensionStyles
+    ])if (!Array.isArray(group) || group.length > 32) throw new KJValidationError('CREATEBATCH resources allow at most 32 records per table');
+    if (!Array.isArray(blocks) || blocks.length > MAX_BATCH_BLOCK_RECORDS) throw new KJValidationError(`CREATEBATCH resources allow at most ${MAX_BATCH_BLOCK_RECORDS} block records`);
+    const totalBlockMembers = blocks.reduce((sum, block)=>sum + (Array.isArray(block.entities) ? block.entities.length : 0), 0);
+    if (totalBlockMembers > MAX_BATCH_BLOCK_MEMBERS_TOTAL) throw new KJValidationError(`CREATEBATCH block resources allow at most ${MAX_BATCH_BLOCK_MEMBERS_TOTAL} total definition entities`);
     const ids = new Set(), linetypes = new Map(document.getTable('linetypes').records.filter((item)=>!item.erased).map((item)=>[
             item.id,
             item.name
@@ -2848,9 +3573,9 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
             'BYLAYER',
             'BYBLOCK'
         ].includes(normalizeName(type.name))) throw new KJValidationError('CREATEBATCH resource linetype names cannot shadow inheritance keywords');
-        if (!Array.isArray(type.pattern) || type.pattern.length > 32 || type.pattern.length % 2 !== 0 || type.pattern.some((segment, index)=>typeof segment !== 'number' || !Number.isFinite(segment) || Math.abs(segment) > 1e12 || (index % 2 === 0 ? segment <= 0 : segment >= 0))) throw new KJValidationError('CREATEBATCH linetype patterns must be empty for continuous lines or contain alternating positive dashes and negative gaps');
+        if (!Array.isArray(type.pattern) || type.pattern.length > 32 || type.pattern.some((segment)=>typeof segment !== 'number' || !Number.isFinite(segment) || Math.abs(segment) > 1e12)) throw new KJValidationError('CREATEBATCH linetype patterns must be a bounded sequence of native dash, gap, or point segments');
         const length = type.pattern.reduce((sum, segment)=>sum + Math.abs(segment), 0);
-        if (type.pattern.length > 0 && !(length > 0) || !Number.isFinite(length)) throw new KJValidationError('CREATEBATCH nonempty linetype length must be finite and positive');
+        if (type.pattern.length > 0 && !(length > 0) || !Number.isFinite(length)) throw new KJValidationError('CREATEBATCH nonempty linetype length must contain at least one finite non-point segment');
         linetypes.set(type.id, type.name);
     }
     const layerNames = new Set(document.getTable('layers').records.map((item)=>normalizeName(String(item.name))));
@@ -2867,7 +3592,110 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
         if (!BATCH_LINEWEIGHTS.has(layer.lineweight)) throw new KJValidationError('CREATEBATCH layer lineweight must be a supported DXF hundredth-millimetre value');
         if (typeof layer.linetypeId !== 'string' || !linetypes.has(layer.linetypeId)) throw new KJValidationError('CREATEBATCH layer linetypeId must reference the linetype table');
     }
+    const payload = (value, allowed, label)=>{
+        if (!value || typeof value !== 'object' || Array.isArray(value) || ![
+            Object.prototype,
+            null
+        ].includes(Object.getPrototypeOf(value))) throw new KJValidationError(`${label} payload must be a plain object`);
+        const result = value;
+        if (Object.keys(result).some((key)=>!allowed.includes(key))) throw new KJValidationError(`${label} payload contains an unsupported field`);
+        return result;
+    };
+    const finiteField = (record, key, min, max, label, integer = false)=>{
+        if (record[key] == null) return;
+        const value = record[key];
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || integer && !Number.isInteger(value)) throw new KJValidationError(`${label}.${key} is invalid`);
+    };
+    const textStyleNames = new Set(document.getTable('textStyles').records.map((item)=>normalizeName(String(item.name))));
+    for (const style of textStyles){
+        fields(style, [
+            'id',
+            'name',
+            'payload'
+        ]);
+        validateIdentity(style, textStyleNames);
+        const record = payload(style.payload, [
+            'fontFamily',
+            'fontFile',
+            'bigFontFile',
+            'fixedHeight',
+            'widthFactor',
+            'obliqueAngle',
+            'dxfFlags',
+            'generationFlags',
+            'lastHeight'
+        ], 'CREATEBATCH text style');
+        for (const key of [
+            'fontFamily',
+            'fontFile',
+            'bigFontFile'
+        ])if (record[key] != null && (typeof record[key] !== 'string' || String(record[key]).length > 512 || /[\u0000-\u001f\u007f]/.test(String(record[key])))) throw new KJValidationError(`CREATEBATCH text style ${key} must be bounded printable text or null`);
+        finiteField(record, 'fixedHeight', 0, 1e12, 'CREATEBATCH text style');
+        finiteField(record, 'widthFactor', 1e-12, 1e12, 'CREATEBATCH text style');
+        finiteField(record, 'obliqueAngle', -Math.PI * 2, Math.PI * 2, 'CREATEBATCH text style');
+        finiteField(record, 'dxfFlags', 0, 65535, 'CREATEBATCH text style', true);
+        finiteField(record, 'generationFlags', 0, 65535, 'CREATEBATCH text style', true);
+        finiteField(record, 'lastHeight', 0, 1e12, 'CREATEBATCH text style');
+    }
+    const dimensionStyleNames = new Set(document.getTable('dimensionStyles').records.map((item)=>normalizeName(String(item.name))));
+    for (const style of dimensionStyles){
+        fields(style, [
+            'id',
+            'name',
+            'payload'
+        ]);
+        validateIdentity(style, dimensionStyleNames);
+        const record = payload(style.payload, [
+            'overallScale',
+            'arrowSize',
+            'extensionOffset',
+            'baselineSpacing',
+            'extensionBeyond',
+            'rounding',
+            'textHeight',
+            'decimalPlaces',
+            'angularDecimalPlaces',
+            'angularUnits',
+            'centerMarkSize',
+            'textGap',
+            'dxfFlags'
+        ], 'CREATEBATCH dimension style');
+        for (const key of [
+            'arrowSize',
+            'extensionOffset',
+            'baselineSpacing',
+            'extensionBeyond',
+            'rounding',
+            'textGap'
+        ])finiteField(record, key, 0, 1e12, 'CREATEBATCH dimension style');
+        for (const key of [
+            'overallScale',
+            'textHeight'
+        ])finiteField(record, key, 1e-12, 1e12, 'CREATEBATCH dimension style');
+        finiteField(record, 'centerMarkSize', -1e12, 1e12, 'CREATEBATCH dimension style');
+        finiteField(record, 'decimalPlaces', 0, 8, 'CREATEBATCH dimension style', true);
+        finiteField(record, 'angularDecimalPlaces', -1, 8, 'CREATEBATCH dimension style', true);
+        finiteField(record, 'angularUnits', 0, 3, 'CREATEBATCH dimension style', true);
+        finiteField(record, 'dxfFlags', 0, 65535, 'CREATEBATCH dimension style', true);
+    }
     const blockNames = new Set(document.getTable('blockRecords').records.map((item)=>normalizeName(String(item.name))));
+    const blockIds = new Set([
+        ...document.getTable('blockRecords').records.filter((item)=>!item.erased).map((item)=>item.id),
+        ...blocks.map((block)=>block.id)
+    ]);
+    const blockEdges = new Map(blocks.map((block)=>[
+            block.id,
+            block.entities.filter((spec)=>normalizeName(spec.type) === 'INSERT').map((spec)=>String(spec.payload?.blockRecordId ?? ''))
+        ]));
+    const blockVisit = new Set(), blockStack = new Set();
+    const visitBlock = (id)=>{
+        if (blockStack.has(id)) throw new KJValidationError('CREATEBATCH block resources cannot contain nested cycles');
+        if (blockVisit.has(id)) return;
+        blockStack.add(id);
+        for (const child of blockEdges.get(id) ?? [])if (blockEdges.has(child)) visitBlock(child);
+        blockStack.delete(id);
+        blockVisit.add(id);
+    };
     const explicitEntityIds = new Set();
     const validateExplicitEntityId = (spec, label, required)=>{
         const id = spec.options?.id;
@@ -2889,7 +3717,7 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
         ]);
         validateIdentity(block, blockNames);
         vec3(block.basePoint, `CREATEBATCH resources.blocks[${index}].basePoint`);
-        if (!Array.isArray(block.entities) || !block.entities.length || block.entities.length > 64) throw new KJValidationError('CREATEBATCH blocks require 1 to 64 definition entities');
+        if (!Array.isArray(block.entities) || block.entities.length > MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION) throw new KJValidationError(`CREATEBATCH blocks require at most ${MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION} definition entities`);
         for (const [memberIndex, spec] of block.entities.entries()){
             fields(spec, [
                 'type',
@@ -2897,10 +3725,14 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
                 'options'
             ]);
             if (typeof spec.type !== 'string' || !spec.type.trim()) throw new KJValidationError('CREATEBATCH block entity type is required');
-            if (normalizeName(spec.type) === 'INSERT' || [
+            if ([
                 'ATTRIB',
                 'SEQEND'
-            ].includes(normalizeName(spec.type))) throw new KJValidationError('CREATEBATCH v1 blocks do not support nested or attached entities');
+            ].includes(normalizeName(spec.type))) throw new KJValidationError('CREATEBATCH blocks do not support attached entities');
+            if (normalizeName(spec.type) === 'INSERT') {
+                const blockRecordId = spec.payload?.blockRecordId;
+                if (typeof blockRecordId !== 'string' || !blockIds.has(blockRecordId)) throw new KJValidationError('CREATEBATCH nested INSERT blockRecordId must reference a declared or existing block definition');
+            }
             fields(spec.options, [
                 'id'
             ]);
@@ -2911,8 +3743,27 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
             ]).has(String(spec.payload.layerId))) throw new KJValidationError('CREATEBATCH block entity layerId must reference the layer table');
             if (spec.payload?.linetypeId !== undefined && !linetypes.has(String(spec.payload.linetypeId))) throw new KJValidationError('CREATEBATCH block entity linetypeId must reference the linetype table');
             if (spec.payload?.lineweight !== undefined && !BATCH_LINEWEIGHTS.has(Number(spec.payload.lineweight))) throw new KJValidationError('CREATEBATCH block entity lineweight must be supported');
-            if (Object.keys(spec.payload ?? {}).some((key)=>BLOCK_RELATION_FIELDS.has(key))) throw new KJValidationError('CREATEBATCH block entities cannot supply ownership or attachment relationships');
+            if (resources.textStyles != null && [
+                'TEXT',
+                'MTEXT',
+                'ATTDEF',
+                'ATTRIB'
+            ].includes(normalizeName(spec.type)) && spec.payload?.styleId !== undefined && !new Set([
+                ...document.getTable('textStyles').records.filter((item)=>!item.erased).map((item)=>item.id),
+                ...textStyles.map((item)=>item.id)
+            ]).has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH block text styleId must reference the text style table');
+            if (resources.dimensionStyles != null && [
+                'DIMENSION',
+                'TOLERANCE'
+            ].includes(normalizeName(spec.type)) && spec.payload?.styleId !== undefined && !new Set([
+                ...document.getTable('dimensionStyles').records.filter((item)=>!item.erased).map((item)=>item.id),
+                ...dimensionStyles.map((item)=>item.id)
+            ]).has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH block dimension styleId must reference the dimension style table');
+            if (normalizeName(spec.type) === 'INSERT') {
+                if (spec.payload?.attributeIds?.length || spec.payload?.sequenceEndId != null || spec.payload?.parentInsertId != null) throw new KJValidationError('CREATEBATCH nested INSERT cannot supply attached entity relationships');
+            } else if (Object.keys(spec.payload ?? {}).some((key)=>BLOCK_RELATION_FIELDS.has(key))) throw new KJValidationError('CREATEBATCH block entities cannot supply ownership or attachment relationships');
         }
+        visitBlock(block.id);
     }
     for (const spec of modelSpecs)validateExplicitEntityId(spec, 'CREATEBATCH entity', false);
     for (const type of resources.linetypes)transaction.upsertTableRecord('linetypes', {
@@ -2941,19 +3792,35 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
             plottable: true
         }
     });
+    for (const style of textStyles)transaction.upsertTableRecord('textStyles', {
+        id: style.id,
+        name: style.name,
+        type: 'TEXT_STYLE',
+        payload: clone(style.payload)
+    });
+    for (const style of dimensionStyles)transaction.upsertTableRecord('dimensionStyles', {
+        id: style.id,
+        name: style.name,
+        type: 'DIM_STYLE',
+        payload: clone(style.payload)
+    });
     const created = [];
+    const blockRecords = new Map(blocks.map((block)=>[
+            block.id,
+            transaction.upsertTableRecord('blockRecords', {
+                id: block.id,
+                name: block.name,
+                type: 'BLOCK_RECORD',
+                payload: {
+                    entityIds: [],
+                    isSpace: false,
+                    basePoint: vec3(block.basePoint, 'block basePoint'),
+                    description: null
+                }
+            })
+        ]));
     for (const block of blocks){
-        const record = transaction.upsertTableRecord('blockRecords', {
-            id: block.id,
-            name: block.name,
-            type: 'BLOCK_RECORD',
-            payload: {
-                entityIds: [],
-                isSpace: false,
-                basePoint: vec3(block.basePoint, 'block basePoint'),
-                description: null
-            }
-        });
+        const record = blockRecords.get(block.id);
         for (const spec of block.entities)created.push(transaction.createEntity(spec.type, clone(spec.payload ?? {}), {
             id: String(spec.options.id),
             ownerId: record.id
@@ -3132,24 +3999,177 @@ function createBatchLayout(transaction, layout) {
     });
     return viewport;
 }
+function validateBatchAttributeSequences(document, args, specs) {
+    const result = new Map();
+    if (!specs.some((spec)=>spec?.attributeSequence != null)) return result;
+    const plain = (value, label)=>{
+        if (!value || typeof value !== 'object' || Array.isArray(value) || ![
+            Object.prototype,
+            null
+        ].includes(Object.getPrototypeOf(value))) throw new KJValidationError(`${label} must be a plain object`);
+        return value;
+    };
+    const exact = (value, keys, label)=>{
+        const record = plain(value, label), actual = Object.keys(record);
+        if (actual.length !== keys.length || actual.some((key)=>!keys.includes(key))) throw new KJValidationError(`${label} fields do not match the declared format`);
+        return record;
+    };
+    const validId = (value, label)=>{
+        const id = String(value ?? '');
+        if (!id.trim() || id !== id.trim() || id.length > 256 || /[\u0000-\u001f\u007f]/u.test(id) || [
+            '__proto__',
+            'constructor',
+            'prototype'
+        ].includes(id)) throw new KJValidationError(`${label} requires a bounded object id`);
+        return id;
+    };
+    const occupied = new Set(Object.keys(document.snapshot().objects));
+    const reserve = (value, label)=>{
+        const id = validId(value, label);
+        if (occupied.has(id)) throw new KJValidationError(`${label} must be globally unique`);
+        occupied.add(id);
+        return id;
+    };
+    for (const resource of [
+        ...args.resources?.linetypes ?? [],
+        ...args.resources?.layers ?? [],
+        ...args.resources?.textStyles ?? [],
+        ...args.resources?.dimensionStyles ?? []
+    ])reserve(resource.id, 'CREATEBATCH resource id');
+    for (const block of args.resources?.blocks ?? []){
+        reserve(block.id, 'CREATEBATCH block id');
+        for (const member of block.entities ?? [])if (member.options?.id != null) reserve(member.options.id, 'CREATEBATCH block member id');
+    }
+    for (const spec of specs)if (spec.options?.id != null) reserve(spec.options.id, 'CREATEBATCH entity id');
+    if (args.layout) {
+        reserve(args.layout.id, 'CREATEBATCH layout id');
+        reserve(args.layout.blockRecordId, 'CREATEBATCH layout block id');
+        reserve(args.layout.viewport.id, 'CREATEBATCH viewport id');
+    }
+    const layers = new Set([
+        ...document.getTable('layers').records.filter((item)=>!item.erased).map((item)=>item.id),
+        ...(args.resources?.layers ?? []).map((item)=>item.id)
+    ]);
+    const linetypes = new Set([
+        ...document.getTable('linetypes').records.filter((item)=>!item.erased).map((item)=>item.id),
+        ...(args.resources?.linetypes ?? []).map((item)=>item.id)
+    ]);
+    const textStyles = new Set([
+        ...document.getTable('textStyles').records.filter((item)=>!item.erased).map((item)=>item.id),
+        ...(args.resources?.textStyles ?? []).map((item)=>item.id)
+    ]);
+    for (const [index, spec] of specs.entries()){
+        if (spec.attributeSequence == null) continue;
+        const label = `CREATEBATCH entities[${index}].attributeSequence`;
+        if (normalizeName(spec.type) !== 'INSERT') throw new KJValidationError(`${label} is only valid for INSERT`);
+        if (spec.options?.id == null) throw new KJValidationError(`${label} requires an explicit INSERT id`);
+        const suppliedIds = spec.payload?.attributeIds;
+        if (suppliedIds?.length || spec.payload?.sequenceEndId != null || spec.payload?.parentInsertId != null) throw new KJValidationError(`${label} owns the complete attached relationship`);
+        const sequence = exact(spec.attributeSequence, [
+            'attributes',
+            'sequenceEnd'
+        ], label);
+        if (!Array.isArray(sequence.attributes) || !sequence.attributes.length || sequence.attributes.length > 64) throw new KJValidationError(`${label}.attributes must contain 1 to 64 items`);
+        const attributes = sequence.attributes.map((value, attributeIndex)=>{
+            const attributeLabel = `${label}.attributes[${attributeIndex}]`, attribute = exact(value, [
+                'id',
+                'payload'
+            ], attributeLabel);
+            const id = reserve(attribute.id, `${attributeLabel}.id`), payload = plain(attribute.payload, `${attributeLabel}.payload`);
+            if (Object.hasOwn(payload, 'parentInsertId') || Object.hasOwn(payload, 'attributeIds') || Object.hasOwn(payload, 'sequenceEndId')) throw new KJValidationError(`${attributeLabel}.payload cannot supply relationship fields`);
+            if (payload.layerId != null && !layers.has(String(payload.layerId))) throw new KJValidationError(`${attributeLabel}.payload.layerId must reference the layer table`);
+            if (payload.linetypeId != null && !linetypes.has(String(payload.linetypeId))) throw new KJValidationError(`${attributeLabel}.payload.linetypeId must reference the linetype table`);
+            if (payload.lineweight != null && !BATCH_LINEWEIGHTS.has(Number(payload.lineweight))) throw new KJValidationError(`${attributeLabel}.payload.lineweight must be supported`);
+            if (payload.styleId != null && !textStyles.has(String(payload.styleId))) throw new KJValidationError(`${attributeLabel}.payload.styleId must reference the text style table`);
+            return {
+                id,
+                payload: clone(payload)
+            };
+        });
+        const end = plain(sequence.sequenceEnd, `${label}.sequenceEnd`), endKeys = Object.keys(end);
+        if (!Object.hasOwn(end, 'id') || !Object.hasOwn(end, 'dxfOwnerMode') || endKeys.some((key)=>![
+                'id',
+                'dxfOwnerMode',
+                'layerId'
+            ].includes(key))) throw new KJValidationError(`${label}.sequenceEnd fields do not match the declared format`);
+        if (![
+            'insert',
+            'space'
+        ].includes(String(end.dxfOwnerMode))) throw new KJValidationError(`${label}.sequenceEnd.dxfOwnerMode must be insert or space`);
+        if (end.layerId != null && !layers.has(String(end.layerId))) throw new KJValidationError(`${label}.sequenceEnd.layerId must reference the layer table`);
+        result.set(spec, {
+            attributes,
+            sequenceEnd: {
+                id: reserve(end.id, `${label}.sequenceEnd.id`),
+                dxfOwnerMode: end.dxfOwnerMode,
+                ...end.layerId == null ? {} : {
+                    layerId: String(end.layerId)
+                }
+            }
+        });
+    }
+    return result;
+}
+function validateBatchPointDisplay(value) {
+    if (value === undefined) return undefined;
+    if (!value || typeof value !== 'object' || Array.isArray(value) || ![
+        Object.prototype,
+        null
+    ].includes(Object.getPrototypeOf(value))) throw new KJValidationError('CREATEBATCH systemVariables must be a plain object');
+    const source = value, keys = Object.keys(source);
+    if (!keys.length || keys.some((key)=>![
+            'PDMODE',
+            'PDSIZE'
+        ].includes(key))) throw new KJValidationError('CREATEBATCH systemVariables accept only PDMODE and PDSIZE');
+    const result = {};
+    if (Object.hasOwn(source, 'PDMODE')) {
+        const mode = source.PDMODE;
+        if (typeof mode !== 'number' || !Number.isInteger(mode) || mode < 0 || mode > 100 || (mode & 31) > 4 || ![
+            0,
+            32,
+            64,
+            96
+        ].includes(mode & ~31)) throw new KJValidationError('CREATEBATCH PDMODE must be a legal point-display mode');
+        result.PDMODE = mode;
+    }
+    if (Object.hasOwn(source, 'PDSIZE')) {
+        const size = source.PDSIZE;
+        if (typeof size !== 'number' || !Number.isFinite(size) || size < -100 || size > 1_000_000) throw new KJValidationError('CREATEBATCH PDSIZE must be finite from -100 to 1000000');
+        result.PDSIZE = size;
+    }
+    return result;
+}
 function createEntityBatch({ document, transaction }, args = {}) {
+    const pointDisplay = validateBatchPointDisplay(args.systemVariables);
     const specs = args.entities;
     if (!Array.isArray(specs) || !specs.length) throw new KJValidationError('CREATEBATCH requires at least one entity');
     const blockMemberCount = args.resources?.blocks?.reduce((sum, block)=>sum + (Array.isArray(block.entities) ? block.entities.length : 0), 0) ?? 0;
-    if (specs.length + blockMemberCount + (args.layout ? 1 : 0) > 100000) throw new KJValidationError('CREATEBATCH exceeds the 100000 entity safety limit');
+    const attributeSequenceCount = specs.reduce((sum, spec)=>sum + (Array.isArray(spec.attributeSequence?.attributes) ? spec.attributeSequence.attributes.length + 1 : 0), 0);
+    if (specs.length + blockMemberCount + attributeSequenceCount + (args.layout ? 1 : 0) > 100000) throw new KJValidationError('CREATEBATCH exceeds the 100000 entity safety limit');
+    const attributeSequences = validateBatchAttributeSequences(document, args, specs);
     const batchLayout = validateBatchLayout(document, args.layout, args);
     const created = [];
     if (Object.hasOwn(args, 'resources')) {
         created.push(...createBatchResources(document, transaction, args.resources, specs));
         const tableIds = (table)=>new Set([
                 ...document.getTable(table).records.filter((item)=>!item.erased).map((item)=>item.id),
-                ...args.resources[table].map((item)=>item.id)
+                ...(args.resources[table] ?? []).map((item)=>item.id)
             ]);
-        const layers = tableIds('layers'), linetypes = tableIds('linetypes');
+        const layers = tableIds('layers'), linetypes = tableIds('linetypes'), textStyles = tableIds('textStyles'), dimensionStyles = tableIds('dimensionStyles');
         for (const spec of specs){
             if (spec?.payload?.layerId !== undefined && !layers.has(spec.payload.layerId)) throw new KJValidationError('CREATEBATCH entity layerId must reference the layer table');
             if (spec?.payload?.linetypeId !== undefined && !linetypes.has(spec.payload.linetypeId)) throw new KJValidationError('CREATEBATCH entity linetypeId must reference the linetype table');
             if (spec?.payload?.lineweight !== undefined && !BATCH_LINEWEIGHTS.has(spec.payload.lineweight)) throw new KJValidationError('CREATEBATCH entity lineweight must be a supported DXF hundredth-millimetre value');
+            if (args.resources?.textStyles != null && [
+                'TEXT',
+                'MTEXT',
+                'ATTDEF',
+                'ATTRIB'
+            ].includes(normalizeName(spec?.type)) && spec?.payload?.styleId !== undefined && !textStyles.has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH text styleId must reference the text style table');
+            if (args.resources?.dimensionStyles != null && [
+                'DIMENSION',
+                'TOLERANCE'
+            ].includes(normalizeName(spec?.type)) && spec?.payload?.styleId !== undefined && !dimensionStyles.has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH dimension styleId must reference the dimension style table');
             if (normalizeName(String(spec?.type ?? '')) === 'INSERT') {
                 const blockId = String(spec?.payload?.blockRecordId ?? '');
                 const block = transaction.getObject(blockId);
@@ -3201,9 +4221,50 @@ function createEntityBatch({ document, transaction }, args = {}) {
             'ATTDEF',
             'ATTRIB'
         ].includes(normalizeName(spec.type)) && payload.styleId === undefined && currentTextStyleId) payload.styleId = currentTextStyleId;
-        created.push(transaction.createEntity(spec.type, payload, spec.options ?? {}));
+        const entity = transaction.createEntity(spec.type, payload, spec.options ?? {});
+        const sequence = attributeSequences.get(spec);
+        if (!sequence) {
+            created.push(entity);
+            continue;
+        }
+        const attributes = sequence.attributes.map((attribute)=>transaction.createEntity('ATTRIB', {
+                ...attribute.payload,
+                parentInsertId: entity.id
+            }, {
+                id: attribute.id,
+                ownerId: entity.ownerId
+            }));
+        const sequenceLayerId = sequence.sequenceEnd.layerId ?? entity.payload.layerId;
+        const sequenceEnd = transaction.createObject({
+            id: sequence.sequenceEnd.id,
+            kind: 'custom',
+            type: 'SEQEND',
+            ownerId: entity.id,
+            payload: {
+                dxfOwnerMode: sequence.sequenceEnd.dxfOwnerMode,
+                ...sequenceLayerId == null ? {} : {
+                    layerId: sequenceLayerId
+                }
+            }
+        });
+        const updated = transaction.updateObject(entity.id, {
+            payload: {
+                attributeIds: attributes.map((attribute)=>attribute.id),
+                sequenceEndId: sequenceEnd.id
+            }
+        });
+        created.push(updated, ...attributes, sequenceEnd);
     }
+    if (pointDisplay?.PDMODE !== undefined) transaction.setSystemVariable('PDMODE', pointDisplay.PDMODE);
+    if (pointDisplay?.PDSIZE !== undefined) transaction.setSystemVariable('PDSIZE', pointDisplay.PDSIZE);
     if (batchLayout) created.push(createBatchLayout(transaction, batchLayout));
+    if (Object.hasOwn(args, 'geologySource')) {
+        const draft = new GeologyRecipeDocument(JSON.parse(JSON.stringify(transaction._draft())));
+        const recipe = createGeologyDrawingRecipe(draft, args.geologySource);
+        const key = `geology-drawing-recipe:${recipe.drawingId}`;
+        if (Object.hasOwn(draft.snapshot().opaquePayloads, key)) throw new KJValidationError('Geology source recipe is already registered');
+        transaction.putOpaquePayload(key, recipe);
+    }
     return created;
 }
 function requiredEntity(document, id) {
@@ -3391,6 +4452,23 @@ function validateDrawingPropertiesPatch(document, patch) {
         if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw new KJValidationError('linetypeScale must be positive and finite');
     }
     if (Object.hasOwn(payload, 'linetypeId') && payload.linetypeId != null) resolveTableRecord(document, 'linetypes', payload.linetypeId);
+}
+const KJ_NON_GEOMETRY_PROPERTY_FIELDS = new Set([
+    'layerId',
+    'color',
+    'trueColor',
+    'lineweight',
+    'linetypeId',
+    'linetypeName',
+    'linetypeScale',
+    'visible',
+    'locked',
+    'frozen',
+    'plottable'
+]);
+function propertyPatchMayChangeGeometry(patch) {
+    const payload = patch?.payload;
+    return Boolean(payload && Object.keys(payload).some((field)=>!KJ_NON_GEOMETRY_PROPERTY_FIELDS.has(field)));
 }
 function resolveTableRecord(document, tableName, value) {
     const table = document?.getTable(tableName);

@@ -15,6 +15,7 @@ import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribut
 import { layoutCadMText, layoutCadText } from './geometry/text-layout.js'
 import { sampleHatchSpline } from './geometry/hatch-boundary.js'
 import { effectiveLinetypeScale } from './linetype-scale.js'
+import { resolvePhysicalPlotPaper, type KJPhysicalPlotPaper } from './plot-settings.js'
 import { displayedEntityBounds, hitTestDisplayedEntity, isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence, type KJBoxSelectionMode } from './selection-geometry.js'
 import type { KJDocument } from './document.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
@@ -106,6 +107,7 @@ type HatchRaster = { source: HTMLCanvasElement | OffscreenCanvas | null; x: numb
 type HatchRasterCacheEntry = { payload: Readonly<Record<string, unknown>>; key: string; raster: HatchRaster; bytes: number }
 type HatchProjectionIdentity = { payload: Readonly<Record<string, unknown>>; instanceKey: string; dimension?: ReturnType<typeof projectDimension>; dimensionMatrix?: readonly number[]; matrix?: readonly number[] }
 type DrawingPropertyInheritance = { layer?: Readonly<Record<string, unknown>> | undefined; lineweight?: unknown; linetypeId?: string }
+type PaperSheet = KJPhysicalPlotPaper & { layoutId: string }
 const HATCH_RASTER_PIXEL_LIMIT = 1048576
 const HATCH_RASTER_FRAME_WORK = 4000000
 const HATCH_RASTER_CACHE_BYTES = 32 * 1024 * 1024
@@ -171,6 +173,15 @@ function finite(value: unknown, fallback = 0): number {
   return Number.isFinite(result) ? result : fallback
 }
 
+function toleranceRows(value: unknown): string[][] {
+  const glyphs: Readonly<Record<string, string>> = { j: '⌖', r: '◎', i: '≡', f: '∥', b: '⊥', a: '∠', g: '⌭', c: '▱', e: '○', u: '—', d: '⌒', k: '⌢', h: '↗', t: '⇗', n: '⌀', m: 'Ⓜ', l: 'Ⓛ', s: 'Ⓢ', p: 'Ⓟ' }
+  return String(value ?? '').split('^J').filter(Boolean).map(row => {
+    const cells = row.split('%%v').map(cell => cell.replace(/\{\\Fgdt;([a-z])\}/gu, (_, code: string) => glyphs[code] ?? code))
+    while (cells.at(-1) === '') cells.pop()
+    return cells.length ? cells : ['']
+  })
+}
+
 function splineSamples(payload: Readonly<Record<string, unknown>>): Point2[] {
   const definition = normalizeSplineDefinition({
     degree: finite(payload.degree, 3), controlPoints: points(payload.controlPoints),
@@ -232,6 +243,42 @@ function polylineSamples(payload: Readonly<Record<string, unknown>>): Point2[] {
     output.push(...(output.length ? sampled.slice(1) : sampled))
   }
   return output
+}
+
+type ViewportClip = { kind: 'polyline'; points: Point2[] } | { kind: 'circle'; center: Point2; radius: number } | { kind: 'ellipse'; center: Point2; radius: number; ratio: number; rotation: number }
+function viewportClip(document: KJDocument, viewport: KJReadonlyObjectRecord): ViewportClip | null | 'invalid' {
+  const id = viewport.payload.clippingBoundaryId
+  if (id == null) return null
+  if (typeof id !== 'string' || !id) return 'invalid'
+  const boundary = document.getObject(id), payload = boundary?.payload
+  if (!boundary || boundary.erased || boundary.kind !== 'entity' || boundary.ownerId !== viewport.ownerId || !payload) return 'invalid'
+  if (boundary.type === 'CIRCLE') {
+    const center = point2(payload.center), radius = Number(payload.radius)
+    if (!center || !Number.isFinite(radius) || radius <= 0 || Number((payload.center as readonly unknown[] | undefined)?.[2] ?? 0) !== 0 || finite(payload.thickness) !== 0 || payload.normal && JSON.stringify(payload.normal) !== '[0,0,1]' || payload.extrusionDirection && JSON.stringify(payload.extrusionDirection) !== '[0,0,1]') return 'invalid'
+    return { kind: 'circle', center, radius }
+  }
+  if (boundary.type === 'ELLIPSE') {
+    const center = point2(payload.center), axis = point2(payload.majorAxis), ratio = Number(payload.ratio), start = Number(payload.startParameter ?? 0), end = Number(payload.endParameter ?? Math.PI * 2)
+    const radius = axis ? Math.hypot(axis[0], axis[1]) : 0
+    if (!center || !axis || !Number.isFinite(ratio) || ratio <= 0 || ratio > 1 || !(radius > 0) || !Number.isFinite(start) || !Number.isFinite(end) || Math.abs(end - start - Math.PI * 2) > 1e-12 || Number((payload.center as readonly unknown[] | undefined)?.[2] ?? 0) !== 0 || Number((payload.majorAxis as readonly unknown[] | undefined)?.[2] ?? 0) !== 0 || finite(payload.thickness) !== 0 || payload.normal && JSON.stringify(payload.normal) !== '[0,0,1]' || payload.extrusionDirection && JSON.stringify(payload.extrusionDirection) !== '[0,0,1]') return 'invalid'
+    return { kind: 'ellipse', center, radius, ratio, rotation: Math.atan2(axis[1], axis[0]) }
+  }
+  if (boundary.type !== 'LWPOLYLINE' && boundary.type !== 'POLYLINE') return 'invalid'
+  if (payload.closed !== true || finite(payload.elevation) !== 0 || finite(payload.constantWidth) !== 0 || boundary.type === 'POLYLINE' && (finite(payload.dxfFlags) & (8 | 16 | 64)) !== 0) return 'invalid'
+  if (!Array.isArray(payload.vertices) || payload.vertices.length < 3 || payload.vertices.length > 4096) return 'invalid'
+  for (const value of payload.vertices) {
+    const row = value && typeof value === 'object' && !Array.isArray(value) ? value as Readonly<Record<string, unknown>> : null
+    const point = row?.point ?? value
+    if (!Array.isArray(point) || point.length < 2 || !Number.isFinite(Number(point[0])) || !Number.isFinite(Number(point[1])) || Number(point[2] ?? 0) !== 0 || !Number.isFinite(Number(row?.bulge ?? 0)) || Number(row?.startWidth ?? 0) !== 0 || Number(row?.endWidth ?? 0) !== 0) return 'invalid'
+  }
+  const samples = polylineSamples(payload)
+  if (samples.length < 3 || samples.length > 65536) return 'invalid'
+  let area = 0
+  for (let index = 0; index < samples.length; index++) {
+    const a = samples[index]!, b = samples[(index + 1) % samples.length]!
+    area += a[0] * b[1] - b[0] * a[1]
+  }
+  return Math.abs(area) > 1e-12 ? { kind: 'polyline', points: samples } : 'invalid'
 }
 
 function entityPoints(entity: KJReadonlyObjectRecord): Point2[] {
@@ -324,6 +371,7 @@ export class KJCanvasRenderer {
   #hatchSampleWorkRemaining = HATCH_RASTER_FRAME_WORK
   #hatchSamplePixelsRemaining = HATCH_RASTER_PIXEL_LIMIT
   #hatchRasterCache: HatchRasterCacheEntry[] = []
+  #paperSheetState: PaperSheet | null = null
   #report: KJCanvasRenderReport = Object.freeze({ total: 0, culled: 0, detailCulled: 0, overviewEntities: 0, overviewPixels: 0, rendered: 0, approximated: 0, hidden: 0, unsupported: 0, approximateTypes: Object.freeze([]), unsupportedTypes: Object.freeze([]), width: 1, height: 1, scale: 4 })
 
   constructor(canvas: HTMLCanvasElement, options: KJCanvasRendererOptions = {}) {
@@ -373,6 +421,15 @@ export class KJCanvasRenderer {
         return value.type === 'object.update' && value.after?.kind === 'entity' && value.after.ownerId === active
       })
       if (!localUpdates) this.#boundsCache = new WeakMap()
+      const pageChanged = operations.some(operation => {
+        const value = operation as { before?: { kind?: unknown; payload?: Readonly<Record<string, unknown>> }; after?: { kind?: unknown; payload?: Readonly<Record<string, unknown>> } }
+        const record = value.after ?? value.before
+        return record?.kind === 'layout' && String(record.payload?.blockRecordId ?? '') === active
+      })
+      if (pageChanged && this.#fittedCamera && this.camera.centerX === this.#fittedCamera.centerX && this.camera.centerY === this.#fittedCamera.centerY && this.camera.scale === this.#fittedCamera.scale) {
+        this.fit()
+        return
+      }
       this.render()
     })
     this.#selection.clear()
@@ -382,6 +439,7 @@ export class KJCanvasRenderer {
 
   setTheme(theme: KJCanvasTheme): this { this.#theme = theme; this.render(); return this }
   setGrid(enabled: boolean): this { this.#grid = Boolean(enabled); this.render(); return this }
+  setBackground(background: string | null): this { this.#background = background; this.render(); return this }
   setSelection(ids: readonly string[] = []): this { this.#selection = new Set(ids.map(String)); this.render(); return this }
   setSpace(spaceId: string | null): this { this.#spaceId = spaceId; this.#spatialScene = null; this.#selection.clear(); this.render(); return this }
   setSceneProvider(provider: KJCanvasSceneProvider | null): this { this.#sceneProvider = provider; this.#spatialScene = null; this.render(); return this }
@@ -432,14 +490,14 @@ export class KJCanvasRenderer {
     return this
   }
 
-  zoomAt(factor: number, screenPoint: Point2 = [this.#width / 2, this.#height / 2]): this {
+  zoomAt(factor: number, screenPoint: Point2 = [this.#width / 2, this.#height / 2], options: { render?: boolean } = {}): this {
     this.#fittedCamera = null
     const before = this.screenToWorld(screenPoint)
     this.camera.scale = Math.min(1e7, Math.max(1e-7, this.camera.scale * Math.max(0.01, finite(factor, 1))))
     const after = this.screenToWorld(screenPoint)
     this.camera.centerX += before[0] - after[0]
     this.camera.centerY += before[1] - after[1]
-    this.render()
+    if (options.render !== false) this.render()
     return this
   }
 
@@ -451,6 +509,8 @@ export class KJCanvasRenderer {
     const scene = this.#sceneProvider ? null : this.#defaultScene()
     const source = scene?.entities ?? this.#entities()
     const values: Point2[] = []
+    const paper = this.#paperSheet()
+    if (paper) values.push([0, 0], [paper.width, paper.height])
     source.forEach((entity, index) => {
         const layer = layers.get(String(entity.payload.layerId ?? ''))
         if (entity.payload.visible === false || layer?.visible === false || layer?.frozen === true) return
@@ -616,6 +676,9 @@ export class KJCanvasRenderer {
       this.#report = Object.freeze({ total: 0, culled: 0, detailCulled: 0, overviewEntities: 0, overviewPixels: 0, rendered: 0, approximated: 0, hidden: 0, unsupported: 0, approximateTypes: Object.freeze([]), unsupportedTypes: Object.freeze([]), width: this.#width, height: this.#height, scale: this.camera.scale })
       return this.#report
     }
+    const paper = this.#paperSheet()
+    this.#paperSheetState = paper
+    if (paper) this.#drawPaperSheet(paper)
     const candidates = this.#entities(this.#visibleBounds())
     const sceneTotal = this.#sceneProvider ? candidates.length : this.#defaultScene().entities.length
     const entities: KJReadonlyObjectRecord[] = [], detailEntities: KJReadonlyObjectRecord[] = []
@@ -625,7 +688,8 @@ export class KJCanvasRenderer {
     }
     const detailCulled = detailEntities.length
     const layers = new Map(document.getTable('layers')?.records.map(layer => [layer.id, layer.payload]) ?? [])
-    const palette = this.#theme === 'dark' ? DARK_PALETTE : LIGHT_PALETTE
+    const drawingTheme: KJCanvasTheme = paper ? 'light' : this.#theme
+    const palette = drawingTheme === 'dark' ? DARK_PALETTE : LIGHT_PALETTE
     let rendered = 0, approximated = 0, hidden = 0
     const approximateTypes = new Set<string>()
     const unsupported = new Set<string>()
@@ -698,7 +762,50 @@ export class KJCanvasRenderer {
     return this.#spaceId ?? document.spaces.modelSpaceId
   }
 
+  #paperSheet(): PaperSheet | null {
+    const document = this.#document, spaceId = this.#activeSpaceId()
+    if (!document || spaceId === document.spaces.modelSpaceId || !document.spaces.paperSpaceIds.includes(spaceId)) return null
+    const layout = document.spaces.layoutIds
+      .map(id => document.getObject(id))
+      .find(item => item?.kind === 'layout' && !item.erased && String(item.payload.blockRecordId ?? '') === spaceId)
+    const settings = layout?.payload.dxfPlotSettings
+    if (!layout || !settings) return null
+    try {
+      const paper = resolvePhysicalPlotPaper(settings)
+      if (paper.width > 10000 || paper.height > 10000 || paper.left + paper.right >= paper.width || paper.top + paper.bottom >= paper.height) return null
+      return { ...paper, layoutId: layout.id }
+    } catch { return null }
+  }
+
+  #drawPaperSheet(paper: PaperSheet): void {
+    const context = this.context
+    const lowerLeft = this.worldToScreen([0, 0]), upperRight = this.worldToScreen([paper.width, paper.height])
+    const x = Math.min(lowerLeft[0], upperRight[0]), y = Math.min(lowerLeft[1], upperRight[1])
+    const width = Math.abs(upperRight[0] - lowerLeft[0]), height = Math.abs(upperRight[1] - lowerLeft[1])
+    context.save()
+    context.shadowColor = this.#theme === 'dark' ? 'rgba(0,0,0,.48)' : 'rgba(15,23,42,.2)'
+    context.shadowBlur = 18
+    context.shadowOffsetY = 5
+    context.fillStyle = '#fffefb'
+    context.fillRect(x, y, width, height)
+    context.shadowColor = 'transparent'
+    context.lineWidth = 1
+    context.strokeStyle = this.#theme === 'dark' ? '#596471' : '#aeb8c2'
+    context.strokeRect(x + .5, y + .5, Math.max(0, width - 1), Math.max(0, height - 1))
+    const printableMinimum = this.worldToScreen([paper.left, paper.bottom])
+    const printableMaximum = this.worldToScreen([paper.width - paper.right, paper.height - paper.top])
+    const printX = Math.min(printableMinimum[0], printableMaximum[0]), printY = Math.min(printableMinimum[1], printableMaximum[1])
+    const printWidth = Math.abs(printableMaximum[0] - printableMinimum[0]), printHeight = Math.abs(printableMaximum[1] - printableMinimum[1])
+    if (printWidth >= 8 && printHeight >= 8 && (paper.left || paper.right || paper.top || paper.bottom)) {
+      context.setLineDash([3, 3])
+      context.strokeStyle = 'rgba(92,105,117,.42)'
+      context.strokeRect(printX + .5, printY + .5, Math.max(0, printWidth - 1), Math.max(0, printHeight - 1))
+    }
+    context.restore()
+  }
+
   #color(entity: KJReadonlyObjectRecord, layer?: Readonly<Record<string, unknown>>): string {
+    const theme: KJCanvasTheme = this.#paperSheetState ? 'light' : this.#theme
     const ownTrueColor = entity.payload.trueColor == null ? null : explicitColor(entity.payload.trueColor)
     if (ownTrueColor) return ownTrueColor
     const color = entity.payload.color
@@ -706,10 +813,10 @@ export class KJCanvasRenderer {
       const cssColor = /^(?:#|rgb|hsl)/i.test(color) ? explicitColor(color) : null
       if (cssColor) return cssColor
     }
-    if (color != null && Number.isFinite(Number(color)) && Number(color) > 0 && Number(color) < 256) return aciColor(color, this.#theme)
+    if (color != null && Number.isFinite(Number(color)) && Number(color) > 0 && Number(color) < 256) return aciColor(color, theme)
     return (layer?.trueColor == null ? null : explicitColor(layer.trueColor))
       ?? (typeof layer?.color === 'string' && /^(?:#|rgb|hsl)/i.test(layer.color) ? explicitColor(layer.color) : null)
-      ?? aciColor(layer?.color ?? 7, this.#theme)
+      ?? aciColor(layer?.color ?? 7, theme)
   }
 
   #fitPoints(entity: KJReadonlyObjectRecord, depth = 0, unboundedOrigins: Point2[] = []): Point2[] {
@@ -757,7 +864,7 @@ export class KJCanvasRenderer {
   }
 
   #detailVisible(entity: KJReadonlyObjectRecord): boolean {
-    // POINT and infinite construction geometry use a fixed screen-space mark.
+    // POINT display modes remain visible independently of entity bounds; construction geometry uses fixed screen-space extent.
     if (entity.type === 'POINT' || entity.type === 'RAY' || entity.type === 'XLINE') return true
     const bounds = this.#boundsCache.get(entity as object)
     if (!bounds) return true
@@ -1032,9 +1139,23 @@ export class KJCanvasRenderer {
       const value = point2(payload.position)
       if (!value) drawn = false
       else {
-        const screen = this.worldToScreen(value)
-        context.beginPath(); context.moveTo(screen[0] - 4, screen[1]); context.lineTo(screen[0] + 4, screen[1])
-        context.moveTo(screen[0], screen[1] - 4); context.lineTo(screen[0], screen[1] + 4); context.stroke()
+        const variables = this.#document?.snapshot().header.systemVariables ?? {}
+        const rawMode = Number(variables.PDMODE ?? 0), rawSize = Number(variables.PDSIZE ?? 0)
+        const mode = Number.isInteger(rawMode) && rawMode >= 0 && rawMode <= 100 && (rawMode & 31) <= 4 && [0, 32, 64, 96].includes(rawMode & ~31) ? rawMode : 0
+        const size = Number.isFinite(rawSize) && rawSize >= -100 && rawSize <= 1_000_000 ? rawSize : 0
+        const screen = this.worldToScreen(value), base = mode & 31, flags = mode & ~31
+        const pixels = Math.max(1, Math.min(1_000_000, size > 0 ? size * this.camera.scale * (transformScale ?? 1) : this.#height * (size < 0 ? Math.abs(size) / 100 : .05)))
+        const half = pixels / 2
+        if (base === 0) context.fillRect(screen[0] - 1, screen[1] - 1, 2, 2)
+        if (base !== 1 || flags !== 0) {
+          context.beginPath()
+          if (base === 2) { context.moveTo(screen[0] - half, screen[1]); context.lineTo(screen[0] + half, screen[1]); context.moveTo(screen[0], screen[1] - half); context.lineTo(screen[0], screen[1] + half) }
+          else if (base === 3) { context.moveTo(screen[0] - half, screen[1] - half); context.lineTo(screen[0] + half, screen[1] + half); context.moveTo(screen[0] - half, screen[1] + half); context.lineTo(screen[0] + half, screen[1] - half) }
+          else if (base === 4) { context.moveTo(screen[0], screen[1] - half); context.lineTo(screen[0], screen[1] + half) }
+          if ((flags & 32) !== 0) context.arc(screen[0], screen[1], half, 0, Math.PI * 2)
+          if ((flags & 64) !== 0) { context.moveTo(screen[0] - half, screen[1] - half); context.lineTo(screen[0] + half, screen[1] - half); context.lineTo(screen[0] + half, screen[1] + half); context.lineTo(screen[0] - half, screen[1] + half); context.closePath() }
+          context.stroke()
+        }
       }
     } else if (['LWPOLYLINE', 'POLYLINE'].includes(entity.type)) drawn = this.#strokePath(polylineSamples(payload), payload.closed === true)
     else if (entity.type === 'ELLIPSE') {
@@ -1067,7 +1188,10 @@ export class KJCanvasRenderer {
         const origin = this.worldToScreen([m[4]!,m[5]!])
         context.transform(m[0]!, -m[1]!, -m[2]!, m[3]!, origin[0], origin[1])
         context.textBaseline = 'alphabetic'; context.textAlign = 'left'
-        if ('lines' in layout) for (const line of layout.lines) context.fillText(line.text, line.left*this.camera.scale, -line.baseline*this.camera.scale)
+        if ('lines' in layout) for (const line of layout.lines) for (const run of line.runs) {
+          font(layout.height, run.family)
+          context.fillText(run.text, run.left*this.camera.scale, -line.baseline*this.camera.scale)
+        }
         else context.fillText(layout.text, layout.left*this.camera.scale, -layout.bottom*this.camera.scale)
         this.#textDrawCount++; this.#drawnTextTypes.add(entity.type)
       } catch { drawn = false }
@@ -1146,6 +1270,29 @@ export class KJCanvasRenderer {
           }
         }
       }
+    } else if (entity.type === 'TOLERANCE') {
+      const position = point2(payload.position), axis = point2(payload.xAxisDirection) ?? [1, 0]
+      if (!position || Math.hypot(...axis) <= 1e-12) drawn = false
+      else {
+        const rows = toleranceRows(payload.text), style = this.#document?.getObject(String(payload.styleId ?? ''))?.payload
+        const height = Math.max(.01, finite(style?.textHeight, 2.5)), padding = height * .38, rowHeight = height * 1.65
+        context.font = `${height * this.camera.scale}px "Segoe UI Symbol", "Segoe UI", sans-serif`
+        context.textAlign = 'center'; context.textBaseline = 'middle'
+        const widths = rows.map(row => row.map(cell => Math.max(height * 1.2, context.measureText(cell || ' ').width / this.camera.scale + padding * 2)))
+        const screen = this.worldToScreen(position), rotation = Math.atan2(axis[1], axis[0])
+        context.translate(screen[0], screen[1]); context.rotate(-rotation)
+        let y = 0
+        for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+          let x = 0
+          for (let cellIndex = 0; cellIndex < rows[rowIndex]!.length; cellIndex++) {
+            const width = widths[rowIndex]![cellIndex]!, pixelWidth = width * this.camera.scale, pixelHeight = rowHeight * this.camera.scale
+            context.strokeRect(x, y, pixelWidth, pixelHeight)
+            context.fillText(rows[rowIndex]![cellIndex]!, x + pixelWidth / 2, y + pixelHeight / 2)
+            x += pixelWidth
+          }
+          y += rowHeight * this.camera.scale
+        }
+      }
     } else if (entity.type === 'DIMENSION') {
       const projected = projection && 'dimension' in projection ? projection.dimension : projectDimension(payload, this.#document?.getObject(String(payload.styleId ?? ''))?.payload)
       drawn = projected !== null
@@ -1185,7 +1332,17 @@ export class KJCanvasRenderer {
         const text = payload.text ?? payload.textOverride ?? (payload.measurement == null ? '' : finite(payload.measurement).toFixed(2)), style = this.#document?.getObject(String(payload.styleId ?? ''))?.payload
         const height = Math.max(.01, finite(payload.textHeight, 2.5)); context.font = `${height * this.camera.scale}px ${layoutCadText({ position: [0, 0], text: String(text), height }, style).family}`; context.textAlign = 'left'; context.textBaseline = 'bottom'; context.fillText(String(text), screen[0], screen[1])
       }
-    } else if (['SOLID', 'TRACE', 'WIPEOUT', 'REVISION_CLOUD'].includes(entity.type)) {
+    } else if (entity.type === 'WIPEOUT') {
+      const values = points(payload.vertices)
+      drawn = values.length >= 3
+      if (drawn) {
+        context.beginPath()
+        values.forEach((value, index) => { const screen = this.worldToScreen(value); if (index === 0) context.moveTo(...screen); else context.lineTo(...screen) })
+        context.closePath(); context.globalAlpha = 1
+        context.fillStyle = this.#paperSheetState ? '#fffefb' : this.#background ?? (this.#theme === 'dark' ? '#081016' : '#f8fafc')
+        context.fill()
+      }
+    } else if (['SOLID', 'TRACE', 'REVISION_CLOUD'].includes(entity.type)) {
       const values = points(payload.vertices)
       drawn = this.#strokePath(values, true)
       if (drawn) { context.globalAlpha = 0.12; context.fill(); context.globalAlpha = 1 }
@@ -1195,7 +1352,7 @@ export class KJCanvasRenderer {
       else {
         drawn = this.#drawViewport(entity, depth)
         const screen = this.worldToScreen([center[0] - width / 2, center[1] + height / 2])
-        if (!this.#plotMode || layerPayload?.plottable !== false) context.strokeRect(screen[0], screen[1], width * this.camera.scale, height * this.camera.scale)
+        if ((!this.#plotMode || layerPayload?.plottable !== false) && !payload.clippingBoundaryId) context.strokeRect(screen[0], screen[1], width * this.camera.scale, height * this.camera.scale)
       }
     } else if (entity.type === 'TABLE') {
       const position = point2(payload.position)
@@ -1309,8 +1466,9 @@ export class KJCanvasRenderer {
     const width = finite(p.width), height = finite(p.height), viewHeight = finite(p.viewHeight), twist = finite(p.twistAngle)
     if (!document || entity.ownerId === document.spaces.modelSpaceId || entity.ownerId !== this.#activeSpaceId()) { diagnostic.reason = 'not-paper-space'; return false }
     if (!center || !viewCenter || width <= 0 || height <= 0 || viewHeight <= 0 || !Number.isFinite(height / viewHeight)) { diagnostic.reason = 'invalid-view'; return false }
-    // The current native contract is orthographic XY with a rectangular clip. Reject
-    // explicitly supplied advanced view controls rather than drawing a false top view.
+    // The current native contract is orthographic XY with a rectangular or verified
+    // closed 2D polyline clip. Reject other advanced view controls rather than drawing
+    // a false top view.
     const target = p.viewTarget == null ? [0, 0] : point2(p.viewTarget)
     const direction = p.viewDirection
     const topView = direction == null || Array.isArray(direction) && direction[0] === 0 && direction[1] === 0 && direction[2] === 1
@@ -1318,21 +1476,28 @@ export class KJCanvasRenderer {
     // Native status -1 is ON but off-screen or beyond the saved host's MAXACTVP.
     // A new paper camera must be able to reveal it after fit/pan.
     if (p.status === 0 || (flags & 0x20000) !== 0 || p.viewportId === 1) { diagnostic.hidden++; return true }
-    if (p.perspective === true || p.clipBoundaryId || p.clippingBoundaryId || !target || !topView || p.nonRectangularClip === true || (flags & (0x1 | 0x2 | 0x4 | 0x10 | 0x10000)) !== 0 || Array.isArray(p.unresolvedViewportReferences) && p.unresolvedViewportReferences.length > 0) { diagnostic.reason = 'unsupported-view'; return false }
+    const clipping = viewportClip(document, entity), nonRectangular = clipping !== null && clipping !== 'invalid'
+    if (clipping === 'invalid' || p.perspective === true || p.clipBoundaryId || p.nonRectangularClip === true && !nonRectangular || !target || !topView || (flags & (0x1 | 0x2 | 0x4 | 0x10)) !== 0 || (flags & 0x10000) !== 0 && !nonRectangular || Array.isArray(p.unresolvedViewportReferences) && p.unresolvedViewportReferences.length > 0) { diagnostic.reason = 'unsupported-view'; return false }
     const scale = height / viewHeight
     // DXF viewCenter is in display coordinates, after twist, not a WCS pivot.
     // This matches the native top-view model-to-paper transformation independently
     // checked against ezdxf: P - scale*DCScenter + scale*R(twist)*(WCS-target).
     const matrix = multiply3(translation3(center[0] - scale * viewCenter[0], center[1] - scale * viewCenter[1]), multiply3(scale3(scale), multiply3(rotation3(twist), translation3(-target[0]!, -target[1]!))))
     if (!matrix.every(Number.isFinite)) { diagnostic.reason = 'invalid-view'; return false }
-    const context = this.context, corners: Point2[] = [[center[0] - width / 2, center[1] - height / 2], [center[0] + width / 2, center[1] - height / 2], [center[0] + width / 2, center[1] + height / 2], [center[0] - width / 2, center[1] + height / 2]]
+    const context = this.context, corners: Point2[] = clipping?.kind === 'polyline' ? clipping.points : [[center[0] - width / 2, center[1] - height / 2], [center[0] + width / 2, center[1] - height / 2], [center[0] + width / 2, center[1] + height / 2], [center[0] - width / 2, center[1] + height / 2]]
     context.save()
     const previous = this.#viewportState
     this.#viewportState = { frozen: new Set(Array.isArray(p.frozenLayerIds) ? p.frozenLayerIds.map(String) : []), scale, diagnostic }
     let complete = true
     try {
       context.beginPath()
-      corners.forEach((point, i) => { const screen = this.worldToScreen(point); i ? context.lineTo(...screen) : context.moveTo(...screen) })
+      if (clipping?.kind === 'circle') {
+        const screen = this.worldToScreen(clipping.center)
+        context.arc(screen[0], screen[1], clipping.radius * this.camera.scale, 0, Math.PI * 2)
+      } else if (clipping?.kind === 'ellipse') {
+        const screen = this.worldToScreen(clipping.center)
+        context.ellipse(screen[0], screen[1], clipping.radius * this.camera.scale, clipping.radius * clipping.ratio * this.camera.scale, -clipping.rotation, 0, Math.PI * 2)
+      } else corners.forEach((point, i) => { const screen = this.worldToScreen(point); i ? context.lineTo(...screen) : context.moveTo(...screen) })
       context.closePath(); context.clip()
       const query = { document, spaceId: document.spaces.modelSpaceId }
       for (const model of this.#sceneProvider?.listEntities(query) ?? document.listEntities({ ownerId: query.spaceId })) {

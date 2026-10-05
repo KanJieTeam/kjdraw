@@ -4,16 +4,20 @@ import { buildSDKCapabilityManifest } from './capabilities.js';
 import { KJCommandRegistry, registerCoreCommands } from './commands.js';
 import { KJDocument } from './document.js';
 import { createDXFFileAdapter } from './dxf-adapter.js';
+import { createDwgConversionFileAdapter } from './dwg-conversion.js';
 import { createSVGFileAdapter } from './svg-adapter.js';
 import { KJValidationError } from './errors.js';
 import { KJEventBus } from './events.js';
 import { KJExtensionRegistry } from './extensions.js';
 import { KJFileAdapterRegistry } from './file-adapters.js';
 import { createKJDFileAdapter } from './kjd-adapter.js';
+import { hatchPatternFromCatalog } from './hatch-pattern-catalog.js';
+import { KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG } from './knowledge-packs/geology-patterns.js';
 import { assertPluginCompatibility, assertPluginContribution, assertPluginPermission, createPluginGrant } from './plugin-contract.js';
 import { createCommandEnvelope as createProtocolCommandEnvelope, createCommandReceipt, validateCommandEnvelope } from './product-contract.js';
 import { KJSelectionManager } from './selection.js';
 import { findSnapCandidates } from './snapping.js';
+import { canonicalStringify, deepFreeze, stableHash } from './utils.js';
 import { KJDRAW_VERSION } from './version.js';
 function isOpenDocumentInput(value) {
     return typeof value === 'string' || value !== null && typeof value === 'object';
@@ -22,6 +26,137 @@ function optionalProperty(key, value) {
     return value === undefined ? {} : {
         [key]: value
     };
+}
+const validatedHatchCatalogs = new WeakSet([
+    KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG
+]);
+export function mergeHatchPatternCatalogs(...sources) {
+    const fail = (message)=>{
+        throw new KJValidationError(`HATCH catalog registry: ${message}`);
+    };
+    const catalogs = [], identities = new Set();
+    let count = 0, nodes = 0;
+    const data = (value, depth = 0)=>{
+        if (++nodes > 100000 || depth > 12) fail('catalog exceeds the plain-data budget');
+        if (value === null || [
+            'string',
+            'boolean',
+            'undefined'
+        ].includes(typeof value)) return;
+        if (typeof value === 'number') {
+            if (!Number.isFinite(value)) fail('catalog numbers must be finite');
+            return;
+        }
+        if (!value || typeof value !== 'object') fail('catalog requires plain data');
+        const object = value;
+        if (![
+            Object.prototype,
+            null,
+            Array.prototype
+        ].includes(Object.getPrototypeOf(object))) fail('catalog requires plain objects and arrays');
+        const descriptors = Object.getOwnPropertyDescriptors(object);
+        if (Array.isArray(value)) {
+            if (Object.getPrototypeOf(value) !== Array.prototype || Reflect.ownKeys(value).length !== value.length + 1) fail('catalog arrays must be dense');
+            for(let index = 0; index < value.length; index++)if (!Object.hasOwn(value, String(index))) fail('catalog arrays must be dense');
+        }
+        for (const key of Reflect.ownKeys(object)){
+            if (Array.isArray(value) && key === 'length') continue;
+            if (typeof key !== 'string') fail('catalog cannot contain symbol fields');
+            const descriptor = descriptors[key];
+            if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) fail('catalog cannot contain accessors or hidden data');
+            data(descriptor.value, depth + 1);
+        }
+    };
+    for (const source of sources){
+        if (!Array.isArray(source) || Object.getPrototypeOf(source) !== Array.prototype || source.length > 16 || Reflect.ownKeys(source).length !== source.length + 1) fail('host catalogs require at most 16 dense entries');
+        for(let index = 0; index < source.length; index++){
+            const descriptor = Object.getOwnPropertyDescriptor(source, String(index));
+            if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) fail('host catalogs cannot contain accessors');
+            const supplied = descriptor.value;
+            let catalog;
+            if (supplied && validatedHatchCatalogs.has(supplied)) catalog = supplied;
+            else {
+                data(supplied);
+                const copy = structuredClone(supplied);
+                if (!copy || copy.version !== '1.0.0' || !Array.isArray(copy.patterns) || copy.patterns.length < 1 || copy.patterns.length > 256) fail('catalog requires version 1.0.0 and 1–256 patterns');
+                const names = new Set();
+                for (const pattern of copy.patterns){
+                    if (typeof pattern.name !== 'string' || !pattern.name.trim() || pattern.name.length > 128 || /[\u0000-\u001f\u007f]/.test(pattern.name) || names.has(pattern.name.toUpperCase())) fail('pattern names must be bounded and unique');
+                    if (typeof pattern.description !== 'string' || pattern.description.length > 256 || /[\u0000-\u001f\u007f]/.test(pattern.description)) fail('pattern descriptions must be bounded printable text');
+                    const aliases = pattern.aliases;
+                    if (aliases !== undefined && (!Array.isArray(aliases) || aliases.length > 16 || aliases.some((alias)=>typeof alias !== 'string' || !alias.trim() || alias.length > 128 || /[\u0000-\u001f\u007f]/.test(alias)))) fail('pattern aliases require at most 16 bounded printable names');
+                    if (!Array.isArray(pattern.lines) || pattern.lines.length < 1 || pattern.lines.length > 128) fail('patterns require 1–128 complete native line families');
+                    names.add(pattern.name.toUpperCase());
+                    hatchPatternFromCatalog(copy, pattern.name);
+                }
+                if (copy.contentHash !== stableHash(copy.patterns)) fail('catalog content hash does not match its complete definitions');
+                if (new TextEncoder().encode(JSON.stringify(copy)).length > 4194304) fail('catalog exceeds 4 MiB');
+                catalog = deepFreeze(copy);
+                validatedHatchCatalogs.add(catalog);
+            }
+            const identity = canonicalStringify(catalog);
+            if (identities.has(identity)) continue;
+            if (catalogs.length >= 16 || count + catalog.patterns.length > 256) fail('host catalogs exceed 16 catalogs / 256 patterns');
+            identities.add(identity);
+            count += catalog.patterns.length;
+            catalogs.push(catalog);
+        }
+    }
+    return deepFreeze(catalogs);
+}
+function constructorHatchPatternCatalogs(options) {
+    for (const key of [
+        'hatchPatternCatalogs',
+        'includeBundledHatchPatterns'
+    ]){
+        const descriptor = Object.getOwnPropertyDescriptor(options, key);
+        if (!descriptor && key in options || descriptor && (!descriptor.enumerable || !Object.hasOwn(descriptor, 'value'))) {
+            throw new KJValidationError(`SDK ${key} must be an own enumerable data property`);
+        }
+    }
+    const selected = Object.getOwnPropertyDescriptor(options, 'includeBundledHatchPatterns')?.value;
+    if (selected !== undefined && typeof selected !== 'boolean') throw new KJValidationError('SDK includeBundledHatchPatterns must be boolean');
+    const supplied = Object.getOwnPropertyDescriptor(options, 'hatchPatternCatalogs')?.value;
+    return mergeHatchPatternCatalogs(selected === false ? [] : [
+        KJDRAW_GEOLOGY_HATCH_PATTERN_CATALOG
+    ], supplied === undefined ? [] : supplied);
+}
+function copyContourBackend(options) {
+    if (options.wasmBytes !== undefined) {
+        return Object.freeze({
+            wasmBytes: options.wasmBytes instanceof Uint8Array ? new Uint8Array(options.wasmBytes) : new Uint8Array(options.wasmBytes.slice(0))
+        });
+    }
+    if (options.wasmUrl !== undefined) return Object.freeze({
+        wasmUrl: typeof options.wasmUrl === 'string' ? options.wasmUrl : new URL(options.wasmUrl)
+    });
+    return Object.freeze({});
+}
+function constructorContourBackend(options) {
+    const descriptor = Object.getOwnPropertyDescriptor(options, 'contourBackend');
+    if (!descriptor && 'contourBackend' in options || descriptor && (!descriptor.enumerable || !Object.hasOwn(descriptor, 'value'))) {
+        throw new KJValidationError('SDK contourBackend must be an own enumerable data property');
+    }
+    const supplied = descriptor?.value;
+    if (supplied === undefined) return Object.freeze({});
+    if (!supplied || typeof supplied !== 'object' || ![
+        Object.prototype,
+        null
+    ].includes(Object.getPrototypeOf(supplied))) throw new KJValidationError('SDK contourBackend must be a plain data object');
+    for (const key of Reflect.ownKeys(supplied)){
+        const field = Object.getOwnPropertyDescriptor(supplied, key);
+        if (typeof key !== 'string' || ![
+            'wasmBytes',
+            'wasmUrl'
+        ].includes(key) || !field.enumerable || !Object.hasOwn(field, 'value')) throw new KJValidationError('SDK contourBackend supports only wasmBytes or wasmUrl data properties');
+    }
+    if (supplied.wasmBytes !== undefined && supplied.wasmUrl !== undefined) throw new KJValidationError('SDK contourBackend accepts either wasmBytes or wasmUrl, not both');
+    if (supplied.wasmBytes !== undefined) {
+        if (!(supplied.wasmBytes instanceof Uint8Array) && !(supplied.wasmBytes instanceof ArrayBuffer)) throw new KJValidationError('SDK contourBackend wasmBytes must be a Uint8Array or ArrayBuffer');
+        if (supplied.wasmBytes.byteLength === 0 || supplied.wasmBytes.byteLength > 4 * 1024 * 1024) throw new KJValidationError('SDK contour WASM asset exceeds the 4 MiB budget or is empty');
+    }
+    if (supplied.wasmUrl !== undefined && typeof supplied.wasmUrl !== 'string' && !(supplied.wasmUrl instanceof URL)) throw new KJValidationError('SDK contourBackend wasmUrl must be a string or URL');
+    return copyContourBackend(supplied);
 }
 export class KJDrawSDK {
     version;
@@ -32,10 +167,24 @@ export class KJDrawSDK {
     documents;
     selections;
     agentPlans;
+    #hatchPatternCatalogs;
+    #contourBackend;
     activeDocumentId;
     documentAuthority;
     solidAuthority;
     constructor(options = {}){
+        this.#contourBackend = constructorContourBackend(options);
+        Object.defineProperty(this, 'contourBackend', {
+            enumerable: true,
+            configurable: false,
+            get: ()=>copyContourBackend(this.#contourBackend)
+        });
+        this.#hatchPatternCatalogs = constructorHatchPatternCatalogs(options);
+        Object.defineProperty(this, 'hatchPatternCatalogs', {
+            enumerable: true,
+            configurable: false,
+            get: ()=>this.#hatchPatternCatalogs
+        });
         this.version = options.version ?? KJDRAW_VERSION;
         this.events = new KJEventBus();
         this.extensions = new KJExtensionRegistry();
@@ -53,6 +202,15 @@ export class KJDrawSDK {
             this.fileAdapters.register(createDXFFileAdapter());
             this.fileAdapters.register(createSVGFileAdapter());
         }
+        if (options.dwgConversionProvider) this.fileAdapters.register(createDwgConversionFileAdapter({
+            provider: options.dwgConversionProvider
+        }));
+    }
+    get hatchPatternCatalogs() {
+        return this.#hatchPatternCatalogs;
+    }
+    get contourBackend() {
+        return copyContourBackend(this.#contourBackend);
     }
     createDocument(options = {}) {
         return this.attachDocument(KJDocument.create(options));

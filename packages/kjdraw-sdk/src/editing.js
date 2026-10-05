@@ -1,7 +1,8 @@
 // Generated from editing.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
-import { add2, arcSweep, cross2, distance2, dot2, intersectCircleCircle2, intersectLineCircle2, intersectLineLine2, length2, midpoint2, multiply2, normalize2, perpendicular2, projectParameter2, subtract2, vec2 } from './geometry/index.js';
+import { add2, arcSweep, cross2, distance2, dot2, ellipseArcLength2, intersectCircleCircle2, intersectLineCircle2, intersectLineLine2, length2, midpoint2, multiply2, normalize2, perpendicular2, projectParameter2, subtract2, vec2 } from './geometry/index.js';
 import { clone, normalizeName } from './utils.js';
+import { breakNativeSplinePayloads, trimNativeSplinePayloads } from './geometry/native-spline-edit.js';
 const TURN = Math.PI * 2;
 function pointInput(value) {
     return value;
@@ -477,6 +478,11 @@ function arcParameter(payload, point) {
 }
 export function breakEntityPayloads(entity, options = {}) {
     const payload = payloadOf(entity), type = normalizeName(entity?.type);
+    if (type === 'SPLINE') return breakNativeSplinePayloads(payload, options).map((result)=>({
+            type,
+            payload: result
+        }));
+    if (options.parameter !== undefined || options.parameters !== undefined) throw new KJValidationError('Native parameter BREAK is supported only for SPLINE');
     const points = options.points ?? [
         options.firstPoint ?? options.point,
         options.secondPoint
@@ -1252,7 +1258,12 @@ function rejectAmbiguousLineBoundaries(target, boundaries, mode) {
         }
     }
 }
-export function trimEntityPayloads(target, boundaries, pickPoint) {
+export function trimEntityPayloads(target, boundaries, pickPoint, options = {}) {
+    if (target?.type === 'SPLINE') return trimNativeSplinePayloads(target.payload, boundaries, pickPoint, options).map((payload)=>({
+            type: 'SPLINE',
+            payload
+        }));
+    if (options.pickParameter !== undefined || options.tolerance !== undefined) throw new KJValidationError('Native parameter/tolerance TRIM options are supported only for SPLINE');
     if (target?.type === 'LINE') {
         rejectAmbiguousLineBoundaries(target, boundaries, 'segment');
         return trimLinePayloads(target, boundaries, pickPoint).map((payload)=>({
@@ -1363,9 +1374,65 @@ function lengthenLinePayload(target, options) {
     payload[endpoint] = next;
     return payload;
 }
+function ellipsePointAtOffset(geometry, offset) {
+    const parameter = geometry.start + offset, cosine = Math.cos(parameter), sine = Math.sin(parameter);
+    return [
+        geometry.center[0] + geometry.majorAxis[0] * cosine - geometry.majorAxis[1] * geometry.ratio * sine,
+        geometry.center[1] + geometry.majorAxis[1] * cosine + geometry.majorAxis[0] * geometry.ratio * sine,
+        geometry.center[2]
+    ];
+}
+function ellipseLengthBetween(geometry, start, end) {
+    return ellipseArcLength2({
+        majorAxis: geometry.majorAxis,
+        ratio: geometry.ratio,
+        startParameter: start,
+        endParameter: end
+    });
+}
+function ellipseSpanForLength(geometry, endpoint, targetLength) {
+    const fixedParameter = endpoint === 'end' ? geometry.start : geometry.start + geometry.span;
+    const lengthAt = (span)=>endpoint === 'end' ? ellipseLengthBetween(geometry, fixedParameter, fixedParameter + span) : ellipseLengthBetween(geometry, fixedParameter - span, fixedParameter);
+    const perimeter = lengthAt(TURN);
+    if (targetLength >= perimeter) throw new KJValidationError('Lengthened elliptical arc must remain less than a full ellipse');
+    let lower = 0, upper = TURN;
+    for(let iteration = 0; iteration < 64; iteration += 1){
+        const middle = (lower + upper) / 2;
+        if (lengthAt(middle) < targetLength) lower = middle;
+        else upper = middle;
+    }
+    const span = (lower + upper) / 2;
+    if (!(span > EDIT_ANGLE_EPSILON) || span >= TURN - EDIT_ANGLE_EPSILON) {
+        throw new KJValidationError('Lengthened elliptical arc must remain non-empty and less than a full ellipse');
+    }
+    return span;
+}
+function lengthenEllipsePayload(target, options) {
+    const geometry = ellipseEditGeometry(target);
+    if (geometry.full) throw new KJValidationError('Lengthen requires an open elliptical arc');
+    const startPoint = ellipsePointAtOffset(geometry, 0), endPoint = ellipsePointAtOffset(geometry, geometry.span);
+    const endpoint = lengthenEndpoint(options, startPoint, endPoint), mode = lengthenMode(options);
+    let targetSpan;
+    if (mode === 'DYNAMIC') {
+        const unitPoint = ellipseUnitPoint(geometry, finiteEditPoint(options.targetPoint ?? options.point));
+        if (Math.hypot(unitPoint[0], unitPoint[1]) <= EDIT_PLANE_EPSILON) {
+            throw new KJValidationError('Dynamic ellipse lengthen point cannot be its center');
+        }
+        const offset = ellipseOffset(geometry, unitPoint);
+        targetSpan = endpoint === 'end' ? offset : positiveTurn(geometry.span - offset);
+        if (!(targetSpan > EDIT_ANGLE_EPSILON) || targetSpan >= TURN - EDIT_ANGLE_EPSILON) {
+            throw new KJValidationError('Lengthened elliptical arc must remain non-empty and less than a full ellipse');
+        }
+    } else {
+        const currentLength = ellipseLengthBetween(geometry, geometry.start, geometry.start + geometry.span);
+        targetSpan = ellipseSpanForLength(geometry, endpoint, numericLengthenTarget(currentLength, options, mode));
+    }
+    return endpoint === 'end' ? ellipseResultPayload(geometry, 0, targetSpan) : ellipseResultPayload(geometry, geometry.span - targetSpan, geometry.span);
+}
 export function lengthenEntityPayload(target, options = {}) {
     if (target?.type === 'LINE') return lengthenLinePayload(target, options);
-    if (target?.type !== 'ARC') throw new KJValidationError('Lengthen requires a LINE or ARC target');
+    if (target?.type === 'ELLIPSE') return lengthenEllipsePayload(target, options);
+    if (target?.type !== 'ARC') throw new KJValidationError('Lengthen requires a LINE, ARC or elliptical arc target');
     const geometry = circularEditGeometry(target);
     const startPoint = polar(geometry.center, geometry.radius, geometry.start);
     const endPoint = polar(geometry.center, geometry.radius, geometry.start + geometry.direction * geometry.span);
@@ -1895,6 +1962,23 @@ function setPolylineSegmentWidth(payload, vertices, options) {
         vertices
     };
 }
+function reversePolyline(payload, vertices) {
+    const closed = Boolean(payload.closed), count = vertices.length;
+    const reversed = vertices.toReversed().map((vertex, index)=>{
+        const originalSegment = closed ? (count - 2 - index + count) % count : count - 2 - index;
+        const segment = originalSegment >= 0 ? vertices[originalSegment] : vertices[count - 1];
+        return {
+            ...vertex,
+            bulge: originalSegment >= 0 && segment.bulge !== 0 ? -segment.bulge : segment.bulge,
+            startWidth: originalSegment >= 0 ? segment.endWidth : segment.startWidth,
+            endWidth: originalSegment >= 0 ? segment.startWidth : segment.endWidth
+        };
+    });
+    return {
+        ...payload,
+        vertices: reversed
+    };
+}
 export function editPolylinePayload(target, options = {}) {
     const type = normalizeName(target?.type);
     if (type !== 'LWPOLYLINE' && type !== 'POLYLINE') throw new KJValidationError(`PEDIT requires a LWPOLYLINE or POLYLINE target, not ${type || 'unknown entity'}`);
@@ -1905,7 +1989,8 @@ export function editPolylinePayload(target, options = {}) {
     if (operation === 'DELETE') return deletePolylineVertex(payload, vertices, options);
     if (operation === 'SET_BULGE' || operation === 'ARC') return setPolylineSegmentBulge(payload, vertices, options);
     if (operation === 'SET_WIDTH' || operation === 'WIDTH') return setPolylineSegmentWidth(payload, vertices, options);
-    throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE or SET_WIDTH');
+    if (operation === 'REVERSE') return reversePolyline(payload, vertices);
+    throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE, SET_WIDTH or REVERSE');
 }
 export function resolvePolylineEditLocation(target, options = {}) {
     const type = normalizeName(target?.type);
@@ -1922,7 +2007,8 @@ export function resolvePolylineEditLocation(target, options = {}) {
     if (operation === 'DELETE') return {
         vertexIndex: options.vertexIndex == null ? pickedPolylineVertex(vertices, options.point, polylineEditTolerance(options.tolerance)) : polylineEditIndex(options.vertexIndex, 'PEDIT vertexIndex', vertices.length)
     };
-    throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE or SET_WIDTH');
+    if (operation === 'REVERSE') return {};
+    throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE, SET_WIDTH or REVERSE');
 }
 function selectedRay(line, intersection, pickPoint) {
     const payload = line.payload ?? {};

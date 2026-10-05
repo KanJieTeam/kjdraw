@@ -317,13 +317,15 @@ const editorApi = {
 // A published release artifact remains installable while the registry publication is pending.
 const installFromRelease = editorGuide.distribution?.version === packageJson.version
   && editorGuide.distribution?.channel === 'github-release'
+const sourceCandidate = editorGuide.distribution?.version === packageJson.version
+  && editorGuide.distribution?.channel === 'source'
 const installTarget = installFromRelease
   ? `https://github.com/KanJieTeam/kjdraw/releases/download/v${packageJson.version}/kanjieteam-kjdraw-${packageJson.version}.tgz`
-  : `${packageJson.name}@${packageJson.version}`
+  : sourceCandidate ? `${packageJson.name}@next` : `${packageJson.name}@${packageJson.version}`
 const installCommand = `npm install ${installTarget}`
 
 const localized = (en, zh, tag = 'span') => `<${tag} class="lang-en">${escapeHtml(en)}</${tag}><${tag} class="lang-zh">${escapeHtml(zh)}</${tag}>`
-const permalink = (anchor, label) => `<a class="permalink" href="#${anchor}" aria-label="Link to ${escapeHtml(label)}">#</a>`
+const permalink = (anchor, label) => `<a class="permalink" href="#${anchor}" aria-label="Link to ${escapeHtml(label)}"></a>`
 const codeBlock = (code, language = 'ts') => `<pre data-language="${escapeHtml(language)}"><button class="copy" type="button" data-copy-code>Copy</button><code>${escapeHtml(code)}</code></pre>`
 
 const optionRows = editorGuide.options.map(option => {
@@ -336,9 +338,9 @@ const propertyRows = editorGuide.properties.map(property => {
   return `<tr id="${anchor}" data-api-entry data-name="${escapeHtml(property.name)}" data-kind="property" data-search="${escapeHtml(`${property.name} ${property.type} ${property.en} ${property.zh}`.toLowerCase())}"><td><a href="#${anchor}"><code>${escapeHtml(property.name)}</code></a></td><td><code>${escapeHtml(property.type)}</code></td><td>${localized(property.en, property.zh)}</td></tr>`
 }).join('\n')
 
-const methodRows = editorGuide.methods.map(method => {
+const methodCards = editorGuide.methods.map(method => {
   const anchor = `method-${slug(method.name)}`
-  return `<tr id="${anchor}" data-api-entry data-name="${escapeHtml(method.name)}" data-kind="method" data-search="${escapeHtml(`${method.name} ${method.signature} ${method.parameters} ${method.returns} ${method.en} ${method.zh}`.toLowerCase())}"><td><a href="#${anchor}"><code>${escapeHtml(method.signature)}</code></a></td><td><code>${escapeHtml(method.parameters)}</code></td><td><code>${escapeHtml(method.returns)}</code></td><td>${localized(method.en, method.zh)}</td></tr>`
+  return `<section class="api-method" id="${anchor}" data-api-entry data-name="${escapeHtml(method.name)}" data-kind="method" data-search="${escapeHtml(`${method.name} ${method.signature} ${method.parameters} ${method.returns} ${method.en} ${method.zh}`.toLowerCase())}"><div class="api-method-head"><h3><code>editor.${escapeHtml(method.signature)}</code></h3><a href="#${anchor}" aria-label="Link to ${escapeHtml(method.name)}">↗</a></div><p>${localized(method.en, method.zh)}</p><dl><div><dt>${localized('Parameters', '参数')}</dt><dd><code>${escapeHtml(method.parameters)}</code></dd></div><div><dt>${localized('Returns', '返回')}</dt><dd><code>${escapeHtml(method.returns)}</code></dd></div></dl></section>`
 }).join('\n')
 
 const eventRows = editorGuide.events.map(event => {
@@ -360,35 +362,43 @@ const editorHtml = `<!doctype html>
 <body>
   <header class="topbar">
     <a class="brand" href="../"><img src="../../assets/mark.svg" alt=""><b>KJDraw</b><span>Editor API</span></a>
+    <nav class="product-nav api-product-nav" aria-label="KJDraw products"><a href="../">${localized('Overview', '概览')}</a><a href="../quickstart/">${localized('Guides', '指南')}</a><a href="../showcase/">${localized('Showcase', '案例')}</a><a class="active" href="./">API</a></nav>
     <div class="api-search-wrap">
       <label class="api-search"><span aria-hidden="true">⌕</span><input id="api-search" type="search" autocomplete="off" placeholder="Search Editor API" aria-label="Search Editor API"><kbd>/</kbd></label>
       <div id="api-results" class="api-results" hidden></div>
     </div>
-    <nav class="top-links"><a href="../">${localized('Guides', '指南')}</a><a href="../../../">Demo</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="../../../">${localized('Playground', '在线体验')}</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="api-shell">
     <aside class="api-sidebar">
-      <div class="version"><span>${localized('RECOMMENDED API', '推荐 API')}</span><strong>v${escapeHtml(packageJson.version)}</strong></div>
+      <div class="version"><span>${localized('DOCUMENT VERSION', '文档版本')}</span><strong>v${escapeHtml(packageJson.version)}</strong></div>
+      <div class="api-tree-label">${localized('Editor API', '编辑器 API')}</div>
       <nav>
-        <a href="#overview">${localized('Overview', '概览')}</a>
+        <a class="active" href="#overview">${localized('Editor API overview', 'Editor API 简介')}</a>
         <a href="#quickstart">${localized('Quickstart', '快速接入')}</a>
-        <a href="#options">Options</a>
-        <a href="#properties">Properties</a>
-        <a href="#methods">Methods</a>
-        <a href="#events">Events</a>
+        <a href="#options">${localized('Options', '选项')}</a>
+        <a href="#properties">${localized('Properties', '属性')}</a>
+        <a href="#methods">${localized('Methods', '方法')}</a>
+        <a href="#events">${localized('Events', '事件')}</a>
+      </nav>
+      <div class="api-tree-label">${localized('Frameworks', '框架集成')}</div>
+      <nav>
         <a href="#frameworks">React / Vue</a>
         <a href="#advanced">${localized('Advanced access', '高级入口')}</a>
-        <a class="reference-link" href="./reference/">${localized('All package exports', '全部包导出')} <span>→</span></a>
       </nav>
+      <div class="api-tree-label">${localized('Reference', '参考')}</div>
+      <nav><a class="reference-link" href="./reference/">${localized('All package exports', '全部包导出')} <span>→</span></a></nav>
     </aside>
     <main class="api-main">
       <article>
         <section class="api-hero" id="overview">
-          <p class="eyebrow">@kanjieteam/kjdraw</p>
-          <h1>${localized(editorGuide.title.en, editorGuide.title.zh)}</h1>
+          <div class="api-breadcrumb"><a href="../">KJDraw</a><span>/</span><a href="../quickstart/">${localized('Guides', '指南')}</a><span>/</span><strong>API</strong></div>
+          <div class="api-hero-row"><div><p class="eyebrow">@kanjieteam/kjdraw</p>
+          <h1>${localized(editorGuide.title.en, editorGuide.title.zh)}</h1></div><button class="api-page-action" type="button" data-copy-value="https://kanjieteam.github.io/kjdraw/docs/latest/api/">${localized('Copy link', '复制链接')}</button></div>
           <p class="lead">${localized(editorGuide.lead.en, editorGuide.lead.zh)}</p>
           <div class="install"><code>${escapeHtml(installCommand)}</code><button type="button" data-copy-value="${escapeHtml(installCommand)}">Copy</button></div>
 ${installFromRelease ? `          <p>${localized('Install the published GitHub release package. npm registry publication is pending.', '安装已发布的 GitHub Release 包；npm 仓库发布尚待完成。')}</p>` : ''}
+${sourceCandidate ? `          <p class="api-distribution-note">${localized(`These docs describe the ${packageJson.version} source candidate. Run npm view @kanjieteam/kjdraw@next version before installing. If next is older than ${packageJson.version}, use the source checkout for version-marked APIs.`, `本文档描述 ${packageJson.version} 源码候选版。安装前运行 npm view @kanjieteam/kjdraw@next version；如果 next 早于 ${packageJson.version}，请使用源码构建版调用对应 API。`)}</p>` : ''}
         </section>
 
         <section id="quickstart">
@@ -413,7 +423,7 @@ ${installFromRelease ? `          <p>${localized('Install the published GitHub r
         <section id="methods">
           <h2>Methods${permalink('methods', 'Methods')}</h2>
           <p>${localized('File operations and edits that return promises can be awaited in application workflows.', '文件操作与返回 Promise 的编辑方法可直接纳入应用异步流程。')}</p>
-          <div class="table-wrap wide-table"><table><thead><tr><th>Method</th><th>${localized('Parameters', '参数')}</th><th>${localized('Returns', '返回')}</th><th>${localized('Purpose', '用途')}</th></tr></thead><tbody>${methodRows}</tbody></table></div>
+          <div class="api-method-list">${methodCards}</div>
         </section>
 
         <section id="events">
@@ -442,6 +452,7 @@ ${installFromRelease ? `          <p>${localized('Install the published GitHub r
         </section>
       </article>
     </main>
+    <aside class="api-toc"><b>${localized('On this page', '本页目录')}</b><span class="api-toc-caption">${localized('Editor API', '编辑器 API')}</span><a href="#overview">${localized('Overview', '概览')}</a><a href="#quickstart">${localized('Quickstart', '快速接入')}</a><a href="#options">${localized('Options', '选项')}</a><a href="#properties">${localized('Properties', '属性')}</a><a href="#methods">${localized('Methods', '方法')}</a><div class="api-toc-methods">${editorGuide.methods.map(method => `<a href="#method-${slug(method.name)}">${escapeHtml(method.name)}()</a>`).join('')}</div><a href="#events">${localized('Events', '事件')}</a><a href="#frameworks">React / Vue</a><a href="#advanced">${localized('Advanced access', '高级入口')}</a></aside>
   </div>
   <script type="module" src="./app.js"></script>
 </body>
@@ -464,19 +475,31 @@ function render(){const terms=input.value.trim().toLowerCase().split(/\\s+/).fil
 function escape(value){const span=document.createElement('span');span.textContent=value;return span.innerHTML}
 input.addEventListener('input',render);input.addEventListener('focus',render);document.addEventListener('click',event=>{if(!event.target.closest('.api-search-wrap'))results.hidden=true});window.addEventListener('keydown',event=>{if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName)){event.preventDefault();input.focus()}if(event.key==='Escape')results.hidden=true})
 results.addEventListener('click',event=>{if(event.target.closest('a'))results.hidden=true})
+const tocLinks=[...document.querySelectorAll('.api-toc a')]
+const tocSections=tocLinks.map(link=>document.getElementById(link.getAttribute('href').slice(1))).filter(Boolean)
+const tocObserver=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){for(const link of tocLinks)link.classList.toggle('active',link.getAttribute('href')==='#'+entry.target.id)}}},{rootMargin:'-18% 0px -68% 0px',threshold:0})
+for(const section of tocSections)tocObserver.observe(section)
 applyLanguage()
 `
 
-const editorCss = `.api-shell{padding-top:60px}.api-sidebar{position:fixed;top:60px;bottom:0;width:260px;padding:24px 20px;border-right:1px solid var(--line);background:#fff;overflow:auto}.api-sidebar .version strong{display:block;font:13px Consolas,monospace;color:#26334a}.api-sidebar nav{display:flex;flex-direction:column;gap:2px}.api-sidebar nav a{padding:8px 9px;border-left:2px solid transparent;color:#505b6b;font-size:13px}.api-sidebar nav a:hover{border-left-color:var(--blue);background:#f2f6ff;color:#174dbd}.api-sidebar .reference-link{display:flex;justify-content:space-between;margin-top:14px;padding-top:13px;border-top:1px solid var(--line);color:#174dbd}.api-main{display:block;max-width:1220px;margin-left:260px;padding:58px 58px 110px}.api-main article{max-width:1100px;margin:auto}.api-hero{padding-bottom:38px;border-bottom:1px solid var(--line)}.api-hero .lead{max-width:820px;margin-bottom:22px;padding:0;border:0}.install{width:max-content;max-width:100%;display:flex;align-items:center;gap:24px;padding:12px 13px 12px 17px;border:1px solid #cad7f5;border-radius:8px;background:#f3f7ff}.install code{overflow:auto;color:#174dbd;font:13px Consolas,monospace}.install button{border:0;background:transparent;color:#2863f0;cursor:pointer}.api-main section{scroll-margin-top:85px}.api-main section>h2{display:flex;align-items:center}.permalink{margin-left:9px;color:transparent}.api-main section>h2:hover .permalink,.permalink:focus{color:#9ab3ec}.table-wrap tr{scroll-margin-top:82px}.table-wrap tr:target{background:#eff5ff;box-shadow:inset 3px 0 #2863f0}.table-wrap td:first-child{white-space:nowrap}.wide-table{width:calc(100vw - 380px);max-width:1100px}.framework-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.framework-grid>div{min-width:0}.framework-grid pre{height:390px}.advanced-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.advanced-grid>a{display:flex;flex-direction:column;gap:6px;padding:17px;border:1px solid var(--line);border-radius:8px;text-decoration:none}.advanced-grid>a:hover{border-color:#9db8f5;background:#f7f9ff}.advanced-grid span{color:#6d7786;font-size:12px}.api-search-wrap{position:relative;width:min(460px,38vw)}.api-search{height:36px;display:flex;align-items:center;gap:9px;padding:0 11px;border:1px solid #d7dde7;border-radius:7px;background:var(--soft);color:#6d7787}.api-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;font-size:13px}.api-search kbd{padding:2px 6px;border:1px solid #d8dee7;border-radius:4px;background:#fff;font:10px Consolas,monospace}.api-results{position:absolute;z-index:50;top:42px;left:0;right:0;max-height:430px;padding:7px;border:1px solid #cbd3df;border-radius:8px;background:#fff;overflow:auto;box-shadow:0 20px 55px #10182826}.api-results a{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border-radius:6px}.api-results a:hover{background:#eff4ff}.api-results b,.api-results small{display:block}.api-results small{max-width:300px;margin-top:3px;color:#7a8492;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.api-results em{padding:3px 6px;border-radius:4px;background:#edf1f6;color:#6f7988;font:normal 9px Consolas,monospace}.api-results p{padding:4px 8px}@media(max-width:920px){.api-sidebar{display:none}.api-main{margin-left:0;padding:42px 24px 80px}.wide-table{width:100%}.framework-grid{grid-template-columns:1fr}.framework-grid pre{height:auto}.api-search-wrap{margin-left:auto;width:42px}.api-search{justify-content:center;padding:0}.api-search input,.api-search kbd{display:none}.api-search-wrap:focus-within{position:absolute;left:12px;right:12px;width:auto}.api-search-wrap:focus-within .api-search{background:#fff}.api-search-wrap:focus-within input,.api-search-wrap:focus-within kbd{display:block}.api-results{top:42px}.advanced-grid{grid-template-columns:1fr}}@media(max-width:620px){.api-main{padding-left:18px;padding-right:18px}.advanced-grid{grid-template-columns:1fr}.top-links>a{display:none}}@media(max-width:920px){.api-search-wrap{width:min(180px,46vw)}.api-search-wrap .api-search input{display:block}.api-search-wrap .api-search kbd{display:none}}`
+const editorCss = `.api-breadcrumb{display:flex;align-items:center;gap:9px;margin-bottom:18px;color:#718096;font-size:12px}.api-breadcrumb a{color:#66758c}.api-breadcrumb strong{color:#25334a;font-weight:600}.api-hero-row{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:12px}.api-hero-row h1{margin:5px 0 0}.api-hero-row .eyebrow{margin:0;color:#56709a;font-size:11px}.api-page-action{flex:none;margin-top:8px;padding:7px 10px;border:1px solid #dbe2ec;border-radius:7px;background:#fff;color:#536276;font-size:12px;cursor:pointer}.api-page-action:hover{border-color:#9fb4d6;background:#f6f8fc}.api-distribution-note{max-width:800px;margin:13px 0 0;padding:10px 13px;border-left:2px solid #b5c8e8;background:#f8faff;color:#526174;font-size:12px;line-height:1.55}.api-product-nav{display:flex;align-items:center;gap:2px}.api-product-nav a{padding:6px 9px;border-radius:7px;color:#5b6573;font-size:12px}.api-product-nav a:hover,.api-product-nav a.active{background:#eef2f7;color:#17212b}@media(max-width:920px){.api-product-nav{display:none}}.api-shell{padding-top:60px}.api-sidebar{position:fixed;top:60px;bottom:0;width:260px;padding:24px 20px;border-right:1px solid var(--line);background:#fff;overflow:auto}.api-sidebar .version strong{display:block;font:13px Consolas,monospace;color:#26334a}.api-sidebar nav{display:flex;flex-direction:column;gap:2px}.api-sidebar nav a{padding:8px 9px;border-left:2px solid transparent;color:#505b6b;font-size:13px}.api-sidebar nav a:hover{border-left-color:var(--blue);background:#f2f6ff;color:#174dbd}.api-sidebar .reference-link{display:flex;justify-content:space-between;margin-top:14px;padding-top:13px;border-top:1px solid var(--line);color:#174dbd}.api-main{display:block;max-width:1220px;margin-left:260px;padding:58px 58px 110px}.api-main article{max-width:1100px;margin:auto}.api-hero{padding-bottom:38px;border-bottom:1px solid var(--line)}.api-hero .lead{max-width:820px;margin-bottom:22px;padding:0;border:0}.install{width:max-content;max-width:100%;display:flex;align-items:center;gap:24px;padding:12px 13px 12px 17px;border:1px solid #cad7f5;border-radius:8px;background:#f3f7ff}.install code{overflow:auto;color:#174dbd;font:13px Consolas,monospace}.install button{border:0;background:transparent;color:#2863f0;cursor:pointer}.api-main section{scroll-margin-top:85px}.api-main section>h2{display:flex;align-items:center}.permalink{margin-left:9px;color:transparent}.api-main section>h2:hover .permalink,.permalink:focus{color:#9ab3ec}.table-wrap tr{scroll-margin-top:82px}.table-wrap tr:target{background:#eff5ff;box-shadow:inset 3px 0 #2863f0}.table-wrap td:first-child{white-space:nowrap}.wide-table{width:calc(100vw - 380px);max-width:1100px}.framework-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.framework-grid>div{min-width:0}.framework-grid pre{height:390px}.advanced-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.advanced-grid>a{display:flex;flex-direction:column;gap:6px;padding:17px;border:1px solid var(--line);border-radius:8px;text-decoration:none}.advanced-grid>a:hover{border-color:#9db8f5;background:#f7f9ff}.advanced-grid span{color:#6d7786;font-size:12px}.api-search-wrap{position:relative;width:min(460px,38vw)}.api-search{height:36px;display:flex;align-items:center;gap:9px;padding:0 11px;border:1px solid #d7dde7;border-radius:7px;background:var(--soft);color:#6d7787}.api-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;font-size:13px}.api-search kbd{padding:2px 6px;border:1px solid #d8dee7;border-radius:4px;background:#fff;font:10px Consolas,monospace}.api-results{position:absolute;z-index:50;top:42px;left:0;right:0;max-height:430px;padding:7px;border:1px solid #cbd3df;border-radius:8px;background:#fff;overflow:auto;box-shadow:0 20px 55px #10182826}.api-results a{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border-radius:6px}.api-results a:hover{background:#eff4ff}.api-results b,.api-results small{display:block}.api-results small{max-width:300px;margin-top:3px;color:#7a8492;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.api-results em{padding:3px 6px;border-radius:4px;background:#edf1f6;color:#6f7988;font:normal 9px Consolas,monospace}.api-results p{padding:4px 8px}@media(max-width:920px){.api-sidebar{display:none}.api-main{margin-left:0;padding:42px 24px 80px}.wide-table{width:100%}.framework-grid{grid-template-columns:1fr}.framework-grid pre{height:auto}.api-search-wrap{margin-left:auto;width:42px}.api-search{justify-content:center;padding:0}.api-search input,.api-search kbd{display:none}.api-search-wrap:focus-within{position:absolute;left:12px;right:12px;width:auto}.api-search-wrap:focus-within .api-search{background:#fff}.api-search-wrap:focus-within input,.api-search-wrap:focus-within kbd{display:block}.api-results{top:42px}.advanced-grid{grid-template-columns:1fr}}@media(max-width:620px){.api-main{padding-left:18px;padding-right:18px}.advanced-grid{grid-template-columns:1fr}.top-links>a{display:none}}@media(max-width:920px){.api-search-wrap{width:min(180px,46vw)}.api-search-wrap .api-search input{display:block}.api-search-wrap .api-search kbd{display:none}}`
 
 const referenceNavigation = modules.map(module => `<a href="#${module.anchor}"><code>${escapeHtml(module.packageName.replace(`${packageJson.name}/`, './'))}</code></a>`).join('\n')
+function symbolImport(symbol, module) {
+  // Grouped type re-exports have no single importable symbol; do not invent one.
+  if (symbol.name === 'default') return null
+  const importKind = ['interface', 'type'].includes(symbol.kind) ? 'import type' : 'import'
+  return `${importKind} { ${symbol.name} } from '${module.packageName}'`
+}
+
 const referenceSections = modules.map(module => `<section class="api-module" id="${module.anchor}" data-module="${escapeHtml(module.packageName)}">
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>${escapeHtml(module.packageName)}</code></h2></div>${permalink(module.anchor, module.packageName)}</header>
   <p class="module-source">${localized('Declaration', '类型声明')} <code>${escapeHtml(module.declaration)}</code></p>
   <div class="api-symbols">
-    ${module.symbols.map(symbol => `<article class="api-symbol" id="${symbol.anchor}" data-search="${escapeHtml(`${symbol.name} ${symbol.kind} ${module.packageName} ${symbol.declaration}`.toLowerCase())}">
+    ${module.symbols.map(symbol => `<article class="api-symbol" id="${symbol.anchor}" data-search="${escapeHtml(`${symbol.name} ${symbol.kind} ${module.packageName}`.toLowerCase())}">
       <header><div><span class="kind">${escapeHtml(symbol.kind)}</span><h3>${escapeHtml(symbol.name)}</h3></div>${permalink(symbol.anchor, symbol.name)}</header>
-      ${codeBlock(symbol.declaration, 'ts')}
+      ${symbolImport(symbol, module) ? `<div class="symbol-import"><code>${escapeHtml(symbolImport(symbol, module))}</code><button type="button" data-copy-import="${escapeHtml(symbolImport(symbol, module))}">${localized('Copy import', '复制导入')}</button></div>` : ''}
+      <details class="symbol-declaration" data-symbol="${symbol.anchor}"><summary>${localized('Type declaration', '类型声明')}</summary></details>
       <p class="source-path">${escapeHtml(symbol.source)}</p>
     </article>`).join('\n')}
   </div>
@@ -496,44 +519,186 @@ const referenceHtml = `<!doctype html>
 <body>
   <header class="topbar">
     <a class="brand" href="../"><img src="../../../assets/mark.svg" alt=""><b>KJDraw</b><span>Reference</span></a>
+    <nav class="product-nav api-product-nav" aria-label="KJDraw products"><a href="../../">${localized('Overview', '概览')}</a><a href="../../quickstart/">${localized('Guides', '指南')}</a><a href="../../showcase/">${localized('Showcase', '案例')}</a><a class="active" href="../">API</a></nav>
     <label class="api-search"><span aria-hidden="true">⌕</span><input id="api-search" type="search" autocomplete="off" placeholder="Search package exports" aria-label="Search complete API reference"><kbd>/</kbd></label>
-    <nav class="top-links"><a href="../">Editor API</a><a href="../../">${localized('Guides', '指南')}</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
+    <nav class="top-links"><a href="../">Editor API</a><a href="../../">${localized('Guides', '指南')}</a><a href="../../showcase/">${localized('Showcase', '案例')}</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="reference-shell">
     <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v${escapeHtml(packageJson.version)}</strong></div><nav>${referenceNavigation}</nav></aside>
     <main class="reference-main"><article>
-      <section class="reference-intro" id="api-reference"><p class="eyebrow">TYPESCRIPT</p><h1>${localized('Complete API reference', '完整 API 参考')}</h1><p class="lead">${localized('Browse the declarations for the root package and every public subpath. Start with the Editor API for application integration.', '浏览根包及每个公开子路径的类型声明；应用接入请先从 Editor API 开始。')}</p><a class="primary-link" href="../">${localized('Open Editor API', '打开 Editor API')} →</a></section>
+      <section class="reference-intro" id="api-reference"><p class="eyebrow">TYPESCRIPT</p><h1>${localized('Complete API reference', '完整 API 参考')}</h1><p class="lead">${localized('Browse the declarations for the root package and every public subpath. Start with the Editor API for application integration.', '浏览根包及每个公开子路径的类型声明；应用接入请先从 Editor API 开始。')}</p><p class="reference-load-note">${localized('Search includes every public declaration. Expand a symbol to load its type signature; browser Find only sees signatures already opened.', '站内搜索覆盖全部公开声明。展开符号时加载完整类型；浏览器页内查找仅能找到已展开的声明。')}</p><a class="primary-link" href="../">${localized('Open Editor API', '打开 Editor API')} →</a></section>
+      <div id="reference-search-status" class="reference-search-status" role="status" hidden><span class="lang-en">Full declaration search is unavailable while offline. Check your connection and retry.</span><span class="lang-zh">离线时无法搜索完整类型声明。请检查网络后重试。</span><button id="retry-reference-search" type="button">${localized('Retry search', '重试搜索')}</button></div>
       <div id="empty-state" hidden><h2>${localized('No matching API', '未找到匹配 API')}</h2></div>
       ${referenceSections}
     </article></main>
+    <aside class="api-toc reference-toc" aria-label="Current module symbols"><b>${localized('In this module', '当前模块')}</b><span id="reference-toc-title"></span><nav id="reference-toc-links"></nav></aside>
   </div>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
 `
 
-const referenceAppJs = `const html=document.documentElement,input=document.getElementById('api-search'),modules=[...document.querySelectorAll('.api-module')],empty=document.getElementById('empty-state')
+const referenceAppJs = `const html=document.documentElement,input=document.getElementById('api-search'),modules=[...document.querySelectorAll('.api-module')],empty=document.getElementById('empty-state'),searchStatus=document.getElementById('reference-search-status')
 let locale=localStorage.getItem('kjdraw.docs.language')||(navigator.language.toLowerCase().startsWith('zh')?'zh':'en')
 function applyLanguage(){html.dataset.locale=locale;html.lang=locale==='zh'?'zh-CN':'en';document.getElementById('language').textContent=locale==='zh'?'EN':'中文';input.placeholder=locale==='zh'?'搜索全部包导出':'Search package exports'}
 document.getElementById('language').onclick=()=>{locale=locale==='zh'?'en':'zh';localStorage.setItem('kjdraw.docs.language',locale);applyLanguage()}
-for(const button of document.querySelectorAll('[data-copy-code]'))button.onclick=async()=>{await navigator.clipboard.writeText(button.nextElementSibling.textContent);const old=button.textContent;button.textContent=locale==='zh'?'已复制':'Copied';setTimeout(()=>button.textContent=old,1200)}
-function search(){const terms=input.value.trim().toLowerCase().split(/\\s+/).filter(Boolean);let visible=0;for(const module of modules){let moduleVisible=0;for(const symbol of module.querySelectorAll('.api-symbol')){const show=terms.every(term=>symbol.dataset.search.includes(term));symbol.hidden=!show;if(show)moduleVisible+=1}module.hidden=moduleVisible===0;visible+=moduleVisible}empty.hidden=visible!==0;const url=new URL(location.href);if(input.value)url.searchParams.set('q',input.value);else url.searchParams.delete('q');history.replaceState(null,'',url)}
+document.addEventListener('click',async event=>{const button=event.target.closest('[data-copy-code]');if(!button)return;await navigator.clipboard.writeText(button.nextElementSibling.textContent);const old=button.textContent;button.textContent=locale==='zh'?'已复制':'Copied';setTimeout(()=>button.textContent=old,1200)})
+let referencePromise
+function loadReference(){
+  if(!referencePromise)referencePromise=fetch('./api-reference.json').then(response=>{if(!response.ok)throw new Error('API reference unavailable');return response.json()}).then(data=>{
+    const declarations=new Map(),searchText=new Map()
+    for(const module of data.modules)for(const symbol of module.symbols){declarations.set(symbol.anchor,symbol.declaration);searchText.set(symbol.anchor,(symbol.name+' '+symbol.kind+' '+module.packageName+' '+symbol.declaration).toLowerCase())}
+    return {declarations,searchText}
+  }).catch(error=>{referencePromise=null;throw error})
+  return referencePromise
+}
+document.addEventListener('toggle',async event=>{
+  const details=event.target
+  if(!details.matches?.('.symbol-declaration')||!details.open||details.dataset.loaded||details.dataset.loading)return
+  details.dataset.loading='true'
+  details.querySelector('.declaration-status')?.remove()
+  const status=document.createElement('p')
+  status.className='declaration-status'
+  status.textContent=locale==='zh'?'正在加载类型声明…':'Loading type declaration…'
+  details.append(status)
+  try{
+    const {declarations}=await loadReference()
+    const declaration=declarations.get(details.dataset.symbol)
+    if(!declaration)throw new Error('Declaration not found')
+    const pre=document.createElement('pre')
+    pre.dataset.language='ts'
+    const button=document.createElement('button')
+    button.className='copy'
+    button.type='button'
+    button.dataset.copyCode=''
+    button.textContent='Copy'
+    const code=document.createElement('code')
+    code.textContent=declaration
+    pre.append(button,code)
+    status.replaceWith(pre)
+    details.dataset.loaded='true'
+  }catch{status.textContent=locale==='zh'?'类型声明暂时无法加载，请重试。':'Could not load declaration. Close and reopen to retry.'}
+  delete details.dataset.loading
+},true)
+for(const button of document.querySelectorAll('[data-copy-import]'))button.onclick=async()=>{await navigator.clipboard.writeText(button.dataset.copyImport);const old=button.innerHTML;button.textContent=locale==='zh'?'已复制':'Copied';setTimeout(()=>button.innerHTML=old,1200)}
+const toc=document.querySelector('.reference-toc'),tocTitle=document.getElementById('reference-toc-title'),tocLinks=document.getElementById('reference-toc-links')
+function updateReferenceToc(){
+  const visible=modules.filter(module=>!module.hidden)
+  const current=visible.filter(module=>module.getBoundingClientRect().top<150).at(-1)??visible[0]
+  if(!current){toc.hidden=true;return}
+  toc.hidden=false
+  const symbols=[...current.querySelectorAll('.api-symbol:not([hidden])')]
+  const key=current.id+':'+symbols.map(symbol=>symbol.id).join(',')
+  if(toc.dataset.key===key)return
+  toc.dataset.key=key
+  tocTitle.textContent=current.querySelector('.module-header h2')?.textContent??''
+  tocLinks.replaceChildren()
+  for(const symbol of symbols){
+    const link=document.createElement('a')
+    link.href='#'+symbol.id
+    link.textContent=symbol.querySelector('h3')?.textContent??symbol.id
+    tocLinks.append(link)
+  }
+}
+let tocFrame=0
+addEventListener('scroll',()=>{if(tocFrame)return;tocFrame=requestAnimationFrame(()=>{tocFrame=0;updateReferenceToc()})},{passive:true})
+let searchEpoch=0
+async function search(){
+  const epoch=++searchEpoch
+  const terms=input.value.trim().toLowerCase().split(/\\s+/).filter(Boolean)
+  const url=new URL(location.href)
+  if(input.value)url.searchParams.set('q',input.value)
+  else url.searchParams.delete('q')
+  history.replaceState(null,'',url)
+  searchStatus.hidden=true
+  let fullSearch
+  if(terms.length){
+    try{fullSearch=(await loadReference()).searchText}
+    catch{
+      if(epoch!==searchEpoch)return
+      for(const module of modules){module.hidden=false;for(const symbol of module.querySelectorAll('.api-symbol'))symbol.hidden=false}
+      empty.hidden=true
+      searchStatus.hidden=false
+      updateReferenceToc()
+      return
+    }
+  }
+  if(epoch!==searchEpoch)return
+  let visible=0
+  for(const module of modules){
+    let moduleVisible=0
+    for(const symbol of module.querySelectorAll('.api-symbol')){
+      const haystack=fullSearch?.get(symbol.id)??symbol.dataset.search
+      const show=terms.every(term=>haystack.includes(term))
+      symbol.hidden=!show
+      if(show)moduleVisible+=1
+    }
+    module.hidden=moduleVisible===0
+    visible+=moduleVisible
+  }
+  empty.hidden=visible!==0
+  updateReferenceToc()
+}
+document.getElementById('retry-reference-search').onclick=search;
 input.value=new URL(location.href).searchParams.get('q')??'';input.addEventListener('input',search);search();window.addEventListener('keydown',event=>{if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName)){event.preventDefault();input.focus()}});applyLanguage()
 `
 
-const referenceCss = `.reference-shell{padding-top:60px}.reference-sidebar{position:fixed;top:60px;bottom:0;width:285px;padding:24px 20px;border-right:1px solid var(--line);background:#fff;overflow:auto}.reference-sidebar .version strong{display:block;font:13px Consolas,monospace;color:#26334a}.reference-sidebar nav{display:flex;flex-direction:column}.reference-sidebar nav a{padding:7px 9px;border-left:2px solid transparent;color:#526071;font-size:12px}.reference-sidebar nav a:hover{border-left-color:var(--blue);background:#f2f6ff;color:#174dbd}.reference-sidebar nav code{font-size:11px}.reference-main{display:block;max-width:1240px;margin-left:285px;padding:58px 54px 100px}.reference-main article{max-width:1060px;margin:auto}.reference-intro{padding-bottom:42px;margin-bottom:44px;border-bottom:1px solid var(--line)}.reference-intro .lead{margin-bottom:20px;padding:0;border:0}.primary-link{display:inline-flex;padding:10px 13px;border:1px solid #adc3f5;border-radius:6px;background:#f3f7ff;text-decoration:none}.api-search{width:min(500px,42vw);height:36px;display:flex;align-items:center;gap:9px;padding:0 11px;border:1px solid #d7dde7;border-radius:7px;background:var(--soft);color:#6d7787}.api-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;font-size:13px}.api-search kbd{padding:2px 6px;border:1px solid #d8dee7;border-radius:4px;background:#fff;font:10px Consolas,monospace}.api-module{scroll-margin-top:82px}.module-header,.api-symbol>header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.module-header h2{margin:0}.module-header h2 code{font-size:22px}.module-source{margin-top:7px;font-size:12px}.api-symbols{display:grid;gap:12px;margin-top:25px}.api-symbol{scroll-margin-top:82px;padding:18px 18px 12px;border:1px solid var(--line);border-radius:7px;background:#fff}.api-symbol:target{border-color:#78a0ff;box-shadow:0 0 0 3px #2863f014}.api-symbol>header>div{display:flex;align-items:center;gap:9px}.api-symbol h3{margin:0;font:600 16px Consolas,monospace;color:#1d2736}.kind{padding:3px 6px;border-radius:3px;background:#eef3ff;color:#2454b7;font:9px Consolas,monospace;text-transform:uppercase}.permalink{color:#a5acb6}.api-symbol pre{max-height:360px;margin:14px 0 8px;font-size:12px;white-space:pre-wrap}.source-path{margin:0;color:#9299a3;font:10px Consolas,monospace}#empty-state{padding:60px 20px;text-align:center}.api-symbol[hidden],.api-module[hidden]{display:none}@media(max-width:880px){.reference-sidebar{display:none}.reference-main{margin-left:0;padding:40px 20px 70px}.api-search{margin-left:auto;width:42px;justify-content:center}.api-search input,.api-search kbd{display:none}.api-search:focus-within{position:absolute;left:12px;right:12px;width:auto;background:#fff}.api-search:focus-within input,.api-search:focus-within kbd{display:block}}@media(max-width:880px){.api-search{width:min(180px,46vw)}.api-search input{display:block}.api-search kbd{display:none}}`
+const referenceCss = `.api-product-nav{display:flex;align-items:center;gap:2px}.api-product-nav a{padding:6px 9px;border-radius:7px;color:#5b6573;font-size:12px}.api-product-nav a:hover,.api-product-nav a.active{background:#eef2f7;color:#17212b}@media(max-width:920px){.api-product-nav{display:none}}.reference-shell{padding-top:60px}.reference-sidebar{position:fixed;top:60px;bottom:0;width:285px;padding:24px 20px;border-right:1px solid var(--line);background:#fff;overflow:auto}.reference-sidebar .version strong{display:block;font:13px Consolas,monospace;color:#26334a}.reference-sidebar nav{display:flex;flex-direction:column}.reference-sidebar nav a{padding:7px 9px;border-left:2px solid transparent;color:#526071;font-size:12px}.reference-sidebar nav a:hover{border-left-color:var(--blue);background:#f2f6ff;color:#174dbd}.reference-sidebar nav code{font-size:11px}.reference-main{display:block;max-width:1240px;margin-left:285px;padding:58px 54px 100px}.reference-main article{max-width:1060px;margin:auto}.reference-intro{padding-bottom:42px;margin-bottom:44px;border-bottom:1px solid var(--line)}.reference-intro .lead{margin-bottom:20px;padding:0;border:0}.primary-link{display:inline-flex;padding:10px 13px;border:1px solid #adc3f5;border-radius:6px;background:#f3f7ff;text-decoration:none}.api-search{width:min(500px,42vw);height:36px;display:flex;align-items:center;gap:9px;padding:0 11px;border:1px solid #d7dde7;border-radius:7px;background:var(--soft);color:#6d7787}.api-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;font-size:13px}.api-search kbd{padding:2px 6px;border:1px solid #d8dee7;border-radius:4px;background:#fff;font:10px Consolas,monospace}.api-module{scroll-margin-top:82px}.module-header,.api-symbol>header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.module-header h2{margin:0}.module-header h2 code{font-size:22px}.module-source{margin-top:7px;font-size:12px}.api-symbols{display:grid;gap:12px;margin-top:25px}.api-symbol{scroll-margin-top:82px;padding:18px 18px 12px;border:1px solid var(--line);border-radius:7px;background:#fff}.api-symbol:target{border-color:#78a0ff;box-shadow:0 0 0 3px #2863f014}.api-symbol>header>div{display:flex;align-items:center;gap:9px}.api-symbol h3{margin:0;font:600 16px Consolas,monospace;color:#1d2736}.kind{padding:3px 6px;border-radius:3px;background:#eef3ff;color:#2454b7;font:9px Consolas,monospace;text-transform:uppercase}.permalink{color:#a5acb6}.api-symbol pre{max-height:360px;margin:14px 0 8px;font-size:12px;white-space:pre-wrap}.source-path{margin:0;color:#9299a3;font:10px Consolas,monospace}#empty-state{padding:60px 20px;text-align:center}.api-symbol[hidden],.api-module[hidden]{display:none}@media(max-width:880px){.reference-sidebar{display:none}.reference-main{margin-left:0;padding:40px 20px 70px}.api-search{margin-left:auto;width:42px;justify-content:center}.api-search input,.api-search kbd{display:none}.api-search:focus-within{position:absolute;left:12px;right:12px;width:auto;background:#fff}.api-search:focus-within input,.api-search:focus-within kbd{display:block}}@media(max-width:880px){.api-search{width:min(180px,46vw)}.api-search input{display:block}.api-search kbd{display:none}}`
 
+const apiLayoutCss = `
+:root{--api-header:64px;--api-sidebar:256px;font-family:"Inter Variable",Inter,"Noto Sans SC","Microsoft YaHei UI","Segoe UI",Arial,sans-serif}
+.topbar{height:var(--api-header);padding:0 24px;background:#fffffffa}
+.brand{width:var(--api-sidebar);gap:8px}.brand img{width:25px;height:25px}.brand b{font-size:15px}.brand>span{font-size:11px}
+.api-shell,.reference-shell{max-width:1536px;margin:0 auto;padding-top:var(--api-header)}
+.api-sidebar,.reference-sidebar{top:var(--api-header);left:max(0px,calc((100vw - 1536px)/2));bottom:0;width:var(--api-sidebar);padding:24px 14px 24px 18px;background:#f8f9fb;overflow:auto}
+.api-sidebar nav a,.reference-sidebar nav a{border-left:0;border-radius:6px;font-size:12px}.api-sidebar nav a:hover,.reference-sidebar nav a:hover{border-left:0;background:#eaf0ff}
+.api-main,.reference-main{max-width:none;width:calc(100% - 304px);margin-left:304px;padding:32px 24px 96px}
+.api-main article,.reference-main article{max-width:800px;margin:0}
+.api-hero,.reference-intro{padding-bottom:26px}.api-hero h1,.reference-intro h1{font-size:32px;line-height:1.25}
+.api-hero .lead,.reference-intro .lead{font-size:15px;line-height:1.7}
+.wide-table{width:100%;max-width:none}.api-search-wrap,.api-search{width:min(430px,36vw)}
+.api-method-list{display:grid;gap:0;margin-top:22px;border-top:1px solid #e3e8ed}
+.api-method{padding:23px 0 25px;border-bottom:1px solid #e3e8ed;scroll-margin-top:82px}
+.api-method:target{border-radius:6px;background:#f5f8ff;box-shadow:0 0 0 12px #f5f8ff}
+.api-method-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.api-method-head h3{margin:0;color:#182333;font-size:17px}.api-method-head code{font:600 17px/1.5 Consolas,monospace;overflow-wrap:anywhere}
+.api-method-head>a{font-size:15px;color:#8c99a8}.api-method>p{margin:8px 0 12px;color:#536171;font-size:13px}
+.api-method dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:0}
+.api-method dl>div{min-width:0;padding:11px 13px;border:1px solid #e4e9ef;border-radius:6px;background:#f8fafc}
+.api-method dt{margin-bottom:6px;color:#718093;font-size:11px}.api-method dd{margin:0;color:#25354a;font-size:12px;overflow-wrap:anywhere}.api-method dd code{font:12px/1.5 Consolas,monospace}
+.api-toc{position:fixed;top:106px;left:calc(max(0px,(100vw - 1536px)/2) + 1160px);width:240px;max-height:calc(100vh - 126px);overflow:auto;display:flex;flex-direction:column;gap:9px;padding-left:18px;border-left:1px solid #e2e7ed;font-size:12px;color:#657182}
+.api-toc b{margin-bottom:7px;color:#26323f}.api-toc a:hover{color:#1d56bc}.api-toc-methods{display:flex;flex-direction:column;gap:7px;padding-left:12px;border-left:1px solid #e5eaf0;color:#7a8694}
+@media(max-width:1439px){.api-toc{display:none}}
+@media(max-width:1023px){.api-sidebar,.reference-sidebar{display:none}.api-main,.reference-main{width:auto;margin-left:0;padding:32px 24px 80px}.api-main article,.reference-main article{max-width:800px;margin:0 auto}}
+@media(max-width:767px){.topbar{height:64px;padding:0 16px}.brand{width:auto}.top-links{margin-left:auto;gap:10px}.top-links>a{display:none}.api-search-wrap,.api-search{width:min(170px,42vw)}.api-main,.reference-main{padding:26px 16px 72px}.framework-grid,.advanced-grid,.api-method dl{grid-template-columns:1fr}.wide-table{width:100%}}
+`
+
+const referenceTocCss = `
+.reference-toc{gap:7px}.reference-toc>span{font:11px/1.45 Consolas,monospace;color:#8a95a2;overflow-wrap:anywhere}.reference-toc nav{display:flex;flex-direction:column;gap:2px;margin-top:6px}.reference-toc nav a{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 3px;color:#667486;text-decoration:none;font:11px/1.4 Consolas,monospace}.reference-toc nav a:hover{color:#1d56bc;background:#f3f7ff}
+.symbol-import{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;margin-top:15px;padding:10px 12px;border:1px solid #e0e6ed;border-radius:6px;background:#f8fafc}
+.symbol-import code{font:12px/1.5 Consolas,monospace;overflow-wrap:anywhere}
+.symbol-import button{flex:none;padding:5px 8px;border:1px solid #d7e1ed;border-radius:5px;background:#fff;color:#2454b7;font-family:inherit;font-size:11px;line-height:1.4;cursor:pointer}
+.symbol-import button:hover,.symbol-import button:focus-visible{border-color:#89aaf0;background:#eef4ff}
+.symbol-declaration{margin-top:10px}.symbol-declaration summary{width:max-content;cursor:pointer;color:#516275;font-size:12px}.symbol-declaration summary:hover{color:#1d56bc}
+.symbol-declaration pre{max-width:100%;max-height:none;overflow:auto}.symbol-declaration pre code{overflow-wrap:anywhere}
+.api-symbols{grid-template-columns:minmax(0,1fr)}.api-symbol,.api-module{min-width:0}.module-header h2,.module-source{overflow-wrap:anywhere}
+.reference-search-status{display:flex;align-items:center;gap:12px;margin:0 0 24px;padding:12px 14px;border:1px solid #e8c69f;border-radius:7px;background:#fffaf3;color:#714c25;font-size:13px;line-height:1.5}.reference-search-status[hidden]{display:none}.reference-search-status button{flex:none;margin-left:auto;padding:5px 9px;border:1px solid #d7ab76;border-radius:5px;background:#fff;color:#714c25;font:inherit;cursor:pointer}.reference-search-status button:hover,.reference-search-status button:focus-visible{border-color:#8d5b27;background:#fff1de}
+.symbol-import code{min-width:0}.api-symbol>header>div{min-width:0;flex-wrap:wrap}.api-symbol h3,.source-path{overflow-wrap:anywhere}.source-path{margin-top:10px}
+`
+const apiDocsPolish = `
+.api-tree-label{margin:22px 8px 8px;color:#9099a7;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}.api-sidebar nav a.active{background:#eaf0ff;color:#1d56bc;font-weight:600}.api-sidebar .reference-link{display:flex;justify-content:space-between;margin-top:4px;padding-top:9px;border-top:0;color:#526071}.api-breadcrumb{display:flex;align-items:center;gap:8px;margin-bottom:22px;color:#8793a1;font-size:12px}.api-breadcrumb a{color:#657386;text-decoration:none}.api-breadcrumb a:hover{color:#1d56bc}.api-breadcrumb strong{color:#25344b;font-weight:600}.api-hero-row{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}.api-page-action{flex:none;border:1px solid #d7dee8;border-radius:7px;background:#fff;color:#596779;padding:7px 10px;font-size:12px;cursor:pointer}.api-page-action:hover{border-color:#9bb7f0;color:#1d56bc;background:#f7faff}.api-main section{padding-top:35px}.api-main section:first-of-type{padding-top:0}.api-main section>h2{margin-top:0;padding-top:0}.api-main section>h2::after{content:'';display:inline-block;width:26px;height:1px;margin:5px 0 0 9px;background:#9bb8f5}.api-toc-caption{margin:-2px 0 3px;color:#9aa5b2;font-size:11px}.api-toc a{padding:2px 0;color:#657182;text-decoration:none}.api-toc a.active{color:#1d56bc;font-weight:600}.api-toc a.active::before{content:'';display:inline-block;width:2px;height:13px;margin-right:7px;vertical-align:-2px;border-radius:2px;background:#2863f0}.api-toc-methods a{font-size:11px}
+`
 const outputs = new Map([
   ['api-reference.json', `${JSON.stringify(api, null, 2)}\n`],
   ['editor-api.json', `${JSON.stringify(editorApi, null, 2)}\n`],
   ['search-index.json', `${JSON.stringify(searchIndex, null, 2)}\n`],
   ['index.html', editorHtml],
   ['app.js', editorAppJs],
-  ['style.css', editorCss],
+  ['style.css', `${editorCss}\n${apiLayoutCss}\n${apiDocsPolish}`],
   ['reference/api-reference.json', `${JSON.stringify(api, null, 2)}\n`],
-  ['reference/index.html', referenceHtml],
+  ['reference/index.html', referenceHtml.replace(/^[ \t]+$/gm, '')],
   ['reference/app.js', referenceAppJs],
-  ['reference/style.css', referenceCss],
+  ['reference/style.css', `${referenceCss}\n${apiLayoutCss}\n${referenceTocCss}`],
 ])
 
 async function listRelativeFiles(root, current = root) {

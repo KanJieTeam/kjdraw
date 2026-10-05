@@ -66,6 +66,8 @@ export interface KJProjectSessionOptions {
     createdAt?: string;
     metadata?: Record<string, unknown>;
     migrations?: readonly unknown[];
+    /** Project-owned binary or JSON diagnostics persisted below diagnostics/. */
+    diagnostics?: ReadonlyMap<string, KjpEntryValue> | Readonly<Record<string, KjpEntryValue>>;
 }
 export interface KJProjectCreateOptions extends KJProjectSessionOptions {
     documents?: ReadonlyMap<string, KJOpenInput | KJDocument> | readonly (KJOpenInput | KJDocument)[] | Readonly<Record<string, KJOpenInput | KJDocument>>;
@@ -104,12 +106,13 @@ export declare class KJProjectSession {
     activeDocumentId: string | null;
     commands: ReadonlyDeep<KJProjectCommandRecord>[];
     assets: Map<string, KjpEntryValue>;
+    diagnostics: Map<string, KjpEntryValue>;
     snapshots: Map<string, KjpEntryValue>;
     snapshotLedger: ReadonlyDeep<KJProjectSnapshotRecord>[];
     dirty: boolean;
     state: KJProjectState;
     lastError: Error | null;
-    constructor({ sdk, id, title, createdAt, metadata, migrations }?: KJProjectSessionOptions);
+    constructor({ sdk, id, title, createdAt, metadata, migrations, diagnostics }?: KJProjectSessionOptions);
     static create(options: KJProjectCreateOptions & {
         sdk: KJProjectSDK;
     }): KJProjectSession;

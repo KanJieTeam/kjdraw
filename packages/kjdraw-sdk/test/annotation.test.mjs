@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 import { projectDimension } from '../src/geometry/annotation.js'
 import { createKJDrawSDK } from '../src/index.js'
 
@@ -84,9 +84,9 @@ test('native dimension text height and precision survive style overrides, edit, 
   assert.ok(again.listEntities({ type: 'TEXT' }).some(text => text.payload.text === '12.3' && text.payload.height === 8))
   await assert.rejects(sdk.writeDocument(document, { format: 'DXF', version: 'R14' }), error => /precision|decimalPlaces/.test(error.cause?.message ?? error.message))
   if (process.env.KJDRAW_PYTHON) {
-    const script = 'import sys,io,json,ezdxf; d=ezdxf.read(io.StringIO(sys.stdin.read())); e=list(d.modelspace().query("DIMENSION"))[0]; o=e.override(); before=[o.get("dimtxt"),o.get("dimdec"),o.get("dimscale"),o.get("dimlfac")]; o.render(); labels=[{"text":x.dxf.text,"height":x.dxf.char_height} for x in d.blocks[e.dxf.geometry].query("MTEXT")]; a=d.audit(); print(json.dumps({"format":before,"labels":labels,"errors":len(a.errors),"fixes":len(a.fixes)}))'
+    const script = 'import os,io,json,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); e=list(d.modelspace().query("DIMENSION"))[0]; o=e.override(); before=[o.get("dimtxt"),o.get("dimdec"),o.get("dimscale"),o.get("dimlfac")]; o.render(); labels=[{"text":x.dxf.text,"height":x.dxf.char_height} for x in d.blocks[e.dxf.geometry].query("MTEXT")]; a=d.audit(); print(json.dumps({"format":before,"labels":labels,"errors":len(a.errors),"fixes":len(a.fixes)}))'
     for (const [dxf, expected, label, height] of [[artifact, [3, 3, 2, 1], '12.346', 6], [edited, [4, 1, 2, 1], '12.3', 8]]) {
-      const result = spawnSync(process.env.KJDRAW_PYTHON, ['-c', script], { input: dxf, encoding: 'utf8', timeout: 30000 })
+      const result = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON, ['-c', script], dxf, { encoding: 'utf8', timeout: 30000 })
       assert.equal(result.status, 0, result.stderr)
       const observed = JSON.parse(result.stdout)
       assert.deepEqual(observed.format, expected)

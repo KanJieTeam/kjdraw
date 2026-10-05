@@ -224,22 +224,25 @@ test('behavioral live plan and adapter retain provider settings and auditable re
   assert.equal(gate.plannedProviderRequests, 285)
   const env = {
     KJDRAW_BENCH_PROTOCOL: 'chat-completions', KJDRAW_BENCH_MODEL: 'fixture-model', KJDRAW_BENCH_ENDPOINT: 'https://provider.example/v1/chat/completions',
-    KJDRAW_BENCH_API_KEY: 'fixture-secret', KJDRAW_BENCH_TOOL_CHOICE: 'forced', KJDRAW_BENCH_REASONING_EFFORT: 'high',
+    KJDRAW_BENCH_API_KEY: 'fixture-secret', KJDRAW_BENCH_TOOL_CHOICE: 'forced', KJDRAW_BENCH_REASONING_EFFORT: 'high', KJDRAW_BENCH_STREAM: 'true',
     KJDRAW_BENCH_CHAT_TOKEN_PARAMETER: 'max_completion_tokens', KJDRAW_BENCH_MAX_OUTPUT_TOKENS: '4096', KJDRAW_BENCH_TIMEOUT_MS: '30000',
   }
   const config = behavioralLiveConfiguration(env)
   assert.equal(config.endpointOrigin, 'https://provider.example')
   assert.equal(config.settings.reasoning_effort, 'high')
   assert.equal(config.settings.max_completion_tokens, 4096)
+  assert.equal(config.settings.stream, true)
   assert.throws(() => behavioralLiveConfiguration({ ...env, KJDRAW_BENCH_ENDPOINT: 'http://localhost:1234/v1' }), /remote HTTPS/)
   const originalFetch = globalThis.fetch
   let captured
   globalThis.fetch = async (_url, options) => {
     captured = JSON.parse(options.body)
-    return new Response(JSON.stringify({
-      model: 'fixture-model-returned', usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18, prompt_tokens_details: { cached_tokens: 3 }, completion_tokens_details: { reasoning_tokens: 2 } },
-      choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: null, tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' } }] } }],
-    }), { status: 200, headers: { 'content-type': 'application/json' } })
+    const events = [
+      { model: 'fixture-model-returned', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'call-1', type: 'function', function: { name: 'cad_read_', arguments: '{' } }] }, finish_reason: null }] },
+      { model: 'fixture-model-returned', choices: [{ index: 0, delta: { role: null, tool_calls: [{ index: 0, function: { name: 'drawing', arguments: '}' } }] }, finish_reason: 'tool_calls' }] },
+      { model: 'fixture-model-returned', choices: [], usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18, prompt_tokens_details: { cached_tokens: 3 }, completion_tokens_details: { reasoning_tokens: 2 } } },
+    ]
+    return new Response(`${events.map(event => `data: ${JSON.stringify(event)}\n\n`).join('')}data: [DONE]\n\n`, { status: 200, headers: { 'content-type': 'text/event-stream' } })
   }
   try {
     const task = releaseHoldoutBehavioralTasks.find(candidate => candidate.category === 'error-correction'), turn = task.turns[0]
@@ -253,6 +256,8 @@ test('behavioral live plan and adapter retain provider settings and auditable re
     assert.equal(result.usage.cacheReadInputTokens, 3)
     assert.equal(result.usage.reasoningOutputTokens, 2)
     assert.equal(captured.model, 'fixture-model')
+    assert.equal(captured.stream, true)
+    assert.deepEqual(captured.stream_options, { include_usage: true })
     assert.equal(JSON.stringify(captured).includes('fixture-secret'), false)
   } finally { globalThis.fetch = originalFetch }
 })
@@ -262,13 +267,17 @@ test('behavioral suite persists seed/final bytes, report state and intervention 
   try {
     const tasks = [releaseHoldoutBehavioralTasks.find(task => task.category === 'missing-context')]
     const ledger = { source: 'fixture-ledger.json', sourceSha256: hash('{"events":[]}'), events: [] }
-    const report = await runBehavioralSuite({ tasks, repetitions: 5, maxRuns: 5, invoke: fixtureInvocation, output, humanInterventionLedger: ledger, evidence: { mode: 'fixture', model: 'fixture-model', settings: { temperature: 0 } } })
+    const pricing = { currency: 'CNY', inputPerMillion: 1, cachedInputPerMillion: 1, outputPerMillion: 2 }
+    const report = await runBehavioralSuite({ tasks, repetitions: 5, maxRuns: 5, invoke: fixtureInvocation, output, humanInterventionLedger: ledger, evidence: { mode: 'fixture', model: 'fixture-model', settings: { temperature: 0 }, pricing } })
     assert.equal(report.status, 'complete')
     assert.equal(report.fixtureWarning.includes('never use as release evidence'), true)
     const persisted = JSON.parse(await readFile(join(output, 'report.json'), 'utf8'))
     assert.equal(persisted.attemptedRuns, 5)
     assert.equal(persisted.humanInterventionLedger.sourceSha256, ledger.sourceSha256)
+    assert.deepEqual(persisted.pricing, pricing)
+    assert.deepEqual(persisted.cost, { currency: 'CNY', amount: 0.000015 })
     for (const run of persisted.runs) {
+      assert.deepEqual(run.cost, { currency: 'CNY', amount: 0.000003, uncachedInputTokens: 1, cachedInputTokens: 0, outputTokens: 1, ratesPerMillion: pricing })
       const seed = await readFile(join(output, run.files.seedKjd)), final = await readFile(join(output, run.files.finalKjd))
       assert.equal(createHash('sha256').update(seed).digest('hex'), run.seedKjdSha256)
       assert.equal(createHash('sha256').update(final).digest('hex'), run.finalKjdSha256)

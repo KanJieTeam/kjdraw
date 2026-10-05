@@ -1,0 +1,27 @@
+// packages/kjdraw-sdk/src/samples.ts#L140-L163
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+function buildSitePlan({ line, circle, text, poly, rect, cross, dimH, dimV, sheet }: ReturnType<typeof draftingKit>) {
+  sheet({ title: 'RIVERSIDE RESEARCH PARK', number: 'C-101', scale: '1:500', discipline: 'SITE DEVELOPMENT PLAN' })
+  poly([[4, 18], [24, 139], [225, 143], [238, 31], [213, 19]], 'BOUNDARY')
+  for (let i = 0; i < 17; i++) {
+    const y = 25 + i * 6.2
+    const points: Point[] = []
+    for (let j = 0; j <= 20; j++) points.push([8 + j * 11, y + Math.sin(i * .38 + j * .48) * 2.3])
+    poly(points, 'C-TOPO', false); if (i % 4 === 0) text([13, y + 2.8], `${108 + i}.00`, 1.1, 'C-TOPO')
+  }
+  poly([[16, 33], [48, 37], [84, 39], [121, 44], [161, 54], [220, 55]], 'C-ROAD', false)
+  poly([[15, 41], [47, 45], [83, 47], [119, 52], [160, 62], [219, 63]], 'C-ROAD', false)
+  for (let i = 0; i < 22; i++) { const x = 20 + i * 9; line([x, 38 + Math.sin(i * .2) * 2], [x + 4, 42 + Math.sin(i * .2) * 2], 'C-ROAD') }
+  rect(38, 68, 58, 35, 'A-BUILD'); rect(40, 70, 54, 31, 'A-BUILD'); text([52, 86], 'LAB 01', 3, 'ANNO')
+  rect(113, 72, 72, 43, 'A-BUILD'); rect(115, 74, 68, 39, 'A-BUILD'); text([133, 94], 'LAB 02', 3, 'ANNO')
+  rect(193, 75, 27, 25, 'A-BUILD'); text([198, 87], 'UTILITY', 1.8, 'ANNO')
+  for (const [x, y, label] of [[14, 22, 'CP-01'], [227, 27, 'CP-02'], [219, 136, 'CP-03'], [27, 132, 'CP-04']] as [number, number, string][]) { circle([x, y], 1.2, 'BOUNDARY'); cross(x, y, 2, 'BOUNDARY'); text([x + 2.5, y + 1], label, 1.2, 'ANNO') }
+  poly([[10, 58], [42, 59], [99, 63], [148, 68], [207, 69], [230, 74]], 'C-UTIL', false)
+  poly([[13, 55], [43, 56], [100, 60], [149, 65], [209, 66], [231, 71]], 'C-UTIL', false)
+  text([18, 61], 'DN200 WATER', 1.25, 'C-UTIL')
+  for (let i = 0; i < 38; i++) { const x = 20 + (i % 19) * 11, y = i < 19 ? 119 : 127; circle([x, y], 1.5, 'L-PLANT'); circle([x, y], .45, 'L-PLANT'); cross(x, y, 1, 'L-PLANT') }
+  dimH(38, 96, 68, -7, '58.00 m'); dimH(113, 185, 72, -7, '72.00 m'); dimV(185, 72, 115, 7, '43.00 m')
+  line([229, 112], [229, 134], 'ANNO'); line([229, 134], [226, 128], 'ANNO'); line([229, 134], [232, 128], 'ANNO'); text([227.8, 137], 'N', 2.5, 'ANNO')
+  text([9, 146], 'GENERAL NOTES  ·  ALL DIMENSIONS IN METERS  ·  COORDINATE DATUM: LOCAL DEMO GRID', 1.15, 'TITLE')
+}

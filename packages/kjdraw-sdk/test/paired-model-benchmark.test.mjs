@@ -6,7 +6,7 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { pairedModelPlan, liveModelConfiguration, independentValidation, runPairedModelBenchmark, safeResponse } from '../../../scripts/benchmarks/paired-model-benchmark.mjs'
+import { benchmarkPricing, benchmarkRunCost, pairedModelPlan, liveModelConfiguration, independentValidation, runPairedModelBenchmark, safeResponse } from '../../../scripts/benchmarks/paired-model-benchmark.mjs'
 import { pilotTasks } from '../../../scripts/benchmarks/model-drawing-pilot.mjs'
 import { parametricDrawingTasks, deterministicFixturePatternInputs } from '../../../scripts/benchmarks/parametric-drawing-tasks.mjs'
 import { expandRectangularDrawingPattern } from '../src/agent-drawing-patterns.js'
@@ -18,6 +18,20 @@ const fixtureKey = 'fixture-credential-never-artifact'
 const python = process.env.KJDRAW_PYTHON ?? 'python'
 const baseOptions = { mode: 'fixture', protocol: 'chat-completions', model: 'fixture-model', apiKey: fixtureKey, repetitions: 5, maxRequests: 30, python }
 const close = server => new Promise(resolve => { server.close(resolve); server.closeAllConnections() })
+test('persistent compact JSON benchmark host isolates documents and recovers after invalid input', () => {
+  const response = content => ({ response: { choices: [{ message: { content: JSON.stringify(content) } }] } })
+  const valid = response({ circles: [[0, 0, 5]] })
+  const invalid = response({ unexpected: true })
+  const input = [valid, invalid, valid].map(value => JSON.stringify(value)).join('\n') + '\n'
+  const child = spawnSync(process.execPath, [fileURLToPath(new URL('../../../scripts/benchmarks/model-drawing-pilot.mjs', import.meta.url)), 'serve-json'], { input, encoding: 'utf8', timeout: 10_000, maxBuffer: 4_000_000 })
+  assert.equal(child.status, 0, child.stderr)
+  const results = child.stdout.trim().split('\n').map(line => JSON.parse(line))
+  assert.equal(results.length, 3)
+  assert.deepEqual(results.map(result => result.ok), [true, false, true])
+  assert.deepEqual([results[0].entities, results[2].entities], [1, 1])
+  assert.match(results[0].dxf, /\bCIRCLE\b/)
+  assert.match(results[2].dxf, /\bCIRCLE\b/)
+})
 async function directory(t) { const folder = await mkdtemp(join(tmpdir(), 'kjdraw-paired-model-')); t.after(() => rm(folder, { recursive: true, force: true })); return folder }
 function requireValidator(t) {
   try { independentValidation({ python }); return true } catch {
@@ -43,6 +57,10 @@ async function fixtureDxf(task) {
 test('paired live plan defaults to no network and refuses incomplete budgets or implicit provider configuration', async t => {
   const plan = pairedModelPlan()
   assert.equal(plan.mode, 'dry-run'); assert.equal(plan.actualRequests, 0); assert.equal(plan.plannedRequests, 30)
+  const bounded = pairedModelPlan({ taskSuite: 'manufacturing-30', taskIds: ['fixture-plate-240x140-a3'], repetitions: 1, maxRequests: 2, exploratory: true })
+  assert.equal(bounded.plannedRequests, 2)
+  assert.deepEqual(bounded.taskIds, ['fixture-plate-240x140-a3'])
+  assert.throws(() => pairedModelPlan({ taskSuite: 'manufacturing-30', taskIds: ['not-a-task'], repetitions: 1, maxRequests: 2, exploratory: true }), /Unknown task ID/)
   assert.throws(() => pairedModelPlan({ repetitions: 4, maxRequests: 30 }))
   assert.throws(() => pairedModelPlan({ repetitions: 5, maxRequests: 29 }))
   assert.throws(() => liveModelConfiguration({}), /Set explicit/)
@@ -55,6 +73,27 @@ test('paired live plan defaults to no network and refuses incomplete budgets or 
     { ...baseOptions, endpoint: 'http://127.0.0.1:9999/chat', protocol: 'responses' },
   ]) await assert.rejects(runPairedModelBenchmark({ ...config, output: join(folder, 'never-started') }))
   assert.equal((await readdir(folder)).length, 0)
+})
+
+test('benchmark pricing records reproducible uncached, cached and output cost without estimating unknown usage', () => {
+  const pricing = benchmarkPricing({ currency: 'USD', inputPerMillion: 2, cachedInputPerMillion: 0.5, outputPerMillion: 8 })
+  assert.deepEqual(benchmarkRunCost({ inputTokens: 1_000_000, cacheReadInputTokens: 250_000, outputTokens: 100_000 }, pricing), {
+    currency: 'USD', amount: 2.425, uncachedInputTokens: 750_000, cachedInputTokens: 250_000, outputTokens: 100_000, ratesPerMillion: pricing,
+  })
+  assert.equal(benchmarkRunCost({ inputTokens: null, cacheReadInputTokens: 0, outputTokens: 10 }, pricing), null)
+  assert.equal(benchmarkRunCost({ inputTokens: 100, cacheReadInputTokens: null, outputTokens: 10 }, pricing), null)
+  assert.equal(benchmarkRunCost({ inputTokens: 100, cacheReadInputTokens: null, outputTokens: 10 }, { currency: 'CNY', inputPerMillion: 1, cachedInputPerMillion: 1, outputPerMillion: 2 }).amount, 0.00012)
+  for (const invalid of [
+    {}, { currency: 'usd', inputPerMillion: 1, cachedInputPerMillion: 1, outputPerMillion: 1 },
+    { currency: 'USD', inputPerMillion: -1, cachedInputPerMillion: 1, outputPerMillion: 1 },
+    { currency: 'USD', inputPerMillion: 1, cachedInputPerMillion: 1, outputPerMillion: 1, hidden: 0 },
+  ]) assert.throws(() => benchmarkPricing(invalid), /pricing/i)
+  const live = liveModelConfiguration({
+    KJDRAW_BENCH_PROTOCOL: 'chat-completions', KJDRAW_BENCH_MODEL: 'priced-model', KJDRAW_BENCH_ENDPOINT: 'https://provider.example/v1/chat/completions', KJDRAW_BENCH_API_KEY: fixtureKey,
+    KJDRAW_BENCH_PRICING_JSON: JSON.stringify({ currency: 'CNY', inputPerMillion: 1.25, cachedInputPerMillion: 0.25, outputPerMillion: 4 }),
+  })
+  assert.deepEqual(live.pricing, { currency: 'CNY', inputPerMillion: 1.25, cachedInputPerMillion: 0.25, outputPerMillion: 4 })
+  assert.throws(() => liveModelConfiguration({ ...live, KJDRAW_BENCH_PROTOCOL: 'chat-completions', KJDRAW_BENCH_MODEL: 'priced-model', KJDRAW_BENCH_ENDPOINT: 'https://provider.example/v1/chat/completions', KJDRAW_BENCH_API_KEY: fixtureKey, KJDRAW_BENCH_PRICING_JSON: '{bad' }), /PRICING_JSON/)
 })
 
 test('missing independent validator produces a setup failure report and makes no provider request', async t => {
@@ -87,7 +126,8 @@ test('fixture paired run uses real HTTP, SDK materialization and independent ezd
     res.writeHead(200, { 'Content-Type': 'application/json', 'X-Private-Debug': fixtureKey }).end(JSON.stringify({ model: 'fixture-model', usage, choices: [{ finish_reason: tool ? 'tool_calls' : 'stop', message }] }))
   })
   const output = join(folder, 'fixture-only')
-  const report = await runPairedModelBenchmark({ ...baseOptions, endpoint, output })
+  const pricing = { currency: 'USD', inputPerMillion: 2, cachedInputPerMillion: 0.5, outputPerMillion: 8 }
+  const report = await runPairedModelBenchmark({ ...baseOptions, endpoint, output, pricing })
   assert.equal(report.mode, 'fixture')
   assert.equal(report.publishableModelEvidence, false)
   assert.match(report.fixtureWarning, /Never use/)
@@ -107,7 +147,10 @@ test('fixture paired run uses real HTTP, SDK materialization and independent ezd
   assert.equal(report.runs[0].usage.inputTokens, 100)
   assert.equal(report.runs[0].usage.cacheReadInputTokens, 20)
   assert.equal(report.runs[0].usage.reasoningOutputTokens, 50)
+  assert.equal(report.runs[0].cost.amount, 0.00177)
+  assert.deepEqual(report.runs[0].cost.ratesPerMillion, pricing)
   assert.equal(report.runs[1].usage.inputTokens, null)
+  assert.equal(report.runs[1].cost, null)
   assert.ok(report.runs[1].usage.invalidFields.includes('usage.prompt_tokens'))
   assert.equal(report.summary['direct-dxf'].inputTokens, null)
   assert.equal(report.chatTokenParameter, 'max_tokens')
@@ -121,7 +164,9 @@ test('fixture paired run uses real HTTP, SDK materialization and independent ezd
     assert.ok(!content.includes('PRIVATE_REASONING_MUST_NOT_BE_SAVED'), file)
     assert.ok(!content.includes('X-Private-Debug'), file)
   }
-  assert.equal(report.runs.every(run => run.cost === null && Number.isFinite(run.transportLatencyMs) && run.totalMs >= run.transportLatencyMs), true)
+  assert.deepEqual(report.pricing, pricing)
+  assert.equal(report.cost, null)
+  assert.equal(report.runs.every(run => Number.isFinite(run.transportLatencyMs) && run.totalMs >= run.transportLatencyMs), true)
 })
 
 test('provider HTTP failures and redirects stop immediately and retain all unexecuted requests', async t => {
@@ -158,6 +203,19 @@ test('provider timeout aborts the HTTP request without retrying or spending the 
   assert.equal(report.stopReason, 'PROVIDER_TIMEOUT')
   assert.equal(requests, 1)
   await closed
+})
+
+test('provider SSE error stops immediately without retaining private error content', async t => {
+  if (!requireValidator(t)) return
+  const folder = await directory(t), output = join(folder, 'stream-error')
+  const endpoint = await server(t, (req, res) => {
+    req.resume(); res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    res.end(`data: ${JSON.stringify({ error: { message: `private-${fixtureKey}` } })}\n\ndata: [DONE]\n\n`)
+  })
+  const report = await runPairedModelBenchmark({ ...baseOptions, endpoint, output, stream: true })
+  assert.equal(report.status, 'stopped'); assert.equal(report.stopReason, 'PROVIDER_STREAM_ERROR')
+  assert.equal(report.attemptedRequests, 1); assert.equal(report.unexecutedRequests, 29)
+  for (const file of await readdir(output)) assert.equal((await readFile(join(output, file), 'utf8')).includes(`private-${fixtureKey}`), false)
 })
 
 test('strict paired validator rejects non-XY, OCS, width, thickness, old-version and extra geometry counterexamples', async t => {
@@ -241,15 +299,22 @@ test('explicit provider settings reject invalid values and conflicting thinking 
   const env = { KJDRAW_BENCH_PROTOCOL: 'chat-completions', KJDRAW_BENCH_MODEL: 'fixture-model', KJDRAW_BENCH_ENDPOINT: 'https://provider.example/chat', KJDRAW_BENCH_API_KEY: fixtureKey }
   assert.equal(liveModelConfiguration(env).toolChoiceMode, 'forced')
   assert.equal(liveModelConfiguration(env).enableThinking, undefined)
-  for (const value of ['auto', 'forced']) assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_TOOL_CHOICE: value }).toolChoiceMode, value)
+  assert.equal(liveModelConfiguration(env).temperature, 0)
+  assert.equal(liveModelConfiguration(env).stream, false)
+  assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_STREAM: 'true' }).stream, true)
+  assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_TEMPERATURE: 'omit' }).temperature, null)
+  assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_TEMPERATURE: '1' }).temperature, 1)
+  for (const value of ['auto', 'forced', 'required']) assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_TOOL_CHOICE: value }).toolChoiceMode, value)
   for (const value of ['true', 'false']) assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_ENABLE_THINKING: value }).enableThinking, value === 'true')
-  for (const value of ['', 'required', 'AUTO']) assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_TOOL_CHOICE: value }), /TOOL_CHOICE/)
+  for (const value of ['', 'named', 'AUTO']) assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_TOOL_CHOICE: value }), /TOOL_CHOICE/)
   for (const value of ['', '0', 'False', false]) assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_ENABLE_THINKING: value }), /ENABLE_THINKING/)
+  for (const value of ['', '-1', '2.1', 'NaN']) assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_TEMPERATURE: value }), /temperature/i)
+  for (const value of ['', 'TRUE', true]) assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_STREAM: value }), /STREAM/)
   assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_THINKING: 'disabled', KJDRAW_BENCH_ENABLE_THINKING: 'false' }), /only one thinking/)
   const folder = await directory(t)
   let requests = 0
   const endpoint = await server(t, (req, res) => { requests++; req.resume(); res.end('{}') })
-  for (const extra of [{ toolChoiceMode: 'required' }, { enableThinking: 'false' }, { enableThinking: null }, { thinkingMode: 'disabled', enableThinking: false }, { thinkingMode: 'enabled', enableThinking: true }]) {
+  for (const extra of [{ toolChoiceMode: 'named' }, { temperature: -0.1 }, { temperature: 2.1 }, { temperature: 'omit' }, { enableThinking: 'false' }, { enableThinking: null }, { thinkingMode: 'disabled', enableThinking: false }, { thinkingMode: 'enabled', enableThinking: true }]) {
     await assert.rejects(runPairedModelBenchmark({ ...baseOptions, endpoint, output: join(folder, 'never-started'), ...extra }))
   }
   assert.equal(requests, 0)
@@ -285,11 +350,39 @@ test('explicit auto tool choice and boolean thinking reach both HTTP arms withou
   assert.equal(report.publishableModelEvidence, false)
 })
 
+test('provider-compatible required tool choice can omit temperature and use max completion tokens with max reasoning', async t => {
+  if (!requireValidator(t)) return
+  const folder = await directory(t), requests = [], task = pilotTasks[0], dxf = await fixtureDxf(task)
+  const endpoint = await server(t, async (req, res) => {
+    const chunks = []; for await (const chunk of req) chunks.push(chunk)
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8')); requests.push(body)
+    if (requests.length === 3) { res.writeHead(503).end(); return }
+    const tool = Boolean(body.tools)
+    const event = value => res.write(`data: ${JSON.stringify(value)}\n\n`)
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    if (tool) {
+      const args = JSON.stringify(task.expected), middle = Math.floor(args.length / 2)
+      event({ model: 'fixture-model', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'fixture-required-call', type: 'function', function: { name: 'cad_propose_', arguments: args.slice(0, middle) } }] }, finish_reason: null }] })
+      event({ model: 'fixture-model', choices: [{ index: 0, delta: { role: null, content: null, tool_calls: [{ index: 0, id: null, type: null, function: { name: 'drawing', arguments: args.slice(middle) } }] }, finish_reason: 'tool_calls' }] })
+    } else event({ model: 'fixture-model', choices: [{ index: 0, delta: { role: 'assistant', content: dxf }, finish_reason: 'stop' }] })
+    event({ model: 'fixture-model', choices: [], usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 } })
+    res.end('data: [DONE]\n\n')
+  })
+  const output = join(folder, 'provider-compatible')
+  const report = await runPairedModelBenchmark({ ...baseOptions, endpoint, output, exploratory: true, repetitions: 1, maxRequests: 6, toolChoiceMode: 'required', temperature: null, stream: true, chatTokenParameter: 'max_completion_tokens', maxOutputTokens: 8192, reasoningEffort: 'max' })
+  assert.equal(report.status, 'stopped'); assert.equal(report.attemptedRequests, 3)
+  assert.equal(report.toolChoiceMode, 'required')
+  assert.deepEqual(report.settings, { max_completion_tokens: 8192, stream: true, stream_options: { include_usage: true }, reasoning_effort: 'max' })
+  assert.equal(requests[0].tool_choice, 'required'); assert.equal(requests[1].tool_choice, undefined)
+  for (const body of requests) { assert.equal(Object.hasOwn(body, 'temperature'), false); assert.equal(body.stream, true); assert.deepEqual(body.stream_options, { include_usage: true }); assert.equal(body.max_completion_tokens, 8192); assert.equal(body.reasoning_effort, 'max') }
+  assert.equal(report.runs[0].validation.passed, true); assert.equal(report.runs[1].validation.passed, true)
+})
+
 
 test('explicit drawing variants and parametric output budgets reject unknown or incomplete configuration before effects', async t => {
   const env = { KJDRAW_BENCH_PROTOCOL: 'chat-completions', KJDRAW_BENCH_MODEL: 'fixture-model', KJDRAW_BENCH_ENDPOINT: 'https://provider.example/chat', KJDRAW_BENCH_API_KEY: fixtureKey }
   assert.equal(liveModelConfiguration(env).drawingTool, 'cad_propose_drawing')
-  for (const drawingTool of ['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_pattern']) assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_DRAWING_TOOL: drawingTool }).drawingTool, drawingTool)
+  for (const drawingTool of ['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_basic', 'cad_propose_drawing_pattern']) assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_DRAWING_TOOL: drawingTool }).drawingTool, drawingTool)
   assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_DRAWING_TOOL: 'cad_execute_code' }))
   const plan = pairedModelPlan({ taskSuite: 'parametric', maxOutputTokens: 16384 })
   assert.equal(plan.actualRequests, 0); assert.equal(plan.plannedRequests, 30)
@@ -355,7 +448,7 @@ test('chat output cap and reasoning effort configuration rejects contradictory o
     assert.deepEqual(plan.settings, { temperature: 0, [parameter]: 8192, stream: false })
     assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_CHAT_TOKEN_PARAMETER: parameter }).chatTokenParameter, parameter)
   }
-  for (const effort of ['low', 'medium', 'high', 'xhigh']) {
+  for (const effort of ['low', 'medium', 'high', 'xhigh', 'max']) {
     assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_REASONING_EFFORT: effort, KJDRAW_BENCH_ENABLE_THINKING: 'true' }).reasoningEffort, effort)
     assert.equal(pairedModelPlan({ thinkingMode: 'enabled', reasoningEffort: effort }).settings.reasoning_effort, effort)
   }
@@ -364,14 +457,14 @@ test('chat output cap and reasoning effort configuration rejects contradictory o
     // Environment variables are strings; absent null is not a configured value.
     if (value !== null) assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_CHAT_TOKEN_PARAMETER: value }), /chatTokenParameter/)
   }
-  for (const value of ['', null, false, 'none', 'max', 'LOW']) {
+  for (const value of ['', null, false, 'none', 'ultra', 'LOW']) {
     assert.throws(() => pairedModelPlan({ reasoningEffort: value }), /reasoningEffort/)
     assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_REASONING_EFFORT: value }), /reasoningEffort/)
   }
   const folder = await directory(t)
   let requests = 0
   const endpoint = await server(t, (req, res) => { requests++; req.resume(); res.end('{}') })
-  for (const extra of [{ chatTokenParameter: 'other' }, { reasoningEffort: 'none' }, ...['low', 'medium', 'high', 'xhigh'].flatMap(reasoningEffort => [{ enableThinking: false, reasoningEffort }, { thinkingMode: 'disabled', reasoningEffort }])]) {
+  for (const extra of [{ chatTokenParameter: 'other' }, { reasoningEffort: 'none' }, ...['low', 'medium', 'high', 'xhigh', 'max'].flatMap(reasoningEffort => [{ enableThinking: false, reasoningEffort }, { thinkingMode: 'disabled', reasoningEffort }])]) {
     await assert.rejects(runPairedModelBenchmark({ ...baseOptions, endpoint, output: join(folder, 'never-started'), ...extra }), /chatTokenParameter|reasoningEffort/)
   }
   for (const disabled of [{ KJDRAW_BENCH_ENABLE_THINKING: 'false' }, { KJDRAW_BENCH_THINKING: 'disabled' }]) assert.throws(() => liveModelConfiguration({ ...env, ...disabled, KJDRAW_BENCH_REASONING_EFFORT: 'low' }), /conflicts/)

@@ -58,7 +58,7 @@ export const KJ_STANDARD_TYPES = Object.freeze({
   entity: Object.freeze([
     'LINE', 'RAY', 'XLINE', 'LWPOLYLINE', 'POLYLINE', 'ARC', 'CIRCLE',
     'ELLIPSE', 'SPLINE', 'POINT', 'HATCH', 'SOLID', 'TRACE', 'IMAGE',
-    'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'LEADER', 'MLEADER', 'DIMENSION', 'TABLE',
+    'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'LEADER', 'MLEADER', 'DIMENSION', 'TOLERANCE', 'TABLE',
     'VIEWPORT', 'WIPEOUT', 'REVISION_CLOUD', 'SOLID3D',
     'PROXY_ENTITY',
   ] as const),

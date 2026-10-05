@@ -1,0 +1,22 @@
+// packages/kjdraw-sdk/src/samples.ts#L240-L258
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+function buildMechanical({ line, circle, arc, text, poly, rect, cross, dimH, dimV, sheet }: ReturnType<typeof draftingKit>) {
+  sheet({ title: 'BEARING BRACKET · MACHINING', number: 'M-2047', scale: '1:1', discipline: 'MECHANICAL DETAIL' })
+  // Front elevation: base, webs, bearing boss and machined holes.
+  poly([[22, 47], [22, 63], [39, 63], [47, 78], [47, 111], [91, 111], [91, 78], [99, 63], [116, 63], [116, 47]], 'M-OBJECT')
+  line([22, 47], [116, 47], 'M-OBJECT'); circle([69, 88], 18, 'M-OBJECT'); circle([69, 88], 10, 'M-OBJECT')
+  for (const x of [34, 104]) { circle([x, 55], 4, 'M-OBJECT'); cross(x, 55, 7, 'M-CENTER') }
+  cross(69, 88, 25, 'M-CENTER'); line([51, 88], [87, 88], 'M-HIDDEN'); line([69, 70], [69, 106], 'M-HIDDEN')
+  // Section view with conventional hatch strokes.
+  rect(139, 47, 70, 62, 'M-OBJECT'); rect(154, 62, 40, 31, 'M-OBJECT'); circle([174, 77.5], 10, 'M-OBJECT'); cross(174, 77.5, 34, 'M-CENTER')
+  for (let x = 141; x < 208; x += 5) { line([x, 49], [Math.min(x + 19, 208), Math.min(68, 49 + 19)], 'M-HATCH'); line([x, 95], [Math.min(x + 12, 208), Math.min(107, 95 + 12)], 'M-HATCH') }
+  line([130, 117], [217, 117], 'M-CENTER'); text([163, 112], 'SECTION A—A', 1.8, 'ANNO')
+  // Enlarged detail.
+  circle([190, 128], 10, 'M-OBJECT'); arc([190, 128], 6, 0, Math.PI * 1.5, 'M-OBJECT'); cross(190, 128, 13, 'M-CENTER'); text([204, 132], 'DETAIL B', 1.5, 'ANNO')
+  dimH(22, 116, 47, -9, '94'); dimH(47, 91, 111, 9, '44'); dimV(116, 47, 111, 10, '64')
+  line([83, 103], [105, 119], 'DIMS'); text([106, 119], 'Ø36 H7', 1.55, 'DIMS'); line([73, 88], [107, 94], 'DIMS'); text([108, 94], 'Ø20 THRU', 1.35, 'DIMS')
+  rect(9, 20, 101, 20, 'FRAME'); line([9, 30], [110, 30], 'FRAME'); line([34, 20], [34, 40], 'FRAME'); line([76, 20], [76, 40], 'FRAME')
+  text([12, 34], 'MATERIAL', 1, 'TITLE'); text([12, 25], 'EN-GJS-500-7', 1.25, 'TITLE'); text([38, 34], 'FINISH', 1, 'TITLE'); text([38, 25], 'Ra 3.2 UNLESS NOTED', 1.15, 'TITLE'); text([80, 34], 'TOLERANCE', 1, 'TITLE'); text([80, 25], 'ISO 2768-mK', 1.15, 'TITLE')
+  text([9, 146], 'REMOVE BURRS · BREAK SHARP EDGES 0.5 · DIMENSIONS IN MILLIMETERS', 1.15, 'TITLE')
+}

@@ -69,7 +69,7 @@ export function requireAssociativeDimensionSourceIdentity(transaction, sourceId,
     }
 }
 export function migratePolylineDimensionAssociations(transaction, sourceId, edit) {
-    if (!Number.isSafeInteger(edit.vertexIndex) || edit.vertexIndex < 0) return fail('PEDIT association vertex index is invalid');
+    if (edit.operation === 'REVERSE' ? !Number.isSafeInteger(edit.vertexCount) || edit.vertexCount < 2 : !Number.isSafeInteger(edit.vertexIndex) || edit.vertexIndex < 0) return fail('PEDIT association vertex index is invalid');
     const updated = [];
     for (const readonlyDimension of Object.values(transaction._draft().objects)){
         if (readonlyDimension.kind !== 'entity' || readonlyDimension.type !== 'DIMENSION' || readonlyDimension.erased || !Array.isArray(readonlyDimension.payload.dimensionAssociations)) continue;
@@ -82,7 +82,8 @@ export function migratePolylineDimensionAssociations(transaction, sourceId, edit
                 return fail(`PEDIT cannot delete vertex ${edit.vertexIndex} while dimension ${readonlyDimension.id} references it`);
             }
             const currentIndex = Number(association.vertexIndex);
-            const vertexIndex = edit.operation === 'INSERT' ? currentIndex + Number(currentIndex >= edit.vertexIndex) : currentIndex - Number(currentIndex > edit.vertexIndex);
+            if (edit.operation === 'REVERSE' && currentIndex >= edit.vertexCount) return fail('PEDIT cannot reverse an out-of-range vertex reference on ' + sourceId);
+            const vertexIndex = edit.operation === 'INSERT' ? currentIndex + Number(currentIndex >= edit.vertexIndex) : edit.operation === 'DELETE' ? currentIndex - Number(currentIndex > edit.vertexIndex) : edit.vertexCount - 1 - currentIndex;
             return {
                 ...association,
                 vertexIndex

@@ -180,7 +180,7 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         fields: [
             number('distance', 'Distance', '偏移距离', 2, {
                 min: Number.EPSILON,
-                step: 0.1
+                step: 'any'
             })
         ],
         pointKeys: [
@@ -191,7 +191,7 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         id: 'break',
         command: 'BREAK',
         label: text('Break', '打断'),
-        description: text('Split one line, circular/elliptical arc or open polyline at an exact point.', '在精确点打断直线、圆弧、椭圆弧或开放多段线。'),
+        description: text('Split one line, circular/elliptical arc, open polyline or control-point spline at an exact point. Spline tolerance: 1e-9 to 1e-2.', '在精确点打断直线、圆弧、椭圆弧、开放多段线或控制点样条。样条容差范围：1e-9 至 1e-2。'),
         minSelection: 1,
         maxSelection: 1,
         supportedEntityTypes: [
@@ -199,7 +199,8 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
             'ARC',
             'ELLIPSE',
             'LWPOLYLINE',
-            'POLYLINE'
+            'POLYLINE',
+            'SPLINE'
         ],
         fields: [
             number('tolerance', 'Pick tolerance', '点选容差', 0.1, {
@@ -215,14 +216,15 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         id: 'break-two-point',
         command: 'BREAK',
         label: text('Two-point break', '两点打断'),
-        description: text('Split one circle, full ellipse or closed polyline at two exact points.', '在两个精确点拆分圆、完整椭圆或闭合多段线。'),
+        description: text('Split one circle, full ellipse or closed polyline, or remove an interior spline interval at two exact points.', '在两个精确点拆分圆、完整椭圆或闭合多段线，或删除开放样条的内部区间。'),
         minSelection: 1,
         maxSelection: 1,
         supportedEntityTypes: [
             'CIRCLE',
             'ELLIPSE',
             'LWPOLYLINE',
-            'POLYLINE'
+            'POLYLINE',
+            'SPLINE'
         ],
         fields: [
             number('tolerance', 'Pick tolerance', '点选容差', 0.1, {
@@ -277,7 +279,7 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         id: 'trim',
         command: 'TRIM',
         label: text('Trim', '修剪'),
-        description: text('Select the line, arc, circle, ellipse or open polyline first, then Shift-select the cutting boundaries.', '先选择待修剪的直线、圆弧、圆、椭圆或开放多段线，再按住 Shift 选择切割边界。'),
+        description: text('Select the line, arc, circle, ellipse, open polyline or control-point spline first, then Shift-select the cutting boundaries.', '先选择待修剪的直线、圆弧、圆、椭圆、开放多段线或控制点样条，再按住 Shift 选择切割边界。'),
         minSelection: 2,
         targetEntityTypes: [
             'LINE',
@@ -285,7 +287,8 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
             'CIRCLE',
             'ELLIPSE',
             'LWPOLYLINE',
-            'POLYLINE'
+            'POLYLINE',
+            'SPLINE'
         ],
         boundaryEntityTypes: [
             'LINE',
@@ -338,7 +341,7 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         fields: [
             number('value', 'Target length', '目标长度', 10, {
                 min: Number.EPSILON,
-                step: 0.1
+                step: 'any'
             })
         ],
         pointKeys: [
@@ -507,7 +510,7 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         fields: [
             number('radius', 'Radius', '半径', 2, {
                 min: Number.EPSILON,
-                step: 0.1
+                step: 'any'
             })
         ],
         pointKeys: [
@@ -519,6 +522,17 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
 const definitionById = new Map(KJ_MODIFICATION_DEFINITIONS.map((definition)=>[
         definition.id,
         definition
+    ]));
+const splineBreakDefinitions = new Map(KJ_MODIFICATION_DEFINITIONS.filter((definition)=>definition.id === 'break' || definition.id === 'break-two-point').map((definition)=>[
+        definition.id,
+        Object.freeze({
+            ...definition,
+            fields: Object.freeze(definition.fields.map((field)=>field.key === 'tolerance' ? Object.freeze({
+                    ...field,
+                    default: 1e-7,
+                    step: 'any'
+                }) : field))
+        })
     ]));
 export function getKJModificationSelectionCenter(entities) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -566,9 +580,10 @@ export function getKJModificationSelectionCenter(entities) {
         0
     ];
 }
-export function getKJModificationDefinition(id) {
+export function getKJModificationDefinition(id, targetEntityType) {
     const definition = definitionById.get(id);
     if (!definition) throw new RangeError(`Unsupported KJDraw modification: ${String(id)}`);
+    if (targetEntityType === 'SPLINE') return splineBreakDefinitions.get(id) ?? definition;
     return definition;
 }
 export function getKJInteractiveModificationDefinition(command) {
@@ -617,6 +632,7 @@ export function parseKJModificationCommandValues(id, tokens, locale = 'en') {
             source[field.key] = value;
         }
     }
+    if ((id === 'break' || id === 'break-two-point') && !tokens.length) return Object.freeze({});
     return Object.freeze(normalizedValues(definition, source));
 }
 export function validateKJModificationSelection(definition, entities, locale = 'en') {
@@ -674,9 +690,11 @@ function normalizedPoints(definition, points) {
     });
 }
 export function buildKJModificationCommand(id, context) {
-    const definition = getKJModificationDefinition(id);
+    const definition = getKJModificationDefinition(id, context.targetEntityType);
     const ids = normalizedIds(definition, context.ids);
     const values = normalizedValues(definition, context.values ?? {});
+    const entityDefaultTolerance = (id === 'break' || id === 'break-two-point') && context.targetEntityType === undefined && context.values?.tolerance == null;
+    if (entityDefaultTolerance) delete values.tolerance;
     const points = normalizedPoints(definition, context.points ?? []);
     const all = {
         ids,
@@ -739,6 +757,9 @@ export function buildKJModificationCommand(id, context) {
                 arguments: {
                     id: ids[0],
                     ...values,
+                    ...entityDefaultTolerance ? {
+                        toleranceMode: 'entity-default'
+                    } : {},
                     point: points[0]
                 }
             };
@@ -748,6 +769,9 @@ export function buildKJModificationCommand(id, context) {
                 arguments: {
                     id: ids[0],
                     ...values,
+                    ...entityDefaultTolerance ? {
+                        toleranceMode: 'entity-default'
+                    } : {},
                     firstPoint: points[0],
                     secondPoint: points[1]
                 }

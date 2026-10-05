@@ -1,6 +1,6 @@
 {
   "name": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "description": "Open-source CAD engine and ready-to-use editor for engineering apps and AI agents",
   "repository": {
     "type": "git",
@@ -17,6 +17,7 @@
     "src",
     "types",
     "bin",
+    "skills",
     "examples",
     "README.md",
     "LICENSE",
@@ -24,7 +25,9 @@
   ],
   "bin": {
     "kjdraw": "./bin/kjdraw.mjs",
-    "kjdraw-mcp": "./bin/kjdraw-mcp.mjs"
+    "kjdraw-mcp": "./bin/kjdraw-mcp.mjs",
+    "kjdraw-connect": "./bin/kjdraw-connect.mjs",
+    "kjdraw-review": "./bin/kjdraw-review.mjs"
   },
   "publishConfig": {
     "access": "public",
@@ -58,6 +61,31 @@
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./planar-boundaries": {
+      "types": "./types/planar-boundaries.d.ts",
+      "import": "./src/planar-boundaries.js",
+      "default": "./src/planar-boundaries.js"
+    },
+    "./planar-boundary-edit": {
+      "types": "./types/planar-boundary-edit.d.ts",
+      "import": "./src/planar-boundary-edit.js",
+      "default": "./src/planar-boundary-edit.js"
+    },
+    "./planar-contours": {
+      "types": "./types/planar-contours.d.ts",
+      "import": "./src/planar-contours.js",
+      "default": "./src/planar-contours.js"
+    },
+    "./agent-skill-json": {
+      "types": "./types/agent-skill-json.d.ts",
+      "import": "./src/agent-skill-json.js",
+      "default": "./src/agent-skill-json.js"
+    },
+    "./agent-compact-tool-surface": {
+      "types": "./types/agent-compact-tool-surface.d.ts",
+      "import": "./src/agent-compact-tool-surface.js",
+      "default": "./src/agent-compact-tool-surface.js"
+    },
     "./model-usage": {
       "types": "./types/model-usage.d.ts",
       "import": "./src/model-usage.js",
@@ -73,10 +101,35 @@
       "import": "./src/agent-capabilities.js",
       "default": "./src/agent-capabilities.js"
     },
+    "./knowledge-packs/geology-core": {
+      "types": "./types/knowledge-packs/geology-core.d.ts",
+      "import": "./src/knowledge-packs/geology-core.js",
+      "default": "./src/knowledge-packs/geology-core.js"
+    },
+    "./knowledge-packs/geology-patterns": {
+      "types": "./types/knowledge-packs/geology-patterns.d.ts",
+      "import": "./src/knowledge-packs/geology-patterns.js",
+      "default": "./src/knowledge-packs/geology-patterns.js"
+    },
+    "./knowledge-compiler": {
+      "types": "./types/knowledge-compiler.d.ts",
+      "import": "./src/knowledge-compiler.js",
+      "default": "./src/knowledge-compiler.js"
+    },
+    "./hatch-pattern-catalog": {
+      "types": "./types/hatch-pattern-catalog.d.ts",
+      "import": "./src/hatch-pattern-catalog.js",
+      "default": "./src/hatch-pattern-catalog.js"
+    },
     "./model-adapters": {
       "types": "./types/model-adapters.d.ts",
       "import": "./src/model-adapters.js",
       "default": "./src/model-adapters.js"
+    },
+    "./domestic-model-profiles": {
+      "types": "./types/domestic-model-profiles.d.ts",
+      "import": "./src/domestic-model-profiles.js",
+      "default": "./src/domestic-model-profiles.js"
     },
     "./agent-runner": {
       "types": "./types/agent-runner.d.ts",

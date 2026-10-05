@@ -3,13 +3,14 @@ import { KJRevisionConflictError, KJValidationError } from './errors.js';
 import { resolvePhysicalPlotPaper, resolvePlotScale, validatePlotSettings } from './plot-settings.js';
 import { resolveDxfPlotSource } from './plot-range.js';
 import { insertAttributes, isAttachedAttribute } from './attribute-display.js';
-import { layoutCadMText, textFontFamily } from './geometry/text-layout.js';
+import { KJDRAW_ENGINEERING_FONT_STACK, layoutCadMText, textFontFamily } from './geometry/text-layout.js';
 import { aciColor } from './canvas-renderer.js';
 import { projectDimension } from './geometry/annotation.js';
 import { multiply3, rotation3, scale3, translation3 } from './geometry/matrix3.js';
 import { deepFreeze } from './utils.js';
 import { effectiveLinetypeScale } from './linetype-scale.js';
 import { closedHatchSplineConic } from './geometry/hatch-boundary.js';
+import { hatchPatternLines } from './geometry/hatch.js';
 const data = (value)=>value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 function fail(reason) {
     throw new KJValidationError(`SVG export: ${reason}`);
@@ -22,6 +23,14 @@ function numeric(value, fallback) {
 function point(value) {
     if (!Array.isArray(value) || value.length < 2) fail('expected an XY point');
     if (numeric(value[2], 0) !== 0) fail('non-XY geometry is unsupported');
+    return [
+        numeric(value[0]),
+        numeric(value[1])
+    ];
+}
+function insertPoint(value) {
+    if (!Array.isArray(value) || value.length < 2) fail('expected an INSERT point');
+    numeric(value[2], 0);
     return [
         numeric(value[0]),
         numeric(value[1])
@@ -51,6 +60,18 @@ function arcPath(center, radius, start, end, clockwise = false) {
     const tail = sweep === TAU ? `A ${radius} ${radius} 0 0 ${flag} ${pos(at(start + (clockwise ? -Math.PI : Math.PI)))} A ${radius} ${radius} 0 0 ${flag} ${pos(at(finish))}` : `A ${radius} ${radius} 0 ${sweep > Math.PI ? 1 : 0} ${flag} ${pos(at(finish))}`;
     return `M ${pos(at(start))} ${tail}`;
 }
+function ellipsePath(center, axis, ratio, start, end) {
+    const radius = Math.hypot(axis[0], axis[1]);
+    if (!(radius > 0) || !(ratio > 0 && ratio <= 1)) fail('ellipse axis and ratio must be positive');
+    const at = (angle)=>[
+            center[0] + axis[0] * Math.cos(angle) - axis[1] * ratio * Math.sin(angle),
+            center[1] + axis[1] * Math.cos(angle) + axis[0] * ratio * Math.sin(angle)
+        ];
+    const raw = end - start, sweep = Math.abs(raw) >= TAU - 1e-12 ? TAU : (raw % TAU + TAU) % TAU || TAU;
+    const finish = start + sweep, rotation = Math.atan2(axis[1], axis[0]) * 180 / Math.PI;
+    const tail = sweep === TAU ? `A ${radius} ${radius * ratio} ${rotation} 0 1 ${pos(at(start + Math.PI))} A ${radius} ${radius * ratio} ${rotation} 0 1 ${pos(at(finish))}` : `A ${radius} ${radius * ratio} ${rotation} ${sweep > Math.PI ? 1 : 0} 1 ${pos(at(finish))}`;
+    return `M ${pos(at(start))} ${tail}`;
+}
 function polyPath(vertices, closed) {
     if (!Array.isArray(vertices) || vertices.length < 2 || vertices.length > 50000) fail('polyline requires 2–50000 vertices');
     const rows = vertices.map((v)=>({
@@ -71,6 +92,43 @@ function polyPath(vertices, closed) {
         }
     }
     return path + (closed ? ' Z' : '');
+}
+function viewportClip(document, viewport) {
+    const id = viewport.payload.clippingBoundaryId;
+    if (id == null) return null;
+    if (typeof id !== 'string' || !id) fail('viewport clipping boundary reference is invalid');
+    const boundary = document.getObject(id);
+    if (!boundary || boundary.erased || boundary.kind !== 'entity' || boundary.ownerId !== viewport.ownerId) fail('viewport clipping boundary must be an existing paper-space entity');
+    const payload = boundary.payload;
+    if (boundary.type === 'CIRCLE') {
+        const center = point(payload.center), radius = numeric(payload.radius);
+        if (!(radius > 0) || numeric(payload.thickness, 0) !== 0 || payload.normal && JSON.stringify(payload.normal) !== '[0,0,1]' || payload.extrusionDirection && JSON.stringify(payload.extrusionDirection) !== '[0,0,1]') fail('viewport clipping circle must be positive and lie in the XY plane');
+        return `<circle cx="${center[0]}" cy="${center[1]}" r="${radius}"/>`;
+    }
+    if (boundary.type === 'ELLIPSE') {
+        const center = point(payload.center), axis = point(payload.majorAxis), radius = Math.hypot(axis[0], axis[1]), ratio = numeric(payload.ratio), start = numeric(payload.startParameter, 0), end = numeric(payload.endParameter, Math.PI * 2);
+        if (!(radius > 0) || !(ratio > 0 && ratio <= 1) || Math.abs(end - start - Math.PI * 2) > 1e-12 || numeric(payload.thickness, 0) !== 0 || payload.normal && JSON.stringify(payload.normal) !== '[0,0,1]' || payload.extrusionDirection && JSON.stringify(payload.extrusionDirection) !== '[0,0,1]') fail('viewport clipping ellipse must be complete, nondegenerate and lie in the XY plane');
+        return `<ellipse cx="${center[0]}" cy="${center[1]}" rx="${radius}" ry="${radius * ratio}" transform="rotate(${Math.atan2(axis[1], axis[0]) * 180 / Math.PI} ${center[0]} ${center[1]})"/>`;
+    }
+    if (boundary.type !== 'LWPOLYLINE' && boundary.type !== 'POLYLINE') fail('viewport clipping boundary must be a circle, complete ellipse or closed 2D polyline');
+    if (payload.closed !== true || numeric(payload.elevation, 0) !== 0 || numeric(payload.constantWidth, 0) !== 0 || boundary.type === 'POLYLINE' && (numeric(payload.dxfFlags, 0) & (8 | 16 | 64)) !== 0) fail('viewport clipping boundary must be a closed zero-width 2D polyline');
+    if (!Array.isArray(payload.vertices) || payload.vertices.length < 3 || payload.vertices.length > 4096) fail('viewport clipping boundary requires 3–4096 vertices');
+    const rows = payload.vertices.map((value)=>({
+            point: point(Array.isArray(value) ? value : data(value).point),
+            bulge: numeric(data(value).bulge, 0)
+        }));
+    let twiceArea = 0;
+    for(let index = 0; index < rows.length; index++){
+        const a = rows[index], b = rows[(index + 1) % rows.length], dx = b.point[0] - a.point[0], dy = b.point[1] - a.point[1], chord = Math.hypot(dx, dy);
+        twiceArea += a.point[0] * b.point[1] - b.point[0] * a.point[1];
+        if (a.bulge) {
+            if (!chord) fail('viewport clipping boundary contains a degenerate bulge segment');
+            const theta = 4 * Math.atan(a.bulge), radius = chord * (1 + a.bulge * a.bulge) / (4 * Math.abs(a.bulge));
+            twiceArea += radius * radius * (theta - Math.sin(theta));
+        }
+    }
+    if (Math.abs(twiceArea) <= 1e-12) fail('viewport clipping boundary must enclose a nonzero area');
+    return `<path d="${polyPath(payload.vertices, true)}"/>`;
 }
 function hatchEdgePath(value) {
     const loop = data(value), edges = loop.edges;
@@ -124,6 +182,76 @@ function hatchEdgePath(value) {
         fail(`unsupported hatch edge ${type}`);
     }
     return path + ' Z';
+}
+function hatchPreviewBoundary(loops) {
+    const paths = [], points = [];
+    let count = 0;
+    for (const raw of loops){
+        const loop = data(raw);
+        if (Array.isArray(loop.vertices)) {
+            if (loop.vertices.length < 3) fail('custom PAT boundary requires at least three vertices');
+            count += loop.vertices.length;
+            paths.push(polyPath(loop.vertices, true));
+            for(let index = 0; index < loop.vertices.length; index++){
+                const vertex = loop.vertices[index], next = loop.vertices[(index + 1) % loop.vertices.length];
+                const a = point(Array.isArray(vertex) ? vertex : data(vertex).point);
+                points.push(a);
+                const bulge = numeric(data(vertex).bulge, 0);
+                if (bulge) {
+                    const b = point(Array.isArray(next) ? next : data(next).point);
+                    const chord = Math.hypot(b[0] - a[0], b[1] - a[1]);
+                    if (!chord) fail('custom PAT boundary contains a degenerate bulge');
+                    const radius = chord * (1 + bulge * bulge) / (4 * Math.abs(bulge));
+                    for (const p of [
+                        a,
+                        b
+                    ])points.push([
+                        p[0] - 2 * radius,
+                        p[1] - 2 * radius
+                    ], [
+                        p[0] + 2 * radius,
+                        p[1] + 2 * radius
+                    ]);
+                }
+            }
+        } else {
+            const edges = loop.edges;
+            if (!Array.isArray(edges) || !edges.length) fail('custom PAT boundary requires polygon or edge loops');
+            count += edges.length;
+            paths.push(hatchEdgePath(loop));
+            for (const rawEdge of edges){
+                const edge = data(rawEdge), type = String(edge.type).toUpperCase();
+                if (type === 'LINE') {
+                    points.push(point(edge.start), point(edge.end));
+                    continue;
+                }
+                let center, radius;
+                if (type === 'SPLINE') {
+                    const conic = closedHatchSplineConic(edge);
+                    if (!conic) fail('unsupported custom PAT spline boundary');
+                    center = point(conic.center);
+                    radius = Math.hypot(...point(conic.majorAxis));
+                } else if (type === 'ARC' || type === 'ELLIPSE') {
+                    center = point(edge.center);
+                    radius = type === 'ARC' ? numeric(edge.radius) : Math.hypot(...point(edge.majorAxis));
+                } else return fail(`unsupported custom PAT edge ${type}`);
+                if (!(radius > 0)) fail('custom PAT curved boundary radius must be positive');
+                points.push([
+                    center[0] - radius,
+                    center[1] - radius
+                ], [
+                    center[0] + radius,
+                    center[1] + radius
+                ]);
+            }
+        }
+        if (count > 4096) fail('custom PAT boundary exceeds the preview budget');
+    }
+    if (!points.length) fail('custom PAT boundary has no bounds');
+    return {
+        path: paths.join(' '),
+        points
+    };
 }
 export function exportDrawingSvg(document, options) {
     const source = document.snapshot(), revision = document.revision;
@@ -250,7 +378,7 @@ export function exportDrawingSvg(document, options) {
         1,
         1,
         0
-    ], family = 'Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif')=>{
+    ], family = KJDRAW_ENGINEERING_FONT_STACK)=>{
         if (!(textHeight > 0)) fail('text height must be positive');
         if (!fontIds.has(entity.id)) {
             fontIds.add(entity.id);
@@ -274,7 +402,7 @@ export function exportDrawingSvg(document, options) {
             });
         }
         const m = layout.matrix;
-        const spans = layout.lines.map((line)=>`<tspan x="${numeric(line.left)}" y="${numeric(-line.baseline)}">${xml(line.text)}</tspan>`).join('');
+        const spans = layout.lines.map((line)=>line.runs.map((run)=>`<tspan x="${numeric(run.left)}" y="${numeric(-line.baseline)}" font-family="${xml(run.family)}">${xml(run.text)}</tspan>`).join('')).join('');
         return `<text transform="matrix(${m[0]} ${m[1]} ${-m[2]} ${-m[3]} ${m[4]} ${m[5]})" font-family="${xml(layout.family)}" font-size="${layout.height}" text-anchor="start" fill="currentColor" stroke="none" xml:space="preserve">${spans}</text>`;
     };
     const primitive = (entity)=>{
@@ -299,6 +427,7 @@ export function exportDrawingSvg(document, options) {
             return `<circle cx="${a[0]}" cy="${a[1]}" r="${r}"/>`;
         }
         if (entity.type === 'ARC') return `<path d="${arcPath(point(p.center), numeric(p.radius), numeric(p.startAngle), numeric(p.endAngle), p.clockwise === true)}"/>`;
+        if (entity.type === 'ELLIPSE') return `<path d="${ellipsePath(point(p.center), point(p.majorAxis), numeric(p.ratio), numeric(p.startParameter, 0), numeric(p.endParameter, TAU))}"/>`;
         if (entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') {
             if (numeric(p.elevation, 0) || numeric(p.constantWidth, 0) || (numeric(p.dxfFlags, 0) & (8 | 16 | 64)) !== 0) fail('polyline elevation/width is unsupported');
             return `<path d="${polyPath(p.vertices ?? p.points, p.closed === true)}"/>`;
@@ -309,6 +438,7 @@ export function exportDrawingSvg(document, options) {
             p.vertices[3],
             p.vertices[2]
         ] : p.vertices, true)}" fill="currentColor"/>`;
+        if (entity.type === 'WIPEOUT') return `<path d="${polyPath(p.vertices, true)}" fill="#fff" stroke="none"/>`;
         if (entity.type === 'TEXT' || entity.type === 'ATTRIB' || entity.type === 'ATTDEF') {
             const style = document.getObject(String(p.styleId ?? ''))?.payload ?? {};
             const factor = numeric(p.widthFactor ?? style.widthFactor, 1), flags = numeric(p.generationFlags ?? style.generationFlags, 0), shear = Math.tan(numeric(p.obliqueAngle ?? style.obliqueAngle, 0));
@@ -340,7 +470,7 @@ export function exportDrawingSvg(document, options) {
                 'text-after-edge',
                 'central',
                 'text-before-edge'
-            ][vertical], stretch, textFontFamily(style, 'Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif'));
+            ][vertical], stretch, textFontFamily(style, KJDRAW_ENGINEERING_FONT_STACK));
         }
         if (entity.type === 'MTEXT') return multilineText(entity);
         if (entity.type === 'DIMENSION') {
@@ -352,6 +482,135 @@ export function exportDrawingSvg(document, options) {
         if (entity.type === 'HATCH' && p.solid === true) {
             if (!Array.isArray(p.boundaryLoops) || !p.boundaryLoops.length) fail('solid hatch has no boundaries');
             return `<path d="${p.boundaryLoops.map((loop)=>Array.isArray(data(loop).vertices) ? polyPath(data(loop).vertices, true) : hatchEdgePath(loop)).join(' ')}" fill="currentColor" fill-rule="evenodd" stroke="none"/>`;
+        }
+        if (entity.type === 'HATCH' && p.solid !== true) {
+            if (!Array.isArray(p.boundaryLoops) || !p.boundaryLoops.length || p.boundaryLoops.length > 128) fail('pattern hatch has no bounded boundaries');
+            const name = String(p.patternName ?? '').toUpperCase();
+            if (Array.isArray(p.patternLines) && p.patternLines.length) {
+                if (p.patternLines.length > 32) fail('custom PAT preview supports 1–32 line families');
+                const boundary = hatchPreviewBoundary(p.boundaryLoops);
+                const minX = Math.min(...boundary.points.map((v)=>v[0])), maxX = Math.max(...boundary.points.map((v)=>v[0]));
+                const minY = Math.min(...boundary.points.map((v)=>v[1])), maxY = Math.max(...boundary.points.map((v)=>v[1]));
+                const patternScale = numeric(p.patternScale, 1), patternAngle = numeric(p.patternAngle, 0);
+                if (!(patternScale > 0 && patternScale <= 100) || Math.abs(patternAngle) > 1000) fail('custom PAT scale or angle is outside preview bounds');
+                const patternLines = hatchPatternLines(p);
+                const hasReadableSpacing = patternLines.some((line)=>{
+                    const u = [
+                        Math.cos(line.angle),
+                        Math.sin(line.angle)
+                    ];
+                    const normal = [
+                        -u[1],
+                        u[0]
+                    ];
+                    return Math.abs(line.offset[0] * normal[0] + line.offset[1] * normal[1]) >= .05;
+                });
+                if (!hasReadableSpacing) fail('custom PAT family has no readable row spacing');
+                const clipId = `kj-pat-clip-${++sequence}`;
+                definitions.push(count(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${boundary.path}" fill-rule="evenodd"/></clipPath>`));
+                const corners = [
+                    [
+                        minX,
+                        minY
+                    ],
+                    [
+                        minX,
+                        maxY
+                    ],
+                    [
+                        maxX,
+                        minY
+                    ],
+                    [
+                        maxX,
+                        maxY
+                    ]
+                ];
+                const center = [
+                    (minX + maxX) / 2,
+                    (minY + maxY) / 2
+                ];
+                const extent = Math.hypot(maxX - minX, maxY - minY) * 2 + 4;
+                let strokes = 0, approximatedDashes = false;
+                const marks = [];
+                for (const line of patternLines){
+                    const angle = line.angle;
+                    const base = point(line.base), offset = point(line.offset);
+                    const u = [
+                        Math.cos(angle),
+                        Math.sin(angle)
+                    ];
+                    const normal = [
+                        -u[1],
+                        u[0]
+                    ];
+                    const origin = [
+                        base[0],
+                        base[1]
+                    ];
+                    const step = [
+                        offset[0],
+                        offset[1]
+                    ];
+                    const spacing = step[0] * normal[0] + step[1] * normal[1];
+                    const collinear = Math.abs(spacing) < .05;
+                    if (!Number.isFinite(spacing) || Math.abs(spacing) > 1000 || collinear && line.dashes.length > 0) fail('custom PAT family has no readable row spacing');
+                    const projections = corners.map((v)=>v[0] * normal[0] + v[1] * normal[1]);
+                    const baseProjection = origin[0] * normal[0] + origin[1] * normal[1];
+                    const a = collinear ? 0 : (Math.min(...projections) - baseProjection) / spacing;
+                    const b = collinear ? 0 : (Math.max(...projections) - baseProjection) / spacing;
+                    const first = collinear ? 0 : Math.floor(Math.min(a, b)) - 1, last = collinear ? 0 : Math.ceil(Math.max(a, b)) + 1;
+                    if (last - first > 512) fail('custom PAT family exceeds 512 preview rows');
+                    let dashStyle = '';
+                    if (line.dashes != null) {
+                        if (!Array.isArray(line.dashes) || line.dashes.length > 128 || line.dashes.some((value)=>!Number.isFinite(value))) fail('custom PAT dash cycle is invalid');
+                        if (line.dashes.length) {
+                            approximatedDashes = true;
+                            const dash = line.dashes.map((value)=>Math.max(.07, Math.abs(value)));
+                            dashStyle = ` stroke-dasharray="${dash.join(' ')}" stroke-linecap="round"`;
+                        }
+                    }
+                    for(let row = first; row <= last; row++){
+                        if (++strokes > 4096) fail('custom PAT entity exceeds 4096 preview strokes');
+                        const lineOrigin = [
+                            origin[0] + row * step[0],
+                            origin[1] + row * step[1]
+                        ];
+                        const centerProjection = (center[0] - lineOrigin[0]) * u[0] + (center[1] - lineOrigin[1]) * u[1];
+                        const start = [
+                            lineOrigin[0] + (centerProjection - extent) * u[0],
+                            lineOrigin[1] + (centerProjection - extent) * u[1]
+                        ];
+                        const end = [
+                            lineOrigin[0] + (centerProjection + extent) * u[0],
+                            lineOrigin[1] + (centerProjection + extent) * u[1]
+                        ];
+                        marks.push(`<line x1="${start[0]}" y1="${start[1]}" x2="${end[0]}" y2="${end[1]}"${dashStyle}/>`);
+                    }
+                }
+                if (approximatedDashes) report.approximations.push({
+                    entityId: entity.id,
+                    type: entity.type,
+                    reason: `SVG custom PAT ${name} uses a bounded dash/dot proxy; DXF retains its exact pattern definitions`
+                });
+                return `<g clip-path="url(#${clipId})" fill="none" stroke="currentColor" stroke-width="0.1">${marks.join('')}</g>`;
+            }
+            if (![
+                'ANSI31',
+                'ANSI37',
+                'CROSS'
+            ].includes(name)) fail(`pattern hatch ${name} has no supported SVG preview`);
+            const hatchScale = numeric(p.patternScale, 1), angle = numeric(p.patternAngle, 0);
+            if (hatchScale < 0.01 || hatchScale > 100 || Math.abs(angle) > 1000) fail('pattern hatch scale or angle is outside the preview bounds');
+            const spacing = Math.max(1, 4 * hatchScale), id = `kj-hatch-${++sequence}`;
+            const marks = name === 'ANSI37' ? `<circle cx="${spacing * .25}" cy="${spacing * .25}" r="${Math.max(.05, spacing * .05)}" fill="currentColor"/><circle cx="${spacing * .75}" cy="${spacing * .75}" r="${Math.max(.05, spacing * .05)}" fill="currentColor"/>` : `<path d="M 0 0 L ${spacing} ${spacing}${name === 'CROSS' ? ` M ${spacing} 0 L 0 ${spacing}` : ''}" stroke="currentColor" stroke-width="${Math.max(.05, spacing * .035)}" fill="none"/>`;
+            definitions.push(count(`<pattern id="${id}" patternUnits="userSpaceOnUse" width="${spacing}" height="${spacing}" patternTransform="rotate(${angle * 180 / Math.PI})">${marks}</pattern>`));
+            report.approximations.push({
+                entityId: entity.id,
+                type: entity.type,
+                reason: `SVG previews ${name} as a bounded visual proxy; DXF retains its named CAD hatch`
+            });
+            return `<path d="${p.boundaryLoops.map((loop)=>Array.isArray(data(loop).vertices) ? polyPath(data(loop).vertices, true) : hatchEdgePath(loop)).join(' ')}" fill="url(#${id})" fill-rule="evenodd" stroke="none"/>`;
         }
         return fail(`unsupported entity ${entity.type}`);
     };
@@ -391,13 +650,19 @@ export function exportDrawingSvg(document, options) {
                 if (Array.isArray(p.scale) && numeric(p.scale[2], 1) !== 1) fail('non-unit block Z scale is unsupported');
                 if (depth >= 12 || ancestors.includes(id)) fail('block nesting or cycle budget exceeded');
                 if (!block || block.kind !== 'block-record' || block.payload.isSpace) fail('invalid block reference');
-                const a = point(p.position), b = point(block.payload.basePoint ?? [
+                const insertPosition = Array.isArray(p.position) ? p.position : null;
+                const a = insertPoint(p.position), b = point(block.payload.basePoint ?? [
                     0,
                     0
                 ]), sc = Array.isArray(p.scale) ? p.scale : [
                     p.scale ?? 1,
                     p.scale ?? 1
                 ];
+                if (numeric(insertPosition?.[2], 0) !== 0) report.approximations.push({
+                    entityId: entity.id,
+                    type: entity.type,
+                    reason: 'SVG orthographically projects an XY-parallel block INSERT with a nonzero Z translation'
+                });
                 const sx = numeric(sc[0]), sy = numeric(sc[1], sx);
                 if (!sx || !sy || Math.abs(sx) !== Math.abs(sy)) fail('zero or nonuniform block scale is unsupported');
                 const m = multiply3(translation3(...a), multiply3(rotation3(numeric(p.rotation, 0)), multiply3(scale3(sx, sy), translation3(-b[0], -b[1]))));
@@ -417,16 +682,19 @@ export function exportDrawingSvg(document, options) {
                     report.hidden++;
                     return '';
                 }
-                const frame = lp.plottable === false ? '' : `<rect x="${a[0] - w / 2}" y="${a[1] - h / 2}" width="${w}" height="${h}"/>`;
+                const hasClipping = typeof p.clippingBoundaryId === 'string' && p.clippingBoundaryId.length > 0;
+                const frame = lp.plottable === false || hasClipping ? '' : `<rect x="${a[0] - w / 2}" y="${a[1] - h / 2}" width="${w}" height="${h}"/>`;
                 if (p.status === 0 || (flags & 0x20000) !== 0) {
                     report.hidden++;
                     inner = frame;
                 } else {
-                    if (p.perspective || p.clipBoundaryId || p.clippingBoundaryId || p.nonRectangularClip || (flags & (0x1 | 0x2 | 0x4 | 0x10 | 0x10000)) !== 0 || Array.isArray(p.unresolvedViewportReferences) && p.unresolvedViewportReferences.length || p.viewDirection && JSON.stringify(p.viewDirection) !== '[0,0,1]') fail('unsupported viewport projection or clip');
+                    const clipping = viewportClip(document, entity);
+                    const nonRectangular = clipping !== null;
+                    if (p.perspective || p.clipBoundaryId || p.nonRectangularClip && !nonRectangular || (flags & (0x1 | 0x2 | 0x4 | 0x10)) !== 0 || (flags & 0x10000) !== 0 && !nonRectangular || Array.isArray(p.unresolvedViewportReferences) && p.unresolvedViewportReferences.length || p.viewDirection && JSON.stringify(p.viewDirection) !== '[0,0,1]') fail('unsupported viewport projection or clip');
                     const ratio = h / vh, m = multiply3(translation3(a[0] - ratio * c[0], a[1] - ratio * c[1]), multiply3(scale3(ratio), multiply3(rotation3(numeric(p.twistAngle, 0)), translation3(-target[0], -target[1]))));
                     const clip = `kj-viewport-${++sequence}`;
                     matrix(m);
-                    definitions.push(count(`<clipPath id="${clip}" clipPathUnits="userSpaceOnUse"><rect x="${a[0] - w / 2}" y="${a[1] - h / 2}" width="${w}" height="${h}"/></clipPath>`));
+                    definitions.push(count(`<clipPath id="${clip}" clipPathUnits="userSpaceOnUse">${clipping ?? `<rect x="${a[0] - w / 2}" y="${a[1] - h / 2}" width="${w}" height="${h}"/>`}</clipPath>`));
                     report.viewports.push({
                         entityId: entity.id,
                         millimetersPerModelUnit: scale * ratio,

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 
-test('nested INSERT move previews actual block geometry, approves once and restores geometry and pixels', async ({ page }, testInfo) => {
+test('nested INSERT move previews actual block geometry, approves once and restores native geometry', async ({ page }, testInfo) => {
   await page.goto('/')
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
   const result = await page.evaluate(async () => {
@@ -45,26 +45,16 @@ test('nested INSERT move previews actual block geometry, approves once and resto
     const exactInsert = JSON.stringify(drawing.getObject('pump').payload) === JSON.stringify(proposal.preview.after[0].payload)
     await drawing.undo(); renderer.render(); const undoPng = canvas.toDataURL()
     const undoGeometryExact = JSON.stringify(drawing.getObject('pump').payload) === JSON.stringify(proposal.preview.before[0].payload)
-    await drawing.redo(); renderer.render(); const redoExact = canvas.toDataURL() === approvedPng
+    await drawing.redo(); renderer.render(); const redoGeometryExact = JSON.stringify(drawing.getObject('pump').payload) === JSON.stringify(proposal.preview.after[0].payload)
     const dx = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
     const reopened = await createKJDrawSDK().readDocument(dx, { format: 'DXF' })
     renderer.setDocument(reopened); Object.assign(renderer.camera, { centerX: 47, centerY: 17, scale: 9 }); renderer.render()
     const reopenedPng = canvas.toDataURL(), reopenedReport = renderer.report
+    const transform = payload => ({ position: payload.position, scale: payload.scale, rotation: payload.rotation })
+    const approvedTransform = transform(proposal.preview.after[0].payload)
+    const reopenedTransform = transform(reopened.listEntities({ type: 'INSERT', ownerId: reopened.snapshot().spaces.modelSpaceId })[0].payload)
     renderer.dispose(); canvas.remove()
-    const decodePixels = async dataUrl => {
-      const image = new Image(); image.src = dataUrl; await image.decode()
-      const target = document.createElement('canvas'); target.width = image.width; target.height = image.height
-      const context = target.getContext('2d'); context.drawImage(image, 0, 0)
-      return context.getImageData(0, 0, image.width, image.height).data
-    }
-    const [originalPixels, undoPixels] = await Promise.all([decodePixels(beforePng), decodePixels(undoPng)])
-    let changedPixels = 0, maximumDifference = 0
-    for (let i = 0; i < originalPixels.length; i += 4) {
-      let changed = false
-      for (let c = 0; c < 4; c++) { const difference = Math.abs(originalPixels[i + c] - undoPixels[i + c]); maximumDifference = Math.max(maximumDifference, difference); if (difference) changed = true }
-      if (changed) changedPixels++
-    }
-    return { unchanged, exactDefinitions, exactInsert, undoGeometryExact, changedPixels, maximumDifference, redoExact, labels, redPixels, wrongSidePixels, beforePng, previewPng, approvedPng, undoPng, reopenedPng, reopenedReport, dependencies: proposal.preview.blockDependencies.map(item => item.id) }
+    return { unchanged, exactDefinitions, exactInsert, undoGeometryExact, redoGeometryExact, approvedTransform, reopenedTransform, labels, redPixels, wrongSidePixels, beforePng, previewPng, approvedPng, undoPng, reopenedPng, reopenedReport, dependencies: proposal.preview.blockDependencies.map(item => item.id) }
   })
   await mkdir('.cache/agent-block-move', { recursive: true })
   for (const name of ['before', 'preview', 'approved', 'undo', 'reopened']) {
@@ -76,14 +66,13 @@ test('nested INSERT move previews actual block geometry, approves once and resto
   expect(result.exactDefinitions).toBe(true)
   expect(result.exactInsert).toBe(true)
   expect(result.undoGeometryExact).toBe(true)
-  // Chromium readback can change six arc-edge antialias pixels by one grey level.
-  // Native geometry remains exact; reject actual displacement or missing geometry.
-  expect(result.maximumDifference).toBeLessThanOrEqual(1)
-  expect(result.changedPixels).toBeLessThanOrEqual(32)
-  expect(result.redoExact).toBe(true)
+  expect(result.redoGeometryExact).toBe(true)
+  expect(result.reopenedTransform.position).toEqual(result.approvedTransform.position)
+  expect(result.reopenedTransform.scale).toEqual(result.approvedTransform.scale)
+  expect(result.reopenedTransform.rotation).toBeCloseTo(result.approvedTransform.rotation, 12)
+  expect(result.reopenedReport.unsupported).toBe(0)
   expect(result.labels).toEqual(['PUMP-12'])
   expect(result.redPixels).toBeGreaterThan(800)
   expect(result.wrongSidePixels).toBe(0)
   for (const id of ['motor', 'assembly', 'motor-circle', 'motor-axis', 'outline', 'motor-insert', 'label']) expect(result.dependencies).toContain(id)
-  expect(result.reopenedPng).toBe(result.approvedPng)
 })

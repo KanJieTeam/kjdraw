@@ -1,8 +1,8 @@
 {
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:994141127dc1c27139df2462daa2a150439b7b025302e8d7eb7ffade88836504",
+  "version": "1.0.0-rc.4",
+  "sourceDigest": "sha256:8849933ba42c87c9a8b710438bf71fc22a72f4b18950b52597eb1d39990fee90",
   "locales": [
     "en",
     "zh"
@@ -13,21 +13,48 @@
       "output": "index.html",
       "source": "docs/site/pages/introduction.md",
       "title": {
-        "en": "Introduction",
-        "zh": "简介"
+        "en": "KJDraw",
+        "zh": "KJDraw"
       },
       "anchors": {
         "en": [
           "en-introduction",
-          "en-introduction-what-it-is",
-          "en-introduction-starting-point",
-          "en-introduction-what-you-can-do"
+          "en-introduction-starting-point"
         ],
         "zh": [
           "zh-introduction",
-          "zh-introduction-what-it-is",
-          "zh-introduction-starting-point",
-          "zh-introduction-what-you-can-do"
+          "zh-introduction-starting-point"
+        ]
+      }
+    },
+    {
+      "slug": "showcase",
+      "output": "showcase/index.html",
+      "source": "docs/site/pages/showcase.md",
+      "title": {
+        "en": "Showcase",
+        "zh": "案例库"
+      },
+      "anchors": {
+        "en": [
+          "en-showcase",
+          "en-showcase-find-an-example",
+          "en-showcase-multidisciplinary-coordination",
+          "en-showcase-civil-site-plan",
+          "en-showcase-architectural-floor-plan",
+          "en-showcase-road-longitudinal-profile",
+          "en-showcase-mechanical-manufacturing-drawing",
+          "en-showcase-build-from-the-same-catalog"
+        ],
+        "zh": [
+          "zh-showcase",
+          "zh-showcase-find-an-example",
+          "zh-showcase-multidisciplinary-coordination",
+          "zh-showcase-civil-site-plan",
+          "zh-showcase-architectural-floor-plan",
+          "zh-showcase-road-longitudinal-profile",
+          "zh-showcase-mechanical-manufacturing-drawing",
+          "zh-showcase-build-from-the-same-catalog"
         ]
       }
     },
@@ -43,16 +70,39 @@
         "en": [
           "en-quickstart",
           "en-quickstart-install",
-          "en-quickstart-mount-editor",
+          "en-quickstart-verify-sdk",
           "en-quickstart-industry-samples",
           "en-quickstart-multiple-editors"
         ],
         "zh": [
           "zh-quickstart",
           "zh-quickstart-install",
-          "zh-quickstart-mount-editor",
+          "zh-quickstart-verify-sdk",
           "zh-quickstart-industry-samples",
           "zh-quickstart-multiple-editors"
+        ]
+      }
+    },
+    {
+      "slug": "starters",
+      "output": "starters/index.html",
+      "source": "docs/site/pages/starters.md",
+      "title": {
+        "en": "Starter projects",
+        "zh": "起步工程"
+      },
+      "anchors": {
+        "en": [
+          "en-starters",
+          "en-starters-choose",
+          "en-starters-expected-results",
+          "en-starters-troubleshoot"
+        ],
+        "zh": [
+          "zh-starters",
+          "zh-starters-choose",
+          "zh-starters-expected-results",
+          "zh-starters-troubleshoot"
         ]
       }
     },
@@ -69,13 +119,44 @@
           "en-installation",
           "en-installation-requirements",
           "en-installation-release-channels",
+          "en-installation-verify-installation",
           "en-installation-public-imports"
         ],
         "zh": [
           "zh-installation",
           "zh-installation-requirements",
           "zh-installation-release-channels",
+          "zh-installation-verify-installation",
           "zh-installation-public-imports"
+        ]
+      }
+    },
+    {
+      "slug": "concepts",
+      "output": "concepts/index.html",
+      "source": "docs/site/pages/concepts.md",
+      "title": {
+        "en": "Core concepts",
+        "zh": "核心概念"
+      },
+      "anchors": {
+        "en": [
+          "en-concepts",
+          "en-concepts-document",
+          "en-concepts-identity",
+          "en-concepts-commands",
+          "en-concepts-adapters",
+          "en-concepts-proposals",
+          "en-concepts-knowledge-packs"
+        ],
+        "zh": [
+          "zh-concepts",
+          "zh-concepts-document",
+          "zh-concepts-identity",
+          "zh-concepts-commands",
+          "zh-concepts-adapters",
+          "zh-concepts-proposals",
+          "zh-concepts-knowledge-packs"
         ]
       }
     },
@@ -125,27 +206,31 @@
       }
     },
     {
-      "slug": "architecture",
-      "output": "architecture/index.html",
-      "source": "docs/site/pages/architecture.md",
+      "slug": "commands",
+      "output": "commands/index.html",
+      "source": "docs/site/pages/commands.md",
       "title": {
-        "en": "Architecture",
-        "zh": "架构"
+        "en": "Commands and transactions",
+        "zh": "命令与事务"
       },
       "anchors": {
         "en": [
-          "en-architecture",
-          "en-architecture-layer-model",
-          "en-architecture-documents-and-transactions",
-          "en-architecture-typescript-and-rust-authority",
-          "en-architecture-host-responsibilities"
+          "en-commands",
+          "en-commands-execute-a-command",
+          "en-commands-atomicity-and-rollback",
+          "en-commands-select-geometry",
+          "en-commands-protected-layers",
+          "en-commands-command-envelopes",
+          "en-commands-observe-changes"
         ],
         "zh": [
-          "zh-architecture",
-          "zh-architecture-layer-model",
-          "zh-architecture-documents-and-transactions",
-          "zh-architecture-typescript-and-rust-authority",
-          "zh-architecture-host-responsibilities"
+          "zh-commands",
+          "zh-commands-execute-a-command",
+          "zh-commands-atomicity-and-rollback",
+          "zh-commands-select-geometry",
+          "zh-commands-protected-layers",
+          "zh-commands-command-envelopes",
+          "zh-commands-observe-changes"
         ]
       }
     },
@@ -177,31 +262,27 @@
       }
     },
     {
-      "slug": "commands",
-      "output": "commands/index.html",
-      "source": "docs/site/pages/commands.md",
+      "slug": "architecture",
+      "output": "architecture/index.html",
+      "source": "docs/site/pages/architecture.md",
       "title": {
-        "en": "Commands and transactions",
-        "zh": "命令与事务"
+        "en": "Architecture",
+        "zh": "架构"
       },
       "anchors": {
         "en": [
-          "en-commands",
-          "en-commands-execute-a-command",
-          "en-commands-atomicity-and-rollback",
-          "en-commands-select-geometry",
-          "en-commands-protected-layers",
-          "en-commands-command-envelopes",
-          "en-commands-observe-changes"
+          "en-architecture",
+          "en-architecture-layer-model",
+          "en-architecture-documents-and-transactions",
+          "en-architecture-typescript-and-rust-authority",
+          "en-architecture-host-responsibilities"
         ],
         "zh": [
-          "zh-commands",
-          "zh-commands-execute-a-command",
-          "zh-commands-atomicity-and-rollback",
-          "zh-commands-select-geometry",
-          "zh-commands-protected-layers",
-          "zh-commands-command-envelopes",
-          "zh-commands-observe-changes"
+          "zh-architecture",
+          "zh-architecture-layer-model",
+          "zh-architecture-documents-and-transactions",
+          "zh-architecture-typescript-and-rust-authority",
+          "zh-architecture-host-responsibilities"
         ]
       }
     },
@@ -267,30 +348,26 @@
         "en": [
           "en-agent",
           "en-agent-agent-tools",
-          "en-agent-check-geometry",
-          "en-agent-domain-capabilities",
-          "en-agent-compose-drawing",
+          "en-agent-capabilities",
+          "en-agent-install",
+          "en-agent-quickstart",
+          "en-agent-tool-selection",
           "en-agent-drawing-context",
-          "en-agent-query-region",
-          "en-agent-review-before-mutation",
-          "en-agent-plan-and-execute",
+          "en-agent-review-and-apply",
           "en-agent-geometric-preview",
-          "en-agent-fail-closed-cases",
-          "en-agent-security-boundary"
+          "en-agent-errors-and-boundaries"
         ],
         "zh": [
           "zh-agent",
           "zh-agent-agent-tools",
-          "zh-agent-check-geometry",
-          "zh-agent-domain-capabilities",
-          "zh-agent-compose-drawing",
+          "zh-agent-capabilities",
+          "zh-agent-install",
+          "zh-agent-quickstart",
+          "zh-agent-tool-selection",
           "zh-agent-drawing-context",
-          "zh-agent-query-region",
-          "zh-agent-review-before-mutation",
-          "zh-agent-plan-and-execute",
+          "zh-agent-review-and-apply",
           "zh-agent-geometric-preview",
-          "zh-agent-fail-closed-cases",
-          "zh-agent-security-boundary"
+          "zh-agent-errors-and-boundaries"
         ]
       }
     },
@@ -306,7 +383,9 @@
         "en": [
           "en-models",
           "en-models-connection",
+          "en-models-agent-client-matrix",
           "en-models-quickstart",
+          "en-models-doubao-ark",
           "en-models-task-tools",
           "en-models-review",
           "en-models-usage",
@@ -316,12 +395,64 @@
         "zh": [
           "zh-models",
           "zh-models-connection",
+          "zh-models-agent-client-matrix-zh",
           "zh-models-quickstart",
+          "zh-models-doubao-ark-zh",
           "zh-models-task-tools",
           "zh-models-review",
           "zh-models-usage",
           "zh-models-example",
           "zh-models-extend"
+        ]
+      }
+    },
+    {
+      "slug": "mcp",
+      "output": "mcp/index.html",
+      "source": "docs/site/pages/mcp.md",
+      "title": {
+        "en": "MCP integration",
+        "zh": "MCP 集成"
+      },
+      "anchors": {
+        "en": [
+          "en-mcp",
+          "en-mcp-start-server",
+          "en-mcp-client-config",
+          "en-mcp-tool-call",
+          "en-mcp-verify-boundary"
+        ],
+        "zh": [
+          "zh-mcp",
+          "zh-mcp-start-server",
+          "zh-mcp-client-config",
+          "zh-mcp-tool-call",
+          "zh-mcp-verify-boundary"
+        ]
+      }
+    },
+    {
+      "slug": "knowledge-packs",
+      "output": "knowledge-packs/index.html",
+      "source": "docs/site/pages/knowledge-packs.md",
+      "title": {
+        "en": "Compile knowledge packs",
+        "zh": "编译知识包"
+      },
+      "anchors": {
+        "en": [
+          "en-knowledge-packs",
+          "en-knowledge-packs-pipeline",
+          "en-knowledge-packs-compile-example",
+          "en-knowledge-packs-author-pack",
+          "en-knowledge-packs-regression-loop"
+        ],
+        "zh": [
+          "zh-knowledge-packs",
+          "zh-knowledge-packs-pipeline",
+          "zh-knowledge-packs-compile-example",
+          "zh-knowledge-packs-author-pack",
+          "zh-knowledge-packs-regression-loop"
         ]
       }
     },
@@ -376,6 +507,29 @@
       }
     },
     {
+      "slug": "reference",
+      "output": "reference/index.html",
+      "source": "docs/site/pages/reference.md",
+      "title": {
+        "en": "API reference",
+        "zh": "API 参考"
+      },
+      "anchors": {
+        "en": [
+          "en-reference",
+          "en-reference-layers",
+          "en-reference-tasks",
+          "en-reference-packages"
+        ],
+        "zh": [
+          "zh-reference",
+          "zh-reference-layers",
+          "zh-reference-tasks",
+          "zh-reference-packages"
+        ]
+      }
+    },
+    {
       "slug": "capabilities",
       "output": "capabilities/index.html",
       "source": "docs/site/pages/capabilities.md",
@@ -409,16 +563,205 @@
     "architecture/index.html",
     "capabilities/index.html",
     "commands/index.html",
+    "concepts/index.html",
     "deployment/index.html",
     "files/index.html",
     "index.html",
     "installation/index.html",
+    "knowledge-packs/index.html",
+    "mcp/index.html",
     "models/index.html",
     "plugins/index.html",
     "quickstart/index.html",
     "react/index.html",
+    "reference/index.html",
     "search-index.json",
+    "showcase/a4-print-layout/index.html",
+    "showcase/angle-support/index.html",
+    "showcase/architecture-floor-plan/index.html",
+    "showcase/assets/a4-print-layout.dxf",
+    "showcase/assets/a4-print-layout.kjd",
+    "showcase/assets/a4-print-layout.source.txt",
+    "showcase/assets/a4-print-layout.svg",
+    "showcase/assets/angle-support.dxf",
+    "showcase/assets/angle-support.kjd",
+    "showcase/assets/angle-support.source.txt",
+    "showcase/assets/angle-support.svg",
+    "showcase/assets/architecture-floor-plan.dxf",
+    "showcase/assets/architecture-floor-plan.kjd",
+    "showcase/assets/architecture-floor-plan.source.txt",
+    "showcase/assets/architecture-floor-plan.svg",
+    "showcase/assets/bilingual-typography.dxf",
+    "showcase/assets/bilingual-typography.kjd",
+    "showcase/assets/bilingual-typography.source.txt",
+    "showcase/assets/bilingual-typography.svg",
+    "showcase/assets/block-references.dxf",
+    "showcase/assets/block-references.kjd",
+    "showcase/assets/block-references.source.txt",
+    "showcase/assets/block-references.svg",
+    "showcase/assets/borehole-log-sheet.dxf",
+    "showcase/assets/borehole-log-sheet.kjd",
+    "showcase/assets/borehole-log-sheet.source.txt",
+    "showcase/assets/borehole-log-sheet.svg",
+    "showcase/assets/box-culvert.dxf",
+    "showcase/assets/box-culvert.kjd",
+    "showcase/assets/box-culvert.source.txt",
+    "showcase/assets/box-culvert.svg",
+    "showcase/assets/bridge-pier.dxf",
+    "showcase/assets/bridge-pier.kjd",
+    "showcase/assets/bridge-pier.source.txt",
+    "showcase/assets/bridge-pier.svg",
+    "showcase/assets/compact-office-plan.dxf",
+    "showcase/assets/compact-office-plan.kjd",
+    "showcase/assets/compact-office-plan.source.txt",
+    "showcase/assets/compact-office-plan.svg",
+    "showcase/assets/courtyard-circulation-plan.dxf",
+    "showcase/assets/courtyard-circulation-plan.kjd",
+    "showcase/assets/courtyard-circulation-plan.source.txt",
+    "showcase/assets/courtyard-circulation-plan.svg",
+    "showcase/assets/door-window-elevations.dxf",
+    "showcase/assets/door-window-elevations.kjd",
+    "showcase/assets/door-window-elevations.source.txt",
+    "showcase/assets/door-window-elevations.svg",
+    "showcase/assets/drainage-network.dxf",
+    "showcase/assets/drainage-network.kjd",
+    "showcase/assets/drainage-network.source.txt",
+    "showcase/assets/drainage-network.svg",
+    "showcase/assets/dxf-import.dxf",
+    "showcase/assets/dxf-import.kjd",
+    "showcase/assets/dxf-import.source.txt",
+    "showcase/assets/dxf-import.svg",
+    "showcase/assets/editable-entities.dxf",
+    "showcase/assets/editable-entities.kjd",
+    "showcase/assets/editable-entities.source.txt",
+    "showcase/assets/editable-entities.svg",
+    "showcase/assets/editing-history.dxf",
+    "showcase/assets/editing-history.kjd",
+    "showcase/assets/editing-history.source.txt",
+    "showcase/assets/editing-history.svg",
+    "showcase/assets/four-hole-plate.dxf",
+    "showcase/assets/four-hole-plate.kjd",
+    "showcase/assets/four-hole-plate.source.txt",
+    "showcase/assets/four-hole-plate.svg",
+    "showcase/assets/geological-section-sheet.dxf",
+    "showcase/assets/geological-section-sheet.kjd",
+    "showcase/assets/geological-section-sheet.source.txt",
+    "showcase/assets/geological-section-sheet.svg",
+    "showcase/assets/hatch-patterns.dxf",
+    "showcase/assets/hatch-patterns.kjd",
+    "showcase/assets/hatch-patterns.source.txt",
+    "showcase/assets/hatch-patterns.svg",
+    "showcase/assets/hole-gauge.dxf",
+    "showcase/assets/hole-gauge.kjd",
+    "showcase/assets/hole-gauge.source.txt",
+    "showcase/assets/hole-gauge.svg",
+    "showcase/assets/inspection-chamber.dxf",
+    "showcase/assets/inspection-chamber.kjd",
+    "showcase/assets/inspection-chamber.source.txt",
+    "showcase/assets/inspection-chamber.svg",
+    "showcase/assets/investigation-point-plan.dxf",
+    "showcase/assets/investigation-point-plan.kjd",
+    "showcase/assets/investigation-point-plan.source.txt",
+    "showcase/assets/investigation-point-plan.svg",
+    "showcase/assets/keyed-hub.dxf",
+    "showcase/assets/keyed-hub.kjd",
+    "showcase/assets/keyed-hub.source.txt",
+    "showcase/assets/keyed-hub.svg",
+    "showcase/assets/mechanical-bracket.dxf",
+    "showcase/assets/mechanical-bracket.kjd",
+    "showcase/assets/mechanical-bracket.source.txt",
+    "showcase/assets/mechanical-bracket.svg",
+    "showcase/assets/mechanical-flange.dxf",
+    "showcase/assets/mechanical-flange.kjd",
+    "showcase/assets/mechanical-flange.source.txt",
+    "showcase/assets/mechanical-flange.svg",
+    "showcase/assets/native-dimensions.dxf",
+    "showcase/assets/native-dimensions.kjd",
+    "showcase/assets/native-dimensions.source.txt",
+    "showcase/assets/native-dimensions.svg",
+    "showcase/assets/pillow-block-housing.dxf",
+    "showcase/assets/pillow-block-housing.kjd",
+    "showcase/assets/pillow-block-housing.source.txt",
+    "showcase/assets/pillow-block-housing.svg",
+    "showcase/assets/resilient-campus.dxf",
+    "showcase/assets/resilient-campus.kjd",
+    "showcase/assets/resilient-campus.source.txt",
+    "showcase/assets/resilient-campus.svg",
+    "showcase/assets/retail-power-one-line.dxf",
+    "showcase/assets/retail-power-one-line.kjd",
+    "showcase/assets/retail-power-one-line.source.txt",
+    "showcase/assets/retail-power-one-line.svg",
+    "showcase/assets/retaining-wall.dxf",
+    "showcase/assets/retaining-wall.kjd",
+    "showcase/assets/retaining-wall.source.txt",
+    "showcase/assets/retaining-wall.svg",
+    "showcase/assets/road-cross-section.dxf",
+    "showcase/assets/road-cross-section.kjd",
+    "showcase/assets/road-cross-section.source.txt",
+    "showcase/assets/road-cross-section.svg",
+    "showcase/assets/road-profile.dxf",
+    "showcase/assets/road-profile.kjd",
+    "showcase/assets/road-profile.source.txt",
+    "showcase/assets/road-profile.svg",
+    "showcase/assets/site-plan.dxf",
+    "showcase/assets/site-plan.kjd",
+    "showcase/assets/site-plan.source.txt",
+    "showcase/assets/site-plan.svg",
+    "showcase/assets/sleeve-bushing.dxf",
+    "showcase/assets/sleeve-bushing.kjd",
+    "showcase/assets/sleeve-bushing.source.txt",
+    "showcase/assets/sleeve-bushing.svg",
+    "showcase/assets/slotted-linkage.dxf",
+    "showcase/assets/slotted-linkage.kjd",
+    "showcase/assets/slotted-linkage.source.txt",
+    "showcase/assets/slotted-linkage.svg",
+    "showcase/assets/stepped-drive-shaft.dxf",
+    "showcase/assets/stepped-drive-shaft.kjd",
+    "showcase/assets/stepped-drive-shaft.source.txt",
+    "showcase/assets/stepped-drive-shaft.svg",
+    "showcase/assets/utility-trench.dxf",
+    "showcase/assets/utility-trench.kjd",
+    "showcase/assets/utility-trench.source.txt",
+    "showcase/assets/utility-trench.svg",
+    "showcase/bilingual-typography/index.html",
+    "showcase/block-references/index.html",
+    "showcase/borehole-log-sheet/index.html",
+    "showcase/box-culvert/index.html",
+    "showcase/bridge-pier/index.html",
+    "showcase/catalog.json",
+    "showcase/compact-office-plan/index.html",
+    "showcase/courtyard-circulation-plan/index.html",
+    "showcase/detail.css",
+    "showcase/detail.js",
+    "showcase/door-window-elevations/index.html",
+    "showcase/drainage-network/index.html",
+    "showcase/dxf-import/index.html",
+    "showcase/editable-entities/index.html",
+    "showcase/editing-history/index.html",
+    "showcase/four-hole-plate/index.html",
+    "showcase/geological-section-sheet/index.html",
+    "showcase/hatch-patterns/index.html",
+    "showcase/hole-gauge/index.html",
+    "showcase/index.html",
+    "showcase/inspection-chamber/index.html",
+    "showcase/investigation-point-plan/index.html",
+    "showcase/keyed-hub/index.html",
+    "showcase/mechanical-bracket/index.html",
+    "showcase/mechanical-flange/index.html",
+    "showcase/native-dimensions/index.html",
+    "showcase/pillow-block-housing/index.html",
+    "showcase/resilient-campus/index.html",
+    "showcase/retail-power-one-line/index.html",
+    "showcase/retaining-wall/index.html",
+    "showcase/road-cross-section/index.html",
+    "showcase/road-profile/index.html",
+    "showcase/site-plan/index.html",
+    "showcase/sleeve-bushing/index.html",
+    "showcase/slotted-linkage/index.html",
+    "showcase/stepped-drive-shaft/index.html",
+    "showcase/utility-trench/index.html",
     "site-manifest.json",
+    "starters/index.html",
     "style.css",
     "vue/index.html",
     "workbench/index.html"

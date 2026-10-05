@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { chromium } from '@playwright/test'
 
 const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url))
 const packageRoot = join(repositoryRoot, 'packages', 'kjdraw-sdk')
+const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repositoryRoot, encoding: 'utf8', windowsHide: true }).trim()
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -109,6 +111,7 @@ try {
   ]).stdout)
   const tarball = join(packDirectory, basename(packed.filename))
   assert.ok(existsSync(tarball), `Packed tarball is missing: ${tarball}`)
+  const artifactSha256 = createHash('sha256').update(await readFile(tarball)).digest('hex')
   const tarballSpecifier = `file:${relative(consumerDirectory, tarball).replaceAll('\\', '/')}`
   await writeFile(join(consumerDirectory, 'package.json'), `${JSON.stringify({
     name: 'kjdraw-packed-browser-consumer-audit',
@@ -407,6 +410,9 @@ try {
   console.log(JSON.stringify({
     ok: true,
     package: `${installed.name}@${installed.version}`,
+    sourceCommit,
+    tarball: basename(tarball),
+    artifactSha256,
     install: 'npm install --offline from npm pack tarball',
     browser: 'chromium',
     lifecycle: ['mount', 'create', 'edit', 'save', 'dispose', 'remount', 'reopen', 'undo', 'redo', 'dispose'],

@@ -1740,7 +1740,7 @@ function ellipseEllipseIntersection(first, second) {
     };
 }
 function intersectionPrimitiveDistance(cursor, primitive) {
-    if (primitive.kind === 'ellipse') return nearestOnEllipse(cursor, primitive.payload).distance;
+    if (primitive.kind === 'ellipse') return ellipseBoxDistance(cursor, primitive.payload);
     if (primitive.kind === 'spline') return splineBoxDistance(cursor, primitive.payload);
     return nearestOnPrimitive(cursor, primitive).distance;
 }
@@ -1841,7 +1841,7 @@ function primitiveIntersection(a, b, splineBudget = {
         points: (result.points ?? []).filter((point)=>accepts(a, point) && accepts(b, point))
     };
 }
-function intersectionCandidates(entities, cursor, maxPairs) {
+function intersectionCandidates(entities, cursor, radius, maxPairs) {
     const primitives = [];
     for (const entity of entities){
         if (entity.type === 'ELLIPSE') primitives.push({
@@ -1860,7 +1860,7 @@ function intersectionCandidates(entities, cursor, maxPairs) {
             primitive,
             order,
             distance: intersectionPrimitiveDistance(cursor, primitive)
-        })).sort((a, b)=>a.distance - b.distance || a.order - b.order).map((value)=>value.primitive);
+        })).filter((value)=>value.distance <= radius).sort((a, b)=>a.distance - b.distance || a.order - b.order).map((value)=>value.primitive);
     const result = [];
     let pairs = 0;
     const splineBudget = {
@@ -1913,7 +1913,7 @@ export function findSnapCandidates(document, cursorInput, options = {}) {
     if (modes.has('intersection')) {
         const maxIntersectionPairs = Number(options.maxIntersectionPairs ?? 10000);
         if (!Number.isSafeInteger(maxIntersectionPairs) || maxIntersectionPairs <= 0) throw new KJValidationError('maxIntersectionPairs must be a positive safe integer');
-        candidates.push(...intersectionCandidates(entities, cursor, maxIntersectionPairs).map((candidate)=>({
+        candidates.push(...intersectionCandidates(entities, cursor, radius, maxIntersectionPairs).map((candidate)=>({
                 ...candidate,
                 distance: candidate.distance ?? distance2(cursor, candidate.point)
             })));

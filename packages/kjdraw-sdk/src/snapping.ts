@@ -1271,7 +1271,10 @@ function ellipseEllipseIntersection(first: EllipseIntersectionPrimitive, second:
 }
 
 function intersectionPrimitiveDistance(cursor: KJSnapPointInput, primitive: IntersectionPrimitive): number {
-  if (primitive.kind === 'ellipse') return nearestOnEllipse(cursor, primitive.payload).distance
+  // Use a guaranteed lower bound for the broad phase. The iterative ellipse
+  // nearest-point solver may slightly overestimate (especially for eccentric
+  // ellipses), which could otherwise discard a valid aperture intersection.
+  if (primitive.kind === 'ellipse') return ellipseBoxDistance(cursor, primitive.payload)
   if (primitive.kind === 'spline') return splineBoxDistance(cursor, primitive.payload)
   return nearestOnPrimitive(cursor, primitive).distance
 }
@@ -1335,7 +1338,7 @@ function primitiveIntersection(a: IntersectionPrimitive, b: IntersectionPrimitiv
   }
 }
 
-function intersectionCandidates(entities: ReadonlyArray<KJReadonlyObjectRecord>, cursor: KJSnapPointInput, maxPairs: number): MutableSnapCandidate[] {
+function intersectionCandidates(entities: ReadonlyArray<KJReadonlyObjectRecord>, cursor: KJSnapPointInput, radius: number, maxPairs: number): MutableSnapCandidate[] {
   // Search geometry closest to the aperture first, so a finite pair budget cannot be
   // consumed by distant drawing content before reaching the local intersection.
   const primitives: IntersectionPrimitive[] = []
@@ -1346,6 +1349,10 @@ function intersectionCandidates(entities: ReadonlyArray<KJReadonlyObjectRecord>,
   }
   const ordered = primitives
     .map((primitive, order) => ({ primitive, order, distance: intersectionPrimitiveDistance(cursor, primitive) }))
+    // An intersection inside the snap aperture can only belong to primitives
+    // whose own nearest point is inside that aperture. Filtering before the
+    // pair loop keeps dense drawings local instead of comparing every pair.
+    .filter(value => value.distance <= radius)
     .sort((a, b) => a.distance - b.distance || a.order - b.order)
     .map(value => value.primitive)
   const result: MutableSnapCandidate[] = []
@@ -1384,7 +1391,7 @@ export function findSnapCandidates(document: KJDocument, cursorInput: KJSnapPoin
   if (modes.has('intersection')) {
     const maxIntersectionPairs = Number(options.maxIntersectionPairs ?? 10000)
     if (!Number.isSafeInteger(maxIntersectionPairs) || maxIntersectionPairs <= 0) throw new KJValidationError('maxIntersectionPairs must be a positive safe integer')
-    candidates.push(...intersectionCandidates(entities, cursor, maxIntersectionPairs).map(candidate => ({ ...candidate, distance: candidate.distance ?? distance2(cursor, candidate.point) })))
+    candidates.push(...intersectionCandidates(entities, cursor, radius, maxIntersectionPairs).map(candidate => ({ ...candidate, distance: candidate.distance ?? distance2(cursor, candidate.point) })))
   }
   candidates = candidates.filter(candidate => candidate.distance <= radius)
   if (candidates.some(candidate => candidate.mode !== 'nearest')) candidates = candidates.filter(candidate => candidate.mode !== 'nearest')

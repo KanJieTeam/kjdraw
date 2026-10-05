@@ -27,6 +27,7 @@ export interface KJAgentSitePlanInput {
     version: typeof KJDRAW_SITE_PLAN_VERSION;
     expectedRevision: number;
     units: 'meter';
+    locale?: 'zh-CN' | 'en';
     drawingId: string;
     title: string;
     revision: string;

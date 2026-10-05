@@ -17,6 +17,31 @@ test('default ASCII DXF adapter reads layers and core entities and writes a reop
   assert.equal(reopened.listEntities({ type: 'CIRCLE' }).length, 1)
 })
 
+test('native DXF TOLERANCE imports semantically and round-trips without proxy tags', async () => {
+  const source = [
+    '0','SECTION','2','HEADER','9','$ACADVER','1','AC1032','0','ENDSEC',
+    '0','SECTION','2','ENTITIES','0','TOLERANCE','5','40','100','AcDbEntity','8','0','100','AcDbFcf','3','STANDARD',
+    '10','12','20','34','30','0','1',String.raw`{\Fgdt;r}%%v0.02%%vA%%v%%v%%v%%v^J`,
+    '210','0','220','0','230','1','11','1','21','0','31','0','0','ENDSEC','0','EOF','',
+  ].join('\r\n')
+  const adapter = createDXFFileAdapter(), document = await adapter.read(source)
+  const tolerance = document.listEntities({ type: 'TOLERANCE' })[0]
+  assert.ok(tolerance)
+  assert.deepEqual(tolerance.payload.position, [12, 34, 0])
+  assert.equal(tolerance.payload.text, String.raw`{\Fgdt;r}%%v0.02%%vA%%v%%v%%v%%v^J`)
+  assert.equal(document.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+  const sdk = createKJDrawSDK(); sdk.attachDocument(document)
+  await sdk.executeCommand('MOVE', { id: tolerance.id, dx: 1, dy: 2 })
+  assert.deepEqual(document.getObject(tolerance.id).payload.position, [13, 36, 0])
+  const written = await adapter.write(document, { version: '2018' })
+  assert.match(written, /\r\nTOLERANCE\r\n/)
+  const reopened = await adapter.read(written), roundTrip = reopened.listEntities({ type: 'TOLERANCE' })[0]
+  assert.equal(roundTrip.payload.text, tolerance.payload.text)
+  assert.deepEqual(roundTrip.payload.position, [13, 36, 0])
+  assert.deepEqual(roundTrip.payload.xAxisDirection, [1, 0, 0])
+  assert.throws(() => adapter.write(document, { version: 'R14' }), /TOLERANCE requires DXF 2000/u)
+})
+
 test('DXF export rejects unsupported entities instead of silently dropping them', async () => {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: 'dxf-loss-gate' })

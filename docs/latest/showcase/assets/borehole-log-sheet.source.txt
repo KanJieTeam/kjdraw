@@ -1,0 +1,22 @@
+// examples/curated-geology-sheets.mjs#L122-L140
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+export async function boreholeLogSheet() {
+  const id = 'borehole-log-sheet', title = 'Borehole log'
+  const { sdk, document } = await createDocument(id, title)
+  const hole = borehole(2)
+  const compiled = compileGeologyColumn({
+    locale: 'en', hole, expectedRevision: document.revision,
+    title: 'BOREHOLE LOG / SYNTHETIC, NOT MEASURED',
+  })
+  await sdk.executeCommand('CREATEBATCH', structuredClone(compiled.commandArgs), { document })
+  const waterGeometry = await annotateStableWater(document, hole)
+  await setPaper(sdk, document, 210, 297)
+  return finish(id, title, sdk, document, {
+    boreholeIds: [hole.id], depthMeters: hole.depth, stableWaterDepth: hole.stableWaterDepth,
+    collarElevation: hole.collarElevation, stratumCount: hole.strata.length,
+    verticalScaleDenominator: compiled.parameters?.verticalScaleDenominator,
+    hatchCount: document.listEntities({ type: 'HATCH' }).length,
+    ...waterGeometry,
+  })
+}

@@ -1,0 +1,48 @@
+// packages/kjdraw-sdk/src/samples.ts#L169-L213
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+function buildArchitecture({ line, circle, arc, text, poly, rect, dimH, dimV, sheet }: ReturnType<typeof draftingKit>) {
+  sheet({ title: 'INNOVATION HUB · LEVEL 01', number: 'A-101', scale: '1:100', discipline: 'ARCHITECTURAL FLOOR PLAN' })
+  const x0 = 22, y0 = 36, x1 = 220, y1 = 130
+  const bayStarts = [22, 55, 88, 121, 154, 187] as const
+  for (let i = 0; i < 7; i++) { const x = x0 + i * 33; line([x, y0 - 8], [x, y1 + 8], 'A-GRID'); circle([x, y1 + 11], 2.5, 'A-GRID'); text([x - .8, y1 + 10], String(i + 1), 1.5, 'A-GRID') }
+  for (let i = 0; i < 4; i++) { const y = y0 + i * 31.3; line([x0 - 8, y], [x1 + 8, y], 'A-GRID'); circle([x0 - 11, y], 2.5, 'A-GRID'); text([x0 - 11.7, y - .7], String.fromCharCode(65 + i), 1.5, 'A-GRID') }
+  rect(x0, y0, x1 - x0, y1 - y0, 'A-WALL'); rect(x0 + 1.8, y0 + 1.8, x1 - x0 - 3.6, y1 - y0 - 3.6, 'A-WALL')
+  for (const x of [55, 88, 121, 154, 187]) { line([x, y0 + 2], [x, y1 - 2], 'A-WALL'); line([x + 1.3, y0 + 2], [x + 1.3, y1 - 2], 'A-WALL') }
+  const doorOpenings: readonly (readonly [number, number])[] = bayStarts.map((bayStart) => [bayStart + 6, bayStart + 14] as const)
+  const horizontalWallWithOpenings = (y: number) => {
+    let cursor = x0 + 2
+    for (const [start, end] of doorOpenings) {
+      line([cursor, y], [start, y], 'A-WALL'); line([cursor, y + 1.3], [start, y + 1.3], 'A-WALL')
+      line([start, y], [start, y + 1.3], 'A-WALL'); line([end, y], [end, y + 1.3], 'A-WALL')
+      cursor = end
+    }
+    line([cursor, y], [x1 - 2, y], 'A-WALL'); line([cursor, y + 1.3], [x1 - 2, y + 1.3], 'A-WALL')
+  }
+  horizontalWallWithOpenings(67); horizontalWallWithOpenings(98)
+  for (const x of [22, 55, 88, 121, 154, 187, 220]) for (const y of [36, 67, 98, 130]) rect(x - 1.5, y - 1.5, 3, 3, 'A-COLUMN')
+  for (const x of [47, 80, 113, 146, 179, 212]) { line([x, y0], [x + 7, y0], 'A-WINDOW'); line([x, y0 + 1.8], [x + 7, y0 + 1.8], 'A-WINDOW') }
+  for (const [start, end] of doorOpenings) {
+    const width = end - start
+    // Doors on the lower corridor swing into the lower rooms; upper doors swing into the upper rooms.
+    line([start, 67], [start, 67 - width], 'A-DOOR'); arc([start, 67], width, -Math.PI / 2, 0, 'A-DOOR')
+    line([start, 99.3], [start, 99.3 + width], 'A-DOOR'); arc([start, 99.3], width, 0, Math.PI / 2, 'A-DOOR')
+  }
+  const lowerRooms = ['RECEPTION', 'MEETING 01', 'STUDIO', 'MAKER LAB', 'CAFE', 'SERVICE'] as const
+  const middleRooms = ['PROJECT 01', 'PROJECT 02', 'OPEN OFFICE', 'OPEN OFFICE', 'PROJECT 03', 'PROJECT 04'] as const
+  const upperRooms = ['LAB 01', 'LAB 02', 'FOCUS 01', 'FOCUS 02', 'CORE', 'SUPPORT'] as const
+  for (let i = 0; i < bayStarts.length; i++) {
+    const bayStart = bayStarts[i]!
+    text([bayStart + 15, 60.5], lowerRooms[i]!, 1.35, 'ANNO')
+    text([bayStart + 10, 93.5], middleRooms[i]!, 1.25, 'ANNO')
+    text([bayStart + 12, 124], upperRooms[i]!, 1.25, 'ANNO')
+    // Each furniture cluster stays within its own 3300 mm structural bay.
+    for (const deskX of [bayStart + 5, bayStart + 18]) for (const deskY of [75.5, 84]) {
+      rect(deskX, deskY, 8, 4.2, 'A-FURN'); circle([deskX + 4, deskY - 1.5], .8, 'A-FURN')
+    }
+    rect(bayStart + 9, 111, 16, 5, 'A-FURN')
+    circle([bayStart + 17, 109.4], .9, 'A-FURN'); circle([bayStart + 17, 117.6], .9, 'A-FURN')
+  }
+  dimH(x0, x1, y0, -10, '19800'); for (let i = 0; i < 6; i++) dimH(x0 + i * 33, x0 + (i + 1) * 33, y1, 9, '3300')
+  dimV(x0, y0, y1, -10, '9400'); text([9, 146], 'GROUND FLOOR · MODEL UNITS: MILLIMETERS · ORIGINAL SAMPLE DRAWING', 1.15, 'TITLE')
+}

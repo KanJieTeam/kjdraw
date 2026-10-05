@@ -81,6 +81,7 @@ import {
   buildAgentArchitecturePlan,
   createKJDrawEditor,
   createKJDrawSDK,
+  previewPlanarContourEdit,
   exportDrawingSvg,
 } from '@kanjieteam/kjdraw'
 
@@ -144,6 +145,29 @@ function inspect(document, layoutName) {
 }
 
 async function productionLifecycle() {
+  const contourBytes = Uint8Array.from(atob(KJDRAW_PACKED_CONTOUR_WASM_BASE64), character => character.charCodeAt(0))
+  const contourHost = document.createElement('div'); document.body.append(contourHost)
+  const contourSdk = createKJDrawSDK({ contourBackend: { wasmBytes: contourBytes } })
+  const contourEditor = createKJDrawEditor(contourHost, { ...editorOptions, sdk: contourSdk })
+  await contourEditor.ready
+  const contourDrawing = contourEditor.document
+  await contourDrawing.transact('Packed circle', tx => tx.createEntity('CIRCLE', { center: [0, 0, 0], radius: 5 }, { id: 'packed-circle' }))
+  const contourBefore = contourDrawing.serialize()
+  const contourRequest = { operation: 'offset', ids: ['packed-circle'], distance: 2, units: 'millimeter', expectedRevision: contourDrawing.revision }
+  const contourPreview = await previewPlanarContourEdit(contourDrawing, contourRequest, contourSdk.contourBackend)
+  const contourPreviewReadOnly = contourBefore === contourDrawing.serialize()
+  const contour = (await contourEditor.execute('CONTOUROFFSET', { ...contourRequest, expectedGeometryDigest: contourPreview.receipt.geometryDigest })).result
+  await contourEditor.undo()
+  const contourUndone = contourDrawing.listEntities().length === 1
+  await contourEditor.redo()
+  const contourSaved = await contourEditor.save({ format: 'KJD', download: false })
+  contourEditor.dispose()
+  const contourReopenedSdk = createKJDrawSDK({ contourBackend: { wasmBytes: contourBytes } })
+  const contourReopenedEditor = createKJDrawEditor(contourHost, { ...editorOptions, sdk: contourReopenedSdk })
+  await contourReopenedEditor.ready
+  const contourReopened = await contourReopenedEditor.open(contourSaved, { format: 'KJD' })
+  const contourContinued = (await contourReopenedEditor.execute('CONTOUROFFSET', { ids: contour.resultIds, distance: 1, units: 'millimeter', expectedRevision: contourReopened.revision })).result
+  contourReopenedEditor.dispose(); contourHost.remove()
   const host = document.querySelector('#vanilla-consumer')
   const first = createKJDrawEditor(host, editorOptions)
   await first.ready
@@ -187,6 +211,7 @@ async function productionLifecycle() {
   verifier.closeDocument(finalDocument.id)
 
   return {
+    contour: { area: contour.area, nativeArcs: contour.contours[0].vertices.every(vertex => vertex.bulge !== 0), previewReadOnly: contourPreviewReadOnly, undone: contourUndone, continuedArea: contourContinued.area, assetNotSaved: !/wasmBytes|wasmUrl|contourBackend/.test(contourSaved) },
     blank,
     blankBeforeOpen,
     command: receipt.command,
@@ -246,6 +271,7 @@ test.beforeAll(async () => {
   }
 
   const entry = join(consumerDirectory, 'consumer.mjs')
+  const contourAsset = await readFile(join(installedRoot, 'src/assets/kjcontour.wasm'))
   await writeFile(entry, browserConsumer)
   const built = await build({
     absWorkingDir: consumerDirectory,
@@ -256,6 +282,7 @@ test.beforeAll(async () => {
     target: 'es2022',
     write: false,
     metafile: true,
+    define: { KJDRAW_PACKED_CONTOUR_WASM_BASE64: JSON.stringify(contourAsset.toString('base64')) },
   })
   bundle = built.outputFiles[0].text
   const installedRootReal = normalized(await realpath(installedRoot))
@@ -307,6 +334,10 @@ test('packed Vanilla editor creates, reopens, verifies and disposes a production
     disposedRejected: true,
     secondDisposed: true,
   })
+  expect(outcome.result.contour.area).toBeCloseTo(Math.PI * 49, 7)
+  expect(outcome.result.contour.nativeArcs).toBe(true)
+  expect(outcome.result.contour).toMatchObject({ previewReadOnly: true, undone: true, assetNotSaved: true })
+  expect(outcome.result.contour.continuedArea).toBeCloseTo(Math.PI * 64, 7)
   for (const stage of [outcome.result.initial, outcome.result.reopened, outcome.result.final]) {
     expect(stage).toMatchObject({
       valid: true,

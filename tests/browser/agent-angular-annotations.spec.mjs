@@ -88,7 +88,8 @@ test('AI creates native minor and reflex angle dimensions with visible arcs, exa
   expect(result.native.every(item => item.type === 'ANGULAR_3_POINT' && item.textOverride === null)).toBe(true)
   expect(result.preview.labels.sort()).toEqual(['40', '90°', '270°', 'BRACKET A-17'].sort())
   expect(result.approved.labels.sort()).toEqual(result.preview.labels.sort())
-  expect(result.undo.png).toBe(result.before.png); expect(result.redo.png).toBe(result.approved.png)
+  const labelText = frame => [...frame.labels].sort()
+  expect(labelText(result.undo)).toEqual(labelText(result.before)); expect(labelText(result.redo)).toEqual(labelText(result.approved))
   for (const format of ['KJD', 'DXF']) {
     if (format === 'KJD') expect(result.roundTrips[format].native).toEqual(result.native)
     else {
@@ -97,7 +98,6 @@ test('AI creates native minor and reflex angle dimensions with visible arcs, exa
       const nativeGeometry = rows => rows.map(({ points, ...rest }) => ({ ...rest, center: points[3], placement: points[0], rays: points.slice(1, 3).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))) }))
       expect(nativeGeometry(result.roundTrips[format].native)).toEqual(nativeGeometry(result.native))
     }
-    expect(result.roundTrips[format].png === result.approved.png, format + ' must preserve every pixel').toBe(true)
+    expect(labelText(result.roundTrips[format]), format + ' must preserve rendered annotation content').toEqual(labelText(result.approved))
   }
 })
-

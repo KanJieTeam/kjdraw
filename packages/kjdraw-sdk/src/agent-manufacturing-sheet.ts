@@ -13,6 +13,16 @@ export interface KJAgentManufacturingHolePattern {
   counterboreDepth?: number
 }
 
+export interface KJAgentManufacturingBoltCirclePattern {
+  count: number
+  center: [number, number]
+  pitchDiameter: number
+  throughDiameter: number
+  startAngleDegrees?: number
+  counterboreDiameter?: number
+  counterboreDepth?: number
+}
+
 export interface KJAgentManufacturingSlot {
   center: [number, number]
   length: number
@@ -24,6 +34,7 @@ export interface KJAgentManufacturingSheetInput {
   version: typeof KJDRAW_MANUFACTURING_SHEET_VERSION
   expectedRevision: number
   units: 'millimeter'
+  locale?: 'zh-CN' | 'en'
   drawingId: string
   title: string
   revision: string
@@ -33,6 +44,7 @@ export interface KJAgentManufacturingSheetInput {
   width: number
   thickness: number
   holePatterns?: KJAgentManufacturingHolePattern[]
+  boltCirclePatterns?: KJAgentManufacturingBoltCirclePattern[]
   slots?: KJAgentManufacturingSlot[]
   sheet: { origin: [number, number]; size: [number, number] }
   textHeight: number
@@ -47,8 +59,9 @@ interface ManufacturingDocument {
 type Point3 = [number, number, number]
 type EntitySpec = { type: string; payload: Record<string, unknown>; options: { id: string } }
 
-const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'drawingId', 'title', 'revision', 'material', 'quantity', 'length', 'width', 'thickness', 'holePatterns', 'slots', 'sheet', 'textHeight']
+const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'material', 'quantity', 'length', 'width', 'thickness', 'holePatterns', 'boltCirclePatterns', 'slots', 'sheet', 'textHeight']
 const HOLE_KEYS = ['rows', 'columns', 'origin', 'spacing', 'throughDiameter', 'counterboreDiameter', 'counterboreDepth']
+const BOLT_CIRCLE_KEYS = ['count', 'center', 'pitchDiameter', 'throughDiameter', 'startAngleDegrees', 'counterboreDiameter', 'counterboreDepth']
 const SLOT_KEYS = ['center', 'length', 'width', 'orientationDegrees']
 const SHEET_KEYS = ['origin', 'size']
 const MAX_ENTITY_COUNT = 512
@@ -94,6 +107,73 @@ function formatMillimeters(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
 }
 
+function locale(value: unknown, ...sourceText: unknown[]): 'zh-CN' | 'en' {
+  if (value != null && value !== 'zh-CN' && value !== 'en') throw new KJValidationError('input.locale must be zh-CN or en')
+  if (value) return value
+  return sourceText.some(item => typeof item === 'string' && /[\u3400-\u9fff]/u.test(item)) ? 'zh-CN' : 'en'
+}
+
+function validateFeatureSeparation(
+  holePatterns: readonly { rows: number; columns: number; origin: [number, number]; spacing: [number, number]; throughDiameter: number; counterboreDiameter: number | undefined }[],
+  boltCirclePatterns: readonly { count: number; center: [number, number]; pitchDiameter: number; startAngleDegrees: number; throughDiameter: number; counterboreDiameter: number | undefined }[],
+  slots: readonly KJAgentManufacturingSlot[],
+): void {
+  // This compiler cannot model intersecting cuts as one merged manufacturing feature.
+  // Use the widest cut on the top face so a counterbore cannot silently collide with a slot.
+  const holes: { x: number; y: number; radius: number; label: string }[] = []
+  for (const [patternIndex, pattern] of holePatterns.entries()) {
+    for (let row = 0; row < pattern.rows; row += 1) for (let column = 0; column < pattern.columns; column += 1) {
+      holes.push({
+        x: pattern.origin[0] + column * pattern.spacing[0],
+        y: pattern.origin[1] + row * pattern.spacing[1],
+        radius: (pattern.counterboreDiameter ?? pattern.throughDiameter) / 2,
+        label: `holePatterns[${patternIndex}] row ${row} column ${column}`,
+      })
+    }
+  }
+  for (const [patternIndex, pattern] of boltCirclePatterns.entries()) {
+    for (let index = 0; index < pattern.count; index += 1) {
+      const angle = (pattern.startAngleDegrees + index * 360 / pattern.count) * Math.PI / 180
+      holes.push({
+        x: pattern.center[0] + pattern.pitchDiameter / 2 * Math.cos(angle),
+        y: pattern.center[1] + pattern.pitchDiameter / 2 * Math.sin(angle),
+        radius: (pattern.counterboreDiameter ?? pattern.throughDiameter) / 2,
+        label: `boltCirclePatterns[${patternIndex}] hole ${index}`,
+      })
+    }
+  }
+  const capsules = slots.map((slot, index) => {
+    const halfStraight = (slot.length - slot.width) / 2
+    return {
+      minX: slot.center[0] - (slot.orientationDegrees === 0 ? halfStraight : 0),
+      maxX: slot.center[0] + (slot.orientationDegrees === 0 ? halfStraight : 0),
+      minY: slot.center[1] - (slot.orientationDegrees === 90 ? halfStraight : 0),
+      maxY: slot.center[1] + (slot.orientationDegrees === 90 ? halfStraight : 0),
+      radius: slot.width / 2,
+      label: `slots[${index}]`,
+    }
+  })
+  const collides = (distance: number, radii: number) => distance <= radii + 1e-9
+  for (let i = 0; i < holes.length; i += 1) {
+    const a = holes[i]!
+    for (let j = i + 1; j < holes.length; j += 1) {
+      const b = holes[j]!
+      if (collides(Math.hypot(a.x - b.x, a.y - b.y), a.radius + b.radius)) throw new KJValidationError(`${a.label} and ${b.label} overlap or touch on the plate face`)
+    }
+    for (const slot of capsules) {
+      const dx = a.x - Math.max(slot.minX, Math.min(slot.maxX, a.x))
+      const dy = a.y - Math.max(slot.minY, Math.min(slot.maxY, a.y))
+      if (collides(Math.hypot(dx, dy), a.radius + slot.radius)) throw new KJValidationError(`${a.label} and ${slot.label} overlap or touch on the plate face`)
+    }
+  }
+  for (let i = 0; i < capsules.length; i += 1) for (let j = i + 1; j < capsules.length; j += 1) {
+    const a = capsules[i]!, b = capsules[j]!
+    const dx = Math.max(0, a.minX - b.maxX, b.minX - a.maxX)
+    const dy = Math.max(0, a.minY - b.maxY, b.minY - a.maxY)
+    if (collides(Math.hypot(dx, dy), a.radius + b.radius)) throw new KJValidationError(`${a.label} and ${b.label} overlap or touch on the plate face`)
+  }
+}
+
 function validateInput(document: ManufacturingDocument, source: KJAgentManufacturingSheetInput) {
   if (!document || typeof document.id !== 'string' || !Number.isInteger(document.revision) || typeof document.snapshot !== 'function') {
     throw new KJValidationError('Manufacturing sheet compiler requires a KJDraw document')
@@ -112,7 +192,7 @@ function validateInput(document: ManufacturingDocument, source: KJAgentManufactu
   const textHeight = boundedNumber(input.textHeight, 'input.textHeight', 1, 20)
   const sheetSource = plain(input.sheet, 'input.sheet')
   exactKeys(sheetSource, SHEET_KEYS, 'input.sheet')
-  const sheetOrigin = point2(sheetSource.origin, 'input.sheet.origin')
+  const sheetOrigin = point2(sheetSource.origin ?? [0, 0], 'input.sheet.origin')
   const sheetSize = point2(sheetSource.size, 'input.sheet.size', 80, 2_000)
   if (sheetSize[0] < textHeight * 20 || sheetSize[1] < textHeight * 16) throw new KJValidationError('input.sheet.size is too small for the selected textHeight')
 
@@ -147,6 +227,35 @@ function validateInput(document: ManufacturingDocument, source: KJAgentManufactu
     return { rows, columns, origin, spacing, throughDiameter, counterboreDiameter, counterboreDepth }
   })
 
+  const boltCircleSource = input.boltCirclePatterns ?? []
+  if (!Array.isArray(boltCircleSource) || boltCircleSource.length > 16) throw new KJValidationError('input.boltCirclePatterns must contain at most 16 patterns')
+  const boltCirclePatterns = boltCircleSource.map((source: unknown, index: number) => {
+    const pattern = plain(source, `input.boltCirclePatterns[${index}]`)
+    exactKeys(pattern, BOLT_CIRCLE_KEYS, `input.boltCirclePatterns[${index}]`)
+    const count = boundedInteger(pattern.count, `input.boltCirclePatterns[${index}].count`, 2, 64)
+    holeCount += count
+    if (holeCount > 128) throw new KJValidationError('input hole patterns expand to more than 128 holes')
+    const center = point2(pattern.center, `input.boltCirclePatterns[${index}].center`, 0, 100_000)
+    const pitchDiameter = boundedNumber(pattern.pitchDiameter, `input.boltCirclePatterns[${index}].pitchDiameter`, 0.01, Math.min(length, width) * 2)
+    const throughDiameter = boundedNumber(pattern.throughDiameter, `input.boltCirclePatterns[${index}].throughDiameter`, 0.01, Math.min(length, width))
+    const startAngleDegrees = pattern.startAngleDegrees == null ? 0 : boundedNumber(pattern.startAngleDegrees, `input.boltCirclePatterns[${index}].startAngleDegrees`, -360, 360)
+    const hasCounterboreDiameter = pattern.counterboreDiameter != null
+    const hasCounterboreDepth = pattern.counterboreDepth != null
+    if (hasCounterboreDiameter !== hasCounterboreDepth) throw new KJValidationError(`input.boltCirclePatterns[${index}] counterboreDiameter and counterboreDepth must be supplied together`)
+    const counterboreDiameter = hasCounterboreDiameter ? boundedNumber(pattern.counterboreDiameter, `input.boltCirclePatterns[${index}].counterboreDiameter`, throughDiameter, Math.min(length, width)) : undefined
+    if (counterboreDiameter != null && counterboreDiameter <= throughDiameter) throw new KJValidationError(`input.boltCirclePatterns[${index}].counterboreDiameter must exceed throughDiameter`)
+    const counterboreDepth = hasCounterboreDepth ? boundedNumber(pattern.counterboreDepth, `input.boltCirclePatterns[${index}].counterboreDepth`, 0.01, thickness) : undefined
+    if (counterboreDepth != null && counterboreDepth >= thickness) throw new KJValidationError(`input.boltCirclePatterns[${index}].counterboreDepth must be less than thickness`)
+    const featureDiameter = counterboreDiameter ?? throughDiameter
+    const pitchRadius = pitchDiameter / 2
+    const featureRadius = featureDiameter / 2
+    if (2 * pitchRadius * Math.sin(Math.PI / count) < featureDiameter - 1e-9) throw new KJValidationError(`input.boltCirclePatterns[${index}] holes overlap`)
+    if (center[0] - pitchRadius - featureRadius < 0 || center[1] - pitchRadius - featureRadius < 0 || center[0] + pitchRadius + featureRadius > length || center[1] + pitchRadius + featureRadius > width) {
+      throw new KJValidationError(`input.boltCirclePatterns[${index}] lies outside the plate`)
+    }
+    return { count, center, pitchDiameter, throughDiameter, startAngleDegrees, counterboreDiameter, counterboreDepth }
+  })
+
   const slotSource = input.slots ?? []
   if (!Array.isArray(slotSource) || slotSource.length > 64) throw new KJValidationError('input.slots must contain at most 64 slots')
   const slots = slotSource.map((source: unknown, index: number) => {
@@ -165,16 +274,19 @@ function validateInput(document: ManufacturingDocument, source: KJAgentManufactu
     return { center, length: slotLength, width: slotWidth, orientationDegrees: slot.orientationDegrees as 0 | 90 }
   })
 
+  validateFeatureSeparation(holePatterns, boltCirclePatterns, slots)
+
   return {
     version: input.version,
     expectedRevision,
     units: input.units,
+    locale: locale(input.locale, input.title, input.material),
     drawingId: boundedString(input.drawingId, 'input.drawingId', 96),
     title: boundedString(input.title, 'input.title', 160),
     revision: boundedString(input.revision, 'input.revision', 32),
     material: boundedString(input.material, 'input.material', 96),
     quantity: boundedInteger(input.quantity, 'input.quantity', 1, 1_000_000),
-    length, width, thickness, holePatterns, slots,
+    length, width, thickness, holePatterns, boltCirclePatterns, slots,
     sheet: { origin: sheetOrigin, size: sheetSize }, textHeight,
   }
 }
@@ -254,8 +366,9 @@ export function buildAgentManufacturingSheet(document: ManufacturingDocument, so
   rectangle(sheetX, sheetY, sheetWidth, sheetHeight, 'SHEET')
   rectangle(topX, topY, input.length * scale, input.width * scale, 'OUTLINE')
   rectangle(frontX, frontY, input.length * scale, input.thickness * scale, 'OUTLINE')
-  text(topX, topY + input.width * scale + input.textHeight * 1.4, 'TOP VIEW')
-  text(frontX, frontY + input.thickness * scale + input.textHeight * 1.4, 'FRONT VIEW')
+  const zh = input.locale === 'zh-CN'
+  text(topX, topY + input.width * scale + input.textHeight * 1.4, zh ? '俯视图' : 'TOP VIEW')
+  text(frontX, frontY + input.thickness * scale + input.textHeight * 1.4, zh ? '主视图' : 'FRONT VIEW')
   line(topX - input.textHeight, topY + input.width * scale / 2, topX + input.length * scale + input.textHeight, topY + input.width * scale / 2, 'CENTER')
   line(topX + input.length * scale / 2, topY - input.textHeight, topX + input.length * scale / 2, topY + input.width * scale + input.textHeight, 'CENTER')
   line(frontX - input.textHeight, frontY + input.thickness * scale / 2, frontX + input.length * scale + input.textHeight, frontY + input.thickness * scale / 2, 'CENTER')
@@ -302,8 +415,8 @@ export function buildAgentManufacturingSheet(document: ManufacturingDocument, so
       const dimensionLane = patternIndex + 1
       const dimensionCenter = patternIndex % 2 === 0 ? firstCenter : lastCenter!
       const diameterText = pattern.counterboreDiameter == null
-        ? `${pattern.rows * pattern.columns}X DIA ${formatMillimeters(pattern.throughDiameter)} THRU`
-        : `${pattern.rows * pattern.columns}X DIA ${formatMillimeters(pattern.throughDiameter)} THRU / C'BORE DIA ${formatMillimeters(pattern.counterboreDiameter)} DEPTH ${formatMillimeters(pattern.counterboreDepth!)}`
+        ? (zh ? `${pattern.rows * pattern.columns}× 通孔 ⌀${formatMillimeters(pattern.throughDiameter)}` : `${pattern.rows * pattern.columns}X DIA ${formatMillimeters(pattern.throughDiameter)} THRU`)
+        : (zh ? `${pattern.rows * pattern.columns}× 通孔 ⌀${formatMillimeters(pattern.throughDiameter)} / 沉孔 ⌀${formatMillimeters(pattern.counterboreDiameter)} 深 ${formatMillimeters(pattern.counterboreDepth!)}` : `${pattern.rows * pattern.columns}X DIA ${formatMillimeters(pattern.throughDiameter)} THRU / C'BORE DIA ${formatMillimeters(pattern.counterboreDiameter)} DEPTH ${formatMillimeters(pattern.counterboreDepth!)}`)
       const radius = pattern.throughDiameter / 2
       dimension(
         [p3(dimensionCenter[0] - radius, dimensionCenter[1]), p3(dimensionCenter[0] + radius, dimensionCenter[1])],
@@ -316,16 +429,77 @@ export function buildAgentManufacturingSheet(document: ManufacturingDocument, so
           [p3(topX + pattern.origin[0], topY + pattern.origin[1]), p3(topX + pattern.origin[0] + pattern.spacing[0], topY + pattern.origin[1])],
           p3(topX + pattern.origin[0] + pattern.spacing[0] / 2, topY - dimensionLane * dimensionPad / 2),
         )
-        text(topX + pattern.origin[0], topY + input.textHeight * (2 + patternIndex * 1.5), `${pattern.columns - 1} SPACES @ ${formatMillimeters(pattern.spacing[0])}`)
+        text(topX + pattern.origin[0], topY + input.textHeight * (2 + patternIndex * 1.5), zh ? `${pattern.columns - 1} 等距 × ${formatMillimeters(pattern.spacing[0])}` : `${pattern.columns - 1} SPACES @ ${formatMillimeters(pattern.spacing[0])}`)
       }
       if (pattern.rows > 1) {
         dimension(
           [p3(topX + pattern.origin[0], topY + pattern.origin[1]), p3(topX + pattern.origin[0], topY + pattern.origin[1] + pattern.spacing[1])],
           p3(topX - dimensionLane * dimensionPad / 2, topY + pattern.origin[1] + pattern.spacing[1] / 2),
         )
-        text(topX + input.textHeight * (2 + patternIndex * 15), topY + input.width + input.textHeight * (2 + patternIndex * 2), `${pattern.rows - 1} SPACES @ ${formatMillimeters(pattern.spacing[1])}`)
+        text(topX + input.textHeight * (2 + patternIndex * 15), topY + input.width + input.textHeight * (2 + patternIndex * 2), zh ? `${pattern.rows - 1} 等距 × ${formatMillimeters(pattern.spacing[1])}` : `${pattern.rows - 1} SPACES @ ${formatMillimeters(pattern.spacing[1])}`)
       }
     }
+  })
+
+  input.boltCirclePatterns.forEach((pattern, patternIndex) => {
+    const centerX = topX + pattern.center[0] * scale
+    const centerY = topY + pattern.center[1] * scale
+    const pitchRadius = pattern.pitchDiameter * scale / 2
+    const projectedColumns = new Set<string>()
+    const centers: Point3[] = []
+    add('CIRCLE', 'CENTER', { center: p3(centerX, centerY), radius: pitchRadius })
+    const centerSize = Math.max(input.textHeight * 1.5, pattern.throughDiameter * scale)
+    line(centerX - centerSize, centerY, centerX + centerSize, centerY, 'CENTER')
+    line(centerX, centerY - centerSize, centerX, centerY + centerSize, 'CENTER')
+    for (let holeIndex = 0; holeIndex < pattern.count; holeIndex += 1) {
+      const angle = (pattern.startAngleDegrees + holeIndex * 360 / pattern.count) * Math.PI / 180
+      const plateX = pattern.center[0] + pattern.pitchDiameter / 2 * Math.cos(angle)
+      const plateY = pattern.center[1] + pattern.pitchDiameter / 2 * Math.sin(angle)
+      const x = topX + plateX * scale, y = topY + plateY * scale
+      const center = p3(x, y)
+      centers.push(center)
+      add('CIRCLE', 'OUTLINE', { center, radius: pattern.throughDiameter * scale / 2 })
+      if (pattern.counterboreDiameter != null) add('CIRCLE', 'OUTLINE', { center, radius: pattern.counterboreDiameter * scale / 2 })
+      const markSize = Math.max(input.textHeight, pattern.throughDiameter * scale * 0.75)
+      line(x - markSize, y, x + markSize, y, 'CENTER')
+      line(x, y - markSize, x, y + markSize, 'CENTER')
+      const projectionKey = formatMillimeters(plateX)
+      if (!projectedColumns.has(projectionKey)) {
+        projectedColumns.add(projectionKey)
+        const projectedX = frontX + plateX * scale
+        const throughRadius = pattern.throughDiameter * scale / 2
+        const throughTop = frontY + (input.thickness - (pattern.counterboreDepth ?? 0)) * scale
+        line(projectedX - throughRadius, frontY, projectedX - throughRadius, throughTop, 'HIDDEN')
+        line(projectedX + throughRadius, frontY, projectedX + throughRadius, throughTop, 'HIDDEN')
+        line(projectedX, frontY - input.textHeight, projectedX, frontY + input.thickness * scale + input.textHeight, 'CENTER')
+        if (pattern.counterboreDiameter != null && pattern.counterboreDepth != null) {
+          const counterboreRadius = pattern.counterboreDiameter * scale / 2
+          const counterboreBottom = frontY + (input.thickness - pattern.counterboreDepth) * scale
+          line(projectedX - counterboreRadius, counterboreBottom, projectedX - counterboreRadius, frontY + input.thickness * scale, 'HIDDEN')
+          line(projectedX + counterboreRadius, counterboreBottom, projectedX + counterboreRadius, frontY + input.thickness * scale, 'HIDDEN')
+          line(projectedX - counterboreRadius, counterboreBottom, projectedX - throughRadius, counterboreBottom, 'HIDDEN')
+          line(projectedX + throughRadius, counterboreBottom, projectedX + counterboreRadius, counterboreBottom, 'HIDDEN')
+        }
+      }
+    }
+    const firstCenter = centers[0]!
+    line(centerX, centerY, firstCenter[0], firstCenter[1], 'CENTER')
+    const holeRadius = pattern.throughDiameter * scale / 2
+    dimension(
+      [p3(firstCenter[0] - holeRadius, firstCenter[1]), p3(firstCenter[0] + holeRadius, firstCenter[1])],
+      p3(firstCenter[0] + dimensionPad * 1.5, firstCenter[1] + dimensionPad),
+      'DIAMETER',
+    )
+    dimension(
+      [p3(centerX - pitchRadius, centerY), p3(centerX + pitchRadius, centerY)],
+      p3(centerX, centerY - pitchRadius - dimensionPad / 2),
+      'DIAMETER',
+    )
+    const featureText = pattern.counterboreDiameter == null
+      ? (zh ? `${pattern.count}× 等分通孔 ⌀${formatMillimeters(pattern.throughDiameter)}，分布圆 ⌀${formatMillimeters(pattern.pitchDiameter)}` : `${pattern.count}X EQ SP DIA ${formatMillimeters(pattern.throughDiameter)} THRU ON DIA ${formatMillimeters(pattern.pitchDiameter)} PCD`)
+      : (zh ? `${pattern.count}× 等分通孔 ⌀${formatMillimeters(pattern.throughDiameter)} / 沉孔 ⌀${formatMillimeters(pattern.counterboreDiameter)} 深 ${formatMillimeters(pattern.counterboreDepth!)}，分布圆 ⌀${formatMillimeters(pattern.pitchDiameter)}` : `${pattern.count}X EQ SP DIA ${formatMillimeters(pattern.throughDiameter)} THRU / C'BORE DIA ${formatMillimeters(pattern.counterboreDiameter)} DEPTH ${formatMillimeters(pattern.counterboreDepth!)} ON DIA ${formatMillimeters(pattern.pitchDiameter)} PCD`)
+    const noteLane = input.holePatterns.length + patternIndex
+    text(topX, topY + input.width + input.textHeight * (4 + noteLane * 2), featureText)
   })
 
   input.slots.forEach((slot, index) => {
@@ -352,7 +526,7 @@ export function buildAgentManufacturingSheet(document: ManufacturingDocument, so
     const projectedHalfWidth = slot.orientationDegrees === 0 ? halfLength : radius
     line(frontX + slot.center[0] - projectedHalfWidth, frontY, frontX + slot.center[0] - projectedHalfWidth, frontY + input.thickness, 'HIDDEN')
     line(frontX + slot.center[0] + projectedHalfWidth, frontY, frontX + slot.center[0] + projectedHalfWidth, frontY + input.thickness, 'HIDDEN')
-    text(cx + radius + input.textHeight, cy + radius + input.textHeight, `S${index + 1} SLOT ${formatMillimeters(slot.length)} X ${formatMillimeters(slot.width)}`)
+    text(cx + radius + input.textHeight, cy + radius + input.textHeight, zh ? `槽${index + 1} ${formatMillimeters(slot.length)} × ${formatMillimeters(slot.width)}` : `S${index + 1} SLOT ${formatMillimeters(slot.length)} X ${formatMillimeters(slot.width)}`)
   })
 
   const titleY = sheetY + margin
@@ -363,12 +537,17 @@ export function buildAgentManufacturingSheet(document: ManufacturingDocument, so
   line(titleSplit, titleY, titleSplit, titleY + titleHeight, 'SHEET')
   line(titleSplit, titleY + titleHeight / 2, titleX + titleWidth, titleY + titleHeight / 2, 'SHEET')
   text(titleX + input.textHeight, titleY + titleHeight - input.textHeight * 2, input.title, input.textHeight * 1.25)
-  text(titleX + input.textHeight, titleY + titleHeight - input.textHeight * 4, `DRAWING: ${input.drawingId}`)
-  text(titleX + input.textHeight, titleY + titleHeight - input.textHeight * 6, `MATERIAL: ${input.material}   QTY: ${input.quantity}`)
-  text(titleSplit + input.textHeight, titleY + titleHeight - input.textHeight * 2, `REV: ${input.revision}`)
-  text(titleSplit + input.textHeight, titleY + titleHeight / 2 - input.textHeight * 2, `UNITS: mm   SCALE: 1:${formatMillimeters(1 / scale)}`)
+  text(titleX + input.textHeight, titleY + titleHeight - input.textHeight * 4, `${zh ? '图号' : 'DRAWING'}: ${input.drawingId}`)
+  text(titleX + input.textHeight, titleY + titleHeight - input.textHeight * 6, `${zh ? '材料' : 'MATERIAL'}: ${input.material}   ${zh ? '数量' : 'QTY'}: ${input.quantity}`)
+  text(titleSplit + input.textHeight, titleY + titleHeight - input.textHeight * 2, `${zh ? '版本' : 'REV'}: ${input.revision}`)
+  text(titleSplit + input.textHeight, titleY + titleHeight / 2 - input.textHeight * 2, `${zh ? '单位' : 'UNITS'}: mm   ${zh ? '比例' : 'SCALE'}: 1:${formatMillimeters(1 / scale)}`)
 
-  const notes = [
+  const notes = zh ? [
+    '加工技术要求：',
+    '1. 图中尺寸单位均为毫米。',
+    '2. 去除毛刺，锐边倒钝。',
+    '3. 禁止量图；以标注尺寸为准。',
+  ] : [
     'MACHINING NOTES:',
     '1. ALL DIMENSIONS ARE IN MILLIMETERS.',
     '2. REMOVE BURRS AND BREAK SHARP EDGES.',
@@ -410,10 +589,12 @@ export function buildAgentManufacturingSheet(document: ManufacturingDocument, so
       parameters: {
         title: input.title, revision: input.revision, material: input.material, quantity: input.quantity,
         length: input.length, width: input.width, thickness: input.thickness,
-        holePatternCount: input.holePatterns.length, holeCount: input.holePatterns.reduce((total, pattern) => total + pattern.rows * pattern.columns, 0),
+        holePatternCount: input.holePatterns.length,
+        boltCirclePatternCount: input.boltCirclePatterns.length,
+        holeCount: input.holePatterns.reduce((total, pattern) => total + pattern.rows * pattern.columns, 0) + input.boltCirclePatterns.reduce((total, pattern) => total + pattern.count, 0),
         slotCount: input.slots.length, sheet: input.sheet, textHeight: input.textHeight, viewScale: scale,
       },
-      limitations: ['Rectangular hole arrays only', 'Slot orientations are limited to 0 or 90 degrees', 'Views are orthographic and may be scaled to fit the selected sheet'],
+      limitations: ['Hole arrays support rectangular grids and evenly spaced bolt circles', 'Slot orientations are limited to 0 or 90 degrees', 'Touching or overlapping holes, counterbores and slots are rejected; merged cuts require a separate feature compiler', 'Views are orthographic and compiled at 1:1; the compiler refuses a sheet that cannot contain the requested geometry'],
     },
   }
 }

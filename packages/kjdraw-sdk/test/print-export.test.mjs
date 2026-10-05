@@ -1,8 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {createKJDrawSDK} from '../src/sdk.js'
-import {createDrawingPrintHtml,openDrawingPrintWindow} from '../src/print-export.js'
+import {createDrawingPrintHtml,openDrawingPrintPreview,openDrawingPrintWindow} from '../src/print-export.js'
 import {exportDrawingSvg} from '../src/svg-export.js'
+import {KJDRAW_ENGINEERING_FONT_STACK} from '../src/geometry/text-layout.js'
 
 async function fixture(){
   const sdk=createKJDrawSDK(),document=sdk.createDocument({units:'millimeter'})
@@ -28,7 +29,7 @@ test('print HTML is immutable vector output with explicit A3 CSS, escaped title 
   assert.match(output.html,/字体/);assert.equal(output.report.status,'approximate');assert.equal(output.report.diagnostics.length,0)
   const svg=exportDrawingSvg(document,{layoutId}).svg
   const font=svg.match(/<text[^>]*font-family="([^"]+)"/)[1]
-  assert.equal(font,'Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif')
+  assert.equal(font,KJDRAW_ENGINEERING_FONT_STACK.replaceAll('"','&quot;'))
   assert.ok(output.html.includes(svg),'print must retain the exact vector text and font fallback')
   assert.doesNotMatch(output.html,/\.kj-print-sheet text\s*\{/,'print CSS must not override the SVG font fallback')
   assert.ok(Object.isFrozen(output));assert.equal(document.serialize(),source);assert.deepEqual(document.history,history)
@@ -46,13 +47,15 @@ test('print rejects visible unsupported objects, partial escape hatches and mali
   assert.equal(document.serialize(),before)
 })
 
-test('browser print requires a real host and refuses blocked or stale requests before touching the source',async()=>{
+test('browser print and preview require a real host and refuse blocked or stale requests before touching the source',async()=>{
   const {document,layoutId}=await fixture(),source=document.serialize()
-  await assert.rejects(openDrawingPrintWindow(document,{layoutId}),/browser window/)
-  let opened=0
-  const ownerWindow={open(){opened++;return null}}
-  await assert.rejects(openDrawingPrintWindow(document,{layoutId,ownerWindow,isCurrent:()=>false}),/drawing changed/)
-  assert.equal(opened,0)
-  await assert.rejects(openDrawingPrintWindow(document,{layoutId,ownerWindow}),/blocked/)
-  assert.equal(opened,1);assert.equal(document.serialize(),source)
+  for(const open of [openDrawingPrintWindow,openDrawingPrintPreview]){
+    await assert.rejects(open(document,{layoutId}),/browser window/)
+    let opened=0
+    const ownerWindow={open(){opened++;return null}}
+    await assert.rejects(open(document,{layoutId,ownerWindow,isCurrent:()=>false}),/drawing changed/)
+    assert.equal(opened,0)
+    await assert.rejects(open(document,{layoutId,ownerWindow}),/blocked/)
+    assert.equal(opened,1);assert.equal(document.serialize(),source)
+  }
 })

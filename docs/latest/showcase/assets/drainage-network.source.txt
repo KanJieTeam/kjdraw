@@ -1,0 +1,54 @@
+// examples/curated-civil-sheets.mjs#L40-L90
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+export async function drainageNetworkSheet() {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'curated-drainage-network', title: 'Site drainage network', units: 'millimeter' })
+  await document.transact('Draw editable site drainage plan', tx => {
+    const d = sheet(tx, 'DRAIN', 'SITE DRAINAGE NETWORK', 'Inspection chambers / flow direction / pipe schedule')
+    d.text(16, 173, 'PLAN  /  DIAGRAMMATIC', 4.2, 'view-label')
+    d.rect(16, 48, 192, 160, 'site-boundary', 'DETAIL')
+    d.rect(26, 58, 104, 103, 'building-a')
+    d.rect(116, 108, 177, 148, 'building-b')
+    d.text(49, 79, 'BUILDING A', 3.8, 'building-a-label')
+    d.text(132, 126, 'BUILDING B', 3.8, 'building-b-label')
+    const chambers = [[34, 120], [80, 120], [110, 120], [110, 76], [154, 76], [181, 76]]
+    for (let i = 0; i < chambers.length; i++) {
+      const [x, y] = chambers[i]
+      d.circle(x, y, 4, `chamber-${i + 1}`, 'DETAIL')
+      d.circle(x, y, 1, `chamber-core-${i + 1}`, 'DETAIL')
+      d.text(x - 5, y + 7, `IC-${String(i + 1).padStart(2, '0')}`, 2.6, `chamber-label-${i + 1}`)
+    }
+    const segments = [[34,120,80,120], [80,120,110,120], [110,120,110,76], [110,76,154,76], [154,76,181,76]]
+    for (let i = 0; i < segments.length; i++) {
+      const [x1,y1,x2,y2] = segments[i]
+      d.line(x1,y1,x2,y2,`pipe-${i + 1}`,'DETAIL')
+      if (y1 === y2) {
+        const mid = (x1 + x2) / 2
+        d.line(mid - 3, y1 + 1.5, mid, y1, `flow-a-${i}`,'ANNOTATION')
+        d.line(mid - 3, y1 - 1.5, mid, y1, `flow-b-${i}`,'ANNOTATION')
+      } else {
+        d.line(x1 - 1.5, 96, x1, 93, 'flow-down-a','ANNOTATION')
+        d.line(x1 + 1.5, 96, x1, 93, 'flow-down-b','ANNOTATION')
+      }
+    }
+    d.line(34,120,34,150,'inlet-a','DETAIL')
+    d.line(181,76,205,76,'outfall','DETAIL')
+    d.circle(208,76,3,'outfall-symbol','DETAIL')
+    d.text(202,67,'OUTFALL','2.5','outfall-label')
+    d.text(35,111,'DN300 / 1:180',2.4,'pipe-note-1')
+    d.text(119,67,'DN375 / 1:220',2.4,'pipe-note-2')
+    d.rect(199,112,257,160,'legend-box','FRAME')
+    d.text(204,149,'LEGEND',3.8,'legend-heading')
+    d.circle(208,137,3,'legend-chamber','DETAIL')
+    d.text(216,135,'INSPECTION CHAMBER',2.5,'legend-chamber-label')
+    d.line(204,124,214,124,'legend-pipe','DETAIL')
+    d.text(216,122,'GRAVITY PIPE',2.5,'legend-pipe-label')
+    d.text(199,99,'NOTES',3.3,'notes-heading')
+    d.text(199,92,'01  Flow arrows follow pipe fall.',2.4,'notes-1')
+    d.text(199,86,'02  Coordinates are illustrative.',2.4,'notes-2')
+    d.text(199,80,'03  Verify levels on site.',2.4,'notes-3')
+    d.text(20,39,'FLOW SCHEMATIC - CHAMBER LOCATIONS ILLUSTRATIVE',2.5,'schematic-note')
+  })
+  return finish(document, sdk, 'drainage-network', 'Site drainage network', 'civil', { chamberCount: 6, pipeCount: 5, illustrative: true })
+}

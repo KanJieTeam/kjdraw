@@ -5,6 +5,7 @@ import {
   cross2,
   distance2,
   dot2,
+  ellipseArcLength2,
   intersectCircleCircle2,
   intersectLineCircle2,
   intersectLineLine2,
@@ -21,6 +22,7 @@ import type { ArcDefinition, LineDomain, Point2, Point2Input, Point3 } from './g
 import type { KJObjectPayload } from './schema.js'
 import { clone, normalizeName } from './utils.js'
 import type { ReadonlyDeep } from './utils.js'
+import { breakNativeSplinePayloads, trimNativeSplinePayloads } from './geometry/native-spline-edit.js'
 
 const TURN = Math.PI * 2
 
@@ -40,6 +42,15 @@ export interface KJBreakOptions {
   readonly secondPoint?: unknown
   readonly points?: readonly unknown[]
   readonly tolerance?: unknown
+  /** SPLINE only: parameter(s) in its native knot domain. */
+  readonly parameter?: unknown
+  readonly parameters?: unknown
+}
+
+export interface KJSplineTrimOptions {
+  readonly tolerance?: unknown
+  /** SPLINE only: native knot-domain pick parameter for ambiguous points. */
+  readonly pickParameter?: unknown
 }
 
 export interface KJLinePairOptions {
@@ -492,6 +503,8 @@ function arcParameter(payload: KJObjectPayload, point: unknown): number {
 
 export function breakEntityPayloads(entity: KJEditingEntity | null | undefined, options: KJBreakOptions = {}): KJDerivedEntityPayload[] {
   const payload = payloadOf(entity), type = normalizeName(entity?.type)
+  if (type === 'SPLINE') return breakNativeSplinePayloads(payload, options).map(result => ({ type, payload: result }))
+  if (options.parameter !== undefined || options.parameters !== undefined) throw new KJValidationError('Native parameter BREAK is supported only for SPLINE')
   const points = options.points ?? [options.firstPoint ?? options.point, options.secondPoint].filter(value => value != null)
   if (type === 'LINE') {
     const parameters = lineBreakParameters(payload, { ...options, points })
@@ -1023,8 +1036,10 @@ function rejectAmbiguousLineBoundaries(target: KJEditingEntity, boundaries: read
   }
 }
 
-/** Remove the picked interval from a line, polyline, circular curve or native ellipse. */
-export function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[] {
+/** Remove the picked interval from a line, polyline, circular curve, native ellipse or supported native spline. */
+export function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown, options: KJSplineTrimOptions = {}): KJDerivedEntityPayload[] {
+  if (target?.type === 'SPLINE') return trimNativeSplinePayloads(target.payload, boundaries, pickPoint, options).map(payload => ({ type: 'SPLINE', payload }))
+  if (options.pickParameter !== undefined || options.tolerance !== undefined) throw new KJValidationError('Native parameter/tolerance TRIM options are supported only for SPLINE')
   if (target?.type === 'LINE') {
     rejectAmbiguousLineBoundaries(target, boundaries, 'segment')
     return trimLinePayloads(target, boundaries, pickPoint).map(payload => ({ type: 'LINE', payload }))
@@ -1124,10 +1139,74 @@ function lengthenLinePayload(target: KJEditingEntity, options: KJLengthenOptions
   return payload
 }
 
-/** Change one endpoint while preserving a LINE direction or ARC radius and orientation. */
+function ellipsePointAtOffset(geometry: EllipseEditGeometry, offset: number): Point3 {
+  const parameter = geometry.start + offset, cosine = Math.cos(parameter), sine = Math.sin(parameter)
+  return [
+    geometry.center[0] + geometry.majorAxis[0] * cosine - geometry.majorAxis[1] * geometry.ratio * sine,
+    geometry.center[1] + geometry.majorAxis[1] * cosine + geometry.majorAxis[0] * geometry.ratio * sine,
+    geometry.center[2],
+  ]
+}
+
+function ellipseLengthBetween(geometry: EllipseEditGeometry, start: number, end: number): number {
+  return ellipseArcLength2({
+    majorAxis: geometry.majorAxis,
+    ratio: geometry.ratio,
+    startParameter: start,
+    endParameter: end,
+  })
+}
+
+function ellipseSpanForLength(geometry: EllipseEditGeometry, endpoint: 'start' | 'end', targetLength: number): number {
+  const fixedParameter = endpoint === 'end' ? geometry.start : geometry.start + geometry.span
+  const lengthAt = (span: number) => endpoint === 'end'
+    ? ellipseLengthBetween(geometry, fixedParameter, fixedParameter + span)
+    : ellipseLengthBetween(geometry, fixedParameter - span, fixedParameter)
+  const perimeter = lengthAt(TURN)
+  if (targetLength >= perimeter) throw new KJValidationError('Lengthened elliptical arc must remain less than a full ellipse')
+  let lower = 0, upper = TURN
+  for (let iteration = 0; iteration < 64; iteration += 1) {
+    const middle = (lower + upper) / 2
+    if (lengthAt(middle) < targetLength) lower = middle
+    else upper = middle
+  }
+  const span = (lower + upper) / 2
+  if (!(span > EDIT_ANGLE_EPSILON) || span >= TURN - EDIT_ANGLE_EPSILON) {
+    throw new KJValidationError('Lengthened elliptical arc must remain non-empty and less than a full ellipse')
+  }
+  return span
+}
+
+function lengthenEllipsePayload(target: KJEditingEntity, options: KJLengthenOptions): KJObjectPayload {
+  const geometry = ellipseEditGeometry(target)
+  if (geometry.full) throw new KJValidationError('Lengthen requires an open elliptical arc')
+  const startPoint = ellipsePointAtOffset(geometry, 0), endPoint = ellipsePointAtOffset(geometry, geometry.span)
+  const endpoint = lengthenEndpoint(options, startPoint, endPoint), mode = lengthenMode(options)
+  let targetSpan: number
+  if (mode === 'DYNAMIC') {
+    const unitPoint = ellipseUnitPoint(geometry, finiteEditPoint(options.targetPoint ?? options.point))
+    if (Math.hypot(unitPoint[0], unitPoint[1]) <= EDIT_PLANE_EPSILON) {
+      throw new KJValidationError('Dynamic ellipse lengthen point cannot be its center')
+    }
+    const offset = ellipseOffset(geometry, unitPoint)
+    targetSpan = endpoint === 'end' ? offset : positiveTurn(geometry.span - offset)
+    if (!(targetSpan > EDIT_ANGLE_EPSILON) || targetSpan >= TURN - EDIT_ANGLE_EPSILON) {
+      throw new KJValidationError('Lengthened elliptical arc must remain non-empty and less than a full ellipse')
+    }
+  } else {
+    const currentLength = ellipseLengthBetween(geometry, geometry.start, geometry.start + geometry.span)
+    targetSpan = ellipseSpanForLength(geometry, endpoint, numericLengthenTarget(currentLength, options, mode))
+  }
+  return endpoint === 'end'
+    ? ellipseResultPayload(geometry, 0, targetSpan)
+    : ellipseResultPayload(geometry, geometry.span - targetSpan, geometry.span)
+}
+
+/** Change one endpoint while preserving a LINE direction, ARC radius or ELLIPSE axes. */
 export function lengthenEntityPayload(target: KJEditingEntity | null | undefined, options: KJLengthenOptions = {}): KJObjectPayload {
   if (target?.type === 'LINE') return lengthenLinePayload(target, options)
-  if (target?.type !== 'ARC') throw new KJValidationError('Lengthen requires a LINE or ARC target')
+  if (target?.type === 'ELLIPSE') return lengthenEllipsePayload(target, options)
+  if (target?.type !== 'ARC') throw new KJValidationError('Lengthen requires a LINE, ARC or elliptical arc target')
   const geometry = circularEditGeometry(target)
   const startPoint = polar(geometry.center, geometry.radius, geometry.start)
   const endPoint = polar(geometry.center, geometry.radius, geometry.start + geometry.direction * geometry.span)
@@ -1549,6 +1628,22 @@ function setPolylineSegmentWidth(payload: KJObjectPayload, vertices: EditablePol
   return { ...payload, vertices }
 }
 
+/** Reverse segment direction while keeping each vertex's non-geometric metadata attached to its point. */
+function reversePolyline(payload: KJObjectPayload, vertices: EditablePolylineVertex[]): KJObjectPayload {
+  const closed = Boolean(payload.closed), count = vertices.length
+  const reversed = vertices.toReversed().map((vertex, index) => {
+    const originalSegment = closed ? (count - 2 - index + count) % count : count - 2 - index
+    const segment = originalSegment >= 0 ? vertices[originalSegment]! : vertices[count - 1]!
+    return {
+      ...vertex,
+      bulge: originalSegment >= 0 && segment.bulge !== 0 ? -segment.bulge : segment.bulge,
+      startWidth: originalSegment >= 0 ? segment.endWidth : segment.startWidth,
+      endWidth: originalSegment >= 0 ? segment.startWidth : segment.endWidth,
+    }
+  })
+  return { ...payload, vertices: reversed }
+}
+
 /** Edit one polyline topology element without replacing the entity identity. */
 export function editPolylinePayload(target: KJEditingEntity | null | undefined, options: KJPolylineEditOptions = {}): KJObjectPayload {
   const type = normalizeName(target?.type)
@@ -1560,7 +1655,8 @@ export function editPolylinePayload(target: KJEditingEntity | null | undefined, 
   if (operation === 'DELETE') return deletePolylineVertex(payload, vertices, options)
   if (operation === 'SET_BULGE' || operation === 'ARC') return setPolylineSegmentBulge(payload, vertices, options)
   if (operation === 'SET_WIDTH' || operation === 'WIDTH') return setPolylineSegmentWidth(payload, vertices, options)
-  throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE or SET_WIDTH')
+  if (operation === 'REVERSE') return reversePolyline(payload, vertices)
+  throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE, SET_WIDTH or REVERSE')
 }
 
 /** Resolve a pointer-based PEDIT pick to the stable topology index used for association migration. */
@@ -1579,7 +1675,8 @@ export function resolvePolylineEditLocation(target: KJEditingEntity | null | und
   if (operation === 'DELETE') return { vertexIndex: options.vertexIndex == null
     ? pickedPolylineVertex(vertices, options.point, polylineEditTolerance(options.tolerance))
     : polylineEditIndex(options.vertexIndex, 'PEDIT vertexIndex', vertices.length) }
-  throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE or SET_WIDTH')
+  if (operation === 'REVERSE') return {}
+  throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE, SET_WIDTH or REVERSE')
 }
 
 interface SelectedRay {

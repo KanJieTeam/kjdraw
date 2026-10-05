@@ -20,42 +20,108 @@ export interface KJAgentModel {
 export interface KJModelConversationOptions {
   readonly instructions: string
   readonly tools: readonly KJAgentToolDefinition[]
-  /** Visible text fragments from a configured streaming Chat Completions response. Observer failures are isolated. */
+  /** Visible text fragments from a configured streaming response. Observer failures are isolated. */
   readonly onTextDelta?: (delta: string) => void
   /** One observation per completed model turn, even when response parsing later fails. Exceptions are isolated. */
   readonly onUsage?: (usage: KJModelUsage) => void
+  /** Host may append exactly one prompt after a successful text-only turn. Defaults to false; never resumes after transport/protocol failure or while tool results are pending. */
+  readonly allowTextContinuation?: boolean
 }
 export interface KJModelRequest {
   readonly protocol: KJModelProtocol
   readonly model: string
   /** REST JSON body. Gemini's model belongs in the URL, not this body. */
   readonly body: Readonly<Record<string, unknown>>
+  /** Select a streaming transport operation. Gemini hosts use this to choose streamGenerateContent because its request body is unchanged. */
+  readonly streaming: boolean
   readonly signal: AbortSignal
+}
+/** Bounded OpenAI-compatible request fields used by domestic model profiles. Reserved CAD/tool fields cannot be overridden. */
+export interface KJChatRequestExtensions {
+  /** Explicit host opt-in for compatible providers. Valid JSON is not evidence of answer correctness. */
+  readonly response_format?: { readonly type: 'json_object' }
+  readonly thinking?: { readonly type: 'enabled' | 'disabled'; readonly keep?: 'all' | null }
+  readonly reasoning_effort?: 'low' | 'high' | 'max'
+  readonly enable_thinking?: boolean
+  readonly tool_choice?: 'auto' | 'none' | 'required'
+  readonly parallel_tool_calls?: boolean
+  readonly prompt_cache_key?: string
+  readonly safety_identifier?: string
 }
 export interface KJModelAdapterOptions {
   protocol: KJModelProtocol
   model: string
-  /** Trusted host transport owns credentials, endpoint allowlisting and HTTP errors; return parsed JSON or parsed JSON chunks for configured Chat streaming. */
+  /** Trusted host transport owns credentials, endpoint allowlisting and HTTP errors; return parsed JSON or parsed JSON events for configured streaming. */
   request: (request: KJModelRequest) => Promise<unknown | AsyncIterable<unknown>>
   maxOutputTokens?: number
   /** Compatible endpoints differ; choose the field accepted by the selected model. */
   chatTokenParameter?: 'max_tokens' | 'max_completion_tokens'
+  /** Strictly allowlisted provider fields. Model, messages, tools, token limits and streaming remain adapter-owned. */
+  chatRequestExtensions?: KJChatRequestExtensions
   /** Request and strictly assemble Chat Completions deltas. The transport parses SSE and yields each JSON data object. */
   chatStreaming?: boolean
+  /** Request and strictly assemble Responses API events. The transport parses SSE and yields each JSON data object. */
+  responsesStreaming?: boolean
+  /** Request and strictly assemble Anthropic Messages events. The transport parses SSE and yields each JSON data object. */
+  anthropicStreaming?: boolean
+  /** Strictly assemble Gemini streamGenerateContent responses. The host transport selects the streaming endpoint. */
+  geminiStreaming?: boolean
   /** Ask compatible endpoints for a final usage chunk; keep disabled for endpoints that reject stream_options. */
   chatStreamIncludeUsage?: boolean
   /** Send tool_stream=true for compatible endpoints that require it for incremental tool arguments. */
   chatStreamToolCalls?: boolean
+  /** Maximum JSON bytes for a complete logical response and for each parsed streaming event. */
   maxResponseBytes?: number
+  /** Independent aggregate UTF-8 JSON budget for parsed streaming event envelopes; defaults to 8 MiB and cannot exceed 8 MiB. The host transport must separately bound raw SSE framing. */
+  maxStreamBytes?: number
+  /** Maximum parsed events or chunks accepted for one streamed response. */
+  maxStreamEvents?: number
   maxHistoryBytes?: number
+  /** Opt-in wire-only reuse of byte-identical successful read receipts with identical arguments in this conversation. The first complete receipt and all host tool outputs are retained. Never deduplicates proposals, errors or changed read results. */
+  reuseReadResultReferences?: boolean
+  /** Adapter-wide visible text observer, including runs created through runKJAgentTask. Exceptions are isolated. */
+  onTextDelta?: (delta: string) => void
   /** Host-only observer; contains counters and timing, never response text or credentials. Exceptions are isolated. */
   onUsage?: (usage: KJModelUsage) => void
 }
+/** Safe budget diagnostics. Does not contain model text, drawing data or transport credentials. */
+export interface KJModelSizeLimitDetails {
+  readonly phase: 'request-extensions' | 'tool-schema' | 'request' | 'response' | 'stream' | 'image'
+  readonly actualBytes: number
+  readonly maxBytes: number
+}
 export class KJModelError extends KJDrawError {
-  constructor(code: string, message: string) { super(message, { code }) }
+  constructor(code: string, message: string, details?: KJModelSizeLimitDetails) { super(message, { code, details }) }
 }
 
 function invalid(message: string): never { throw new KJModelError('KJMODEL_PROTOCOL', message) }
+const CHAT_EXTENSION_KEYS = new Set(['response_format', 'thinking', 'reasoning_effort', 'enable_thinking', 'tool_choice', 'parallel_tool_calls', 'prompt_cache_key', 'safety_identifier'])
+function chatExtensions(value: KJChatRequestExtensions | undefined): Readonly<Record<string, unknown>> {
+  if (value === undefined) return Object.freeze({})
+  if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Chat request extensions must be an object')
+  const input = value as Record<string, unknown>
+  if (Object.keys(input).some(key => !CHAT_EXTENSION_KEYS.has(key))) invalid('Unsupported or reserved Chat request extension')
+  if (Object.hasOwn(input, 'response_format')) {
+    const descriptor = Object.getOwnPropertyDescriptor(input, 'response_format')
+    if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) invalid('Chat response format must be an enumerable data property')
+    const format: unknown = descriptor.value
+    if (!format || typeof format !== 'object' || Array.isArray(format) ||
+      ![Object.prototype, null].includes(Object.getPrototypeOf(format)) ||
+      Reflect.ownKeys(format).length !== 1 || !Object.hasOwn(format, 'type')) invalid('Unsupported Chat response format')
+    const type = Object.getOwnPropertyDescriptor(format, 'type')
+    if (!type || !Object.hasOwn(type, 'value') || !type.enumerable || type.value !== 'json_object') invalid('Unsupported Chat response format')
+  }
+  if (input.thinking !== undefined) {
+    if (!input.thinking || typeof input.thinking !== 'object' || Array.isArray(input.thinking)) invalid('Invalid Chat thinking configuration')
+    const thinking = input.thinking as Record<string, unknown>
+    if (Object.keys(thinking).some(key => !['type', 'keep'].includes(key)) || !['enabled', 'disabled'].includes(String(thinking.type)) || thinking.keep !== undefined && thinking.keep !== null && thinking.keep !== 'all') invalid('Invalid Chat thinking configuration')
+  }
+  if (input.reasoning_effort !== undefined && !['low', 'high', 'max'].includes(String(input.reasoning_effort))) invalid('Invalid Chat reasoning effort')
+  for (const key of ['enable_thinking', 'parallel_tool_calls']) if (input[key] !== undefined && typeof input[key] !== 'boolean') invalid(`Invalid Chat ${key} option`)
+  if (input.tool_choice !== undefined && !['auto', 'none', 'required'].includes(String(input.tool_choice))) invalid('Invalid Chat tool choice')
+  for (const key of ['prompt_cache_key', 'safety_identifier']) if (input[key] !== undefined && (typeof input[key] !== 'string' || !(input[key] as string).trim() || (input[key] as string).length > 256)) invalid(`Invalid Chat ${key} option`)
+  return deepFreeze(jsonCopy(input, 8192, 'request-extensions'))
+}
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Expected a JSON object from the model transport')
   return value as Record<string, unknown>
@@ -72,9 +138,11 @@ function jsonArguments(value: unknown): unknown {
   if (typeof value !== 'string') invalid('Tool arguments must be a JSON string')
   try { return JSON.parse(value) } catch { return null } // Runtime schema validation returns an actionable tool error.
 }
-function jsonCopy<T>(value: T, budget: number): T {
+function jsonCopy<T>(value: T, budget: number, phase: KJModelSizeLimitDetails['phase']): T {
   const serialized = JSON.stringify(value)
-  if (!serialized || new TextEncoder().encode(serialized).length > budget) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model response or conversation exceeds its configured JSON byte limit')
+  if (!serialized) invalid('Model payload must be JSON serializable')
+  const actualBytes = new TextEncoder().encode(serialized).length
+  if (actualBytes > budget) throw new KJModelError('KJMODEL_SIZE_LIMIT', `Model ${phase} exceeds its configured JSON byte limit`, { phase, actualBytes, maxBytes: budget })
   return JSON.parse(serialized) as T
 }
 const IMAGE_BYTES = 1048576
@@ -181,7 +249,7 @@ function imagesForPrompt(input: KJModelInput): { mimeType: string; base64: strin
     if (!['image/png', 'image/jpeg'].includes(mimeType as string) || typeof base64 !== 'string' || !base64.length || base64.length > 1398104 || base64.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64)) invalid('Invalid PNG/JPEG base64 attachment')
     let binary: string
     try { binary = atob(base64) } catch { return invalid('Invalid image base64 encoding') }
-    if (binary.length > IMAGE_BYTES) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Each image attachment is limited to 1 MiB of decoded bytes')
+    if (binary.length > IMAGE_BYTES) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Each image attachment is limited to 1 MiB of decoded bytes', { phase: 'image', actualBytes: binary.length, maxBytes: IMAGE_BYTES })
     if (btoa(binary) !== base64) invalid('Image attachment requires canonical base64 encoding')
     imageContainer(Uint8Array.from(binary, char => char.charCodeAt(0)), mimeType as string)
     output.push({ mimeType: mimeType as string, base64, dataUrl: `data:${mimeType};base64,${base64}` })
@@ -203,18 +271,115 @@ function notifyText(observer: ((delta: string) => void) | undefined, delta: stri
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
   return !!value && typeof value === 'object' && typeof (value as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === 'function'
 }
-async function assembleChatStream(source: unknown, maximumBytes: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
+function streamIndex(value: unknown, label: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) invalid(`Streaming ${label} must be a non-negative integer`)
+  return value as number
+}
+interface StreamBudget { bytes: number; events: number; readonly maximumBytes: number; readonly maximumEventBytes: number; readonly maximumEvents: number }
+function streamRecord(value: unknown, label: string, budget: StreamBudget): Record<string, unknown> {
+  if (++budget.events > budget.maximumEvents) throw new KJModelError('KJMODEL_SIZE_LIMIT', `Streaming ${label} exceeds its configured event limit`)
+  const serialized = JSON.stringify(value)
+  if (!serialized) invalid(`Streaming ${label} must be JSON serializable`)
+  const eventBytes = new TextEncoder().encode(serialized).length
+  if (eventBytes > budget.maximumEventBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model stream event exceeds its configured JSON byte limit', { phase: 'stream', actualBytes: eventBytes, maxBytes: budget.maximumEventBytes })
+  budget.bytes += eventBytes
+  if (budget.bytes > budget.maximumBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model stream envelopes exceed their configured JSON byte limit', { phase: 'stream', actualBytes: budget.bytes, maxBytes: budget.maximumBytes })
+  return record(JSON.parse(serialized) as unknown)
+}
+async function * streamValues(source: AsyncIterable<unknown>, signal: AbortSignal): AsyncGenerator<unknown> {
+  const iterator = source[Symbol.asyncIterator]()
+  let complete = false
+  try {
+    while (true) {
+      signal.throwIfAborted()
+      let rejectAbort: ((reason: unknown) => void) | undefined
+      const abort = new Promise<never>((_, reject) => { rejectAbort = reject })
+      const onAbort = () => { try { signal.throwIfAborted() } catch (error) { rejectAbort?.(error) } }
+      signal.addEventListener('abort', onAbort, { once: true })
+      let result: IteratorResult<unknown>
+      try { result = await Promise.race([Promise.resolve().then(() => iterator.next()), abort]) as IteratorResult<unknown> }
+      finally { signal.removeEventListener('abort', onAbort) }
+      if (result.done) { complete = true; return }
+      yield result.value
+    }
+  } finally {
+    if (!complete && typeof iterator.return === 'function') {
+      try { void Promise.resolve(iterator.return()).catch(() => {}) } catch { /* Cancellation must not wait for a broken transport iterator. */ }
+    }
+  }
+}
+async function assembleResponsesStream(source: unknown, maximumEventBytes: number, maximumBytes: number, maximumEvents: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
+  if (!isAsyncIterable(source)) invalid('Streaming Responses transport must return an async iterable of parsed JSON events')
+  const texts = new Map<string, { itemId: string; outputIndex: number; contentIndex: number; text: string; done: boolean }>()
+  const calls = new Map<string, { itemId: string; outputIndex: number; arguments: string; name?: string; done: boolean }>()
+  const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEventBytes, maximumEvents }
+  let sequence = -1, terminal: Record<string, unknown> | undefined
+  for await (const rawEvent of streamValues(source, signal)) {
+    signal.throwIfAborted()
+    const event = streamRecord(rawEvent, 'Responses event', budget), type = event.type
+    if (typeof type !== 'string') invalid('Streaming Responses event requires a type')
+    const nextSequence = streamIndex(event.sequence_number, 'sequence number')
+    if (nextSequence <= sequence) invalid('Streaming Responses sequence numbers must increase')
+    sequence = nextSequence
+    if (terminal) invalid('Streaming Responses terminal event must be last')
+    if (type === 'response.output_text.delta') {
+      const itemId = identifier(event.item_id), outputIndex = streamIndex(event.output_index, 'output index'), contentIndex = streamIndex(event.content_index, 'content index')
+      if (typeof event.delta !== 'string') invalid('Streaming Responses text delta must be a string')
+      const key = `${itemId}:${contentIndex}`, current = texts.get(key) ?? { itemId, outputIndex, contentIndex, text: '', done: false }
+      if (current.outputIndex !== outputIndex || current.done) invalid('Streaming Responses text delta changed identity or followed done')
+      current.text += event.delta; texts.set(key, current); notifyText(onTextDelta, event.delta)
+    } else if (type === 'response.output_text.done') {
+      const itemId = identifier(event.item_id), outputIndex = streamIndex(event.output_index, 'output index'), contentIndex = streamIndex(event.content_index, 'content index')
+      if (typeof event.text !== 'string') invalid('Streaming Responses final text must be a string')
+      const key = `${itemId}:${contentIndex}`, current = texts.get(key) ?? { itemId, outputIndex, contentIndex, text: '', done: false }
+      if (current.outputIndex !== outputIndex || current.done || current.text !== event.text) invalid('Streaming Responses final text does not match its deltas')
+      current.done = true; texts.set(key, current)
+    } else if (type === 'response.function_call_arguments.delta') {
+      const itemId = identifier(event.item_id), outputIndex = streamIndex(event.output_index, 'output index')
+      if (typeof event.delta !== 'string') invalid('Streaming Responses function arguments delta must be a string')
+      const current = calls.get(itemId) ?? { itemId, outputIndex, arguments: '', done: false }
+      if (current.outputIndex !== outputIndex || current.done) invalid('Streaming Responses function delta changed identity or followed done')
+      current.arguments += event.delta; calls.set(itemId, current)
+    } else if (type === 'response.function_call_arguments.done') {
+      const itemId = identifier(event.item_id), outputIndex = streamIndex(event.output_index, 'output index'), name = identifier(event.name)
+      if (typeof event.arguments !== 'string') invalid('Streaming Responses final function arguments must be a string')
+      const current = calls.get(itemId) ?? { itemId, outputIndex, arguments: '', done: false }
+      if (current.outputIndex !== outputIndex || current.done || current.arguments !== event.arguments) invalid('Streaming Responses final function arguments do not match their deltas')
+      current.name = name; current.done = true; calls.set(itemId, current)
+    } else if (['response.completed', 'response.incomplete', 'response.failed'].includes(type)) {
+      terminal = record(event.response)
+      const expected = type.slice('response.'.length)
+      if (terminal.status !== expected) invalid('Streaming Responses terminal type and status disagree')
+    } else if (type === 'response.refusal.delta' || type === 'response.refusal.done') {
+      throw new KJModelError('KJMODEL_REFUSED', 'The model refused this request')
+    } else if (type === 'error') {
+      throw new KJModelError('KJMODEL_INCOMPLETE', 'Responses stream failed; no tool calls were dispatched')
+    } else if (!['response.created', 'response.in_progress', 'response.output_item.added', 'response.content_part.added', 'response.content_part.done', 'response.output_item.done'].includes(type) && !type.startsWith('response.reasoning_')) invalid('Unsupported Responses streaming event')
+  }
+  if (!budget.events || !terminal) invalid('Streaming Responses response ended without a terminal event')
+  const output = array(terminal.output)
+  for (const current of texts.values()) {
+    if (!current.done) invalid('Streaming Responses text ended before done')
+    const item = record(output[current.outputIndex])
+    if (item.id !== current.itemId || item.type !== 'message') invalid('Streaming Responses final text item changed identity')
+    const part = record(array(item.content)[current.contentIndex])
+    if (part.type !== 'output_text' || part.text !== current.text) invalid('Streaming Responses final response text does not match deltas')
+  }
+  for (const current of calls.values()) {
+    if (!current.done) invalid('Streaming Responses function arguments ended before done')
+    const item = record(output[current.outputIndex])
+    if (item.id !== current.itemId || item.type !== 'function_call' || item.name !== current.name || item.arguments !== current.arguments) invalid('Streaming Responses final function call does not match deltas')
+  }
+  return terminal
+}
+async function assembleChatStream(source: unknown, maximumEventBytes: number, maximumBytes: number, maximumEvents: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
   if (!isAsyncIterable(source)) invalid('Streaming Chat transport must return an async iterable of parsed JSON chunks')
   const tools = new Map<number, { id?: string; type?: string; name: string; arguments: string }>()
-  let bytes = 0, text = '', reasoning = '', finishReason: unknown = null, usage: unknown, chunks = 0
-  for await (const rawChunk of source) {
+  const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEventBytes, maximumEvents }
+  let text = '', reasoning = '', encryptedContent: string | undefined, finishReason: unknown = null, usage: unknown
+  for await (const rawChunk of streamValues(source, signal)) {
     signal.throwIfAborted()
-    const serialized = JSON.stringify(rawChunk)
-    if (!serialized) invalid('Streaming Chat chunk must be JSON serializable')
-    bytes += new TextEncoder().encode(serialized).length
-    if (bytes > maximumBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model response or conversation exceeds its configured JSON byte limit')
-    const chunk = record(JSON.parse(serialized) as unknown)
-    chunks++
+    const chunk = streamRecord(rawChunk, 'Chat chunk', budget)
     if (Object.prototype.hasOwnProperty.call(chunk, 'usage') && chunk.usage !== null) {
       if (usage !== undefined) invalid('Streaming Chat response contains duplicate usage chunks')
       usage = chunk.usage
@@ -242,6 +407,10 @@ async function assembleChatStream(source: unknown, maximumBytes: number, signal:
     if (delta.reasoning_content !== undefined && delta.reasoning_content !== null) {
       if (typeof delta.reasoning_content !== 'string') invalid('Invalid streaming reasoning content')
       reasoning += delta.reasoning_content
+    }
+    if (delta.encrypted_content !== undefined && delta.encrypted_content !== null) {
+      if (typeof delta.encrypted_content !== 'string' || !delta.encrypted_content || encryptedContent !== undefined) invalid('Invalid or repeated streaming encrypted reasoning content')
+      encryptedContent = delta.encrypted_content
     }
     if (delta.tool_calls !== undefined && delta.tool_calls !== null) {
       for (const rawTool of array(delta.tool_calls)) {
@@ -275,7 +444,7 @@ async function assembleChatStream(source: unknown, maximumBytes: number, signal:
     if (choice.finish_reason !== undefined && choice.finish_reason !== null) finishReason = choice.finish_reason
   }
   signal.throwIfAborted()
-  if (!chunks || !['stop', 'tool_calls'].includes(String(finishReason))) throw new KJModelError('KJMODEL_INCOMPLETE', 'Streaming Chat response is truncated, blocked or incomplete')
+  if (!budget.events || typeof finishReason !== 'string' || !finishReason) throw new KJModelError('KJMODEL_INCOMPLETE', 'Streaming Chat response ended without a finish reason')
   const indexes = [...tools.keys()].sort((left, right) => left - right)
   if (indexes.some((value, index) => value !== index)) invalid('Streaming tool-call indexes must be contiguous')
   const toolCalls = indexes.map(index => {
@@ -286,37 +455,197 @@ async function assembleChatStream(source: unknown, maximumBytes: number, signal:
   if (finishReason === 'tool_calls' && !toolCalls.length) invalid('Chat finish reason requires tool calls')
   const message: Record<string, unknown> = { role: 'assistant', content: text || null, tool_calls: toolCalls }
   if (reasoning) message.reasoning_content = reasoning
+  if (encryptedContent !== undefined) message.encrypted_content = encryptedContent
   return { choices: [{ index: 0, finish_reason: finishReason, message }], ...(usage === undefined ? {} : { usage }) }
+}
+
+type AnthropicBlock =
+  | { type: 'text'; text: string; done: boolean }
+  | { type: 'tool_use'; id: string; name: string; initialInput: Record<string, unknown>; arguments: string; done: boolean }
+  | { type: 'thinking'; thinking: string; signature?: string; done: boolean }
+  | { type: 'redacted_thinking'; data: string; done: boolean }
+async function assembleAnthropicStream(source: unknown, maximumEventBytes: number, maximumBytes: number, maximumEvents: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
+  if (!isAsyncIterable(source)) invalid('Streaming Anthropic transport must return an async iterable of parsed JSON events')
+  const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEventBytes, maximumEvents }, blocks = new Map<number, AnthropicBlock>()
+  let message: Record<string, unknown> | undefined, stopReason: unknown, stopSequence: unknown = null, finalUsage: Record<string, unknown> | undefined
+  let messageDeltas = 0, stopped = false
+  for await (const rawEvent of streamValues(source, signal)) {
+    signal.throwIfAborted()
+    const event = streamRecord(rawEvent, 'Anthropic event', budget), type = event.type
+    if (typeof type !== 'string') invalid('Streaming Anthropic event requires a type')
+    if (stopped) invalid('Streaming Anthropic message_stop must be last')
+    if (type === 'ping') continue
+    if (type === 'error') throw new KJModelError('KJMODEL_INCOMPLETE', 'Anthropic stream failed; no tool calls were dispatched')
+    if (type === 'message_start') {
+      if (message || blocks.size || messageDeltas) invalid('Streaming Anthropic response contains duplicate or late message_start')
+      message = record(event.message)
+      if (message.role !== 'assistant' || array(message.content).length || message.stop_reason !== null && message.stop_reason !== undefined) invalid('Streaming Anthropic message_start is invalid')
+    } else if (type === 'content_block_start') {
+      if (!message || messageDeltas) invalid('Streaming Anthropic content block started outside a message')
+      const index = streamIndex(event.index, 'content block index')
+      if (index > 31 || blocks.has(index)) invalid('Streaming Anthropic content block index is duplicate or too large')
+      const block = record(event.content_block)
+      if (block.type === 'text') {
+        if (typeof block.text !== 'string') invalid('Streaming Anthropic text block requires initial text')
+        blocks.set(index, { type: 'text', text: block.text, done: false })
+        notifyText(onTextDelta, block.text)
+      } else if (block.type === 'tool_use') {
+        const input = record(block.input)
+        blocks.set(index, { type: 'tool_use', id: identifier(block.id), name: identifier(block.name), initialInput: input, arguments: '', done: false })
+      } else if (block.type === 'thinking') {
+        if (typeof block.thinking !== 'string') invalid('Streaming Anthropic thinking block requires initial text')
+        blocks.set(index, { type: 'thinking', thinking: block.thinking, ...(typeof block.signature === 'string' ? { signature: block.signature } : {}), done: false })
+      } else if (block.type === 'redacted_thinking') {
+        if (typeof block.data !== 'string') invalid('Streaming Anthropic redacted thinking block requires data')
+        blocks.set(index, { type: 'redacted_thinking', data: block.data, done: false })
+      } else invalid('Unsupported streaming Anthropic content block')
+    } else if (type === 'content_block_delta') {
+      if (!message || messageDeltas) invalid('Streaming Anthropic content delta occurred outside content')
+      const index = streamIndex(event.index, 'content block index'), block = blocks.get(index), delta = record(event.delta)
+      if (!block || block.done) invalid('Streaming Anthropic content delta requires an open block')
+      if (delta.type === 'text_delta' && block.type === 'text') {
+        if (typeof delta.text !== 'string') invalid('Streaming Anthropic text delta must be a string')
+        block.text += delta.text; notifyText(onTextDelta, delta.text)
+      } else if (delta.type === 'input_json_delta' && block.type === 'tool_use') {
+        if (typeof delta.partial_json !== 'string') invalid('Streaming Anthropic tool arguments delta must be a string')
+        block.arguments += delta.partial_json
+      } else if (delta.type === 'thinking_delta' && block.type === 'thinking') {
+        if (typeof delta.thinking !== 'string') invalid('Streaming Anthropic thinking delta must be a string')
+        block.thinking += delta.thinking
+      } else if (delta.type === 'signature_delta' && block.type === 'thinking') {
+        if (typeof delta.signature !== 'string' || block.signature !== undefined) invalid('Streaming Anthropic signature delta is invalid or duplicate')
+        block.signature = delta.signature
+      } else invalid('Streaming Anthropic delta does not match its content block')
+    } else if (type === 'content_block_stop') {
+      if (!message || messageDeltas) invalid('Streaming Anthropic content block stopped outside content')
+      const index = streamIndex(event.index, 'content block index'), block = blocks.get(index)
+      if (!block || block.done) invalid('Streaming Anthropic content block stop requires an open block')
+      block.done = true
+    } else if (type === 'message_delta') {
+      if (!message || [...blocks.values()].some(block => !block.done)) invalid('Streaming Anthropic message_delta requires completed content blocks')
+      const delta = record(event.delta)
+      if (delta.stop_reason !== undefined && delta.stop_reason !== null) stopReason = delta.stop_reason
+      if (delta.stop_sequence !== undefined) stopSequence = delta.stop_sequence
+      finalUsage = { ...(finalUsage ?? {}), ...record(event.usage) }; messageDeltas++
+    } else if (type === 'message_stop') {
+      if (!message || !messageDeltas || typeof stopReason !== 'string' || !stopReason) throw new KJModelError('KJMODEL_INCOMPLETE', 'Streaming Anthropic response ended without a stop reason')
+      stopped = true
+    } else invalid('Unsupported Anthropic streaming event')
+  }
+  signal.throwIfAborted()
+  if (!stopped || !message || !messageDeltas) invalid('Streaming Anthropic response ended without message_stop')
+  const indexes = [...blocks.keys()].sort((left, right) => left - right)
+  if (indexes.some((value, index) => value !== index)) invalid('Streaming Anthropic content block indexes must be contiguous')
+  const content = indexes.map(index => {
+    const block = blocks.get(index)!
+    if (!block.done) invalid('Streaming Anthropic content block ended before stop')
+    if (block.type === 'tool_use') {
+      let input: unknown = block.initialInput
+      if (block.arguments) { try { input = JSON.parse(block.arguments) } catch { invalid('Streaming Anthropic tool arguments are not complete JSON') } }
+      if (!input || typeof input !== 'object' || Array.isArray(input)) invalid('Streaming Anthropic tool arguments must be a JSON object')
+      return { type: block.type, id: block.id, name: block.name, input }
+    }
+    if (block.type === 'thinking') {
+      if (block.signature === undefined) invalid('Streaming Anthropic thinking block is missing its signature')
+      return { type: block.type, thinking: block.thinking, signature: block.signature }
+    }
+    if (block.type === 'redacted_thinking') return { type: block.type, data: block.data }
+    return { type: block.type, text: block.text }
+  })
+  const startUsage = message.usage === undefined ? {} : record(message.usage)
+  return { ...message, role: 'assistant', content, stop_reason: stopReason, stop_sequence: stopSequence, usage: { ...startUsage, ...finalUsage } }
+}
+
+async function assembleGeminiStream(source: unknown, maximumEventBytes: number, maximumBytes: number, maximumEvents: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
+  if (!isAsyncIterable(source)) invalid('Streaming Gemini transport must return an async iterable of parsed JSON responses')
+  const budget: StreamBudget = { bytes: 0, events: 0, maximumBytes, maximumEventBytes, maximumEvents }, parts: Record<string, unknown>[] = []
+  let finishReason: unknown, usageMetadata: unknown, modelVersion: unknown, responseId: unknown
+  for await (const rawChunk of streamValues(source, signal)) {
+    signal.throwIfAborted()
+    const chunk = streamRecord(rawChunk, 'Gemini chunk', budget)
+    if (finishReason !== undefined) invalid('Streaming Gemini emitted chunks after its finish reason')
+    if (chunk.usageMetadata !== undefined) usageMetadata = record(chunk.usageMetadata)
+    if (chunk.modelVersion !== undefined) { if (typeof chunk.modelVersion !== 'string') invalid('Streaming Gemini modelVersion must be a string'); modelVersion = chunk.modelVersion }
+    if (chunk.responseId !== undefined) { if (typeof chunk.responseId !== 'string') invalid('Streaming Gemini responseId must be a string'); responseId = chunk.responseId }
+    const candidates = array(chunk.candidates ?? [])
+    if (!candidates.length) continue
+    if (candidates.length !== 1) invalid('Expected exactly one streaming Gemini candidate')
+    const candidate = record(candidates[0])
+    if (candidate.index !== undefined && candidate.index !== 0) invalid('Streaming Gemini candidate index must be zero')
+    if (candidate.content !== undefined) {
+      const content = record(candidate.content)
+      if (content.role !== undefined && content.role !== 'model') invalid('Expected streaming Gemini model content')
+      for (const rawPart of array(content.parts)) {
+        const part = record(rawPart)
+        if (part.functionCall !== undefined) {
+          const call = record(part.functionCall)
+          identifier(call.name)
+          const args = call.args ?? {}
+          if (!args || typeof args !== 'object' || Array.isArray(args)) invalid('Streaming Gemini function arguments must be a JSON object')
+          if (call.id !== undefined) identifier(call.id)
+          parts.push(part)
+        } else if (typeof part.text === 'string') {
+          if (part.thought !== undefined && part.thought !== true && part.thought !== false) invalid('Streaming Gemini thought marker must be boolean')
+          if (part.thoughtSignature !== undefined && typeof part.thoughtSignature !== 'string') invalid('Streaming Gemini thought signature must be a string')
+          parts.push(part)
+          if (part.thought !== true) notifyText(onTextDelta, part.text)
+        } else invalid('Unsupported streaming Gemini part')
+      }
+    }
+    if (candidate.finishReason !== undefined) finishReason = candidate.finishReason
+  }
+  signal.throwIfAborted()
+  if (!budget.events || typeof finishReason !== 'string' || !finishReason) throw new KJModelError('KJMODEL_INCOMPLETE', 'Streaming Gemini response ended without a finish reason')
+  if (!parts.length) invalid('Streaming Gemini response returned no content')
+  return { candidates: [{ index: 0, finishReason, content: { role: 'model', parts } }], ...(usageMetadata === undefined ? {} : { usageMetadata }), ...(modelVersion === undefined ? {} : { modelVersion }), ...(responseId === undefined ? {} : { responseId }) }
 }
 
 /** Four wire formats, one CAD tool schema. This adapter never fetches, approves edits or selects a model. */
 export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentModel {
-  const { protocol, request, onUsage: adapterUsage } = options
+  const { protocol, request, onTextDelta: adapterText, onUsage: adapterUsage } = options
   if (!['responses', 'chat-completions', 'anthropic-messages', 'gemini-generate-content'].includes(protocol) || typeof request !== 'function') invalid('Choose an explicit protocol and host transport')
+  if (adapterText !== undefined && typeof adapterText !== 'function') invalid('onTextDelta must be a function')
   if (adapterUsage !== undefined && typeof adapterUsage !== 'function') invalid('onUsage must be a function')
   const model = identifier(options.model)
   const outputTokens = limit(options.maxOutputTokens, 4096, 131072)
   const chatTokenParameter = options.chatTokenParameter ?? 'max_tokens'
   if (!['max_tokens', 'max_completion_tokens'].includes(chatTokenParameter)) invalid('Unsupported chat token-limit field')
+  const requestExtensions = chatExtensions(options.chatRequestExtensions)
+  if (Object.keys(requestExtensions).length && protocol !== 'chat-completions') invalid('Chat request extensions require the Chat Completions protocol')
   const chatStreaming = options.chatStreaming ?? false
+  const responsesStreaming = options.responsesStreaming ?? false
+  const anthropicStreaming = options.anthropicStreaming ?? false
+  const geminiStreaming = options.geminiStreaming ?? false
   const chatStreamIncludeUsage = options.chatStreamIncludeUsage ?? false
   const chatStreamToolCalls = options.chatStreamToolCalls ?? false
-  if (typeof chatStreaming !== 'boolean' || typeof chatStreamIncludeUsage !== 'boolean' || typeof chatStreamToolCalls !== 'boolean' || (chatStreaming || chatStreamIncludeUsage || chatStreamToolCalls) && protocol !== 'chat-completions' || (chatStreamIncludeUsage || chatStreamToolCalls) && !chatStreaming) invalid('Chat streaming options require the Chat Completions protocol')
+  if (typeof chatStreaming !== 'boolean' || typeof responsesStreaming !== 'boolean' || typeof anthropicStreaming !== 'boolean' || typeof geminiStreaming !== 'boolean' || typeof chatStreamIncludeUsage !== 'boolean' || typeof chatStreamToolCalls !== 'boolean' || (chatStreaming || chatStreamIncludeUsage || chatStreamToolCalls) && protocol !== 'chat-completions' || responsesStreaming && protocol !== 'responses' || anthropicStreaming && protocol !== 'anthropic-messages' || geminiStreaming && protocol !== 'gemini-generate-content' || (chatStreamIncludeUsage || chatStreamToolCalls) && !chatStreaming) invalid('Streaming options require their matching model protocol')
   const responseBytes = limit(options.maxResponseBytes, 1048576, 16777216)
+  const streamBytes = limit(options.maxStreamBytes, 8388608, 8388608)
+  const streamEvents = limit(options.maxStreamEvents, 16384, 131072)
   const historyBytes = limit(options.maxHistoryBytes, 2097152, 16777216)
+  const reuseReadResultReferences = options.reuseReadResultReferences ?? false
+  if (typeof reuseReadResultReferences !== 'boolean') invalid('reuseReadResultReferences must be a boolean')
+  const streaming = chatStreaming || responsesStreaming || anthropicStreaming || geminiStreaming
   return Object.freeze({
-    createConversation({ instructions, tools, onTextDelta, onUsage }: KJModelConversationOptions): KJModelConversation {
+    createConversation({ instructions, tools, onTextDelta, onUsage, allowTextContinuation }: KJModelConversationOptions): KJModelConversation {
       if (onTextDelta !== undefined && typeof onTextDelta !== 'function') invalid('onTextDelta must be a function')
       if (onUsage !== undefined && typeof onUsage !== 'function') invalid('onUsage must be a function')
+      if (allowTextContinuation !== undefined && typeof allowTextContinuation !== 'boolean') invalid('allowTextContinuation must be a boolean')
       const definitions = tools.map(tool => ({ name: tool.name, description: tool.description, parameters: tool.inputSchema }))
-      const schema = jsonCopy(definitions, historyBytes)
+      const schema = jsonCopy(definitions, historyBytes, 'tool-schema')
+      const readTools = new Set(tools.filter(tool => tool.effect === 'read').map(tool => tool.name))
+      const readReceiptCalls = new Map<string, string>()
+      const callIdOccurrences = new Map<string, number>()
       const history: unknown[] = []
       let pending: readonly KJModelToolCall[] = []
+      let pendingChatInvalidIds = new Set<string>(), pendingChatHistoryIndex = -1, chatArgumentRecoveries = 0
       let started = false, busy = false, ended = false, turnNumber = 0
+      let textContinuationAvailable = false, textContinuations = 0
       const geminiIds = new Map<string, string>()
       return {
         async next(input: KJModelInput, signal: AbortSignal): Promise<KJModelTurn> {
-          if (busy || ended) invalid('Conversation is busy or has ended; start a fresh conversation')
+          const continueText = ended && textContinuationAvailable && allowTextContinuation === true && textContinuations === 0 && input.kind === 'prompt'
+          if (busy || ended && !continueText) invalid('Conversation is busy or has ended; start a fresh conversation')
           busy = true
           try {
             signal.throwIfAborted()
@@ -329,37 +658,104 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
               else if (protocol === 'responses') history.push({ role: 'user', content: [{ type: 'input_text', text: input.text }, ...images.map(image => ({ type: 'input_image', image_url: image.dataUrl }))] })
               else if (protocol === 'chat-completions') history.push({ role: 'user', content: [{ type: 'text', text: input.text }, ...images.map(image => ({ type: 'image_url', image_url: { url: image.dataUrl } }))] })
               else history.push({ role: 'user', content: [...images.map(image => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.base64 } })), { type: 'text', text: input.text }] })
+            } else if (continueText) {
+              if (input.kind !== 'prompt' || typeof input.text !== 'string' || !input.text.trim() || input.text.length > 16000 || imagesForPrompt(input).length) invalid('A text continuation requires a nonempty bounded prompt without images')
+              textContinuations++
+              textContinuationAvailable = false
+              ended = false
+              if (protocol === 'gemini-generate-content') history.push({ role: 'user', parts: [{ text: input.text }] })
+              else history.push({ role: 'user', content: input.text })
             } else {
               if (input.kind !== 'tool-results' || input.results.length !== pending.length || !pending.length) invalid('Every pending tool call needs exactly one result')
               const results = input.results
               for (let index = 0; index < pending.length; index++) {
                 if (results[index]?.id !== pending[index]!.id || results[index]?.name !== pending[index]!.name) invalid('Tool results must preserve the original call IDs, names and order')
               }
-              if (protocol === 'responses') history.push(...results.map(item => ({ type: 'function_call_output', call_id: item.id, output: JSON.stringify(item.result) })))
-              else if (protocol === 'chat-completions') history.push(...results.map(item => ({ role: 'tool', tool_call_id: item.id, content: JSON.stringify(item.result) })))
-              else if (protocol === 'anthropic-messages') history.push({ role: 'user', content: results.map(item => ({ type: 'tool_result', tool_use_id: item.id, content: JSON.stringify(item.result), is_error: !item.result.ok })) })
-              else history.push({ role: 'function', parts: results.map(item => ({ functionResponse: { ...(geminiIds.has(item.id) ? { id: geminiIds.get(item.id) } : {}), name: item.name, response: item.result } })) })
+              // Only the wire representation is reduced. Every actual native
+              // result remains in the runner's audit outputs. References are
+              // valid only within this conversation, to an earlier full result
+              // from the same read tool, arguments and byte-identical payload.
+              const wireResults = results.map((item, index) => {
+                const serialized = JSON.stringify(item.result)
+                // A runner's native-entity reference is already a wire-only
+                // reduction. Never register or reference that reduced receipt
+                // as if it were full; doing so would create reference chains.
+                const value = item.result.ok ? item.result.value : undefined
+                const hasEntityReferences = value && typeof value === 'object' && !Array.isArray(value) &&
+                  Array.isArray((value as Record<string, unknown>).entities) &&
+                  ((value as Record<string, unknown>).entities as unknown[]).some(row => row && typeof row === 'object' && Object.hasOwn(row, 'nativeEntityReference'))
+                if (!reuseReadResultReferences || !readTools.has(item.name) || !item.result.ok || pendingChatInvalidIds.has(item.id) ||
+                  hasEntityReferences || protocol === 'gemini-generate-content' && !geminiIds.has(item.id)) return serialized
+                const key = JSON.stringify([item.name, pending[index]!.arguments, serialized])
+                const originalToolCallId = readReceiptCalls.get(key)
+                if (!originalToolCallId || callIdOccurrences.get(originalToolCallId) !== 1) {
+                  if (callIdOccurrences.get(item.id) === 1) readReceiptCalls.set(key, item.id)
+                  return serialized
+                }
+                return JSON.stringify({ ok: true, value: { status: 'unchanged-read-result', originalToolCallId, toolName: item.name,
+                  instruction: 'Reuse the complete result of this earlier tool call in this conversation: the native read ran again with identical arguments and returned byte-identical data. This reference is not approval, a mutation receipt or evidence about anything outside that result.' } })
+              })
+              const wireResult = (item: KJModelToolOutput): string => wireResults[results.indexOf(item)]!
+              if (protocol === 'responses') history.push(...results.map(item => ({ type: 'function_call_output', call_id: item.id, output: wireResult(item) })))
+              else if (protocol === 'chat-completions') {
+                if (pendingChatInvalidIds.size) {
+                  const rejected = results.filter(item => pendingChatInvalidIds.has(item.id))
+                  if (rejected.some(item => item.result.ok !== false)) invalid('Non-object tool arguments require an actual failed tool result before wire recovery')
+                  // Never repair returned arguments or dispatch a replacement
+                  // CAD call. Only remove invalid historical wire pairs after
+                  // their real SDK rejection, then let the model regenerate.
+                  if (chatArgumentRecoveries >= 2) invalid('Chat invalid-argument wire recovery budget exhausted')
+                  chatArgumentRecoveries++
+                  const assistant = record(history[pendingChatHistoryIndex])
+                  const validCalls = array(assistant.tool_calls).filter(raw => !pendingChatInvalidIds.has(identifier(record(raw).id)))
+                  if (validCalls.length) history[pendingChatHistoryIndex] = { ...assistant, tool_calls: validCalls }
+                  else if (typeof assistant.content === 'string' && assistant.content.trim()) {
+                    const textOnly = { ...assistant }; delete textOnly.tool_calls
+                    history[pendingChatHistoryIndex] = textOnly
+                  } else history.splice(pendingChatHistoryIndex, 1)
+                  history.push(...results.filter(item => !pendingChatInvalidIds.has(item.id))
+                    .map(item => ({ role: 'tool', tool_call_id: item.id, content: wireResult(item) })))
+                  const firstRejection = rejected[0]!.result
+                  history.push({ role: 'user', content: JSON.stringify({ ok: false,
+                    error: { code: firstRejection.ok === false ? firstRejection.error.code.slice(0, 128) : 'KJMODEL_ARGUMENTS_REJECTED',
+                      message: 'CAD validation rejected tool arguments that were not a plain object before execution.' },
+                    rejectedCalls: rejected.map(item => ({ id: item.id, name: item.name,
+                      errorCode: item.result.ok === false ? item.result.error.code.slice(0, 128) : '' })),
+                    instruction: 'Generate new tool calls with valid JSON object arguments using the published schema and actual prior receipts. Do not repair or repeat the malformed text. No rejected call was executed. Preserve unrequested facts; proposals still require host approval.' }) })
+                } else history.push(...results.map(item => ({ role: 'tool', tool_call_id: item.id, content: wireResult(item) })))
+              }
+              else if (protocol === 'anthropic-messages') history.push({ role: 'user', content: results.map(item => ({ type: 'tool_result', tool_use_id: item.id, content: wireResult(item), is_error: !item.result.ok })) })
+              else history.push({ role: 'function', parts: results.map(item => ({ functionResponse: { ...(geminiIds.has(item.id) ? { id: geminiIds.get(item.id) } : {}), name: item.name, response: JSON.parse(wireResult(item)) as unknown } })) })
             }
             let body: Record<string, unknown>
-            if (protocol === 'responses') body = { model, instructions, input: history, tools: schema.map(tool => ({ type: 'function', ...tool, strict: false })), max_output_tokens: outputTokens, store: false, include: ['reasoning.encrypted_content'] }
-            else if (protocol === 'chat-completions') body = { model, messages: [{ role: 'system', content: instructions }, ...history], tools: schema.map(tool => ({ type: 'function', function: tool })), [chatTokenParameter]: outputTokens, stream: chatStreaming, ...(chatStreamIncludeUsage ? { stream_options: { include_usage: true } } : {}), ...(chatStreamToolCalls ? { tool_stream: true } : {}) }
-            else if (protocol === 'anthropic-messages') body = { model, system: instructions, messages: history, tools: schema.map(tool => ({ name: tool.name, description: tool.description, input_schema: tool.parameters })), max_tokens: outputTokens, stream: false }
+            if (protocol === 'responses') body = { model, instructions, input: history, tools: schema.map(tool => ({ type: 'function', ...tool, strict: false })), max_output_tokens: outputTokens, store: false, stream: responsesStreaming, include: ['reasoning.encrypted_content'] }
+            else if (protocol === 'chat-completions') body = { model, messages: [{ role: 'system', content: instructions }, ...history], tools: schema.map(tool => ({ type: 'function', function: tool })), [chatTokenParameter]: outputTokens, stream: chatStreaming, ...(chatStreamIncludeUsage ? { stream_options: { include_usage: true } } : {}), ...(chatStreamToolCalls ? { tool_stream: true } : {}), ...requestExtensions }
+            else if (protocol === 'anthropic-messages') body = { model, system: instructions, messages: history, tools: schema.map(tool => ({ name: tool.name, description: tool.description, input_schema: tool.parameters })), max_tokens: outputTokens, stream: anthropicStreaming }
             else body = { systemInstruction: { parts: [{ text: instructions }] }, contents: history, tools: [{ functionDeclarations: schema.map(tool => ({ name: tool.name, description: tool.description, parametersJsonSchema: tool.parameters })) }], generationConfig: { maxOutputTokens: outputTokens, candidateCount: 1 } }
             // Never expose mutable internal history, or credentials, through the public result.
-            const outgoing = deepFreeze(jsonCopy(body, historyBytes))
+            const outgoing = deepFreeze(jsonCopy(body, historyBytes, 'request'))
             const startedAt = performance.now()
-            const responseSource = await request({ protocol, model, body: outgoing, signal })
-            const rawResponse = chatStreaming ? await assembleChatStream(responseSource, responseBytes, signal, onTextDelta) : responseSource
-            if (!chatStreaming && isAsyncIterable(rawResponse)) invalid('Non-streaming model transport returned an async iterable')
+            const responseSource = await request({ protocol, model, body: outgoing, streaming, signal })
+            const streamedResponse = isAsyncIterable(responseSource)
+            const delta = (text: string) => { notifyText(onTextDelta, text); notifyText(adapterText, text) }
+            const rawResponse = chatStreaming && streamedResponse ? await assembleChatStream(responseSource, responseBytes, streamBytes, streamEvents, signal, delta)
+              : responsesStreaming && streamedResponse ? await assembleResponsesStream(responseSource, responseBytes, streamBytes, streamEvents, signal, delta)
+                : anthropicStreaming && streamedResponse ? await assembleAnthropicStream(responseSource, responseBytes, streamBytes, streamEvents, signal, delta)
+                  : geminiStreaming && streamedResponse ? await assembleGeminiStream(responseSource, responseBytes, streamBytes, streamEvents, signal, delta) : responseSource
+            if (!streaming && streamedResponse) invalid('Non-streaming model transport returned an async iterable')
             const usage = extractKJModelUsage(protocol, rawResponse, { latencyMs: Math.max(0, performance.now() - startedAt) })
             notifyUsage(onUsage, usage)
             notifyUsage(adapterUsage, usage)
-            const response = record(jsonCopy(rawResponse, responseBytes))
+            const response = record(jsonCopy(rawResponse, responseBytes, 'response'))
             signal.throwIfAborted()
             turnNumber++
             let text = ''
             const calls: KJModelToolCall[] = []
-            const addCall = (id: unknown, name: unknown, args: unknown) => calls.push({ id: identifier(id), name: identifier(name), arguments: args })
+            const addCall = (id: unknown, name: unknown, args: unknown) => {
+              const callId = identifier(id)
+              calls.push({ id: callId, name: identifier(name), arguments: args })
+              callIdOccurrences.set(callId, (callIdOccurrences.get(callId) ?? 0) + 1)
+            }
             if (protocol === 'responses') {
               if (response.status !== 'completed') throw new KJModelError('KJMODEL_INCOMPLETE', 'Response is incomplete or failed; no tool calls were dispatched')
               const output = array(response.output)
@@ -381,11 +777,24 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
               if (message.refusal) throw new KJModelError('KJMODEL_REFUSED', 'The model refused this request')
               if (message.content !== null && message.content !== undefined && typeof message.content !== 'string') invalid('Only text and function-call chat messages are supported')
               text = typeof message.content === 'string' ? message.content : ''
-              for (const raw of array(message.tool_calls ?? [])) { const item = record(raw), fn = record(item.function); if (item.type !== 'function') invalid('Unsupported chat tool type'); addCall(item.id, fn.name, jsonArguments(fn.arguments)) }
+              pendingChatInvalidIds = new Set<string>()
+              for (const raw of array(message.tool_calls ?? [])) {
+                const item = record(raw), fn = record(item.function)
+                if (item.type !== 'function') invalid('Unsupported chat tool type')
+                const args = jsonArguments(fn.arguments)
+                addCall(item.id, fn.name, args)
+                if (!args || typeof args !== 'object' || Array.isArray(args)) pendingChatInvalidIds.add(identifier(item.id))
+              }
               // Some compatible endpoints finish valid function-call messages with stop.
               // Completeness is enforced above; call structure and IDs are still validated.
               if (choice.finish_reason === 'tool_calls' && !calls.length) invalid('Chat finish reason requires tool calls')
-              history.push(message) // Preserve provider fields such as reasoning_content verbatim.
+              // An assistant text turn has no tool_calls field on the outbound
+              // wire. Some compatible endpoints reject [] (or null) in history.
+              // Keep actual calls and provider fields such as reasoning_content.
+              const assistantHistory = { ...message }
+              if (!calls.length) delete assistantHistory.tool_calls
+              pendingChatHistoryIndex = history.length
+              history.push(assistantHistory)
             } else if (protocol === 'anthropic-messages') {
               if (response.role !== 'assistant') invalid('Expected an assistant message')
               if (!['end_turn', 'tool_use', 'stop_sequence'].includes(String(response.stop_reason))) throw new KJModelError('KJMODEL_INCOMPLETE', 'Claude response is truncated, paused or incomplete')
@@ -407,7 +816,9 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
                   const call = record(part.functionCall)
                   const id = call.id === undefined ? `kj-gemini-${turnNumber}-${index}` : identifier(call.id)
                   if (call.id !== undefined) geminiIds.set(id, identifier(call.id))
-                  addCall(id, call.name, call.args ?? {})
+                  // Omitted arguments retain the no-argument tool fallback;
+                  // explicit JSON null must reach native validation unchanged.
+                  addCall(id, call.name, call.args === undefined ? {} : call.args)
                 } else if (typeof part.text === 'string') { if (part.thought !== true) text += part.text }
                 else invalid('Unsupported Gemini part')
               }
@@ -415,10 +826,12 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
             }
             if (calls.length > 16 || new Set(calls.map(call => call.id)).size !== calls.length) invalid('Too many calls or duplicate call IDs in one model turn')
             if (!calls.length && !text.trim()) invalid('Model returned neither tool calls nor user-visible text')
+            if (streaming && !streamedResponse) delta(text)
             pending = calls
             ended = !calls.length
+            textContinuationAvailable = ended
             return deepFreeze({ text, calls, usage }) as KJModelTurn
-          } catch (error) { ended = true; throw error } finally { busy = false }
+          } catch (error) { ended = true; textContinuationAvailable = false; throw error } finally { busy = false }
         },
       }
     },

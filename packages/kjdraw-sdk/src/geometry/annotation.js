@@ -105,6 +105,7 @@ export function projectDimension(payload, style = {}) {
         const third = points[2], fourth = points[3];
         if (!third || !fourth) return null;
         let center, u, v, location, origin1, origin2;
+        let originLine1, originLine2;
         if (type === 'ANGULAR') {
             location = points[4];
             if (!location) return null;
@@ -124,6 +125,14 @@ export function projectDimension(payload, style = {}) {
             center = plus(second, u, t);
             origin1 = length(delta(second, center)) > 1e-12 ? second : third;
             origin2 = length(delta(fourth, center)) > 1e-12 ? fourth : first;
+            originLine1 = [
+                second,
+                third
+            ];
+            originLine2 = [
+                fourth,
+                first
+            ];
         } else {
             center = fourth;
             location = first;
@@ -166,10 +175,15 @@ export function projectDimension(payload, style = {}) {
                         Math.cos(b),
                         Math.sin(b)
                     ];
-                    if (Math.abs(dot(nextU, u)) < 1 - 1e-9) [origin1, origin2] = [
-                        origin2,
-                        origin1
-                    ];
+                    if (Math.abs(dot(nextU, u)) < 1 - 1e-9) {
+                        [origin1, origin2] = [
+                            origin2,
+                            origin1
+                        ];
+                        const previousOriginLine = originLine1;
+                        originLine1 = originLine2;
+                        originLine2 = previousOriginLine;
+                    }
                     startAngle = a;
                     endAngle = b;
                     u = nextU;
@@ -179,6 +193,9 @@ export function projectDimension(payload, style = {}) {
                 }
             }
             if (!selected) return null;
+            const selectedOrigin = (a, b, direction)=>dot(delta(a, center), direction) >= dot(delta(b, center), direction) ? a : b;
+            origin1 = selectedOrigin(originLine1[0], originLine1[1], u);
+            origin2 = selectedOrigin(originLine2[0], originLine2[1], v);
         } else {
             const span = positive(endAngle - startAngle), offset = positive(placement - startAngle);
             if (span < 1e-10 || offset < 1e-10 || Math.abs(offset - span) < 1e-10) return null;
@@ -258,15 +275,77 @@ export function projectDimension(payload, style = {}) {
         ]);
         if (type === 'DIAMETER') arrow(first, u);
         textPoint = plus(second, u, height * 1.1);
+    } else if (type === 'ORDINATE') {
+        const end = points[2];
+        if (!end) return null;
+        const angle = finite(payload.rotation, 0);
+        const localX = [
+            Math.cos(angle),
+            Math.sin(angle)
+        ];
+        const localY = [
+            -localX[1],
+            localX[0]
+        ];
+        const xType = (Math.trunc(finite(payload.dxfDimensionType, 6)) & 64) !== 0;
+        const measurementAxis = xType ? localX : localY;
+        const leaderAxis = xType ? localY : localX;
+        const featureVector = delta(second, first), leaderVector = delta(end, second);
+        measurement = Math.abs(dot(featureVector, measurementAxis));
+        const leaderDistance = dot(leaderVector, leaderAxis);
+        if (Math.abs(leaderDistance) < 1e-12) return null;
+        const direction = plus([
+            0,
+            0
+        ], leaderAxis, Math.sign(leaderDistance));
+        const leg = Math.max(arrowSize * 2, height);
+        const start = plus(second, direction, gap);
+        const elbow = plus(end, direction, -Math.min(leg, Math.abs(leaderDistance) / 2));
+        const firstLeg = Math.max(leg, Math.abs(leaderDistance) - leg * 2);
+        const junction = plus(second, direction, firstLeg);
+        lines.push([
+            start,
+            junction
+        ], [
+            junction,
+            elbow
+        ], [
+            elbow,
+            end
+        ]);
+        textPoint = plus(end, direction, height * .65);
+        rotation = angle + (xType ? Math.PI / 2 : 0);
     } else return null;
     const angular = type === 'ANGULAR' || type === 'ANGULAR_3_POINT';
-    if (angular && Number(payload.angularUnits ?? style.angularUnits ?? 0) !== 0) return null;
+    const angularUnits = angular ? Number(payload.angularUnits ?? style.angularUnits ?? 0) : 0;
+    if (angular && (!Number.isInteger(angularUnits) || angularUnits < 0 || angularUnits > 3)) return null;
     const stylePrecision = angular && Number(style.angularDecimalPlaces) >= 0 ? style.angularDecimalPlaces : style.decimalPlaces;
     const precision = Math.max(0, Math.min(8, Math.trunc(finite(Number(payload.precision) === -1 ? payload.linearPrecision ?? style.decimalPlaces : payload.precision ?? stylePrecision, 2))));
-    const measuredText = `${prefix}${measurement.toFixed(precision).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}`;
-    const suffix = type === 'ANGULAR' || type === 'ANGULAR_3_POINT' ? '°' : '';
+    const decimalText = (value, places = precision)=>value.toFixed(places).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '').replace(/^-0$/, '0');
+    let measuredText = `${prefix}${decimalText(measurement)}`;
+    if (angular) {
+        if (angularUnits === 0) measuredText = `${decimalText(measurement)}°`;
+        else if (angularUnits === 2) measuredText = `${decimalText(measurement * 10 / 9)}g`;
+        else if (angularUnits === 3) measuredText = `${decimalText(measurement * Math.PI / 180)}r`;
+        else {
+            let degrees = Math.floor(measurement);
+            let minutes = Math.floor((measurement - degrees) * 60);
+            let seconds = (measurement - degrees - minutes / 60) * 3600;
+            if (precision > 4) seconds = Number(seconds.toFixed(precision - 5));
+            else if (precision > 2) seconds = Math.round(seconds);
+            if (seconds >= 60) {
+                seconds -= 60;
+                minutes += 1;
+            }
+            if (minutes >= 60) {
+                minutes -= 60;
+                degrees += 1;
+            }
+            measuredText = precision > 4 ? `${degrees}°${minutes}'${decimalText(seconds, precision - 5)}\"` : precision > 2 ? `${degrees}°${minutes}'${seconds.toFixed(0)}\"` : precision > 0 ? `${degrees}°${minutes}'` : `${degrees}°`;
+        }
+    }
     const override = payload.textOverride;
-    const text = override == null || override === '' ? measuredText + suffix : String(override).replaceAll('<>', measuredText + suffix);
+    const text = override == null || override === '' ? measuredText : String(override).replaceAll('<>', measuredText);
     const overridePoint = point(payload.textPosition);
     if (overridePoint && (type === 'RADIUS' || type === 'DIAMETER')) lines.push([
         second,

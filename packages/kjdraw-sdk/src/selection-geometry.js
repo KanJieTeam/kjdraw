@@ -33,6 +33,26 @@ const curveExtrema = (c)=>[
         Math.atan2(c.v[1], c.u[1]),
         Math.atan2(c.v[1], c.u[1]) + Math.PI
     ].filter((a)=>angleOn(c, a)).map((a)=>curveAt(c, a));
+const toleranceDisplayText = (value)=>String(value ?? '').replace(/\{\\Fgdt;([a-z])\}/gu, (_, code)=>({
+            j: '⌖',
+            r: '◎',
+            i: '≡',
+            f: '∥',
+            b: '⊥',
+            a: '∠',
+            g: '⌭',
+            c: '▱',
+            e: '○',
+            u: '—',
+            d: '⌒',
+            k: '⌢',
+            h: '↗',
+            t: '⇗',
+            n: '⌀',
+            m: 'Ⓜ',
+            l: 'Ⓛ',
+            s: 'Ⓢ'
+        })[code] ?? code).replace(/%%v/gu, '|').replace(/\^J/gu, ' ');
 function vertex(value) {
     return point(value?.point ?? value);
 }
@@ -200,6 +220,7 @@ function project(entity, document, depth = 0, inheritedMatrix) {
     if (inheritedMatrix && ![
         'INSERT',
         'DIMENSION',
+        'TOLERANCE',
         'TEXT',
         'MTEXT',
         'ATTRIB',
@@ -350,6 +371,15 @@ function project(entity, document, depth = 0, inheritedMatrix) {
                 });
                 for (const arrow of annotation.arrows)path(arrow, true, true);
                 path(textBox(annotation.label.position, annotation.label.text, annotation.label.height, annotation.label.rotation, true), true, true);
+                break;
+            }
+        case 'TOLERANCE':
+            {
+                const position = point(payload.position), axis = point(payload.xAxisDirection) ?? [
+                    1,
+                    0
+                ], style = document.getObject(String(payload.styleId ?? ''))?.payload;
+                if (position) path(textBox(position, toleranceDisplayText(payload.text), finite(style?.textHeight, 2.5), Math.atan2(axis[1], axis[0]), false), true, true);
                 break;
             }
         case 'TEXT':

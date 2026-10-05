@@ -103,7 +103,16 @@ const GEOMETRY = {
     },
     LWPOLYLINE: polyline,
     POLYLINE: polyline,
-    WIPEOUT: polyline,
+    WIPEOUT: {
+        ...polyline,
+        position: point,
+        uVector: point,
+        vVector: point,
+        clipBoundary: [
+            point
+        ],
+        boundaryType: scalar
+    },
     REVISION_CLOUD: polyline,
     ELLIPSE: {
         center: point,
@@ -631,6 +640,7 @@ export function createDrawingContext(document, options = {}) {
         } : {},
         layers: [],
         entities: [],
+        pageEntityCounts: {},
         truncated: false,
         truncationReasons: [],
         nextOffset: null,
@@ -689,11 +699,19 @@ export function createDrawingContext(document, options = {}) {
                 spatialMatch
             } : {}
         };
-        let bytes = jsonBytes(item) + (result.entities.length ? 1 : 0);
+        const nextCounts = Object.fromEntries(Object.entries(result.pageEntityCounts));
+        Object.defineProperty(nextCounts, entity.type, {
+            value: (Object.hasOwn(nextCounts, entity.type) ? nextCounts[entity.type] : 0) + 1,
+            enumerable: true,
+            writable: true,
+            configurable: true
+        });
+        const countBytes = jsonBytes(nextCounts) - jsonBytes(result.pageEntityCounts);
+        let bytes = jsonBytes(item) + (result.entities.length ? 1 : 0) + countBytes;
         if (usedBytes + bytes > maxBytes && item.geometry !== null) {
             item.geometry = null;
             item.geometryOmittedReason = 'response-budget';
-            bytes = jsonBytes(item) + (result.entities.length ? 1 : 0);
+            bytes = jsonBytes(item) + (result.entities.length ? 1 : 0) + countBytes;
         }
         if (usedBytes + bytes > maxBytes) {
             if (!result.entities.length) throw new KJValidationError('Drawing context entity identity cannot fit the response budget');
@@ -703,6 +721,7 @@ export function createDrawingContext(document, options = {}) {
         }
         usedBytes += bytes;
         result.entities.push(item);
+        result.pageEntityCounts = nextCounts;
         addReason(item.geometryOmittedReason);
     }
     let matchedLayers = 0;

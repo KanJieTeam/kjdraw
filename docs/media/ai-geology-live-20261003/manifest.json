@@ -1,0 +1,91 @@
+{
+  "synthetic": true,
+  "measuredData": false,
+  "modelInvocations": 0,
+  "source": "original-public-synthetic-facts",
+  "license": "Apache-2.0",
+  "patterns": "bundled-original-redistributable-geology-patterns",
+  "evidenceScope": "deterministic-CAD-workflow-with-host-review",
+  "holeCount": 8,
+  "stratumCount": 48,
+  "entityCount": 542,
+  "hatchCount": 96,
+  "correlationCount": 42,
+  "scenarios": [
+    {
+      "id": "collar",
+      "request": "将 SYN-03 孔口高程提高 0.65 m，重算分层和水位标注，其余孔保持。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "depth",
+      "request": "将 SYN-08 延深 2 m，只延长底部风化岩层，保留全部观测和层间关系。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "stable-water",
+      "request": "将 SYN-02 稳定水位改为孔口以下 4.90 m，不改变初见水位或土层。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "boundary",
+      "request": "将 SYN-04 黏土层底界下移 0.80 m，下一粉质黏土层顶界同步，保持连续分层。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "lithology-pattern",
+      "request": "将全部八孔表层改为示例耕植土，更新土类、原生填充和图例，保留深度与关联。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "boundary-only",
+      "request": "仅移除八孔第一层的填充花纹，保留全部层界、层名和源事实。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "sample-add",
+      "request": "在 SYN-05 孔 11.25 m 处新增独立取样 S5-NEW，不删除已有记录。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "spt-update",
+      "request": "将 SYN-03 的 N2 标贯记录值改为 32，深度保持 16.50 m，其他观测原样保留。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "sample-remove",
+      "request": "删除 SYN-06 的 21.30 m 取样 S2，仅删除这一条记录和对应标记。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "unlink",
+      "request": "取消 SYN-03 与 SYN-04 砂层连接，显式保留两侧未关联状态，不推断其他连接。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "split-layer",
+      "request": "按明确给定的新层号将八孔黏土各拆成上下两层，完整更新相邻孔关联；其他层不变。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "station",
+      "request": "将 SYN-05 里程调整为 85.50 m，保留孔高程、分层、观测以及原关联身份。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "water-unknown",
+      "request": "撤回 SYN-04 稳定水位事实，改为未知并移除该水位标记，其他水位保留。",
+      "route": "cad_propose_geology_revision"
+    },
+    {
+      "id": "sheet-title",
+      "request": "将标题更新为新的 Synthetic 示例标题，保留同一源配方和全部孔事实。",
+      "route": "trusted-host-source-command"
+    },
+    {
+      "id": "hole-identity",
+      "request": "将 SYN-07 源孔编号改为 SYN-07A，同步两侧关联引用，保留区间和观测身份。",
+      "route": "trusted-host-source-command"
+    }
+  ]
+}

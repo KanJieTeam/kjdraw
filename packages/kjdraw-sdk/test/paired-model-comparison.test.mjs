@@ -150,12 +150,15 @@ test('tool choice mode is explicit in evidence and charts; legacy missing mode m
   assert.equal(result.status, 'comparable'); assert.equal(result.toolChoiceMode, 'auto'); assert.match(result.toolChoiceNote, /may choose/)
   assert.match(await readFile(join(auto.output, 'tokens.svg'), 'utf8'), /tool_choice=auto/)
   assert.equal(result.summaries['kjdraw-tool'].attempted, 15)
+  const required = await fixture(t); await selectDrawingTool(required, 'cad_propose_drawing', 'required')
+  const requiredResult = await renderPairedModelComparison(required)
+  assert.equal(requiredResult.status, 'comparable'); assert.match(requiredResult.toolChoiceNote, /at least one call/)
 })
 
-test('declared auto cannot silently accept forced requests or an unsupported mode', async t => {
+test('declared tool choice cannot silently accept another request shape or an unsupported mode', async t => {
   const auto = await fixture(t); auto.report.toolChoiceMode = 'auto'; await auto.save()
   assert.ok((await renderPairedModelComparison(auto)).reasons.includes('REQUEST_ARM_MISMATCH'))
-  const invalid = await fixture(t); invalid.report.toolChoiceMode = 'required'; await invalid.save()
+  const invalid = await fixture(t); invalid.report.toolChoiceMode = 'named'; await invalid.save()
   assert.ok((await renderPairedModelComparison(invalid)).reasons.includes('INVALID_TOOL_CHOICE_MODE'))
   const forced = await fixture(t); forced.report.toolChoiceMode = 'forced'; await forced.save()
   assert.equal((await renderPairedModelComparison(forced)).status, 'comparable')
@@ -166,7 +169,7 @@ async function selectDrawingTool(f, tool, mode = 'forced') {
   for (const run of f.report.runs.filter(run => run.arm === 'kjdraw-tool')) {
     const path = join(f.input, run.files.request), request = JSON.parse(await readFile(path, 'utf8'))
     request.tools[0].function.name = tool
-    request.tool_choice = mode === 'auto' ? 'auto' : { type: 'function', function: { name: tool } }
+    request.tool_choice = mode === 'auto' ? 'auto' : mode === 'required' ? 'required' : { type: 'function', function: { name: tool } }
     const text = JSON.stringify(request); await writeFile(path, text); run.requestSha256 = hash(text); run.requestBytes = Buffer.byteLength(text)
   }
   await f.save()

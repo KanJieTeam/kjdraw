@@ -98,7 +98,8 @@ export function captureAgentBlockDependencies(document: KJDocument, ids: readonl
     }
     else if (type === 'DIMENSION') {
       points = [...(Array.isArray(payload.definitionPoints) ? payload.definitionPoints : []), ...(payload.textPosition ? [payload.textPosition] : [])]
-      if (!projectDimension(payload, document.getObject(String(payload.styleId ?? ''))?.payload)) fail('unsupported or degenerate dimension')
+      const dimensionType = String(payload.dimensionType ?? 'ALIGNED').toUpperCase()
+      if (!['ALIGNED', 'ROTATED', 'RADIUS', 'DIAMETER', 'ANGULAR_3_POINT'].includes(dimensionType) || !projectDimension(payload, document.getObject(String(payload.styleId ?? ''))?.payload)) fail('unsupported or degenerate dimension')
     } else if (type === 'LWPOLYLINE') {
       for (const key of ['constantWidth', 'width', 'defaultStartWidth', 'defaultEndWidth']) if (payload[key] != null && payload[key] !== 0) fail('wide polyline preview is not supported')
       const vertices = payload.vertices

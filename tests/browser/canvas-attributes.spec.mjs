@@ -34,7 +34,14 @@ test('attached attributes render once in their owner coordinates, preserve text 
   const layoutId=drawing.snapshot().spaces.layoutIds[0]
   await sdk.executeCommand('PLOTSETUP',{layoutId,dxf:{paperWidth:420,paperHeight:297,paperUnits:1,plotType:4,flags:0,windowMinX:0,windowMinY:0,windowMaxX:400,windowMaxY:200,scaleNumerator:1,scaleDenominator:1}},{document:drawing})
   const exported=exportDrawingSvg(drawing,{layoutId}),host=document.createElement('div');host.innerHTML=exported.svg;document.body.append(host)
-  const glyphs=[...host.querySelectorAll('text')].map(e=>{const m=host.querySelector('svg').getCTM().inverse().multiply(e.getCTM());return{text:e.textContent,matrix:[m.a,m.b,m.c,m.d,m.e,m.f]}})
+  // Root getCTM() includes CSS millimetre-to-pixel scaling differently across
+  // engines. Compose the SVG transform lists themselves to verify drawing-space
+  // geometry without depending on the embedding page's physical-unit policy.
+  const svg=host.querySelector('svg'),drawingMatrix=element=>{
+   const chain=[];for(let current=element;current&&current!==svg;current=current.parentElement)chain.unshift(current)
+   let result=new DOMMatrix();for(const current of chain){const local=current.transform?.baseVal?.consolidate()?.matrix;if(local)result=result.multiply(local)}return result
+  }
+  const glyphs=[...host.querySelectorAll('text')].map(e=>{const m=drawingMatrix(e);return{text:e.textContent,matrix:[m.a,m.b,m.c,m.d,m.e,m.f]}})
   await drawing.transact('reflect ancestor',tx=>tx.updateObject('outer-insert',{payload:{scale:[-2,1.5,1]}}));calls=[];renderer.render()
   const reflected=calls.find(c=>c.text==='NESTED'),reflectedOrigin=renderer.worldToScreen([160,58]),reflectedHit=renderer.hitTest(renderer.worldToScreen([154,60]),2)?.entity.id
   await drawing.transact('hide parent',tx=>tx.updateObject('root',{payload:{visible:false}}));calls=[];renderer.render()
@@ -48,7 +55,7 @@ test('attached attributes render once in their owner coordinates, preserve text 
  expect(result.glyphs.map(c=>c.text)).toEqual(['AB','NESTED']);expect(result.svgDiagnostics).toEqual([])
  result.glyphs[0].matrix.forEach((value,i)=>expect(value).toBeCloseTo([.7,0,0,1,100,247][i],5))
  result.glyphs[1].matrix.forEach((value,i)=>expect(value).toBeCloseTo([2,0,0,2,340,233][i],5))
- result.reflected.matrix.forEach((value,i)=>expect(value).toBeCloseTo(Math.fround([-2,0,0,1.5,...result.reflectedOrigin][i]),6))
+ result.reflected.matrix.forEach((value,i)=>{const expected=Math.fround([-2,0,0,1.5,...result.reflectedOrigin][i]),float32Ulp=Math.max(1e-6,Math.abs(expected)*2**-23);expect(Math.abs(value-expected)).toBeLessThanOrEqual(float32Ulp)})
  expect(result.reflectedHit).toBe('outer-insert')
  expect(result.hiddenLabels).toEqual(['NESTED']);expect(result.hiddenHit).toBeNull()
 })

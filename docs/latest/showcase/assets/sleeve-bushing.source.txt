@@ -1,0 +1,25 @@
+// examples/curated-mechanical-sheets.mjs#L60-L81
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+function drawSleeve(d) {
+  // Front annulus and longitudinal section are two views of OD 60, ID 32, L 64.
+  d.circle(83, 112, 30)
+  d.circle(83, 112, 16)
+  d.center(83, 112, 36)
+  for (const [y1, y2] of [[128, 142], [82, 96]]) {
+    d.add('HATCH', { boundaryLoops: [{ vertices: [p(164, y1), p(228, y1), p(228, y2), p(164, y2)] }], patternName: 'ANSI31', patternScale: 1.7 }, 'hatch')
+  }
+  d.rect(164, 82, 228, 142)
+  d.line(164, 96, 228, 96)
+  d.line(164, 128, 228, 128)
+  d.line(159, 112, 233, 112, 'center')
+  d.dim(164, 142, 228, 142, 196, 154)
+  d.dim(53, 82, 53, 142, 39, 112)
+  d.text(53, 63, 'END VIEW', 3.5)
+  d.text(173, 63, 'LONGITUDINAL SECTION', 3.5)
+  d.text(47, 52, 'BORE DIA 32', 3)
+  d.text(166, 52, 'THROUGH BORE  /  DEBURR EDGES', 2.8)
+  d.line(100, 100, 125, 83, 'notes')
+  d.line(125, 83, 150, 83, 'notes')
+  d.text(124, 86, 'ID 32', 2.8)
+}

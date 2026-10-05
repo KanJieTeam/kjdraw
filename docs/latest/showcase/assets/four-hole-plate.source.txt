@@ -1,0 +1,25 @@
+// examples/curated-mechanical-sheets.mjs#L83-L104
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+function drawPlate(d) {
+  d.rect(68, 73, 188, 153)
+  d.circle(128, 113, 18)
+  d.center(128, 113, 23)
+  for (const [x, y] of [[88, 93], [168, 93], [88, 133], [168, 133]]) {
+    d.circle(x, y, 5)
+    d.center(x, y, 8)
+  }
+  d.rect(68, 54, 188, 62)
+  d.dim(68, 153, 188, 153, 128, 165)
+  d.dim(68, 73, 68, 153, 54, 113)
+  d.dim(88, 93, 168, 93, 128, 80)
+  d.dim(188, 54, 188, 62, 201, 58)
+  d.text(77, 49, 'PLAN VIEW', 3.3)
+  d.text(206, 144, '4X DIA 10 THRU', 3)
+  d.text(206, 133, 'CENTER DIA 36', 3)
+  d.text(206, 122, 'BREAK SHARP EDGES', 3)
+  d.text(206, 111, 'HOLE GRID: 80 X 40', 3)
+  d.text(206, 100, 'FLATNESS: DESIGN', 3)
+  d.line(173, 136, 199, 150, 'notes')
+  d.line(199, 150, 230, 150, 'notes')
+}

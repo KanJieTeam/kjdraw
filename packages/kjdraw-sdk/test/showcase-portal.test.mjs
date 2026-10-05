@@ -1,0 +1,85 @@
+import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+import test from 'node:test'
+import { createSample } from '../../../examples/sample.js'
+import { createKJDrawSDK } from '../src/sdk.js'
+import { createIndustrySamples } from '../src/samples.js'
+
+const repositoryRoot = new URL('../../../', import.meta.url)
+
+test('Showcase manifest is generated from curated public samples and its facts remain exact', async () => {
+  const manifest = JSON.parse(await readFile(new URL('docs/latest/showcase/catalog.json', repositoryRoot), 'utf8'))
+  assert.equal(manifest.schema, 'com.kanjie.kjdraw.showcase@1')
+  assert.ok(manifest.entries.length >= 14)
+  assert.equal(manifest.entries.filter(entry => entry.kind === 'sample').length, 6)
+  assert.ok(manifest.entries.filter(entry => entry.kind === 'specimen').length >= 8)
+  assert.equal(manifest.categories.some(category => category.count === 0), false)
+  assert.equal(manifest.entries.some(entry => entry.reviewStatus !== undefined), false)
+  assert.equal(manifest.categories.reduce((sum, category) => sum + category.count, 0), manifest.entries.length)
+
+  const sdk = createKJDrawSDK()
+  const drawings = [await createSample(sdk), ...await createIndustrySamples(sdk)]
+  const sampleEntries = manifest.entries.filter(entry => entry.kind === 'sample')
+  const withheldSampleIds = new Set(['sample-borehole-log', 'sample-geology-section', 'sample-geology-plan'])
+  assert.deepEqual(new Set(sampleEntries.map(entry => entry.sampleId)), new Set(drawings.map(drawing => drawing.id).filter(id => !withheldSampleIds.has(id))))
+  for (const entry of sampleEntries) {
+    const drawing = drawings.find(candidate => candidate.id === entry.sampleId)
+    const entities = drawing.listEntities({ ownerId: drawing.snapshot().spaces.modelSpaceId })
+    assert.equal(entry.facts.editableObjects, entities.length, `${entry.sampleId} object count drifted`)
+    assert.equal(entry.facts.layers, drawing.getTable('layers').records.length, `${entry.sampleId} layer count drifted`)
+    assert.equal(entry.facts.units, drawing.snapshot().header.units)
+    assert.equal(Object.values(entry.facts.entityTypes).reduce((sum, count) => sum + count, 0), entities.length)
+    assert.match(entry.links.source, /^https:\/\/github\.com\/KanJieTeam\/kjdraw\/blob\/main\/(?:examples|packages)\//)
+    assert.equal(entry.links.playground, `https://kanjieteam.github.io/kjdraw/?sample=${entry.sampleId}`)
+    const thumbnail = await readFile(new URL(`docs/latest/showcase/assets/${entry.id}.svg`, repositoryRoot), 'utf8')
+    assert.match(thumbnail, /^<svg[^>]+role="img"/)
+    assert.match(thumbnail, new RegExp(`Generated from ${entities.length} editable entities`))
+    assert.match(thumbnail, /data-preview-theme="cad-dark"/)
+    assert.match(thumbnail, /<rect width="720" height="420" fill="#101820"\/>/)
+    assert.doesNotMatch(thumbnail, /#f8fafc|#f4f7f5/i)
+    assert.equal(createHash('sha256').update(thumbnail).digest('hex'), entry.thumbnailSha256)
+    assert.ok((thumbnail.match(/<(?:path|circle|text)\b/g) ?? []).length > 5, `${entry.id} thumbnail must contain real generated geometry`)
+  }
+  for (const entry of manifest.entries) {
+    const { symbol, startLine, endLine } = entry.sourceRange
+    assert.ok(Number.isInteger(startLine) && endLine > startLine, `${entry.id} must link to an exact public builder range`)
+    assert.equal(entry.links.sourceSnippet, `./assets/${entry.id}.source.txt`)
+    assert.ok(entry.links.source.endsWith(`${entry.source}#L${startLine}-L${endLine}`))
+    const snippet = await readFile(new URL(`docs/latest/showcase/assets/${entry.id}.source.txt`, repositoryRoot), 'utf8')
+    const original = (await readFile(new URL(entry.source, repositoryRoot), 'utf8')).split(/\r?\n/)
+    assert.equal(snippet.split('\n').slice(3).join('\n'), original.slice(startLine - 1, endLine).join('\n') + '\n')
+    assert.match(snippet, new RegExp(`function ${symbol}\\(`))
+  }
+
+  for (const entry of manifest.entries.filter(row => row.kind === 'specimen')) {
+    assert.match(entry.links.preview, /^\.\/assets\/[a-z0-9-]+\.svg$/)
+    assert.equal(entry.artifact.diagnostics, 0)
+    assert.ok(entry.artifact.renderedEntities > 0)
+    assert.ok(entry.facts.editableObjects > 0)
+    assert.equal(Object.values(entry.facts.entityTypes).reduce((sum, count) => sum + count, 0), entry.facts.editableObjects)
+    const thumbnail = await readFile(new URL(`docs/latest/showcase/assets/${entry.id}.svg`, repositoryRoot), 'utf8')
+    assert.match(thumbnail, /<svg\b/)
+    assert.match(thumbnail, /svg\{background:#101820;color:#c7d5d9\}/)
+    assert.match(thumbnail, /g\[data-entity-id\]\{color:#c7d5d9!important/)
+    assert.equal(createHash('sha256').update(thumbnail).digest('hex'), entry.thumbnailSha256)
+  }
+})
+
+test('Showcase page exposes searchable cards, filters, view switching and manifest links in both locales', async () => {
+  const html = await readFile(new URL('docs/latest/showcase/index.html', repositoryRoot), 'utf8')
+  const app = await readFile(new URL('docs/latest/app.js', repositoryRoot), 'utf8')
+  assert.equal((html.match(/class="showcase-portal"/g) ?? []).length, 2)
+  const manifest = JSON.parse(await readFile(new URL('docs/latest/showcase/catalog.json', repositoryRoot), 'utf8'))
+  assert.equal((html.match(/class="showcase-card"/g) ?? []).length, manifest.entries.length * 2)
+  assert.equal((html.match(/class="showcase-thumb"/g) ?? []).length, manifest.entries.length * 2)
+  assert.match(html, /class="showcase-query"/)
+  assert.match(html, /class="showcase-tag-filter"/)
+  assert.match(html, /data-view="grid"/)
+  assert.match(html, /data-view="list"/)
+  assert.match(html, /\.\/catalog\.json/)
+  assert.match(app, /initializeShowcase/)
+  assert.match(app, /matchesCategory/)
+  assert.match(app, /matchesTag/)
+  assert.match(app, /matchesQuery/)
+})

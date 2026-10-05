@@ -2,9 +2,11 @@
 // They are intentionally fictional and contain no customer drawing or proprietary template.
 import type { KJDrawSDK } from './sdk.js'
 import type { KJDocument } from './document.js'
-import type { KJEntityBatchSpec } from './commands.js'
+import type { KJCommandArguments, KJEntityBatchSpec } from './commands.js'
 import type { KJObjectPayload, KJObjectSpec } from './schema.js'
 import { transformEntityPayload } from './geometry/transform.js'
+import { compileGeologySection, type KJGeologySectionInput } from './geology-engineering.js'
+import { buildAgentGeologyPlan, type KJAgentGeologyPlanInput } from './agent-geology-plan.js'
 
 type Point = [number, number]
 export interface KJDrawSample {
@@ -17,11 +19,24 @@ interface SampleDefinition extends KJDrawSample {
   units?: string
   modelScale?: number
   layers?: [string, number][]
-  build: (kit: ReturnType<typeof draftingKit>) => void
+  build?: (kit: ReturnType<typeof draftingKit>) => void
+  buildCompiled?: (sdk: KJDrawSDK, document: KJDocument) => Promise<void>
 }
 interface SheetOptions {
   x?: number; y?: number; width?: number; height?: number
   title: string; number: string; scale: string; discipline: string
+}
+
+function omitUndefined<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(item => omitUndefined(item)) as T
+  if (value !== null && typeof value === 'object') {
+    const result: Record<string, unknown> = {}
+    for (const [key, child] of Object.entries(value)) {
+      if (child !== undefined) result[key] = omitUndefined(child)
+    }
+    return result as T
+  }
+  return value
 }
 
 const sampleCatalog: SampleDefinition[] = [
@@ -29,12 +44,16 @@ const sampleCatalog: SampleDefinition[] = [
   { id: 'sample-architecture', title: 'Innovation hub / ground floor', titleZh: '创新中心 / 首层平面', discipline: 'ARCHITECTURE', build: buildArchitecture },
   { id: 'sample-road-profile', title: 'Hill route C2 / longitudinal profile', titleZh: '山区道路 C2 / 纵断面', discipline: 'TRANSPORTATION', build: buildRoadProfile },
   { id: 'sample-mechanical', title: 'Bearing bracket / manufacturing drawing', titleZh: '轴承支架 / 制造工程图', discipline: 'MECHANICAL', build: buildMechanical },
+  { id: 'sample-mechanical-flange', title: 'Six-hole mounting flange / manufacturing drawing', titleZh: '六孔安装法兰 / 制造工程图', discipline: 'MECHANICAL', build: buildMechanicalFlange },
+  { id: 'sample-borehole-log', title: 'Loess borehole / engineering log', titleZh: '黄土钻孔 / 工程柱状图', discipline: 'GEOLOGY', build: buildBoreholeLog },
+  { id: 'sample-geology-section', title: 'Geological section', titleZh: '剖面图', discipline: 'GEOLOGY', buildCompiled: buildGeologySectionCompiled },
+  { id: 'sample-geology-plan', title: 'Investigation points / location plan', titleZh: '勘探点 / 平面位置图', discipline: 'GEOLOGY', units: 'meter', buildCompiled: buildGeologyPlanCompiled },
 ]
 
 export const INDUSTRY_SAMPLES: readonly KJDrawSample[] = Object.freeze(sampleCatalog.map(({ id, title, titleZh, discipline }) => Object.freeze({ id, title, titleZh, discipline })))
 
 function draftingKit(entities: KJEntityBatchSpec[]) {
-  const add = (type: string, payload: KJObjectPayload, layerName: string, options?: KJObjectSpec) => entities.push({ type, layerName, payload, ...(options ? { options } : {}) })
+  const add = (type: string, payload: KJObjectPayload, layerName: string, options?: KJObjectSpec) => entities.push({ type, layerName, payload: omitUndefined(payload), ...(options === undefined ? {} : { options: omitUndefined(options) }) })
   const line = (start: Point, end: Point, layer: string) => add('LINE', { start, end }, layer)
   const circle = (center: Point, radius: number, layer: string) => add('CIRCLE', { center, radius }, layer)
   const arc = (center: Point, radius: number, startAngle: number, endAngle: number, layer: string) => add('ARC', { center, radius, startAngle, endAngle }, layer)
@@ -86,12 +105,15 @@ async function createDrawing(sdk: KJDrawSDK, sample: SampleDefinition): Promise<
   const kit = draftingKit(entities)
   const layers = sample.layers ?? []
   for (const [name, color] of layers) await sdk.executeCommand('LAYERNEW', { name, color }, { document })
-  sample.build(kit)
-  if (sample.modelScale) {
-    const scale = sample.modelScale
-    for (const entity of entities) entity.payload = transformEntityPayload(entity.type, entity.payload, [scale, 0, 0, scale, 0, 0])
+  if (sample.buildCompiled) await sample.buildCompiled(sdk, document)
+  else {
+    sample.build!(kit)
+    if (sample.modelScale) {
+      const scale = sample.modelScale
+      for (const entity of entities) entity.payload = omitUndefined(transformEntityPayload(entity.type, entity.payload, [scale, 0, 0, scale, 0, 0]))
+    }
+    await sdk.executeCommand('CREATEBATCH', { entities }, { document })
   }
-  await sdk.executeCommand('CREATEBATCH', { entities }, { document })
   const baseline = document.toJSON()
   sdk.closeDocument(document.id)
   return sdk.openDocument(baseline)
@@ -233,4 +255,108 @@ function buildMechanical({ line, circle, arc, text, poly, rect, cross, dimH, dim
   rect(9, 20, 101, 20, 'FRAME'); line([9, 30], [110, 30], 'FRAME'); line([34, 20], [34, 40], 'FRAME'); line([76, 20], [76, 40], 'FRAME')
   text([12, 34], 'MATERIAL', 1, 'TITLE'); text([12, 25], 'EN-GJS-500-7', 1.25, 'TITLE'); text([38, 34], 'FINISH', 1, 'TITLE'); text([38, 25], 'Ra 3.2 UNLESS NOTED', 1.15, 'TITLE'); text([80, 34], 'TOLERANCE', 1, 'TITLE'); text([80, 25], 'ISO 2768-mK', 1.15, 'TITLE')
   text([9, 146], 'REMOVE BURRS · BREAK SHARP EDGES 0.5 · DIMENSIONS IN MILLIMETERS', 1.15, 'TITLE')
+}
+
+sampleCatalog[5]!.units = 'meter'
+sampleCatalog[4]!.layers = [
+  ['FRAME', 7], ['GEO-DEPTH', 8], ['GEO-ELEV', 3], ['GEO-BOUNDARY', 7], ['GEO-HATCH', 6], ['GEO-WATER', 4], ['DIMS', 2], ['ANNO', 7], ['TITLE', 7],
+]
+function buildBoreholeLog({ line, text, rect, poly, dimV, sheet }: ReturnType<typeof draftingKit>) {
+  sheet({ title: 'LOESS BOREHOLE LOG · ZK01', number: 'G-101', scale: 'V 1:200', discipline: 'ENGINEERING GEOLOGY' })
+  const top = 126, bottom = 30, left = 28, right = 92, depthStep = (top - bottom) / 30
+  rect(left, bottom, right - left, top - bottom, 'GEO-BOUNDARY')
+  line([left + 14, bottom], [left + 14, top], 'GEO-BOUNDARY'); line([left + 28, bottom], [left + 28, top], 'GEO-BOUNDARY'); line([left + 43, bottom], [left + 43, top], 'GEO-BOUNDARY')
+  const units = [
+    ['FILL', 2, 'GEO-HATCH'], ['MALAN LOESS', 7, 'GEO-HATCH'], ['PALEOSOL', 3, 'GEO-HATCH'], ['LISHI LOESS', 6, 'GEO-HATCH'], ['PALEOSOL', 2, 'GEO-HATCH'], ['SILTY CLAY', 10, 'GEO-HATCH'],
+  ] as const
+  let cursor = top
+  for (const [name, metres] of units) { const height = metres * depthStep; rect(left + 43, cursor - height, 21, height, 'GEO-BOUNDARY'); for (let x = left + 45; x < left + 63; x += 5) for (let y = cursor - 3; y > cursor - height + 2; y -= 5) line([x, y], [x + 3, y - 3], 'GEO-HATCH'); text([left + 45, cursor - height / 2], name, 1.35, 'ANNO'); cursor -= height }
+  for (let depth = 0; depth <= 30; depth += 3) { const y = top - depth * depthStep; line([left - 3, y], [right + 4, y], 'GEO-DEPTH'); text([left - 12, y - .5], String(depth), 1.15, 'GEO-DEPTH'); text([right + 7, y - .5], (300 - depth).toFixed(2), 1.1, 'GEO-ELEV') }
+  text([left + 2, top + 7], 'DEPTH m', 1.25, 'TITLE'); text([left + 16, top + 7], 'ELEV. m', 1.25, 'TITLE'); text([left + 31, top + 7], 'CODE', 1.25, 'TITLE'); text([left + 46, top + 7], 'LITHOLOGY', 1.25, 'TITLE')
+  for (let i = 1; i <= 9; i++) text([left + 2, top - i * 3.33 - 1], String(i), 1, 'ANNO')
+  line([left + 43, 33], [left + 64, 33], 'GEO-WATER'); text([left + 66, 33], 'GWL 18.40 m', 1.2, 'GEO-WATER'); dimV(left + 73, top, bottom, 6, '30.00 m'); text([left, 21], 'COLLAR 300.00 m  ·  DEPTH POSITIVE DOWNWARD  ·  SYNTHETIC SAMPLE', 1.15, 'TITLE')
+}
+
+sampleCatalog[5]!.units = 'meter'
+sampleCatalog[6]!.layers = [
+  ['FRAME', 7], ['GEO-GRID', 8], ['GEO-STRATA', 6], ['GEO-WATER', 4], ['GEO-POINTS', 3], ['DIMS', 2], ['ANNO', 7], ['TITLE', 7],
+]
+async function buildGeologySectionCompiled(sdk: KJDrawSDK, document: KJDocument): Promise<void> {
+  const layers = [
+    ['1', 'Cultivated soil', 'cultivated-soil'], ['2', 'Loess', 'loess'],
+    ['3', 'Paleosol', 'paleosol'], ['4', 'Loess', 'loess'],
+    ['5', 'Silty clay', 'silty-clay'],
+  ] as const
+  const boundaries = [0, 3, 8, 12, 20, 30]
+  const holes: KJGeologySectionInput['holes'] = Array.from({ length: 5 }, (_, index) => {
+    const id = `ZK${String(index + 1).padStart(2, '0')}`
+    return { id, station: index * 25, collarElevation: 300 + [0, 0.35, -0.15, 0.25, -0.3][index]!, depth: 30,
+      strata: layers.map(([code, name, lithology], layerIndex) => ({
+        intervalId: `${id}-L${layerIndex + 1}`, code, name, lithology,
+        top: boundaries[layerIndex]!, bottom: boundaries[layerIndex + 1]!,
+      })) }
+  })
+  const correlations: KJGeologySectionInput['correlations'] = []
+  for (let holeIndex = 0; holeIndex < holes.length - 1; holeIndex++) for (let layerIndex = 0; layerIndex < layers.length; layerIndex++)
+    correlations.push({ fromHoleId: holes[holeIndex]!.id, toHoleId: holes[holeIndex + 1]!.id,
+      fromIntervalId: `${holes[holeIndex]!.id}-L${layerIndex + 1}`,
+      toIntervalId: `${holes[holeIndex + 1]!.id}-L${layerIndex + 1}` })
+  const compiled = compileGeologySection({ holes, correlations, sourceFactMode: 'illustrative',
+    horizontalScaleDenominator: 500, verticalScaleDenominator: 200, datumElevation: 265,
+    surfaceRule: 'straight-between-supplied-collars', expectedRevision: document.revision,
+    title: 'GEOLOGICAL SECTION A—A′ · ILLUSTRATIVE, NOT MEASURED' })
+  await sdk.executeCommand('CREATEBATCH', structuredClone(compiled.commandArgs) as KJCommandArguments, { document })
+}
+
+async function buildGeologyPlanCompiled(sdk: KJDrawSDK, document: KJDocument): Promise<void> {
+  const ids = Array.from({ length: 5 }, (_, index) => `ZK${String(index + 1).padStart(2, '0')}`)
+  const input: KJAgentGeologyPlanInput = {
+    version: '1.0.0', expectedRevision: document.revision, units: 'meter', locale: 'en',
+    drawingId: 'SYNTHETIC-INVESTIGATION-PLAN', title: 'INVESTIGATION POINT PLAN · ILLUSTRATIVE, NOT MEASURED',
+    scale: 500, boundary: [[980, 980], [1120, 980], [1120, 1020], [980, 1020]],
+    boreholes: ids.map((id, index) => ({ id, position: [1000 + index * 25, 1000],
+      collarElevation: 300 + [0, 0.35, -0.15, 0.25, -0.3][index]!, depth: 30, kind: 'borehole' })),
+    sectionLines: [{ id: 'SECTION-A', holeIds: ids, label: 'A—A′', endpointLabels: ['A', 'A′'] }],
+    coordinateGrid: { origin: [980, 980], spacing: 20 }, northAngleDegrees: 0,
+  }
+  const compiled = buildAgentGeologyPlan(document, input)
+  await sdk.executeCommand('CREATEBATCH', structuredClone(compiled.commandArgs) as KJCommandArguments, { document })
+}
+sampleCatalog[4]!.layers = [
+  ['FRAME', 7], ['M-OBJECT', 7], ['M-CENTER', 3], ['M-HIDDEN', 8], ['DIMS', 2], ['ANNO', 7], ['TITLE', 7],
+]
+function buildMechanicalFlange({ line, circle, text, rect, cross, dimH, dimV, sheet }: ReturnType<typeof draftingKit>) {
+  sheet({ width: 350, height: 230, title: 'SIX-HOLE MOUNTING FLANGE', number: 'M-2050', scale: '1:1', discipline: 'MECHANICAL DETAIL' })
+  const cx = 92, cy = 109, outerRadius = 60, boreRadius = 20, pitchRadius = 45, holeRadius = 5
+  circle([cx, cy], outerRadius, 'M-OBJECT')
+  circle([cx, cy], boreRadius, 'M-OBJECT')
+  circle([cx, cy], pitchRadius, 'M-CENTER')
+  cross(cx, cy, outerRadius + 3, 'M-CENTER')
+  for (let index = 0; index < 6; index++) {
+    const angle = index * Math.PI / 3
+    const x = cx + Math.cos(angle) * pitchRadius, y = cy + Math.sin(angle) * pitchRadius
+    circle([x, y], holeRadius, 'M-OBJECT')
+    cross(x, y, holeRadius + 2, 'M-CENTER')
+  }
+  text([cx - 22, 40], 'FRONT / FACE VIEW', 1.6, 'ANNO')
+  dimH(cx - outerRadius, cx + outerRadius, cy, -78, 'Ø120')
+  text([cx - 20, cy + 70], '6 × Ø10 THRU  ·  PCD Ø90', 1.55, 'DIMS')
+  line([cx + boreRadius * .7, cy + boreRadius * .7], [cx + 31, cy + 32], 'DIMS')
+  text([cx + 32, cy + 32], 'Ø40 BORE', 1.4, 'DIMS')
+
+  // True 1:1 longitudinal section: 120 mm outside, 40 mm through bore and 20 mm axial thickness.
+  const sectionLeft = 222, sectionRight = 242, bottom = cy - outerRadius, top = cy + outerRadius
+  rect(sectionLeft, bottom, sectionRight - sectionLeft, top - bottom, 'M-OBJECT')
+  line([sectionLeft, cy - boreRadius], [sectionRight, cy - boreRadius], 'M-OBJECT')
+  line([sectionLeft, cy + boreRadius], [sectionRight, cy + boreRadius], 'M-OBJECT')
+  line([sectionLeft - 10, cy], [sectionRight + 10, cy], 'M-CENTER')
+  for (let index = 0; index < 8; index++) {
+    const offset = index * 4
+    line([sectionLeft + 2, bottom + 3 + offset], [sectionLeft + 7, bottom + 8 + offset], 'M-HIDDEN')
+    line([sectionLeft + 2, cy + boreRadius + 3 + offset], [sectionLeft + 7, cy + boreRadius + 8 + offset], 'M-HIDDEN')
+  }
+  dimH(sectionLeft, sectionRight, bottom, -13, '20')
+  dimV(sectionRight, bottom, top, 17, 'Ø120')
+  text([sectionLeft - 8, 32], 'SECTION B—B  ·  1:1', 1.55, 'ANNO')
+  text([11, 195], 'C45 STEEL  ·  SIX Ø10 THRU HOLES ON Ø90 PCD  ·  BREAK SHARP EDGES', 1.2, 'TITLE')
 }

@@ -255,6 +255,7 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
         if (ref.feature === 'vertex') {
             if (object.type !== 'LWPOLYLINE' || !Number.isSafeInteger(ref.vertexIndex) || ref.vertexIndex < 0 || ref.vertexIndex > 4095 || !Array.isArray(payload.vertices) || payload.vertices.length > 4096) fail('Vertex references require a bounded native polyline vertex index');
             const vertices = payload.vertices;
+            if (ref.vertexIndex >= vertices.length) fail('Vertex index is outside the referenced polyline; group and vertex indexes are zero-based');
             if (vertices.some((vertex)=>vertex.bulge !== 0)) fail('Annotation vertex references currently require straight polylines');
             return {
                 point: nativePoint(vertices[ref.vertexIndex]?.point),
@@ -300,7 +301,7 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
             rotation: number(item.rotationDegrees, 'Text angle', 0, 360) * Math.PI / 180
         });
     }
-    for (const value of source.dimensions){
+    for (const [dimensionIndex, value] of source.dimensions.entries()){
         const item = record(value, [
             'type',
             'from',
@@ -453,7 +454,7 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
             precision: 8
         };
         const projection = projectDimension(payload);
-        if (!projection || !Number.isFinite(projection.measurement) || projection.measurement < 1e-8 || projection.measurement > 1e12) return fail('Dimension references produce degenerate or out-of-budget measurements');
+        if (!projection || !Number.isFinite(projection.measurement) || projection.measurement < 1e-8 || projection.measurement > 1e12) return fail(`Dimension ${dimensionIndex} (${type}) references produce degenerate or out-of-budget measurements`);
         if (type === 'ANGULAR_3_POINT') {
             for (const point of [
                 ...projection.lines.flat(),

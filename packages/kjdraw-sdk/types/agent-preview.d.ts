@@ -34,7 +34,22 @@ export interface KJAgentGeometryPreview {
             readonly key: string;
         };
     };
-    readonly command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'ROAD_DRAWING_UPDATE';
+    readonly recordChanges?: readonly Readonly<{
+        id: string;
+        before: KJReadonlyObjectRecord;
+        after: KJReadonlyObjectRecord | null;
+    }>[];
+    readonly command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT' | 'HATCHPATTERN' | 'ROAD_DRAWING_UPDATE' | 'GEOLOGY_DRAWING_UPDATE' | 'UNDO' | 'REDO';
+    readonly historyChange?: {
+        readonly targetHistoryId: string;
+        readonly targetRevision: number;
+        readonly label: string;
+        readonly source: string;
+        readonly beforeFingerprint: string;
+        readonly afterFingerprint: string;
+        readonly changedRecordCount: number;
+        readonly changedSections: readonly string[];
+    };
     readonly before: readonly KJAgentPreviewEntity[];
     readonly after: readonly KJAgentPreviewEntity[];
 }
@@ -42,9 +57,17 @@ export declare const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[];
 /** Resolve a selected member of an owned native LEADER/MTEXT pair to both members. */
 export declare function resolveAgentTransformEntityIds(document: KJDocument, sourceIds: readonly string[]): string[];
 export interface KJAgentGeometryPreviewOptions {
-    /** Trusted host creation budget; defaults to 64, hard maximum 512. Transforms remain limited to 64. */
+    /** Trusted host creation budget; defaults to 64, hard maximum 2048. Transforms remain limited to 64. */
     maxCreatedEntities?: number;
+    /** Trusted host new-resource budget; defaults to 32 and is always capped at 256. */
+    maxCreatedResources?: number;
+    /** Trusted host complete after-preview budget, including block members; defaults to maxCreatedEntities and is capped at 4096. */
+    maxPreviewEntities?: number;
+    /** Trusted host serialized preview budget; defaults to 256 KiB and is capped at 4 MiB. */
+    maxPreviewBytes?: number;
 }
 /** Run bounded core geometry on a detached document. No host plugins, authority, network or source history is invoked. */
-export declare function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE', args: Record<string, unknown>, options?: KJAgentGeometryPreviewOptions): Promise<KJAgentGeometryPreview>;
+export declare function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT' | 'HATCHPATTERN', args: Record<string, unknown>, options?: KJAgentGeometryPreviewOptions): Promise<KJAgentGeometryPreview>;
+/** Project the engine's retained snapshot; this never guesses inverse geometry. */
+export declare function createAgentHistoryPreview(document: KJDocument, command: 'UNDO' | 'REDO', targetHistoryId: string, expectedRevision: number): KJAgentGeometryPreview;
 export declare function agentPreviewMatchesDocument(document: KJDocument, preview: KJAgentGeometryPreview): boolean;

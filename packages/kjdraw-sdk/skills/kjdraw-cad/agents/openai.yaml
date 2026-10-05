@@ -1,0 +1,4 @@
+interface:
+  display_name: "KJDraw CAD"
+  short_description: "Reviewable CAD drawings for AI agents · 智能体工程制图"
+  default_prompt: "Use $kjdraw-cad to inspect a drawing or prepare a reviewable CAD edit proposal."

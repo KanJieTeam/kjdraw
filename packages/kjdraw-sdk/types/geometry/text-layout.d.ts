@@ -2,6 +2,8 @@ import type { KJObjectPayload } from '../schema.js';
 type Data = Readonly<Record<string, unknown>>;
 type Point = readonly [number, number];
 type MeasureText = (text: string, height: number, family: string) => number;
+/** Browser-safe engineering preview stack: neutral Latin glyphs plus installed CJK fallbacks. */
+export declare const KJDRAW_ENGINEERING_FONT_STACK = "\"Noto Sans CJK SC\",\"Source Han Sans SC\",\"Microsoft YaHei\",\"Microsoft YaHei UI\",\"PingFang SC\",\"Arial\",\"Segoe UI\",\"WenQuanYi Micro Hei\",sans-serif";
 /** Safe local font-family mapping; no URL/file loading or embedded font claims. */
 export declare function textFontFamily(style?: Data, fallback?: string): string;
 /** CAD cap-height coordinates. Optional metrics are supplied by the rendering host;
@@ -16,8 +18,8 @@ export declare function layoutCadText(payload: Readonly<KJObjectPayload> | Data,
     matrix: readonly [number, number, number, number, number, number];
     corners: Point[];
 };
-/** Deterministic plain MTEXT layout. Keeps the source editable while exposing
- * bounded lines shared by Canvas hit testing and vector output. */
+/** Deterministic plain and bounded local-font MTEXT layout. Preserves the raw
+ * source while sharing positioned font runs with Canvas and vector output. */
 export declare function layoutCadMText(payload: Readonly<KJObjectPayload> | Data, style?: Data, measure?: MeasureText): {
     text: string;
     family: string;
@@ -29,6 +31,12 @@ export declare function layoutCadMText(payload: Readonly<KJObjectPayload> | Data
         width: number;
         left: number;
         baseline: number;
+        runs: {
+            text: string;
+            family: string;
+            width: number;
+            left: number;
+        }[];
     }[];
     matrix: readonly [number, number, number, number, number, number];
     corners: Point[];

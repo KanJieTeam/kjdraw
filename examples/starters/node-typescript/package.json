@@ -1,0 +1,17 @@
+{
+  "name": "kjdraw-node-typescript-starter",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && node dist/index.js"
+  },
+  "dependencies": {
+    "@kanjieteam/kjdraw": "next"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.0"
+  }
+}

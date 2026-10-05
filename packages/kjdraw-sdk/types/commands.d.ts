@@ -1,10 +1,12 @@
 import type { KJDxfPlotSettings } from './plot-settings.js';
+import type { KJContourBackendOptions } from './geometry/contour-wasm.js';
 import type { ReadonlyDeep } from './utils.js';
 import type { KJPointInput } from './grips.js';
 import type { KJDocument } from './document.js';
 import type { KJSelectionManager } from './selection.js';
 import type { KJObjectPatch, KJTransaction } from './transaction.js';
 import type { KJObjectPayload, KJObjectSpec } from './schema.js';
+import type { Point3 } from './geometry/index.js';
 export interface KJCommandEnvelopeContext {
     readonly id?: unknown;
     readonly schema?: unknown;
@@ -33,6 +35,7 @@ export interface KJSolidAuthority extends Record<string, unknown> {
 }
 export interface KJCommandSDKContext {
     readonly solidAuthority?: unknown;
+    readonly contourBackend?: KJContourBackendOptions;
     getSelectionManager(documentId?: string | null): KJSelectionManager | null;
 }
 export interface KJCommandContext {
@@ -52,6 +55,7 @@ export interface KJEntityBatchSpec extends Record<string, unknown> {
     type?: string;
     payload?: KJObjectPayload;
     options?: KJObjectSpec;
+    attributeSequence?: KJEntityBatchAttributeSequence;
     layerName?: string;
     layer?: {
         color?: unknown;
@@ -59,6 +63,17 @@ export interface KJEntityBatchSpec extends Record<string, unknown> {
         frozen?: unknown;
         locked?: unknown;
         plottable?: unknown;
+    };
+}
+export interface KJEntityBatchAttributeSequence {
+    attributes: {
+        id: string;
+        payload: KJObjectPayload;
+    }[];
+    sequenceEnd: {
+        id: string;
+        dxfOwnerMode: 'insert' | 'space';
+        layerId?: string;
     };
 }
 export interface KJEntityBatchResources {
@@ -73,6 +88,16 @@ export interface KJEntityBatchResources {
         color: number;
         linetypeId: string;
         lineweight: number;
+    }[];
+    textStyles?: {
+        id: string;
+        name: string;
+        payload: KJObjectPayload;
+    }[];
+    dimensionStyles?: {
+        id: string;
+        name: string;
+        payload: KJObjectPayload;
     }[];
     blocks?: {
         id: string;
@@ -114,8 +139,13 @@ export interface KJBlockAttributeDefinitionInput {
  * signature without weakening the SDK through an untyped escape hatch.
  */
 export interface KJCommandArguments extends Record<string, unknown> {
+    targetHistoryId?: string;
     resources?: KJEntityBatchResources;
     layout?: KJEntityBatchLayout;
+    systemVariables?: {
+        readonly PDMODE?: number;
+        readonly PDSIZE?: number;
+    };
     id?: string;
     ids?: readonly string[];
     firstId?: string;
@@ -170,6 +200,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
     pattern?: unknown;
     settings?: Record<string, unknown>;
     parameters?: unknown;
+    /** SPLINE BREAK only: parameter in the native knot domain. */
+    parameter?: number;
     position?: unknown;
     insertionPoint?: unknown;
     center?: KJPointInput;
@@ -187,6 +219,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
     secondVector?: KJPointInput;
     vertex?: KJPointInput;
     pickPoint?: KJPointInput;
+    /** SPLINE TRIM only: disambiguates a pick in the native knot domain. */
+    pickParameter?: number;
     sidePoint?: KJPointInput;
     points?: readonly KJPointInput[];
     origin?: unknown;
@@ -209,6 +243,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
     arrowEnabled?: unknown;
     distance?: unknown;
     tolerance?: unknown;
+    /** BREAK controls only: resolve omitted pick tolerance from the actual target type. */
+    toleranceMode?: 'entity-default';
     segmentIndex?: unknown;
     vertexIndex?: unknown;
     bulge?: unknown;
@@ -308,10 +344,36 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         atomic: boolean;
         maximumEntities: number;
     };
+    readonly STRUCTURALEDIT: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly operations: readonly string[];
+        readonly atomic: boolean;
+        readonly stableIdentity: boolean;
+        readonly maximumChangedEntities: number;
+        readonly maximumReconnections: number;
+        readonly reconnectEntityTypes: readonly string[];
+        readonly semanticInference: string;
+    };
+    readonly TEXTEDIT: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly supportedEntityTypes: readonly string[];
+        readonly atomic: boolean;
+        readonly stableIdentity: boolean;
+        readonly maximumChangedEntities: number;
+        readonly requiresExpectedText: boolean;
+    };
     readonly ROAD_DRAWING_UPDATE: {
         domain: string;
         atomic: boolean;
         stableIds: boolean;
+        requiresUnmodifiedPrevious: boolean;
+    };
+    readonly GEOLOGY_DRAWING_UPDATE: {
+        domain: string;
+        atomic: boolean;
+        preservesUnchangedObjects: boolean;
         requiresUnmodifiedPrevious: boolean;
     };
     readonly ERASE: {
@@ -382,11 +444,46 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly precision: string;
         readonly supportedEntityTypes: readonly string[];
     };
+    readonly CONTOUROFFSET: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly supportedEntityTypes: readonly string[];
+        readonly atomic: boolean;
+        readonly preservesSources: boolean;
+        readonly multipleResults: boolean;
+        readonly emptyResultCommits: boolean;
+        readonly requiresExpectedRevision: boolean;
+        readonly requiresUnits: boolean;
+    };
+    readonly CONTOURBOOLEAN: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly operations: readonly string[];
+        readonly supportedEntityTypes: readonly string[];
+        readonly atomic: boolean;
+        readonly preservesSources: boolean;
+        readonly multipleResults: boolean;
+        readonly emptyResultCommits: boolean;
+        readonly requiresExpectedRevision: boolean;
+        readonly requiresUnits: boolean;
+    };
+    readonly CONTOURBOUNDARIES: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly supportedEntityTypes: readonly string[];
+        readonly atomic: boolean;
+        readonly preservesSources: boolean;
+        readonly multipleResults: boolean;
+        readonly requiresExpectedRevision: boolean;
+        readonly requiresUnits: boolean;
+        readonly requiresReviewedGeometry: boolean;
+    };
     readonly BREAK: {
         readonly domain: string;
         readonly precision: string;
         readonly supportedEntityTypes: readonly string[];
         readonly deterministicPieces: boolean;
+        readonly splineContract: string;
     };
     readonly JOIN: {
         readonly domain: string;
@@ -404,6 +501,8 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly precision: string;
         readonly targetEntityTypes: readonly string[];
         readonly boundaryEntityTypes: readonly string[];
+        readonly splineBoundaryEntityTypes: readonly string[];
+        readonly splineContract: string;
     };
     readonly EXTEND: {
         readonly domain: string;
@@ -553,6 +652,11 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         stableIdentity: boolean;
         requiresUnmodifiedGeometry: boolean;
     };
+    readonly DESIGNDELETE: {
+        domain: string;
+        atomic: boolean;
+        preservesGeometry: boolean;
+    };
     readonly HATCH: {
         readonly domain: string;
         readonly entityType: string;
@@ -701,3 +805,27 @@ export declare class KJCommandRegistry {
     executeRegisteredInTransaction(command: KJRegisteredCommand, context: KJCommandContext, args?: KJCommandArguments): Promise<unknown>;
 }
 export declare function registerCoreCommands(registry: KJCommandRegistry): () => void;
+interface KJStructuralReconnection {
+    readonly id: string;
+    readonly type: 'LINE' | 'LWPOLYLINE';
+    readonly points: readonly Point3[];
+    readonly layerId: string;
+}
+interface KJStructuralCreation {
+    readonly id: string;
+    readonly type: 'LINE' | 'LWPOLYLINE' | 'HATCH' | 'TEXT';
+    readonly payload: KJObjectPayload;
+}
+interface KJPreparedStructuralEdit {
+    readonly eraseIds: readonly string[];
+    readonly effectiveEraseIds: readonly string[];
+    readonly reconnections: readonly KJStructuralReconnection[];
+    readonly creations: readonly KJStructuralCreation[];
+    readonly relayer: Readonly<{
+        ids: readonly string[];
+        layerId: string;
+    }> | null;
+}
+/** Shared core/approval-preview preflight; counts actual owned erase records. */
+export declare function prepareStructuralEdit(document: KJDocument, args: KJCommandArguments): KJPreparedStructuralEdit;
+export {};

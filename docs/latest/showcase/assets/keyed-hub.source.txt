@@ -1,0 +1,25 @@
+// examples/curated-machine-components.mjs#L93-L114
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+function drawHub(d) {
+  // End view shows a 56 OD, 24 bore, and 8 wide keyway. Section length 42.
+  d.circle(82, 112, 28)
+  d.circle(82, 112, 12)
+  d.rect(78, 124, 86, 129)
+  d.center(82, 112, 34)
+  d.hatch([[168, 84], [210, 84], [210, 100], [168, 100]])
+  d.hatch([[168, 124], [210, 124], [210, 140], [168, 140]])
+  d.rect(168, 84, 210, 140)
+  d.line(168, 100, 210, 100)
+  d.line(168, 124, 210, 124)
+  d.line(163, 112, 215, 112, 'center')
+  d.dim(168, 140, 210, 140, 189, 153)
+  d.dim(54, 84, 54, 140, 39, 112)
+  d.text(55, 68, 'END VIEW', 3.2)
+  d.text(166, 68, 'AXIAL SECTION', 3.2)
+  d.text(223, 135, 'OD 56', 3)
+  d.text(223, 123, 'BORE DIA 24', 3)
+  d.text(223, 111, 'KEYWAY 8 WIDE', 3)
+  d.text(223, 99, 'LENGTH 42', 3)
+  d.text(54, 54, 'KEY DEPTH, TOLERANCE AND FIT TO BE DEFINED', 2.8)
+}

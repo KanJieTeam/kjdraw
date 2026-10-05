@@ -15,6 +15,14 @@ export interface KJBreakOptions {
     readonly secondPoint?: unknown;
     readonly points?: readonly unknown[];
     readonly tolerance?: unknown;
+    /** SPLINE only: parameter(s) in its native knot domain. */
+    readonly parameter?: unknown;
+    readonly parameters?: unknown;
+}
+export interface KJSplineTrimOptions {
+    readonly tolerance?: unknown;
+    /** SPLINE only: native knot-domain pick parameter for ambiguous points. */
+    readonly pickParameter?: unknown;
 }
 export interface KJLinePairOptions {
     readonly pickPoint1?: unknown;
@@ -108,11 +116,11 @@ export declare function trimLinePayloads(target: KJEditingEntity | null | undefi
 /** Single-result compatibility helper; use trimLinePayloads for interior cuts. */
 export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
 export declare function extendLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
-/** Remove the picked interval from a line, polyline, circular curve or native ellipse. */
-export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];
+/** Remove the picked interval from a line, polyline, circular curve, native ellipse or supported native spline. */
+export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown, options?: KJSplineTrimOptions): KJDerivedEntityPayload[];
 /** Extend the picked end of a line, circular/elliptical arc or open polyline to its nearest continuation boundary. */
 export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
-/** Change one endpoint while preserving a LINE direction or ARC radius and orientation. */
+/** Change one endpoint while preserving a LINE direction, ARC radius or ELLIPSE axes. */
 export declare function lengthenEntityPayload(target: KJEditingEntity | null | undefined, options?: KJLengthenOptions): KJObjectPayload;
 /** Move only defining vertices inside a crossing window; return null when none are selected. */
 export declare function stretchEntityPayload(target: KJEditingEntity | null | undefined, options?: KJStretchOptions): KJObjectPayload | null;

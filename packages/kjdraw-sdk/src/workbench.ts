@@ -5,7 +5,7 @@ import { KJDocument } from './document.js'
 import type { KJCommandArguments } from './commands.js'
 import { editEntityGrip, type KJEntityGrip, type KJPointInput } from './grips.js'
 import type { KJReadonlyObjectRecord } from './schema.js'
-import { getDocumentSnapSettings, type KJSnapCandidate, type KJSnapMode } from './snapping.js'
+import { getDocumentSnapSettings, KJ_SNAP_MODES, nearestPointOnEntity2, type KJSnapCandidate, type KJSnapMode } from './snapping.js'
 import type { KJDxfPlotSettings } from './plot-settings.js'
 import type { KJFileAdapterOptions, KJFileReadProgress } from './file-adapters.js'
 import { openDrawingPrintWindow, type KJDrawingPrintHtml, type KJDrawingPrintOptions } from './print-export.js'
@@ -159,8 +159,8 @@ interface KJWorkbenchFenceSelection {
 const copy = {
   en: {
     drawingSpace: 'Drawing space', modelSpace: 'Model', paperPreview: 'Paper preview · return to Model to edit',
-    pageSetup: 'Page setup', dimensionStyles: 'Dimension styles', dimensionStylesDescription: 'Create, edit, or activate native dimension styles.', newDimensionStyle: 'New style', setCurrentStyle: 'Set current', currentStyle: 'Current', styleName: 'Style name', dimensionArrowSize: 'Arrow size', dimensionExtensionOffset: 'Extension-line offset', dimensionExtensionBeyond: 'Extension beyond dimension line', textStyles: 'Text styles', textStylesDescription: 'Manage local font references and native CAD text metrics. Font files are referenced, not embedded.', newTextStyle: 'New style', fontFamily: 'Font family / fallback name', fontFile: 'Local font file reference', bigFontFile: 'Big-font file reference', fixedTextHeight: 'Fixed height (0 = per object)', textWidthFactor: 'Width factor', textObliqueAngle: 'Oblique angle (degrees)', pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.', pageSheet: 'Sheet', pageStale: 'The drawing changed. Close and reopen the dialog before applying.', pageWidth: 'Paper width (mm)', pageHeight: 'Paper height (mm)', pageLeft: 'Left margin (mm)', pageRight: 'Right margin (mm)', pageTop: 'Top margin (mm)', pageBottom: 'Bottom margin (mm)', pageUnits: 'Plot units', pageRotation: 'Rotation (counterclockwise)', pageNumerator: 'Custom scale: paper units', pageDenominator: 'Custom scale: drawing units', pageScaleNote: 'Choose Fit to paper or edit the custom ratio. Window coordinates use drawing units; physical offsets use millimeters.', pageUnchanged: 'Keep existing', pageInches: 'Inches', pageMm: 'Millimeters', pagePixels: 'Pixels', pageArea: 'Plot area', pageDisplay: 'Last display', pageExtents: 'Drawing extents', pageLimits: 'Drawing limits', pageView: 'Named view', pageWindow: 'Window', pageLayout: 'Layout', pageViewName: 'View name', pageMinX: 'Window minimum X', pageMinY: 'Window minimum Y', pageMaxX: 'Window maximum X', pageMaxY: 'Window maximum Y', pageOriginX: 'Origin X (mm)', pageOriginY: 'Origin Y (mm)', pageScaleMode: 'Scale mode', pageFit: 'Fit to paper', pageCustom: 'Custom ratio',
-    open: 'Open', openSource: 'Reading file', openParse: 'Parsing DXF', openImport: 'Building drawing', openCancelHint: 'Esc cancels', openCancelled: 'Open cancelled', saveKjd: 'Save KJD', exportDxf: 'Export DXF', exportSvg: 'Export SVG', exportPng: 'Export PNG', print: 'Print / PDF', printOpened: 'Print dialog opened · choose Save as PDF for vector output', draw: 'Draw', modify: 'Modify', view: 'View',
+    pageSetup: 'Page setup', dimensionStyles: 'Dimension styles', dimensionStylesDescription: 'Create, edit, or activate native dimension styles.', newDimensionStyle: 'New style', setCurrentStyle: 'Set current', currentStyle: 'Current', styleName: 'Style name', dimensionArrowSize: 'Arrow size', dimensionExtensionOffset: 'Extension-line offset', dimensionExtensionBeyond: 'Extension beyond dimension line', textStyles: 'Text styles', textStylesDescription: 'Manage local font references and native CAD text metrics. Font files are referenced, not embedded.', newTextStyle: 'New style', fontFamily: 'Font family / fallback name', fontFile: 'Local font file reference', bigFontFile: 'Big-font file reference', fixedTextHeight: 'Fixed height (0 = per object)', textWidthFactor: 'Width factor', textObliqueAngle: 'Oblique angle (degrees)', snapSettings: 'Object snap settings', snapSettingsDescription: 'Choose which native object snaps are active and the screen-pixel capture aperture.', snapModes: 'Object snap modes', snapAperture: 'Capture aperture (pixels)', snapApertureError: 'Capture aperture must be a positive number.', snapSettingsApplied: 'Object snap settings applied', pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.', pageSheet: 'Sheet', pageStale: 'The drawing changed. Close and reopen the dialog before applying.', pageWidth: 'Paper width (mm)', pageHeight: 'Paper height (mm)', pageLeft: 'Left margin (mm)', pageRight: 'Right margin (mm)', pageTop: 'Top margin (mm)', pageBottom: 'Bottom margin (mm)', pageUnits: 'Plot units', pageRotation: 'Rotation (counterclockwise)', pageNumerator: 'Custom scale: paper units', pageDenominator: 'Custom scale: drawing units', pageScaleNote: 'Choose Fit to paper or edit the custom ratio. Window coordinates use drawing units; physical offsets use millimeters.', pageUnchanged: 'Keep existing', pageInches: 'Inches', pageMm: 'Millimeters', pagePixels: 'Pixels', pageArea: 'Plot area', pageDisplay: 'Last display', pageExtents: 'Drawing extents', pageLimits: 'Drawing limits', pageView: 'Named view', pageWindow: 'Window', pageLayout: 'Layout', pageViewName: 'View name', pageMinX: 'Window minimum X', pageMinY: 'Window minimum Y', pageMaxX: 'Window maximum X', pageMaxY: 'Window maximum Y', pageOriginX: 'Origin X (mm)', pageOriginY: 'Origin Y (mm)', pageScaleMode: 'Scale mode', pageFit: 'Fit to paper', pageCustom: 'Custom ratio',
+    open: 'Open', openSource: 'Reading file', openParse: 'Parsing drawing', openImport: 'Building drawing', openCancelHint: 'Esc cancels', openCancelled: 'Open cancelled', saveKjd: 'Save KJD', exportDxf: 'Export DXF', exportSvg: 'Export SVG', exportPng: 'Export PNG', print: 'Print / PDF', printOpened: 'Print dialog opened · choose Save as PDF for vector output', draw: 'Draw', modify: 'Modify', view: 'View',
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
     undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', ortho: 'Ortho', orthoOn: 'Orthogonal drafting on', orthoOff: 'Orthogonal drafting off', orthoBusy: 'Finish or cancel the current operation before changing Ortho', polar: 'Polar', polarOn: 'Polar tracking on', polarOff: 'Polar tracking off', polarBusy: 'Finish or cancel the current operation before changing Polar tracking', layers: 'Layers', properties: 'Properties',
     noSelection: 'Select an object to inspect its properties.', drawing: 'Drawing', entities: 'entities', selected: 'selected',
@@ -179,8 +179,8 @@ const copy = {
   },
   'zh-CN': {
     drawingSpace: '图纸空间', modelSpace: '模型', paperPreview: '纸空间只读预览 · 返回模型后编辑',
-    pageSetup: '页面设置', dimensionStyles: '标注样式', dimensionStylesDescription: '创建、编辑或启用原生标注样式。', newDimensionStyle: '新建样式', setCurrentStyle: '设为当前', currentStyle: '当前', styleName: '样式名称', dimensionArrowSize: '箭头大小', dimensionExtensionOffset: '尺寸界线偏移', dimensionExtensionBeyond: '尺寸界线超出量', textStyles: '文字样式', textStylesDescription: '管理本地字体引用和原生 CAD 文字参数。字体文件仅引用，不会嵌入。', newTextStyle: '新建样式', fontFamily: '字体族 / 回退名称', fontFile: '本地字体文件引用', bigFontFile: '大字体文件引用', fixedTextHeight: '固定高度（0 表示按对象）', textWidthFactor: '宽度系数', textObliqueAngle: '倾斜角（度）', pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。', pageSheet: '图纸布局', pageStale: '图档已变更，请关闭并重新打开对话框后再应用。', pageWidth: '纸张宽度（毫米）', pageHeight: '纸张高度（毫米）', pageLeft: '左边距（毫米）', pageRight: '右边距（毫米）', pageTop: '上边距（毫米）', pageBottom: '下边距（毫米）', pageUnits: '打印单位', pageRotation: '旋转（逆时针）', pageNumerator: '自定义比例：纸张单位', pageDenominator: '自定义比例：绘图单位', pageScaleNote: '可选适合纸张或编辑自定义比例。窗口坐标使用绘图单位，物理偏移使用毫米。', pageUnchanged: '保留已有值', pageInches: '英寸', pageMm: '毫米', pagePixels: '像素', pageArea: '打印范围', pageDisplay: '上次显示范围', pageExtents: '图形范围', pageLimits: '图形界限', pageView: '命名视图', pageWindow: '窗口', pageLayout: '布局', pageViewName: '视图名称', pageMinX: '窗口最小 X', pageMinY: '窗口最小 Y', pageMaxX: '窗口最大 X', pageMaxY: '窗口最大 Y', pageOriginX: '原点 X（毫米）', pageOriginY: '原点 Y（毫米）', pageScaleMode: '比例模式', pageFit: '适合纸张', pageCustom: '自定义比例',
-    open: '打开', openSource: '正在读取文件', openParse: '正在解析 DXF', openImport: '正在构建图纸', openCancelHint: 'Esc 取消', openCancelled: '已取消打开', saveKjd: '保存 KJD', exportDxf: '导出 DXF', exportSvg: '导出 SVG', exportPng: '导出 PNG', print: '打印 / PDF', printOpened: '已打开打印对话框 · 选择另存为 PDF 可保留矢量', draw: '绘图', modify: '修改', view: '视图',
+    pageSetup: '页面设置', dimensionStyles: '标注样式', dimensionStylesDescription: '创建、编辑或启用原生标注样式。', newDimensionStyle: '新建样式', setCurrentStyle: '设为当前', currentStyle: '当前', styleName: '样式名称', dimensionArrowSize: '箭头大小', dimensionExtensionOffset: '尺寸界线偏移', dimensionExtensionBeyond: '尺寸界线超出量', textStyles: '文字样式', textStylesDescription: '管理本地字体引用和原生 CAD 文字参数。字体文件仅引用，不会嵌入。', newTextStyle: '新建样式', fontFamily: '字体族 / 回退名称', fontFile: '本地字体文件引用', bigFontFile: '大字体文件引用', fixedTextHeight: '固定高度（0 表示按对象）', textWidthFactor: '宽度系数', textObliqueAngle: '倾斜角（度）', snapSettings: '对象捕捉设置', snapSettingsDescription: '选择启用的原生对象捕捉模式，并设置屏幕像素捕捉范围。', snapModes: '对象捕捉模式', snapAperture: '捕捉范围（像素）', snapApertureError: '捕捉范围必须是大于 0 的数字。', snapSettingsApplied: '对象捕捉设置已应用', pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。', pageSheet: '图纸布局', pageStale: '图档已变更，请关闭并重新打开对话框后再应用。', pageWidth: '纸张宽度（毫米）', pageHeight: '纸张高度（毫米）', pageLeft: '左边距（毫米）', pageRight: '右边距（毫米）', pageTop: '上边距（毫米）', pageBottom: '下边距（毫米）', pageUnits: '打印单位', pageRotation: '旋转（逆时针）', pageNumerator: '自定义比例：纸张单位', pageDenominator: '自定义比例：绘图单位', pageScaleNote: '可选适合纸张或编辑自定义比例。窗口坐标使用绘图单位，物理偏移使用毫米。', pageUnchanged: '保留已有值', pageInches: '英寸', pageMm: '毫米', pagePixels: '像素', pageArea: '打印范围', pageDisplay: '上次显示范围', pageExtents: '图形范围', pageLimits: '图形界限', pageView: '命名视图', pageWindow: '窗口', pageLayout: '布局', pageViewName: '视图名称', pageMinX: '窗口最小 X', pageMinY: '窗口最小 Y', pageMaxX: '窗口最大 X', pageMaxY: '窗口最大 Y', pageOriginX: '原点 X（毫米）', pageOriginY: '原点 Y（毫米）', pageScaleMode: '比例模式', pageFit: '适合纸张', pageCustom: '自定义比例',
+    open: '打开', openSource: '正在读取文件', openParse: '正在解析图纸', openImport: '正在构建图纸', openCancelHint: 'Esc 取消', openCancelled: '已取消打开', saveKjd: '保存 KJD', exportDxf: '导出 DXF', exportSvg: '导出 SVG', exportPng: '导出 PNG', print: '打印 / PDF', printOpened: '已打开打印对话框 · 选择另存为 PDF 可保留矢量', draw: '绘图', modify: '修改', view: '视图',
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
     undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', ortho: '正交', orthoOn: '正交绘图已开启', orthoOff: '正交绘图已关闭', orthoBusy: '请先完成或取消当前操作，再切换正交模式', polar: '极轴', polarOn: '极轴跟踪已开启', polarOff: '极轴跟踪已关闭', polarBusy: '请先完成或取消当前操作，再切换极轴跟踪', layers: '图层', properties: '特性',
     noSelection: '选择图元后可查看和修改属性。', drawing: '图纸', entities: '图元', selected: '已选择',
@@ -201,6 +201,10 @@ const copy = {
 
 const DRAFT_TOOLS = Object.freeze(['line', 'polyline', 'circle', 'arc', 'ellipse', 'rectangle', 'polygon', 'point', 'ray', 'xline', 'spline', 'hatch', 'dimension', 'leader'] as const satisfies readonly KJDraftTool[])
 const LAYER_LINEWEIGHTS = Object.freeze([-1, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211])
+const SNAP_MODE_COPY: Readonly<Record<KJSnapMode, keyof typeof copy.en>> = Object.freeze({
+  endpoint: 'snapEndpoint', midpoint: 'snapMidpoint', center: 'snapCenter', quadrant: 'snapQuadrant', intersection: 'snapIntersection',
+  perpendicular: 'snapPerpendicular', tangent: 'snapTangent', insertion: 'snapInsertion', node: 'snapNode', nearest: 'snapNearest',
+})
 
 const DRAFT_COMMAND_TO_TOOL = new Map<string, KJDraftTool>([
   ['P', 'point'], ['POINT', 'point'], ['RAY', 'ray'], ['XL', 'xline'], ['XLINE', 'xline'],
@@ -234,8 +238,9 @@ const draftPointText: Readonly<Record<KJDraftPointRole, KJLocalizedControlText>>
 })
 
 const WORKBENCH_STYLE = `
-:host{display:block;min-height:480px;color-scheme:light}
-.kjwb{--surface:var(--kj-surface,#fff);--surface-subtle:var(--kj-surface-subtle,#eef1f5);--chrome:var(--kj-chrome,#f6f7f9);--border:var(--kj-border,#d9dee6);--text:var(--kj-text,#202936);--muted:var(--kj-muted,#637083);--action:var(--kj-action,#2863df);--action-soft:var(--kj-action-soft,#eaf1ff);--brand:var(--kj-brand,#bdf878);--radius:var(--kj-radius,6px);height:100%;min-height:480px;display:grid;grid-template-rows:44px 92px minmax(300px,1fr) 32px;background:var(--chrome);color:var(--text);font:13px/1.4 var(--kj-font,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif);border:1px solid var(--border);overflow:hidden;isolation:isolate}
+:host{display:block;position:relative;min-height:480px;color-scheme:light}
+.kjwb{--surface:var(--kj-surface,#fff);--surface-subtle:var(--kj-surface-subtle,#eef1f5);--chrome:var(--kj-chrome,#f6f7f9);--border:var(--kj-border,#d9dee6);--text:var(--kj-text,#202936);--muted:var(--kj-muted,#637083);--action:var(--kj-action,#2863df);--action-soft:var(--kj-action-soft,#eaf1ff);--brand:var(--kj-brand,#bdf878);--radius:var(--kj-radius,6px);position:relative;width:100%;height:100%;min-height:480px;display:grid;grid-template-rows:44px 92px minmax(300px,1fr) 32px;background:var(--chrome);color:var(--text);font:13px/1.4 var(--kj-font,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif);border:1px solid var(--border);overflow:hidden;isolation:isolate}
+:host>.kjwb{position:absolute;inset:0;width:auto;height:auto}
 /* Long status messages must never resize the canvas by expanding an implicit auto grid column. */
 .kjwb{grid-template-columns:minmax(0,1fr);min-width:0}.kjwb :is(.appbar,.ribbon,.workspace,.statusbar){min-width:0}
 .kjwb .appbar button,.kjwb .appbar .layout-select,.kjwb .appbar .brand{flex-shrink:0;white-space:nowrap}
@@ -271,6 +276,26 @@ const WORKBENCH_STYLE = `
 .kjwb .drawing-space{position:absolute;top:10px;left:10px;z-index:4;display:flex;align-items:center;flex-wrap:wrap;gap:8px;max-width:calc(100% - 70px);font-size:12px}.kjwb .drawing-space select{max-width:210px;min-height:30px;padding:4px 8px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}.kjwb .drawing-space span{padding:5px 8px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--radius)}
 `
 
+const WORKBENCH_CSS = `${KJDRAW_THEME_CSS}\n${WORKBENCH_STYLE}\n.kjwb [hidden]{display:none!important}.kjwb.no-toolbar{grid-template-rows:44px 0 minmax(300px,1fr) 32px}.kjwb.no-toolbar .ribbon{visibility:hidden;overflow:hidden;pointer-events:none}`
+const workbenchStyleSheets = new WeakMap<Document | ShadowRoot, CSSStyleSheet>()
+
+function installWorkbenchStyles(container: HTMLElement | ShadowRoot): void {
+  const target = container instanceof ShadowRoot ? container : container.ownerDocument
+  if ('adoptedStyleSheets' in target && typeof CSSStyleSheet !== 'undefined') {
+    let sheet = workbenchStyleSheets.get(target)
+    if (!sheet) {
+      sheet = new CSSStyleSheet()
+      sheet.replaceSync(WORKBENCH_CSS)
+      workbenchStyleSheets.set(target, sheet)
+      target.adoptedStyleSheets = [...target.adoptedStyleSheets, sheet]
+    }
+    return
+  }
+  const style = document.createElement('style')
+  style.textContent = WORKBENCH_CSS
+  container.append(style)
+}
+
 function assertBrowser(): void {
   if (typeof document === 'undefined') throw new Error('KJDraw workbench requires a browser DOM')
 }
@@ -286,10 +311,26 @@ function point(event: PointerEvent | WheelEvent, canvas: HTMLCanvasElement): Poi
   return [event.clientX - rect.left, event.clientY - rect.top]
 }
 
-function formatFromName(fileName: string): string | undefined {
+function readableFileFormats(sdk: KJDrawSDK): string[] {
+  const formats = new Set<string>()
+  for (const adapter of sdk.fileAdapters.list()) {
+    if (typeof adapter.read !== 'function') continue
+    for (const [format, descriptor] of Object.entries(adapter.formats)) {
+      if (descriptor.read.length && /^[A-Z0-9]+$/i.test(format)) formats.add(format.toUpperCase())
+    }
+  }
+  const builtInOrder = new Map([['DXF', 0], ['KJD', 1]])
+  return [...formats].sort((left, right) => (builtInOrder.get(left) ?? 2) - (builtInOrder.get(right) ?? 2) || left.localeCompare(right))
+}
+
+function readableFileAccept(sdk: KJDrawSDK): string {
+  return readableFileFormats(sdk).map(format => `.${format.toLowerCase()}`).join(',')
+}
+
+function formatFromName(fileName: string, sdk: KJDrawSDK): string | undefined {
   const match = /\.([a-z0-9]+)$/i.exec(fileName)
   const extension = match?.[1]?.toUpperCase()
-  return extension === 'KJD' || extension === 'DXF' ? extension : undefined
+  return extension && readableFileFormats(sdk).includes(extension) ? extension : undefined
 }
 
 function sourceByteLength(source: unknown): number | null {
@@ -427,6 +468,7 @@ export class KJDrawWorkbench {
   #transformGesture: { document: KJDocument; revision: number; ids: readonly string[]; operation: 'MOVE' | 'COPY'; base: Point2 | null } | null = null
   #modificationGesture: KJModificationGesture | null = null
   #pageBinding: { document: KJDocument; revision: number; layoutId: string; settings: KJDxfPlotSettings } | null = null
+  #snapSettingsBinding: { document: KJDocument; revision: number } | null = null
   #dimensionStyleBinding: { document: KJDocument; revision: number; recordId: string | null } | null = null
   #textStyleBinding: { document: KJDocument; revision: number; recordId: string | null } | null = null
   #boundarySession: KJBoundaryEditSession | null = null
@@ -440,6 +482,10 @@ export class KJDrawWorkbench {
   #maxFileBytes: number
   #fileReadAbort: AbortController | null = null
   #leasedDocument: KJDocument | null = null
+  #commandQueue: Promise<void> = Promise.resolve()
+  #pendingCommandCount = 0
+  #commandInputVersion = 0
+  #commandSequence = 0
 
   constructor(container: HTMLElement | ShadowRoot, options: KJDrawWorkbenchOptions = {}) {
     assertBrowser()
@@ -452,9 +498,12 @@ export class KJDrawWorkbench {
     this.#maxFileBytes = Number(options.maxFileBytes ?? 64 * 1024 * 1024)
     if (!Number.isSafeInteger(this.#maxFileBytes) || this.#maxFileBytes <= 0) throw new RangeError('maxFileBytes must be a positive safe integer')
     this.sdk = options.sdk ?? createKJDrawSDK()
+    installWorkbenchStyles(container)
     this.root = document.createElement('section')
     this.root.className = `kjwb ${this.#theme} layout-${this.#layout}${options.toolbar === false ? ' no-toolbar' : ''}`
     this.root.tabIndex = 0
+    this.root.dataset.commandState = 'idle'
+    this.root.setAttribute('aria-busy', 'false')
     this.root.innerHTML = this.#markup()
     const boundaryActions = document.createElement('div')
     boundaryActions.className = 'draft-actions boundary-actions'
@@ -723,8 +772,10 @@ export class KJDrawWorkbench {
     if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed')
     const byteLength = sourceByteLength(source)
     if (byteLength != null && byteLength > this.#maxFileBytes) throw new RangeError(`${this.#t('fileTooLarge')}: ${byteLength.toLocaleString()} > ${this.#maxFileBytes.toLocaleString()} bytes`)
-    const format = options.format ?? formatFromName(options.fileName ?? '')
+    if (options.signal?.aborted) throw new Error('Open aborted')
+    const format = options.format ?? formatFromName(options.fileName ?? '', this.sdk)
     const result = await this.sdk.fileAdapters.read(source, { ...options, ...(format === undefined ? {} : { format }) })
+    if (options.signal?.aborted) throw new Error('Open aborted')
     if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed')
     if (!(result instanceof KJDocument) && (!result || typeof result !== 'object' || Array.isArray(result))) throw new Error('File adapter did not return a drawing')
     const drawing = result instanceof KJDocument ? result : KJDocument.open(result as Record<string, unknown>)
@@ -865,9 +916,8 @@ export class KJDrawWorkbench {
     const showLayers = this.#options.showLayers !== false
     const showInspector = this.#options.showInspector !== false
     const layoutCopy: Record<KJWorkbenchLayout, keyof typeof copy.en> = { classic: 'layoutClassic', compact: 'layoutCompact', focus: 'layoutFocus' }
-    return `<style>${KJDRAW_THEME_CSS}\n${WORKBENCH_STYLE}\n.kjwb [hidden]{display:none!important}.kjwb.no-toolbar{grid-template-rows:44px 0 minmax(300px,1fr) 32px}.kjwb.no-toolbar .ribbon{visibility:hidden;overflow:hidden;pointer-events:none}</style>
-      <header class="appbar"><span class="mark" aria-hidden="true">${icon('logo')}</span><span class="brand">KJDraw</span><span class="docname" data-document-name>${t('sample')}</span><span class="spacer"></span>
-        <input class="file-input" type="file" accept=".dxf,.kjd" aria-label="${t('open')}" data-file>
+    return `<header class="appbar"><span class="mark" aria-hidden="true">${icon('logo')}</span><span class="brand">KJDraw</span><span class="docname" data-document-name>${t('sample')}</span><span class="spacer"></span>
+        <input class="file-input" type="file" accept="${readableFileAccept(this.sdk)}" aria-label="${t('open')}" data-file>
         <select class="layout-select" data-layout aria-label="${t('layout')}" title="${t('layout')}">${KJDRAW_LAYOUTS.map(layout => `<option value="${layout}" data-copy="${layoutCopy[layout]}"${layout === this.#layout ? ' selected' : ''}>${t(layoutCopy[layout])}</option>`).join('')}</select>
         <button type="button" class="panel-toggle hide-small ${showLayers ? 'active' : ''}" data-action="toggle-layers" aria-pressed="${showLayers}">${icon('layers')}<span data-copy="layers">${t('layers')}</span></button>
         <button type="button" class="panel-toggle hide-small ${showInspector ? 'active' : ''}" data-action="toggle-inspector" aria-pressed="${showInspector}">${icon('panel')}<span data-copy="properties">${t('properties')}</span></button>
@@ -875,7 +925,7 @@ export class KJDrawWorkbench {
         <button type="button" class="file-action hide-small" data-action="save-svg" data-copy-title="exportSvg" title="${t('exportSvg')}" aria-label="${t('exportSvg')}">${icon('export')}<span data-copy="exportSvg">${t('exportSvg')}</span></button>
         <button type="button" class="file-action hide-small" data-action="save-png" data-copy-title="exportPng" title="${t('exportPng')}" aria-label="${t('exportPng')}">${icon('export')}<span data-copy="exportPng">${t('exportPng')}</span></button>
         <button type="button" class="file-action hide-small" data-action="print" data-copy-title="print" title="${t('print')}" aria-label="${t('print')}">${icon('export')}<span data-copy="print">${t('print')}</span></button>
-        <button type="button" class="file-action hide-small" data-action="page-setup" data-copy-title="pageSetup" title="${t('pageSetup')}" aria-label="${t('pageSetup')}" ${readonly ? 'disabled' : ''}>${icon('panel')}<span data-copy="pageSetup">${t('pageSetup')}</span></button>
+        <button type="button" class="file-action" data-action="page-setup" data-copy-title="pageSetup" title="${t('pageSetup')}" aria-label="${t('pageSetup')}" ${readonly ? 'disabled' : ''}>${icon('panel')}<span data-copy="pageSetup">${t('pageSetup')}</span></button>
         <button type="button" class="file-action hide-small" data-action="dimension-styles" data-copy-title="dimensionStyles" title="${t('dimensionStyles')}" aria-label="${t('dimensionStyles')}" ${readonly ? 'disabled' : ''}>${icon('measure')}<span data-copy="dimensionStyles">${t('dimensionStyles')}</span></button>
         <button type="button" class="file-action hide-small" data-action="text-styles" data-copy-title="textStyles" title="${t('textStyles')}" aria-label="${t('textStyles')}" ${readonly ? 'disabled' : ''}>${icon('text')}<span data-copy="textStyles">${t('textStyles')}</span></button>
       </header>
@@ -883,7 +933,7 @@ export class KJDrawWorkbench {
         <div class="group"><button type="button" class="tool active" data-tool="select">${icon('select')}<small data-copy="select">${t('select')}</small></button><button type="button" class="tool" data-tool="pan">${icon('pan')}<small data-copy="pan">${t('pan')}</small></button><span data-copy="view">${t('view')}</span></div>
         <div class="group"><button type="button" class="tool" data-tool="point" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-draft-label="point">${this.#localizedControlText(draftToolText.point)}</small></button><button type="button" class="tool" data-tool="line" ${readonly ? 'disabled' : ''}>${icon('line')}<small data-copy="line">${t('line')}</small></button><button type="button" class="tool" data-tool="polyline" ${readonly ? 'disabled' : ''}>${icon('polyline')}<small data-copy="polyline">${t('polyline')}</small></button><button type="button" class="tool" data-tool="circle" ${readonly ? 'disabled' : ''}>${icon('circle')}<small data-copy="circle">${t('circle')}</small></button><button type="button" class="tool" data-tool="arc" ${readonly ? 'disabled' : ''}>${icon('arc')}<small data-copy="arc">${t('arc')}</small></button><button type="button" class="tool" data-tool="ellipse" ${readonly ? 'disabled' : ''}>${icon('ellipse')}<small data-draft-label="ellipse">${this.#localizedControlText(draftToolText.ellipse)}</small></button><button type="button" class="tool" data-tool="rectangle" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-copy="rectangle">${t('rectangle')}</small></button><button type="button" class="tool" data-tool="polygon" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-draft-label="polygon">${this.#localizedControlText(draftToolText.polygon)}</small></button><button type="button" class="tool" data-tool="dimension" ${readonly ? 'disabled' : ''}>${icon('measure')}<small data-draft-label="dimension">${this.#localizedControlText(draftToolText.dimension)}</small></button><button type="button" class="tool" data-tool="leader" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-draft-label="leader">${this.#localizedControlText(draftToolText.leader)}</small></button><button type="button" class="tool" data-tool="text" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-copy="text">${t('text')}</small></button><button type="button" class="tool" data-action="block-create" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="blockCreate">${t('blockCreate')}</small></button><button type="button" class="tool" data-action="component-library" ${readonly ? 'disabled' : ''}>${icon('layers')}<small data-copy="componentLibrary">${t('componentLibrary')}</small></button><button type="button" class="tool" data-action="draft" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="moreDraw">${t('moreDraw')}</small></button><span data-copy="draw">${t('draw')}</span></div>
         <div class="group"><button type="button" class="tool" data-tool="move" ${readonly ? 'disabled' : ''}>${icon('move')}<small data-copy="move">${t('move')}</small></button><button type="button" class="tool" data-tool="copy" ${readonly ? 'disabled' : ''}>${icon('copy')}<small data-copy="copy">${t('copy')}</small></button><button type="button" class="tool" data-action="modify" ${readonly ? 'disabled' : ''}>${icon('rotate')}<small data-copy="modifyTools">${t('modifyTools')}</small></button><button type="button" class="tool" data-action="undo" ${readonly ? 'disabled' : ''}>${icon('undo')}<small data-copy="undo">${t('undo')}</small></button><button type="button" class="tool" data-action="redo" ${readonly ? 'disabled' : ''}>${icon('redo')}<small data-copy="redo">${t('redo')}</small></button><button type="button" class="tool" data-action="erase" ${readonly ? 'disabled' : ''}>${icon('delete')}<small data-copy="erase">${t('erase')}</small></button><span data-copy="modify">${t('modify')}</span></div>
-        <div class="group"><button type="button" class="tool" data-action="fit">${icon('fit')}<small data-copy="fit">${t('fit')}</small></button><button type="button" class="tool" data-action="grid">${icon('grid')}<small data-copy="grid">${t('grid')}</small></button><button type="button" class="tool" data-tool="measure">${icon('measure')}<small data-copy="measure">${t('measure')}</small></button><span data-copy="view">${t('view')}</span></div>
+        <div class="group"><button type="button" class="tool" data-action="fit">${icon('fit')}<small data-copy="fit">${t('fit')}</small></button><button type="button" class="tool" data-action="grid">${icon('grid')}<small data-copy="grid">${t('grid')}</small></button><button type="button" class="tool" data-action="snap-settings" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-copy="snapSettings">${t('snapSettings')}</small></button><button type="button" class="tool" data-tool="measure">${icon('measure')}<small data-copy="measure">${t('measure')}</small></button><span data-copy="view">${t('view')}</span></div>
       </nav>
       <div class="workspace ${this.#options.showLayers === false ? 'no-layers' : ''} ${this.#options.showInspector === false ? 'no-inspector' : ''}">
         <aside class="side layers" ${this.#options.showLayers === false ? 'hidden' : ''}><h2 data-copy="layers">${t('layers')}</h2><div data-layers></div></aside>
@@ -912,6 +962,13 @@ export class KJDrawWorkbench {
           <footer class="modify-actions"><button type="button" data-action="cancel-page" data-copy="cancel">${t('cancel')}</button><button type="button" data-action="apply-page" class="confirm" data-copy="apply">${t('apply')}</button></footer>
         </div>
       </dialog>
+      <dialog class="modify-dialog" data-snap-settings-dialog aria-label="${t('snapSettings')}">
+        <div class="modify-form">
+          <header class="modify-head"><h2 data-copy="snapSettings">${t('snapSettings')}</h2><p data-copy="snapSettingsDescription">${t('snapSettingsDescription')}</p></header>
+          <div class="modify-body"><p class="modify-description" data-copy="snapModes">${t('snapModes')}</p><div class="modify-fields" data-snap-modes>${KJ_SNAP_MODES.map(mode => `<label class="check"><input type="checkbox" data-snap-mode="${mode}"><span data-copy="${SNAP_MODE_COPY[mode]}">${t(SNAP_MODE_COPY[mode])}</span></label>`).join('')}</div><label class="field"><span data-copy="snapAperture">${t('snapAperture')}</span><input type="number" min="0.000001" step="any" required data-snap-aperture></label><p role="alert" data-snap-settings-error></p></div>
+          <footer class="modify-actions"><button type="button" data-action="cancel-snap-settings" data-copy="cancel">${t('cancel')}</button><button type="button" class="confirm" data-action="apply-snap-settings" data-copy="apply">${t('apply')}</button></footer>
+        </div>
+      </dialog>
       <dialog class="modify-dialog" data-dimension-style-dialog aria-label="${t('dimensionStyles')}">
         <div class="modify-form" data-dimension-style-form>
           <header class="modify-head"><h2 data-copy="dimensionStyles">${t('dimensionStyles')}</h2><p data-copy="dimensionStylesDescription">${t('dimensionStylesDescription')}</p></header>
@@ -932,6 +989,18 @@ export class KJDrawWorkbench {
     const signal = this.#abort.signal
     query<HTMLSelectElement>(this.root, '[data-drawing-layout]').addEventListener('change', event => {
       void this.#run(() => this.setDrawingLayout((event.currentTarget as HTMLSelectElement).value || null))
+    }, { signal })
+    const snapSettingsDialog = query<HTMLDialogElement>(this.root, '[data-snap-settings-dialog]')
+    const snapSettingsButton = query<HTMLButtonElement>(this.root, '[data-action="snap-settings"]')
+    snapSettingsButton.addEventListener('click', () => void this.#run(() => this.#openSnapSettings()), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="cancel-snap-settings"]').addEventListener('click', () => snapSettingsDialog.close(), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="apply-snap-settings"]').addEventListener('click', () => void this.#applySnapSettings(), { signal })
+    snapSettingsDialog.addEventListener('close', () => {
+      this.#snapSettingsBinding = null
+      queueMicrotask(() => { if (!this.#abort.signal.aborted && snapSettingsButton.isConnected) snapSettingsButton.focus() })
+    }, { signal })
+    snapSettingsDialog.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && event.target === query<HTMLInputElement>(snapSettingsDialog, '[data-snap-aperture]')) { event.preventDefault(); event.stopPropagation(); if (!event.repeat && !event.isComposing) void this.#applySnapSettings() }
     }, { signal })
     const pageDialog = query<HTMLDialogElement>(this.root, '[data-page-dialog]')
     query<HTMLButtonElement>(this.root, '[data-action="page-setup"]').addEventListener('click', () => this.#openPageSetup(), { signal })
@@ -973,8 +1042,9 @@ export class KJDrawWorkbench {
       input.value = button.dataset.commandTemplate ?? ''
       input.focus(); input.select()
     }, { signal })
-    query<HTMLButtonElement>(this.root, '[data-action="open"]').addEventListener('click', () => query<HTMLInputElement>(this.root, '[data-file]').click(), { signal })
-    query<HTMLInputElement>(this.root, '[data-file]').addEventListener('change', event => {
+    const fileInput = query<HTMLInputElement>(this.root, '[data-file]')
+    query<HTMLButtonElement>(this.root, '[data-action="open"]').addEventListener('click', () => { this.#syncReadableFileFormats(); fileInput.click() }, { signal })
+    fileInput.addEventListener('change', event => {
       const input = event.currentTarget as HTMLInputElement
       const file = input.files?.[0]
       if (!file) return
@@ -1035,8 +1105,9 @@ export class KJDrawWorkbench {
     query<HTMLButtonElement>(this.root, '[data-action="theme"]').addEventListener('click', () => this.setTheme(this.#theme === 'dark' ? 'light' : 'dark'), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="language"]').addEventListener('click', () => this.setLocale(this.#locale === 'en' ? 'zh-CN' : 'en'), { signal })
     const commandInput = query<HTMLInputElement>(this.root, '[data-command]')
-    query<HTMLButtonElement>(this.root, '[data-action="run-command"]').addEventListener('click', () => void this.#runCommand(), { signal })
-    commandInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); void this.#runCommand() } }, { signal })
+    commandInput.addEventListener('input', () => { this.#commandInputVersion += 1 }, { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="run-command"]').addEventListener('click', () => this.#enqueueCommand(), { signal })
+    commandInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); this.#enqueueCommand() } }, { signal })
     this.#canvas.addEventListener('wheel', event => {
       event.preventDefault()
       if (this.#selectionDrag || this.#boxSelection || this.#gripGesture || event.buttons !== 0) return
@@ -1152,39 +1223,64 @@ export class KJDrawWorkbench {
     releaseDocumentLease(this.sdk, this, drawing)
   }
 
-  async #runCommand(): Promise<void> {
-    if (this.paperPreview) { this.#setMessage(this.#t('paperPreview')); return }
+  #enqueueCommand(): void {
     const input = query<HTMLInputElement>(this.root, '[data-command]')
     const raw = input.value.trim()
+    const inputVersion = this.#commandInputVersion
+    const sequence = ++this.#commandSequence
+    if (raw) input.value = ''
+    this.#pendingCommandCount += 1
+    this.root.dataset.commandState = 'busy'
+    this.root.setAttribute('aria-busy', 'true')
+    const run = async (): Promise<void> => {
+      try {
+        if (this.#abort.signal.aborted) return
+        const consumed = await this.#runCommand(raw)
+        if (!this.#abort.signal.aborted && !consumed && sequence === this.#commandSequence && this.#commandInputVersion === inputVersion && !input.value) input.value = raw
+      } catch (error) {
+        if (this.#abort.signal.aborted) return
+        this.#handleError(error)
+        if (sequence === this.#commandSequence && this.#commandInputVersion === inputVersion && !input.value) input.value = raw
+      } finally {
+        this.#pendingCommandCount -= 1
+        if (!this.#pendingCommandCount) {
+          this.root.dataset.commandState = 'idle'
+          this.root.setAttribute('aria-busy', 'false')
+        }
+      }
+    }
+    this.#commandQueue = this.#commandQueue.then(run, run)
+  }
+
+  async #runCommand(raw: string): Promise<boolean> {
+    if (this.paperPreview) { this.#setMessage(this.#t('paperPreview')); return false }
     if (!raw) {
       if (this.#boundarySession) {
         if (this.#boundarySession.state.phase === 'boundaries') await this.#run(() => this.#confirmBoundaryEdit())
         else if (this.#boundarySession.state.phase === 'targets') this.#finishBoundaryEdit()
-        return
+        return true
       }
-      if (this.#fenceSelection) { await this.#finishFence(); return }
+      if (this.#fenceSelection) { await this.#finishFence(); return true }
       if (this.#draftGesture?.session.state.canFinish) await this.#finishDraft(false)
-      return
+      return true
     }
     if (this.#draftGesture) {
       const draftCommand = raw.toUpperCase()
-      if (['C', 'CLOSE'].includes(draftCommand)) { if (await this.#finishDraft(true)) input.value = ''; return }
-      if (['F', 'FINISH', 'DONE'].includes(draftCommand)) { if (await this.#finishDraft(false)) input.value = ''; return }
-      if (['U', 'BACK'].includes(draftCommand)) { this.#undoDraftPoint(); input.value = ''; return }
-      if (['ESC', 'CANCEL'].includes(draftCommand)) { this.setTool('select'); input.value = ''; return }
+      if (['C', 'CLOSE'].includes(draftCommand)) return this.#finishDraft(true)
+      if (['F', 'FINISH', 'DONE'].includes(draftCommand)) return this.#finishDraft(false)
+      if (['U', 'BACK'].includes(draftCommand)) { this.#undoDraftPoint(); return true }
+      if (['ESC', 'CANCEL'].includes(draftCommand)) { this.setTool('select'); return true }
     }
     if (this.#modificationGesture && (/^@?[^,]+,[^,]+$/.test(raw) || /^@[^<]+<[^<]+$/.test(raw))) {
       const result = await this.#run(() => this.#addModificationCoordinate(raw))
-      if (result !== null) input.value = ''
-      return
+      return result !== null
     }
     if (this.#draftGesture && isDraftPointInput(raw)) {
       const accepted = await this.#addDraftCoordinate(raw)
       // Keep only pointer-dependent distance/angle shorthand for retry. An
       // absolute/relative coordinate was fully consumed even when geometry
       // validation rejected it, so leave the draft active and clear the box.
-      if (accepted || !/^\s*(?:\d+(?:\.\d+)?|\.\d+|<[-+]?\d+(?:\.\d+)?)\s*$/.test(raw)) input.value = ''
-      return
+      return accepted || !/^\s*(?:\d+(?:\.\d+)?|\.\d+|<[-+]?\d+(?:\.\d+)?)\s*$/.test(raw)
     }
     const separator = raw.search(/\s/)
     const command = (separator < 0 ? raw : raw.slice(0, separator)).toUpperCase()
@@ -1377,7 +1473,7 @@ export class KJDrawWorkbench {
       if (!remainder) { await this.execute(command); return }
       throw new Error(`${command} arguments must use JSON, for example: ${command} {"id":"..."}`)
     })
-    if (result !== null) input.value = ''
+    return result !== null
   }
 
   #draftPrompt(role: KJDraftPointRole | null): string {
@@ -1581,7 +1677,7 @@ export class KJDrawWorkbench {
     if (tool === 'spline') this.#draftField(host, 'splineDegree', { en: 'Degree', zh: '次数' }, { value: String(configured.splineDegree ?? 3), min: 1, max: 10, step: 1 })
     if (tool === 'hatch') {
       this.#draftField(host, 'patternName', { en: 'Pattern', zh: '图案' }, { type: 'text', value: String(configured.patternName ?? 'SOLID') })
-      this.#draftField(host, 'patternScale', { en: 'Pattern scale', zh: '图案比例' }, { value: String(configured.patternScale ?? 1), min: Number.EPSILON, step: 0.1 })
+      this.#draftField(host, 'patternScale', { en: 'Pattern scale', zh: '图案比例' }, { value: String(configured.patternScale ?? 1), min: Number.EPSILON, step: 'any' })
       this.#draftField(host, 'patternAngleDegrees', { en: 'Pattern angle (°)', zh: '图案角度（°）' }, { value: String(Number(configured.patternAngle ?? 0) * 180 / Math.PI), step: 1 })
       this.#draftCheck(host, 'solid', { en: 'Solid fill', zh: '实体填充' }, configured.solid ?? true)
     }
@@ -1883,6 +1979,43 @@ export class KJDrawWorkbench {
     } finally { button.disabled = false }
   }
 
+  #openSnapSettings(): void {
+    const drawing = this.document
+    if (!drawing || this.#readOnly || this.#abort.signal.aborted) return
+    this.#cancelGesture()
+    const settings = getDocumentSnapSettings(drawing)
+    this.#snapSettingsBinding = { document: drawing, revision: drawing.revision }
+    const dialog = query<HTMLDialogElement>(this.root, '[data-snap-settings-dialog]')
+    for (const input of dialog.querySelectorAll<HTMLInputElement>('[data-snap-mode]')) input.checked = settings.modes.includes(input.dataset.snapMode as KJSnapMode)
+    query<HTMLInputElement>(dialog, '[data-snap-aperture]').value = String(settings.aperture)
+    query<HTMLElement>(dialog, '[data-snap-settings-error]').textContent = ''
+    dialog.showModal()
+    queueMicrotask(() => dialog.querySelector<HTMLInputElement>('[data-snap-mode]')?.focus())
+  }
+
+  async #applySnapSettings(): Promise<void> {
+    const binding = this.#snapSettingsBinding, dialog = query<HTMLDialogElement>(this.root, '[data-snap-settings-dialog]')
+    if (!binding || !dialog.open) return
+    const button = query<HTMLButtonElement>(dialog, '[data-action="apply-snap-settings"]')
+    if (button.disabled) return
+    const aperture = query<HTMLInputElement>(dialog, '[data-snap-aperture]'), error = query<HTMLElement>(dialog, '[data-snap-settings-error]')
+    error.textContent = ''
+    if (!aperture.checkValidity() || !(Number(aperture.value) > 0)) { error.textContent = this.#t('snapApertureError'); aperture.reportValidity(); return }
+    button.disabled = true
+    try {
+      if (this.#readOnly) throw new Error(this.#t('readonly'))
+      if (this.document !== binding.document || binding.document.revision !== binding.revision) throw new Error(this.#t('pageStale'))
+      const modes = [...dialog.querySelectorAll<HTMLInputElement>('[data-snap-mode]:checked')].map(input => input.dataset.snapMode as KJSnapMode)
+      await this.execute('SNAPSETTINGS', { modes, radius: Number(aperture.value) }, { expectedRevision: binding.revision })
+      dialog.close()
+      this.#setMessage(this.#t('snapSettingsApplied'))
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason)
+      error.textContent = message
+      this.#setMessage(message)
+    } finally { button.disabled = false }
+  }
+
   #openPageSetup(): void {
     const drawing = this.document
     if (!drawing || this.#readOnly || this.#abort.signal.aborted) return
@@ -1981,7 +2114,8 @@ export class KJDrawWorkbench {
   #renderModificationForm(): void {
     const select = query<HTMLSelectElement>(this.root, '[data-modification]')
     const id = select.value as KJModificationId
-    const definition = getKJModificationDefinition(id)
+    const target = this.document?.getObject(this.#selection?.ids[0] ?? '')
+    const definition = getKJModificationDefinition(id, target?.type)
     for (const option of select.options) {
       const candidate = KJ_MODIFICATION_DEFINITIONS.find(value => value.id === option.value)
       if (candidate) option.textContent = this.#localizedControlText(candidate.label)
@@ -2070,7 +2204,7 @@ export class KJDrawWorkbench {
     if (invalid) { invalid.reportValidity(); return }
     const drawing = this.document
     if (!drawing) throw new Error('No active KJDraw document')
-    const definition = getKJModificationDefinition(query<HTMLSelectElement>(this.root, '[data-modification]').value as KJModificationId)
+    const definition = getKJModificationDefinition(query<HTMLSelectElement>(this.root, '[data-modification]').value as KJModificationId, drawing.getObject(this.#selection?.ids[0] ?? '')?.type)
     if ((definition.id === 'trim' || definition.id === 'extend') && form.querySelector<HTMLSelectElement>('[data-boundary-workflow]')?.value === 'boundaries') {
       this.#beginBoundaryEdit(definition.id)
       return
@@ -2226,6 +2360,16 @@ export class KJDrawWorkbench {
     if (hadPreview) this.renderer.render()
   }
 
+  #splinePointerPoint(entity: KJReadonlyObjectRecord | null, world: Point2): Point2 {
+    if (entity?.type !== 'SPLINE') return world
+    // Pointer pixels select a nearby source point; they cannot encode a 1e-7
+    // drawing-unit tolerance. This query does not select a destructive native
+    // parameter: BREAK/TRIM still certify all branches and refuse ambiguity.
+    const nearest = nearestPointOnEntity2(entity, world)
+    if (nearest.distance > 9 / this.renderer.camera.scale) return world
+    return [nearest.point[0], nearest.point[1]]
+  }
+
   #previewBoundaryTarget(location: Point2): void {
     this.#clearBoundaryPreview()
     const session = this.#boundarySession
@@ -2234,7 +2378,7 @@ export class KJDrawWorkbench {
     const hit = this.renderer.hitTest(location, 9)
     if (!hit || session.state.boundaryIds.includes(hit.entity.id)) { this.#setMessage(session.prompt); return }
     try {
-      const preview = session.preview(hit.entity.id, this.renderer.screenToWorld(location))
+      const preview = session.preview(hit.entity.id, this.#splinePointerPoint(hit.entity, this.renderer.screenToWorld(location)))
       this.#boundaryPreview = preview
       this.renderer.drawPreview(preview.pieces, this.#theme === 'dark' ? '#8fc0ff' : '#175fc8')
       this.#setMessage(session.prompt)
@@ -2261,11 +2405,11 @@ export class KJDrawWorkbench {
         session.setBoundaries(ids)
         await this.execute('SELECT', { ids, operation: 'replace' }, { expectedRevision: gesture.revision })
       } else {
-        // A trim pick is the raw clicked portion, not an object-snap endpoint:
-        // snapping can turn a valid interior pick into an ambiguous exact cut.
+        // Pick a source portion rather than an object-snap endpoint. Only native
+        // splines project pointer quantization onto their nearby source curve.
         const hit = this.renderer.hitTest(location, 9)
         if (!hit) { this.#setMessage(this.#t('boundaryEmpty')); return }
-        const preview = session.preview(hit.entity.id, this.renderer.screenToWorld(location))
+        const preview = session.preview(hit.entity.id, this.#splinePointerPoint(hit.entity, this.renderer.screenToWorld(location)))
         this.#clearBoundaryPreview()
         const applying = session.apply(preview, request => this.execute(request.command, request.arguments, { expectedRevision: request.expectedRevision }))
         this.#syncBoundaryActions()
@@ -2613,6 +2757,13 @@ export class KJDrawWorkbench {
     const directPick = ['PEDIT', 'BREAK'].includes(this.#modificationGesture?.definition.command ?? '')
     const snapped = drawingTool && !directPick ? this.#snapAt(rawWorld) : null
     this.#cursorWorld = this.#constrainPointer(rawWorld, snapped)
+    if (this.#modificationGesture && ['BREAK', 'TRIM'].includes(this.#modificationGesture.definition.command)) {
+      const source = this.document?.getObject(this.#modificationGesture.ids[0]!) ?? null
+      if (source?.type === 'SPLINE') {
+        try { this.#cursorWorld = this.#splinePointerPoint(source, rawWorld) }
+        catch { this.#cursorWorld = rawWorld }
+      }
+    }
     if (this.#draftGesture) this.#draftInputDirection = this.#cursorWorld
     if (coordinate) coordinate.textContent = `X ${this.#cursorWorld[0].toFixed(3)} · Y ${this.#cursorWorld[1].toFixed(3)}`
     this.#showSnap(snapped)
@@ -2710,7 +2861,12 @@ export class KJDrawWorkbench {
       await this.#addDraftPoint(world, snapped ? this.#dimensionPointReference(this.#snapCandidate, role) : null)
       return
     }
-    if (this.#modificationGesture) { await this.#addModificationPoint(world); return }
+    if (this.#modificationGesture) {
+      const source = this.document?.getObject(this.#modificationGesture.ids[0]!) ?? null
+      const picked = ['BREAK', 'TRIM'].includes(this.#modificationGesture.definition.command)
+        ? this.#splinePointerPoint(source, source?.type === 'SPLINE' ? rawWorld : world) : world
+      await this.#addModificationPoint(picked); return
+    }
     if (this.#tool === 'select') {
       const hit = this.renderer.hitTest(location, 9)
       if ((event.shiftKey || event.ctrlKey || event.metaKey) && !hit) return
@@ -2914,6 +3070,9 @@ export class KJDrawWorkbench {
     const pageDialog = this.root.querySelector<HTMLDialogElement>('[data-page-dialog]')
     if (pageDialog?.open) pageDialog.close()
     this.#pageBinding = null
+    const snapSettingsDialog = this.root.querySelector<HTMLDialogElement>('[data-snap-settings-dialog]')
+    if (snapSettingsDialog?.open) snapSettingsDialog.close()
+    this.#snapSettingsBinding = null
     const dimensionStyleDialog = this.root.querySelector<HTMLDialogElement>('[data-dimension-style-dialog]')
     if (dimensionStyleDialog?.open) dimensionStyleDialog.close()
     this.#dimensionStyleBinding = null
@@ -3697,7 +3856,7 @@ export class KJDrawWorkbench {
       if (draftToolText[tool]) element.textContent = this.#localizedControlText(draftToolText[tool])
     }
     const file = this.root.querySelector<HTMLInputElement>('[data-file]')
-    if (file) file.setAttribute('aria-label', this.#t('open'))
+    if (file) { file.setAttribute('aria-label', this.#t('open')); this.#syncReadableFileFormats() }
     const layout = this.root.querySelector<HTMLSelectElement>('[data-layout]')
     if (layout) { layout.setAttribute('aria-label', this.#t('layout')); layout.title = this.#t('layout') }
     const command = this.root.querySelector<HTMLInputElement>('[data-command]')
@@ -3713,11 +3872,17 @@ export class KJDrawWorkbench {
     if (draftDialog) draftDialog.setAttribute('aria-label', this.#t('drawTitle'))
     const pageDialog = this.root.querySelector<HTMLDialogElement>('[data-page-dialog]')
     if (pageDialog) pageDialog.setAttribute('aria-label', this.#t('pageSetup'))
+    const snapSettingsDialog = this.root.querySelector<HTMLDialogElement>('[data-snap-settings-dialog]')
+    if (snapSettingsDialog) snapSettingsDialog.setAttribute('aria-label', this.#t('snapSettings'))
     this.#syncDraftActions()
     this.#canvas.setAttribute('aria-label', `${this.#t('drawing')} · KJDraw CAD`)
   }
 
   #t(key: keyof typeof copy.en): string { return String(copy[this.#locale][key]) }
+  #syncReadableFileFormats(): void {
+    const file = this.root.querySelector<HTMLInputElement>('[data-file]')
+    if (file) file.accept = readableFileAccept(this.sdk)
+  }
   #showFileProgress(progress: Readonly<KJFileReadProgress>): void {
     const label = this.#t(progress.phase === 'source' ? 'openSource' : progress.phase === 'parse' ? 'openParse' : 'openImport')
     const amount = progress.total && progress.total > 0 ? `${Math.min(100, Math.floor(progress.completed / progress.total * 100))}%` : progress.completed.toLocaleString()

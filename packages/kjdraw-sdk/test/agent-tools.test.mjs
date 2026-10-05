@@ -1,8 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { KJAgentToolSession, KJDRAW_AGENT_TOOLS } from '../src/agent-tools.js'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { createAgentGeometryPreview } from '../src/agent-preview.js'
+import { canonicalStringify } from '../src/utils.js'
 
 function fixture(options = {}) {
   const sdk = createKJDrawSDK(options)
@@ -15,7 +17,12 @@ const circleArgs = (revision = 0) => ({ expectedRevision: revision, units: 'mill
 function value(result) { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 
 test('tool definitions are frozen serializable schemas with no approval or arbitrary execution tool', () => {
-  assert.equal(KJDRAW_AGENT_TOOLS.length, 32)
+  assert.equal(KJDRAW_AGENT_TOOLS.length, 57)
+  // General geology revision intentionally gains exact stratum deltas. All
+  // other previously published definitions, including the scalar profile, stay exact.
+  const previousDefinitions = KJDRAW_AGENT_TOOLS.filter(tool => !['cad_query_curve_bounds', 'cad_query_curve_neighborhood', 'cad_read_hatch_patterns', 'cad_propose_hatch_pattern', 'cad_propose_geology_revision'].includes(tool.name))
+  assert.equal(previousDefinitions.length, 52)
+  assert.equal(createHash('sha256').update(canonicalStringify(previousDefinitions)).digest('hex'), 'e53379d183b3a5acc75156020ab6807cf835955e10421195264944d58b012611')
   assert.ok(KJDRAW_AGENT_TOOLS.every(tool => ['read', 'propose'].includes(tool.effect)))
   assert.deepEqual(JSON.parse(JSON.stringify(KJDRAW_AGENT_TOOLS)), KJDRAW_AGENT_TOOLS)
   for (const tool of KJDRAW_AGENT_TOOLS) {
@@ -24,24 +31,50 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
       ? ['ellipses', 'splines', 'hatches', 'leaders', 'angularDimensions', 'polarArrays']
       : tool.name === 'cad_propose_drawing_pattern'
         ? ['ellipses', 'splines', 'hatches', 'polarArrays']
+      : tool.name === 'cad_propose_drawing_basic'
+        ? ['lines', 'circles', 'arcs', 'polylines']
       : ['cad_propose_drawing', 'cad_propose_drawing_compact'].includes(tool.name)
         ? ['ellipses', 'splines', 'hatches']
       : tool.name === 'cad_read_components'
         ? ['query', 'category', 'locale', 'limit', 'cursor']
+        : tool.name === 'cad_read_hatch_patterns'
+          ? ['search', 'offset', 'limit', 'maxBytes']
+        : tool.name === 'cad_propose_hatch_pattern'
+          ? ['patternScale', 'patternAngleDegrees']
+        : tool.name === 'cad_propose_geology_revision'
+          ? ['correlations', 'uncorrelatedOccurrences', 'linkChanges']
+        : tool.name === 'cad_find_text'
+          ? ['match', 'caseSensitive', 'spaceId', 'includeHidden', 'offset', 'limit', 'maxBytes']
         : tool.name === 'cad_propose_component_insert'
           ? ['layerId']
       : tool.name === 'cad_propose_lengthen'
         ? ['value', 'targetPoint']
-        : ['cad_propose_move', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale'].includes(tool.name)
+        : ['cad_propose_move', 'cad_propose_relayer', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale'].includes(tool.name)
           ? ['ids', 'selectionSetName']
         : tool.name === 'cad_propose_polyline_edit'
           ? ['segmentIndex', 'vertexIndex', 'point', 'tolerance', 'bulge', 'sweepDegrees', 'startWidth', 'endWidth']
         : tool.name === 'cad_propose_manufacturing_sheet'
-          ? ['holePatterns', 'slots']
+          ? ['locale', 'holePatterns', 'boltCirclePatterns', 'slots']
+        : tool.name === 'cad_propose_mechanical_flange'
+          ? ['locale', 'declaredSheetFacts']
         : tool.name === 'cad_propose_architecture_plan'
-          ? ['exteriorOpenings', 'partitions', 'textHeight']
+          ? ['locale', 'exteriorOpenings', 'partitions', 'textHeight']
         : tool.name === 'cad_propose_site_plan'
-          ? ['northAngleDegrees']
+          ? ['locale', 'northAngleDegrees']
+        : tool.name === 'cad_propose_cartesian_chart'
+          ? ['origin', 'width', 'height', 'textHeight', 'xLabel', 'yLabel', 'showValues', 'yAxis']
+        : tool.name === 'cad_propose_geology_column'
+          ? ['locale', 'verticalScaleDenominator', 'projectName', 'title', 'pageHeightMillimeters', 'documentFacts']
+        : tool.name === 'cad_propose_geology_section'
+          ? ['locale', 'projectName', 'title', 'documentFacts', 'manualConnections', 'sectionReference', 'uncorrelatedOccurrences']
+        : tool.name === 'cad_propose_geology_plan'
+          ? ['locale', 'title', 'revision', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'baseMapStyles', 'baseMapTextStyles', 'baseMapLinework', 'northAngleDegrees', 'baseMapBlocks', 'baseMapInserts']
+        : tool.name === 'cad_propose_geology_plan_example'
+          ? ['version', 'locale', 'spacingMeters', 'title']
+        : tool.name === 'cad_propose_geology_section_example'
+          ? ['version', 'locale', 'spacingMeters', 'title']
+        : tool.name === 'cad_propose_structural_edit'
+          ? ['reconnections', 'relayer']
         : tool.name === 'cad_check_geometry'
             ? ['ellipseMajorRadii', 'ellipseMinorRadii', 'splineLengths', 'dimensionMeasurements', 'hatchAreas', 'polylineVertexCounts', 'hatchLoopCounts', 'polylineSegmentBulges']
             : []

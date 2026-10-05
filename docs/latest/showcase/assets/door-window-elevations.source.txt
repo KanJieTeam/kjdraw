@@ -1,0 +1,61 @@
+// examples/curated-building-sheets.mjs#L121-L178
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+async function doorWindowElevationsSheet() {
+  return createSheet('door-window-elevations', 'Door and window elevations', 'architecture',
+    ({ line, rect, circle, arc, text, aligned, hatch }) => {
+      text(15, 190, 'OPENING TYPES / ELEVATION + SCHEDULE', 4, 'accent')
+      text(15, 184, 'SYMBOLIC ELEVATIONS / NTS. NOMINAL SIZES ARE LISTED BELOW.', 2.2, 'detail')
+      const panels = [
+        { x: 20, label: 'D01 / SINGLE LEAF', width: 40, kind: 'door' },
+        { x: 90, label: 'D02 / DOUBLE LEAF', width: 48, kind: 'double' },
+        { x: 164, label: 'W01 / FIXED', width: 44, kind: 'fixed' },
+        { x: 233, label: 'W02 / CASEMENT', width: 42, kind: 'casement' },
+      ]
+      for (const item of panels) {
+        const { x, label, width, kind } = item
+        rect(x - 7, 92, x + width + 7, 177, 'detail')
+        text(x - 4, 165, label, 2.1, 'annotation')
+        rect(x, 112, x + width, 152)
+        rect(x + 2, 114, x + width - 2, 150, 'accent')
+        if (kind === 'door') {
+          line(x + width - 5, 132, x + width - 5, 135, 'highlight')
+          circle(x + width - 5, 133, 0.8, 'highlight')
+          line(x + 4, 116, x + width - 4, 148, 'detail')
+        } else if (kind === 'double') {
+          line(x + width / 2, 114, x + width / 2, 150, 'accent')
+          line(x + width / 2 - 4, 130, x + width / 2 - 4, 135, 'highlight')
+          line(x + width / 2 + 4, 130, x + width / 2 + 4, 135, 'highlight')
+        } else if (kind === 'fixed') {
+          line(x + 4, 116, x + width - 4, 148, 'detail')
+          line(x + 4, 148, x + width - 4, 116, 'detail')
+        } else {
+          line(x + width / 2, 114, x + width / 2, 150, 'accent')
+          line(x + 3, 116, x + width / 2 - 2, 148, 'detail')
+          line(x + width / 2 + 2, 148, x + width - 3, 116, 'detail')
+        }
+        text(x + 2, 102, 'SCHEMATIC / NTS', 1.9, 'detail')
+        line(x - 8, 88, x + width + 8, 88, 'detail')
+      }
+      text(18, 78, 'TAG', 2.3, 'accent')
+      text(70, 78, 'DESCRIPTION', 2.3, 'accent')
+      text(202, 78, 'NOMINAL SIZE', 2.3, 'accent')
+      line(15, 73, 281, 73, 'detail')
+      const rows = [
+        ['D01', 'Single leaf flush door', '900 x 2100'],
+        ['D02', 'Double leaf entry door', '1500 x 2100'],
+        ['W01', 'Fixed glazing', '1200 x 1200'],
+        ['W02', 'Operable casement', '1200 x 1200'],
+      ]
+      rows.forEach(([tag, desc, size], i) => {
+        const y = 66 - i * 7
+        text(18, y, tag, 2.6)
+        text(70, y, desc, 2.6)
+        text(202, y, size, 2.6)
+        line(15, y - 2, 281, y - 2, 'detail')
+      })
+      hatch([[17, 92], [22, 92], [22, 96], [17, 96]], 'ANSI31', 1.5)
+      circle(279, 190, 3, 'highlight')
+      arc(279, 190, 4.5, 0, Math.PI, 'detail')
+    }, { openingTypes: 4, scheduleRows: 4, concept: true })
+}

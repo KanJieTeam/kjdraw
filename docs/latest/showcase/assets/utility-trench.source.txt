@@ -1,0 +1,40 @@
+// examples/curated-civil-sheets.mjs#L133-L169
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+export async function utilityTrenchSheet() {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'curated-utility-trench', title: 'Shared utility trench', units: 'millimeter' })
+  await document.transact('Draw editable shared utility trench detail', tx => {
+    const d = sheet(tx, 'TRENCH', 'SHARED UTILITY TRENCH', 'Typical cross-section / duct banks / clearances')
+    d.text(17, 173, 'TYPICAL SECTION  /  NOT TO SCALE', 4.2, 'view-label')
+    d.line(22,145,247,145,'surface','OUTLINE')
+    d.line(54,145,54,58,'excavation-left','DETAIL')
+    d.line(212,145,212,58,'excavation-right','DETAIL')
+    d.line(54,58,212,58,'excavation-bottom','DETAIL')
+    d.rect(61,61,205,73,'bedding','DETAIL')
+    d.add('HATCH', { boundaryLoops: [{ vertices: [p(62,62),p(204,62),p(204,72),p(62,72)] }], patternName: 'CROSS', patternScale: 2.8 }, 'bedding-hatch','HATCH')
+    for (let i = 0; i < 5; i++) {
+      const x = 82 + i * 26
+      d.circle(x,91,8,`duct-${i + 1}`)
+      d.circle(x,91,4,`duct-core-${i + 1}`,'DETAIL')
+    }
+    d.rect(67,80,197,102,'duct-bank','OUTLINE')
+    d.rect(77,112,191,122,'warning-tape','DETAIL')
+    d.text(90,115,'WARNING  -  BURIED SERVICES',2.3,'warning-label')
+    for (let i = 0; i < 7; i++) d.line(60 + i * 22,73,78 + i * 22,80,`granular-${i}`,'HATCH')
+    d.line(45,58,45,145,'depth-dim','ANNOTATION')
+    d.line(41,58,52,58,'depth-dim-foot','ANNOTATION')
+    d.line(41,145,52,145,'depth-dim-head','ANNOTATION')
+    d.text(24,109,'MIN 1.2 m',2.8,'depth-note')
+    d.line(54,44,212,44,'width-dim','ANNOTATION')
+    d.line(54,40,54,50,'width-left','ANNOTATION')
+    d.line(212,40,212,50,'width-right','ANNOTATION')
+    d.text(124,39,'1.6 m',3,'width-note')
+    d.line(197,91,223,101,'duct-leader','ANNOTATION')
+    d.text(224,101,'5 x Ø110 DUCT',2.7,'duct-note')
+    d.line(176,67,220,69,'bedding-leader','ANNOTATION')
+    d.text(222,68,'SAND BED',2.7,'bedding-note')
+    d.text(20,28,'TYPICAL GEOMETRY ONLY - SET DEPTH AND SEPARATION BY LOCAL STANDARD',2.25,'qualification')
+  })
+  return finish(document, sdk, 'utility-trench', 'Shared utility trench', 'civil', { ductCount: 5, illustrative: true })
+}

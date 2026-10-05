@@ -78,6 +78,22 @@ test('BREAK migrates unique endpoint references while JOIN and EXPLODE reject am
   assert.equal(drawing.serialize(), polylineBefore); assert.equal(drawing.revision, polylineRevision)
 })
 
+test('ERASE refuses to leave associative dimensions dangling unless the same edit removes them', async () => {
+  const { sdk, drawing, polyline, dimension } = await polylineFixture('dimension-topology-erase')
+  const before = drawing.serialize(), revision = drawing.revision
+  await assert.rejects(
+    sdk.executeCommand('ERASE', { ids: [polyline.id] }, { document: drawing }),
+    error => error instanceof KJValidationError && error.message === `ERASE must include dimension ${dimension.id} when erasing one of its referenced sources`,
+  )
+  assert.equal(drawing.serialize(), before); assert.equal(drawing.revision, revision)
+
+  await sdk.executeCommand('ERASE', { ids: [polyline.id, dimension.id] }, { document: drawing })
+  assert.equal(drawing.getObject(polyline.id), null)
+  assert.equal(drawing.getObject(dimension.id), null)
+  await sdk.executeCommand('UNDO', {}, { document: drawing })
+  assert.ok(drawing.getObject(polyline.id)); assert.ok(drawing.getObject(dimension.id))
+})
+
 test('protected associated dimensions roll back PEDIT index migration', async t => {
   for (const [name, patch] of [['locked', { locked: true }], ['hidden', { visible: false }], ['frozen', { frozen: true }]]) {
     await t.test(name, async () => {
@@ -90,4 +106,33 @@ test('protected associated dimensions roll back PEDIT index migration', async t 
       assert.equal(drawing.serialize(), before); assert.equal(drawing.revision, revision)
     })
   }
+})
+
+test('PEDIT REVERSE remaps associative vertex dimensions to the same physical points', async () => {
+  const { sdk, drawing, polyline, dimension } = await polylineFixture('dimension-pedit-reverse')
+  const originalSource = drawing.getObject(polyline.id), originalDimension = drawing.getObject(dimension.id)
+  const first = await sdk.executeCommand('PEDIT', { id: polyline.id, operation: 'REVERSE' }, { document: drawing })
+  assert.deepEqual(first.payload.vertices.map(vertex => vertex.point), [[10, 0, 0], [5, 0, 0], [0, 0, 0]])
+  assert.deepEqual(associations(drawing, dimension.id).map(item => item.vertexIndex), [2, 0])
+  assert.equal(measurement(drawing, dimension.id), 10)
+  assert.equal(drawing.getObject(dimension.id).handle, dimension.handle)
+  await sdk.executeCommand('PEDIT', { id: polyline.id, operation: 'REVERSE' }, { document: drawing })
+  assert.deepEqual(drawing.getObject(polyline.id).payload, originalSource.payload)
+  assert.deepEqual(associations(drawing, dimension.id), originalDimension.payload.dimensionAssociations)
+  assert.deepEqual(drawing.getObject(dimension.id).payload.definitionPoints, originalDimension.payload.definitionPoints)
+  assert.equal(measurement(drawing, dimension.id), 10)
+  await sdk.executeCommand('UNDO', {}, { document: drawing })
+  assert.deepEqual(associations(drawing, dimension.id).map(item => item.vertexIndex), [2, 0])
+  await sdk.executeCommand('REDO', {}, { document: drawing })
+  assert.deepEqual(associations(drawing, dimension.id).map(item => item.vertexIndex), [0, 2])
+})
+
+test('PEDIT REVERSE fails atomically when an associated dimension is protected', async () => {
+  const { sdk, drawing, polyline, dimension } = await polylineFixture('dimension-pedit-reverse-protected')
+  const layer = await sdk.executeCommand('LAYERNEW', { name: 'Protected reverse annotation' }, { document: drawing })
+  await sdk.executeCommand('PROPERTIES', { id: dimension.id, patch: { payload: { layerId: layer.id } } }, { document: drawing })
+  await sdk.executeCommand('LAYERUPDATE', { id: layer.id, patch: { locked: true } }, { document: drawing })
+  const before = drawing.serialize(), revision = drawing.revision, history = drawing.history
+  await assert.rejects(sdk.executeCommand('PEDIT', { id: polyline.id, operation: 'REVERSE' }, { document: drawing }), KJValidationError)
+  assert.equal(drawing.serialize(), before); assert.equal(drawing.revision, revision); assert.deepEqual(drawing.history, history)
 })

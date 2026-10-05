@@ -100,6 +100,17 @@ test('architecture compiler deterministically emits bounded native walls, reusab
   assert.ok(first.evidence.entityCount <= 512)
 })
 
+test('architecture plan localizes generated sheet labels for Chinese requests', () => {
+  const document = KJDocument.create({ documentId: 'architecture-zh', units: 'millimeter' })
+  const input = practicalInput({ locale: 'zh-CN', title: '办公室建筑平面图', rooms: [
+    { id: 'R101', name: '会议室', bounds: [200, 200, 4_700, 7_600] },
+    { id: 'R102', name: '工作室', bounds: [5_100, 200, 4_700, 7_600] },
+  ] })
+  const texts = buildAgentArchitecturePlan(document, input).commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  for (const expected of ['图号 ARCH-A3-101', '比例 1:100 / mm', '35.72 m²']) assert.ok(texts.includes(expected), expected)
+  assert.ok(!texts.some(value => /DRAWING|SCALE/u.test(value)))
+})
+
 test('architecture plan commits atomically and retains native blocks through undo, redo, KJD and DXF reopening', async () => {
   const sdk=createKJDrawSDK(), document=sdk.createDocument({documentId:'architecture-roundtrip',units:'millimeter'})
   const initialLayoutCount=document.snapshot().spaces.layoutIds.length

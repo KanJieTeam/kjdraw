@@ -49,7 +49,116 @@ function assertContinuation(protocol, body) {
   }
 }
 
+test('chat-completions: final read continuation omits empty assistant tool calls while retaining real calls and provider fields', async () => {
+  for (const emptyToolCalls of [[], null, undefined]) {
+    const { session } = fixture(), requests = []
+    const firstResponse = wire('chat-completions', [call('read', 'cad_read_drawing')])
+    const observedMessage = Object.freeze({ role: 'assistant', content: 'The native drawing was read.',
+      tool_calls: emptyToolCalls, reasoning_content: 'opaque-final-read-reasoning',
+      provider_extension: Object.freeze({ signature: 'opaque-provider-signature' }),
+    })
+    const responses = [firstResponse, { choices: [{ finish_reason: 'stop', message: observedMessage }] },
+      wire('chat-completions', [], 'The requested final answer.')]
+    const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'offline-empty-tool-history',
+      request: async ({ body }) => {
+        requests.push(body)
+        // Reproduce the confirmed provider wire boundary, without a live API.
+        for (const message of body.messages) {
+          if (message.role === 'assistant' && Object.hasOwn(message, 'tool_calls')) {
+            assert.ok(Array.isArray(message.tool_calls) && message.tool_calls.length > 0,
+              'assistant text history must omit tool_calls, not serialize an empty array or null')
+          }
+        }
+        return responses[requests.length - 1]
+      },
+    })
+    const conversation = model.createConversation({ instructions: 'Read native data, then answer without edits.',
+      tools: session.definitions, allowTextContinuation: true })
+    const signal = new AbortController().signal
+    const read = await conversation.next({ kind: 'prompt', text: 'Inspect the drawing.' }, signal)
+    assert.equal(read.calls.length, 1)
+    const result = await session.call('cad_read_drawing', {})
+    assert.equal(result.ok, true)
+    const observed = await conversation.next({ kind: 'tool-results', results: [
+      { id: read.calls[0].id, name: read.calls[0].name, result },
+    ] }, signal)
+    assert.equal(observed.text, observedMessage.content)
+    const final = await conversation.next({ kind: 'prompt', text: 'Now provide the requested final answer.' }, signal)
+    assert.equal(final.text, 'The requested final answer.')
+    assert.equal(requests.length, 3)
+    const messages = requests[2].messages
+    assert.deepEqual(messages.map(message => message.role), ['system', 'user', 'assistant', 'tool', 'assistant', 'user'])
+    assert.deepEqual(messages[2], firstResponse.choices[0].message, 'real tool calls, IDs and reasoning are preserved')
+    assert.equal(messages[3].tool_call_id, 'read')
+    assert.equal(Object.hasOwn(messages[4], 'tool_calls'), false)
+    assert.equal(messages[4].reasoning_content, observedMessage.reasoning_content)
+    assert.deepEqual(messages[4].provider_extension, observedMessage.provider_extension)
+    assert.equal(observedMessage.tool_calls, emptyToolCalls, 'the response is not mutated')
+    assert.equal(Object.isFrozen(requests[2]) && Object.isFrozen(messages[4]), true)
+  }
+})
+
 for (const protocol of protocols) {
+  test(`${protocol}: one explicit text continuation retains observations and produces a real proposal`, async () => {
+    const { document, session } = fixture(), before = document.serialize()
+    let step = 0
+    const model = createKJModelAdapter({ protocol, model: 'offline-proposal-correction', request: async ({ body }) => {
+      step++
+      if (step === 1) return wire(protocol, [call('read', 'cad_read_drawing')])
+      if (step === 2) {
+        assert.equal(resultAtEnd(protocol, body).ok, true)
+        return wire(protocol, [], 'The proposal is ready for approval.')
+      }
+      const history = body.input ?? body.messages ?? body.contents
+      assert.equal(history.at(-1).role, 'user')
+      assert.match(history.at(-1).content ?? history.at(-1).parts[0].text, /no reviewable proposal exists/)
+      assert.ok(JSON.stringify(history).includes('read'))
+      return wire(protocol, [call('proposal', 'cad_propose_circles', args)])
+    } })
+    const result = await runKJAgentTask({ session, model, prompt: 'Draw the specified circle.',
+      expectProposal: true, toolNames: ['cad_read_drawing', 'cad_propose_circles'],
+    })
+    assert.equal(result.status, 'awaiting-approval', JSON.stringify(result.error))
+    assert.equal(step, 3)
+    assert.equal(result.proposalRepairAttempts, 1)
+    assert.equal(document.serialize(), before)
+  })
+
+  test(`${protocol}: text continuation requires opt-in and is limited to one prompt`, async () => {
+    for (const allowTextContinuation of [undefined, true]) {
+      let requests = 0
+      const model = createKJModelAdapter({ protocol, model: 'offline-continuation-budget', request: async () => {
+        requests++
+        return wire(protocol, [], 'No proposal was created.')
+      } })
+      const conversation = model.createConversation({ instructions: 'Read only.', tools: [], allowTextContinuation })
+      const signal = new AbortController().signal
+      await conversation.next({ kind: 'prompt', text: 'Inspect.' }, signal)
+      if (allowTextContinuation) await conversation.next({ kind: 'prompt', text: 'Clarify.' }, signal)
+      await assert.rejects(conversation.next({ kind: 'prompt', text: 'Again.' }, signal), /has ended/)
+      assert.equal(requests, allowTextContinuation ? 2 : 1)
+    }
+  })
+
+  test(`${protocol}: continuation cannot resume after transport failure or replace pending tool results`, async () => {
+    for (const failTransport of [true, false]) {
+      let requests = 0
+      const model = createKJModelAdapter({ protocol, model: 'offline-continuation-guard', request: async () => {
+        requests++
+        if (failTransport) throw new Error('fixture transport failed')
+        return wire(protocol, [call('read', 'cad_read_drawing')])
+      } })
+      const conversation = model.createConversation({ instructions: 'Read only.', tools: fixture().session.definitions,
+        allowTextContinuation: true,
+      })
+      const signal = new AbortController().signal
+      if (failTransport) await assert.rejects(conversation.next({ kind: 'prompt', text: 'Inspect.' }, signal), /transport failed/)
+      else await conversation.next({ kind: 'prompt', text: 'Inspect.' }, signal)
+      await assert.rejects(conversation.next({ kind: 'prompt', text: 'Continue.' }, signal), /has ended|pending tool/)
+      assert.equal(requests, 1)
+    }
+  })
+
   test(`${protocol}: actual object checks return failed requirements as successful read results`, async () => {
     const { document, session } = fixture()
     await document.transact('Measured geometry', tx => tx.createEntity('LINE', { start: [0, 0, 0], end: [3, 4, 12] }, { id: 'inspection-line' }))
@@ -494,6 +603,51 @@ test('Chat stop compatibility does not accept incomplete, refused, empty or stru
 
 const streamed = chunks => (async function * () { for (const chunk of chunks) yield chunk })()
 const streamChoice = (delta, finish_reason = null) => ({ choices: [{ index: 0, delta, finish_reason }], usage: null })
+const responseEvent=(type,sequence_number,fields={})=>({type,sequence_number,...fields})
+
+test('streaming Responses assembles text, function arguments, terminal output and usage',async()=>{
+ const {session}=fixture(),definition=session.definitions.find(tool=>tool.name==='cad_read_drawing'),deltas=[];let requestNumber=0
+ const model=createKJModelAdapter({protocol:'responses',model:'responses-stream',responsesStreaming:true,onTextDelta:delta=>deltas.push(delta),request:async({body})=>{
+  assert.equal(body.stream,true)
+  if(requestNumber++===0){
+   const item={type:'function_call',id:'item-read',call_id:'read',name:'cad_read_drawing',arguments:'{}',status:'completed'}
+   return streamed([
+    responseEvent('response.created',0,{response:{status:'in_progress'}}),
+    responseEvent('response.function_call_arguments.delta',1,{item_id:'item-read',output_index:0,delta:'{'}),
+    responseEvent('response.function_call_arguments.delta',2,{item_id:'item-read',output_index:0,delta:'}'}),
+    responseEvent('response.function_call_arguments.done',3,{item_id:'item-read',output_index:0,name:'cad_read_drawing',arguments:'{}'}),
+    responseEvent('response.completed',4,{response:{status:'completed',output:[item],usage:{input_tokens:20,output_tokens:4,total_tokens:24}}}),
+   ])
+  }
+  assert.equal(body.input.at(-1).call_id,'read')
+  const item={type:'message',id:'msg-ready',status:'completed',role:'assistant',content:[{type:'output_text',text:'Drawing ready.',annotations:[]}]}
+  return streamed([
+   responseEvent('response.output_text.delta',0,{item_id:'msg-ready',output_index:0,content_index:0,delta:'Drawing '}),
+   responseEvent('response.output_text.delta',1,{item_id:'msg-ready',output_index:0,content_index:0,delta:'ready.'}),
+   responseEvent('response.output_text.done',2,{item_id:'msg-ready',output_index:0,content_index:0,text:'Drawing ready.'}),
+   responseEvent('response.completed',3,{response:{status:'completed',output:[item],usage:{input_tokens:30,output_tokens:3,total_tokens:33}}}),
+  ])
+ }})
+ const conversation=model.createConversation({instructions:'Read safely.',tools:[definition]})
+ const first=await conversation.next({kind:'prompt',text:'Inspect.'},new AbortController().signal)
+ assert.deepEqual(first.calls,[{id:'read',name:'cad_read_drawing',arguments:{}}]);assert.equal(first.usage.totalTokens,24)
+ const result=await session.call(first.calls[0].name,first.calls[0].arguments)
+ const second=await conversation.next({kind:'tool-results',results:[{id:'read',name:'cad_read_drawing',result}]},new AbortController().signal)
+ assert.equal(second.text,'Drawing ready.');assert.equal(second.usage.totalTokens,33);assert.deepEqual(deltas,['Drawing ','ready.'])
+})
+
+test('streaming Responses preserves complete JSON fallback and rejects incomplete or inconsistent events',async()=>{
+ const fallbackDeltas=[]
+ const fallback=await runKJAgentTask({session:fixture().session,prompt:'status',model:createKJModelAdapter({protocol:'responses',model:'fallback',responsesStreaming:true,onTextDelta:delta=>fallbackDeltas.push(delta),request:async()=>wire('responses',[],'fallback ready')})})
+ assert.equal(fallback.status,'responded');assert.equal(fallback.text,'fallback ready');assert.deepEqual(fallbackDeltas,['fallback ready'])
+ const bad=[
+  streamed([responseEvent('response.output_text.delta',0,{item_id:'msg',output_index:0,content_index:0,delta:'partial'})]),
+  streamed([responseEvent('response.function_call_arguments.delta',0,{item_id:'call',output_index:0,delta:'{'}),responseEvent('response.function_call_arguments.done',1,{item_id:'call',output_index:0,name:'cad_read_drawing',arguments:'{}'})]),
+  streamed([responseEvent('response.failed',0,{response:{status:'failed',output:[]}})]),
+  streamed([responseEvent('error',0,{code:'server_error',message:'private provider detail'})]),
+ ]
+ for(const response of bad){const{session,document}=fixture(),before=document.serialize();const result=await runKJAgentTask({session,prompt:'inspect',model:createKJModelAdapter({protocol:'responses',model:'bad-stream',responsesStreaming:true,request:async()=>response})});assert.equal(result.status,'failed');assert.equal(result.toolCalls,0);assert.equal(document.serialize(),before)}
+})
 
 test('streaming Chat assembles fragmented OpenAI-compatible tool calls, visible text and reported usage', async () => {
   const { session } = fixture()
@@ -509,10 +663,11 @@ test('streaming Chat assembles fragmented OpenAI-compatible tool calls, visible 
       assert.equal(body.max_tokens, 4096)
       if (requestNumber++ === 0) return streamed([
         streamChoice({ role: 'assistant', reasoning_content: 'private-', tool_calls: [{ index: 0, id: 'read', type: 'function', function: { name: 'cad_read_', arguments: '{' } }] }),
-        streamChoice({ role: null, content: null, reasoning_content: 'reasoning', tool_calls: [{ index: 0, id: null, type: null, function: { name: 'drawing', arguments: '}' } }] }),
+        streamChoice({ role: null, content: null, reasoning_content: 'reasoning', encrypted_content: 'opaque-complete-block', tool_calls: [{ index: 0, id: null, type: null, function: { name: 'drawing', arguments: '}' } }] }),
         { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 90, completion_tokens: 10, total_tokens: 100, prompt_cache_hit_tokens: 60, prompt_cache_miss_tokens: 30 } },
       ])
       assert.equal(body.messages.at(-2).reasoning_content, 'private-reasoning')
+      assert.equal(body.messages.at(-2).encrypted_content, 'opaque-complete-block')
       assert.equal(body.messages.at(-2).tool_calls[0].function.name, 'cad_read_drawing')
       assert.equal(body.messages.at(-1).tool_call_id, 'read')
       return streamed([
@@ -537,7 +692,8 @@ test('streaming Chat assembles fragmented OpenAI-compatible tool calls, visible 
 
 test('streaming Chat keeps endpoint parameter choices explicit and isolates text observers', async () => {
   let seen
-  const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'openai-compatible-stream', chatTokenParameter: 'max_completion_tokens', chatStreaming: true, request: async ({ body }) => {
+  const adapterDeltas = []
+  const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'openai-compatible-stream', chatTokenParameter: 'max_completion_tokens', chatStreaming: true, onTextDelta: delta => adapterDeltas.push(delta), request: async ({ body }) => {
     seen = body
     return streamed([streamChoice({ role: 'assistant', content: 'ok' }), streamChoice({}, 'stop')])
   } })
@@ -545,14 +701,36 @@ test('streaming Chat keeps endpoint parameter choices explicit and isolates text
   const turn = await conversation.next({ kind: 'prompt', text: 'status' }, new AbortController().signal)
   assert.equal(turn.text, 'ok')
   assert.equal(seen.stream, true); assert.equal(seen.max_completion_tokens, 4096); assert.equal('max_tokens' in seen, false); assert.equal('stream_options' in seen, false); assert.equal('tool_stream' in seen, false)
+  assert.deepEqual(adapterDeltas, ['ok'])
+  const runnerDeltas = []
+  const runnerModel = createKJModelAdapter({ protocol: 'chat-completions', model: 'runner-stream', chatStreaming: true, onTextDelta: delta => runnerDeltas.push(delta), request: async () => streamed([streamChoice({ role: 'assistant', content: 'runner ' }), streamChoice({ content: 'ready' }, 'stop')]) })
+  const result = await runKJAgentTask({ session: fixture().session, model: runnerModel, prompt: 'status' })
+  assert.equal(result.status, 'responded'); assert.equal(result.text, 'runner ready'); assert.deepEqual(runnerDeltas, ['runner ', 'ready'])
 })
 
-test('streaming Chat rejects truncated or ambiguous tool deltas before dispatch', async () => {
+test('streaming Chat accepts a complete-JSON fallback and rejects truncated or ambiguous tool deltas before dispatch', async () => {
+  const fallbackDeltas = []
+  const fallback = await runKJAgentTask({
+    session: fixture().session,
+    prompt: 'inspect',
+    model: createKJModelAdapter({
+      protocol: 'chat-completions',
+      model: 'complete-json-fallback',
+      chatStreaming: true,
+      onTextDelta: delta => fallbackDeltas.push(delta),
+      request: async () => wire('chat-completions', [], 'fallback ready'),
+    }),
+  })
+  assert.equal(fallback.status, 'responded')
+  assert.equal(fallback.text, 'fallback ready')
+  assert.deepEqual(fallbackDeltas, ['fallback ready'])
+
   const cases = [
-    ['not iterable', async () => wire('chat-completions', [call('read', 'cad_read_drawing')])],
     ['truncated', async () => streamed([streamChoice({ tool_calls: [{ index: 0, id: 'read', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' } }] })])],
     ['index gap', async () => streamed([streamChoice({ tool_calls: [{ index: 1, id: 'read', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' } }] }), streamChoice({}, 'tool_calls')])],
     ['changed id', async () => streamed([streamChoice({ tool_calls: [{ index: 0, id: 'read-a', function: { name: 'cad_read_drawing', arguments: '{}' } }] }), streamChoice({ tool_calls: [{ index: 0, id: 'read-b' }] }), streamChoice({}, 'tool_calls')])],
+    ['duplicate encrypted block', async () => streamed([streamChoice({ encrypted_content: 'block-a' }), streamChoice({ encrypted_content: 'block-b' }), streamChoice({}, 'stop')])],
+    ['empty encrypted block', async () => streamed([streamChoice({ encrypted_content: '' }), streamChoice({}, 'stop')])],
     ['delta after finish', async () => streamed([streamChoice({}, 'stop'), streamChoice({ content: 'late' })])],
     ['empty final usage', async () => streamed([streamChoice({ content: 'ok' }), streamChoice({}, 'stop'), { choices: [], usage: null }])],
   ]
@@ -568,11 +746,129 @@ test('streaming Chat rejects truncated or ambiguous tool deltas before dispatch'
 test('streaming options are protocol-bound and response byte limits cover all chunks', async () => {
   for (const options of [
     { protocol: 'responses', chatStreaming: true },
+    { protocol: 'chat-completions', responsesStreaming: true },
+    { protocol: 'responses', anthropicStreaming: true },
+    { protocol: 'responses', geminiStreaming: true },
     { protocol: 'chat-completions', chatStreamIncludeUsage: true },
     { protocol: 'chat-completions', chatStreamToolCalls: true },
     { protocol: 'chat-completions', chatStreaming: 'yes' },
-  ]) assert.throws(() => createKJModelAdapter({ ...options, model: 'invalid-stream-config', request: async () => ({}) }), /Chat streaming/)
+  ]) assert.throws(() => createKJModelAdapter({ ...options, model: 'invalid-stream-config', request: async () => ({}) }), /Streaming options/)
+  assert.throws(() => createKJModelAdapter({ protocol: 'anthropic-messages', model: 'invalid-stream-config', maxStreamEvents: 0, request: async () => ({}) }), /limit/)
   const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'bounded-stream', chatStreaming: true, maxResponseBytes: 100, request: async () => streamed([streamChoice({ content: 'x'.repeat(200) }, 'stop')]) })
   const result = await runKJAgentTask({ session: fixture().session, prompt: 'inspect', model })
   assert.equal(result.status, 'failed'); assert.equal(result.error.code, 'KJMODEL_SIZE_LIMIT'); assert.equal(result.toolCalls, 0)
+})
+
+const anthropicEvent = (type, fields = {}) => ({ type, ...fields })
+const anthropicStart = usage => anthropicEvent('message_start', { message: { id: 'msg-stream', type: 'message', role: 'assistant', content: [], model: 'fixture', stop_reason: null, stop_sequence: null, usage } })
+
+test('streaming Anthropic assembles signed thinking, fragmented tool JSON, text and usage', async () => {
+  const { session } = fixture(), definition = session.definitions.find(tool => tool.name === 'cad_read_drawing')
+  const deltas = [], usages = []; let requestNumber = 0
+  const model = createKJModelAdapter({ protocol: 'anthropic-messages', model: 'claude-stream', anthropicStreaming: true, onTextDelta: delta => deltas.push(delta), request: async ({ body, streaming }) => {
+    assert.equal(streaming, true)
+    assert.equal(body.stream, true)
+    if (requestNumber++ === 0) return streamed([
+      anthropicStart({ input_tokens: 40, cache_read_input_tokens: 10, cache_creation_input_tokens: 2 }),
+      anthropicEvent('content_block_start', { index: 0, content_block: { type: 'thinking', thinking: '' } }),
+      anthropicEvent('content_block_delta', { index: 0, delta: { type: 'thinking_delta', thinking: 'inspect' } }),
+      anthropicEvent('content_block_delta', { index: 0, delta: { type: 'signature_delta', signature: 'signed-thinking' } }),
+      anthropicEvent('content_block_stop', { index: 0 }),
+      anthropicEvent('content_block_start', { index: 1, content_block: { type: 'tool_use', id: 'read', name: 'cad_read_drawing', input: {} } }),
+      anthropicEvent('content_block_delta', { index: 1, delta: { type: 'input_json_delta', partial_json: '{' } }),
+      anthropicEvent('content_block_delta', { index: 1, delta: { type: 'input_json_delta', partial_json: '}' } }),
+      anthropicEvent('content_block_stop', { index: 1 }),
+      anthropicEvent('message_delta', { delta: {}, usage: { output_tokens: 4 } }),
+      anthropicEvent('message_delta', { delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 8 } }),
+      anthropicEvent('message_stop'),
+    ])
+    assert.equal(body.messages.at(-2).content[0].signature, 'signed-thinking')
+    assert.equal(body.messages.at(-1).content[0].tool_use_id, 'read')
+    return streamed([
+      anthropicStart({ input_tokens: 60, cache_read_input_tokens: 20, cache_creation_input_tokens: 0 }),
+      anthropicEvent('content_block_start', { index: 0, content_block: { type: 'text', text: '' } }),
+      anthropicEvent('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'Drawing ' } }),
+      anthropicEvent('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'ready.' } }),
+      anthropicEvent('content_block_stop', { index: 0 }),
+      anthropicEvent('message_delta', { delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 4 } }),
+      anthropicEvent('message_stop'),
+    ])
+  } })
+  const conversation = model.createConversation({ instructions: 'Read safely.', tools: [definition], onUsage: usage => usages.push(usage) })
+  const first = await conversation.next({ kind: 'prompt', text: 'Inspect.' }, new AbortController().signal)
+  assert.deepEqual(first.calls, [{ id: 'read', name: 'cad_read_drawing', arguments: {} }])
+  assert.equal(first.usage.inputTokens, 52); assert.equal(first.usage.outputTokens, 8)
+  const result = await session.call(first.calls[0].name, first.calls[0].arguments)
+  const second = await conversation.next({ kind: 'tool-results', results: [{ id: 'read', name: 'cad_read_drawing', result }] }, new AbortController().signal)
+  assert.equal(second.text, 'Drawing ready.'); assert.deepEqual(deltas, ['Drawing ', 'ready.']); assert.deepEqual(usages.map(usage => usage.totalTokens), [60, 84])
+})
+
+test('streaming Gemini assembles complete function-call chunks, visible deltas, thought signatures and usage', async () => {
+  const { session } = fixture(), definition = session.definitions.find(tool => tool.name === 'cad_read_drawing')
+  const deltas = []; let requestNumber = 0
+  const model = createKJModelAdapter({ protocol: 'gemini-generate-content', model: 'gemini-stream', geminiStreaming: true, request: async ({ body, streaming }) => {
+    assert.equal(streaming, true)
+    assert.equal('stream' in body, false)
+    if (requestNumber++ === 0) return streamed([
+      { candidates: [{ index: 0, content: { role: 'model', parts: [{ text: 'private reasoning', thought: true, thoughtSignature: 'signed-thought' }] } }], modelVersion: 'fixture-v1' },
+      { candidates: [{ index: 0, content: { role: 'model', parts: [{ functionCall: { id: 'read', name: 'cad_read_drawing', args: {} } }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 20, candidatesTokenCount: 3, thoughtsTokenCount: 2, totalTokenCount: 25 } },
+    ])
+    assert.equal(body.contents.at(-2).parts[0].thoughtSignature, 'signed-thought')
+    assert.equal(body.contents.at(-1).parts[0].functionResponse.id, 'read')
+    return streamed([
+      { candidates: [{ index: 0, content: { role: 'model', parts: [{ text: 'Drawing ' }] } }] },
+      { candidates: [{ index: 0, content: { role: 'model', parts: [{ text: 'ready.' }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 3, thoughtsTokenCount: 0, totalTokenCount: 33 } },
+    ])
+  } })
+  const conversation = model.createConversation({ instructions: 'Read safely.', tools: [definition], onTextDelta: delta => deltas.push(delta) })
+  const first = await conversation.next({ kind: 'prompt', text: 'Inspect.' }, new AbortController().signal)
+  assert.deepEqual(first.calls, [{ id: 'read', name: 'cad_read_drawing', arguments: {} }]); assert.equal(first.usage.totalTokens, 25)
+  const result = await session.call(first.calls[0].name, first.calls[0].arguments)
+  const second = await conversation.next({ kind: 'tool-results', results: [{ id: 'read', name: 'cad_read_drawing', result }] }, new AbortController().signal)
+  assert.equal(second.text, 'Drawing ready.'); assert.deepEqual(deltas, ['Drawing ', 'ready.']); assert.equal(second.usage.totalTokens, 33)
+})
+
+test('all streaming protocols enforce event budgets and abort an uncooperative iterator before tool dispatch', async () => {
+  for (const [protocol, option] of [
+    ['responses', 'responsesStreaming'], ['chat-completions', 'chatStreaming'], ['anthropic-messages', 'anthropicStreaming'], ['gemini-generate-content', 'geminiStreaming'],
+  ]) {
+    const { session, document } = fixture(), before = document.serialize()
+    const chunks = protocol === 'responses' ? [0, 1, 2].map(sequence_number => responseEvent('response.in_progress', sequence_number))
+      : protocol === 'chat-completions' ? [0, 1, 2].map(() => streamChoice({ content: '' }))
+        : protocol === 'anthropic-messages' ? [0, 1, 2].map(() => anthropicEvent('ping')) : [0, 1, 2].map(() => ({ candidates: [] }))
+    const result = await runKJAgentTask({ session, prompt: 'inspect', model: createKJModelAdapter({ protocol, model: 'event-budget', [option]: true, maxStreamEvents: 2, request: async () => streamed(chunks) }) })
+    assert.equal(result.status, 'failed', protocol); assert.equal(result.error.code, 'KJMODEL_SIZE_LIMIT', protocol); assert.equal(result.toolCalls, 0); assert.equal(document.serialize(), before)
+  }
+  let iteratorClosed = false
+  const neverFinishes = {
+    [Symbol.asyncIterator]() {
+      return { next: () => new Promise(() => {}), return() { iteratorClosed = true; return Promise.resolve({ done: true }) } }
+    },
+  }
+  const controller = new AbortController()
+  const conversation = createKJModelAdapter({ protocol: 'anthropic-messages', model: 'cancel-stream', anthropicStreaming: true, request: async () => neverFinishes }).createConversation({ instructions: 'Wait.', tools: [] })
+  const pending = conversation.next({ kind: 'prompt', text: 'Wait.' }, controller.signal)
+  setTimeout(() => controller.abort(new Error('cancelled by host')), 5)
+  await assert.rejects(pending, /cancelled by host/)
+  await new Promise(resolve => setTimeout(resolve, 0))
+  assert.equal(iteratorClosed, true)
+})
+
+test('Anthropic and Gemini streams reject malformed or truncated tool calls before CAD dispatch', async () => {
+  const invalidStreams = [
+    ['anthropic-messages', 'anthropicStreaming', streamed([
+      anthropicStart({ input_tokens: 1 }),
+      anthropicEvent('content_block_start', { index: 0, content_block: { type: 'tool_use', id: 'read', name: 'cad_read_drawing', input: {} } }),
+      anthropicEvent('content_block_delta', { index: 0, delta: { type: 'input_json_delta', partial_json: '{' } }),
+      anthropicEvent('content_block_stop', { index: 0 }),
+      anthropicEvent('message_delta', { delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 1 } }),
+      anthropicEvent('message_stop'),
+    ])],
+    ['gemini-generate-content', 'geminiStreaming', streamed([{ candidates: [{ index: 0, content: { role: 'model', parts: [{ functionCall: { name: 'cad_read_drawing', args: 'not-an-object' } }] }, finishReason: 'STOP' }] }])],
+  ]
+  for (const [protocol, option, response] of invalidStreams) {
+    const { session, document } = fixture(), before = document.serialize()
+    const result = await runKJAgentTask({ session, prompt: 'inspect', model: createKJModelAdapter({ protocol, model: 'invalid-stream', [option]: true, request: async () => response }) })
+    assert.equal(result.status, 'failed', protocol); assert.equal(result.toolCalls, 0, protocol); assert.equal(document.serialize(), before, protocol)
+  }
 })

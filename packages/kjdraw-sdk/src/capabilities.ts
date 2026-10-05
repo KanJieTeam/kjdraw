@@ -91,7 +91,7 @@ export const KJDRAW_1_0_READINESS_PROFILE: Readonly<KJSDKReadinessProfile> = Obj
   requiredEntityTypes: Object.freeze([
     'LINE', 'RAY', 'XLINE', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE',
     'SPLINE', 'ELLIPSE', 'TEXT', 'MTEXT', 'INSERT', 'IMAGE', 'HATCH', 'LEADER',
-    'MLEADER', 'DIMENSION', 'VIEWPORT', 'PROXY_ENTITY',
+    'MLEADER', 'DIMENSION', 'TOLERANCE', 'VIEWPORT', 'PROXY_ENTITY',
     'SOLID3D',
   ]),
   requiredFormats: Object.freeze([

@@ -63,6 +63,7 @@ export const KJ_STANDARD_TYPES = Object.freeze({
         'LEADER',
         'MLEADER',
         'DIMENSION',
+        'TOLERANCE',
         'TABLE',
         'VIEWPORT',
         'WIPEOUT',

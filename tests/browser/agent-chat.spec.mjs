@@ -1,5 +1,6 @@
 import { referenceAnnotatedInput } from '../../scripts/benchmarks/engineering-drawing-tasks.mjs'
 import { test, expect } from '@playwright/test'
+import { openAiChat } from './ai-chat-ui.mjs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createKJDrawSDK, openKjpPackage } from '../../packages/kjdraw-sdk/src/index.js'
 import { mountingProfile } from '../../packages/kjdraw-sdk/examples/fixtures/mounting-profile.mjs'
@@ -46,7 +47,7 @@ for (const kind of ['rotate', 'scale']) test(`main chat ${kind} protocol preview
   await openChat(page)
   await page.locator('#file-input').setInputFiles({ name: `${kind}.kjd`, mimeType: 'application/json', buffer: Buffer.from(await sdk.writeDocument(drawing, { format: 'KJD' })) })
   await expect(page.locator('#revision')).toHaveText(`REV ${drawing.revision}`)
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await page.evaluate(async () => {
     const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js'), original = KJCanvasRenderer.prototype.drawPreview
     window.transformPreviews = []
@@ -100,21 +101,34 @@ for (const kind of ['rotate', 'scale']) test(`main chat ${kind} protocol preview
     const canvas = document.createElement('canvas'); canvas.style.cssText = 'width:1000px;height:600px;position:fixed;inset:0 auto auto 0;z-index:9999'; document.body.append(canvas)
     const renderer = new KJCanvasRenderer(canvas, { document: source, pixelRatio: 1, grid: false, theme: 'light' })
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    const scalar = value => { const number = Number(value ?? 0); return Math.abs(number) < 1e-10 ? 0 : Number(number.toFixed(10)) }
+    const point = value => [scalar(value?.[0]), scalar(value?.[1]), scalar(value?.[2])]
+    const semantics = document => document.listEntities().flatMap(entity => {
+      const payload = entity.payload, owner = document.getObject(entity.ownerId), ownerName = owner?.name ?? (entity.ownerId === document.snapshot().spaces.modelSpaceId ? 'MODEL' : String(entity.ownerId))
+      if (ownerName.startsWith('*D')) return []
+      const base = { owner: ownerName, type: entity.type }
+      if (entity.type === 'LINE') return [{ ...base, start: point(payload.start), end: point(payload.end) }]
+      if (entity.type === 'CIRCLE') return [{ ...base, center: point(payload.center), radius: scalar(payload.radius) }]
+      if (entity.type === 'LWPOLYLINE') return [{ ...base, vertices: payload.vertices.map(vertex => point(vertex.point)), closed: payload.closed }]
+      if (entity.type === 'TEXT') return [{ ...base, position: point(payload.position), text: payload.text, height: scalar(payload.height), rotation: scalar(payload.rotation) }]
+      if (entity.type === 'INSERT') return [{ ...base, block: document.getObject(payload.blockRecordId)?.name, position: point(payload.position), scale: point(payload.scale ?? [1, 1, 1]), rotation: scalar(payload.rotation) }]
+      if (entity.type === 'DIMENSION') return [{ ...base, dimensionType: payload.dimensionType, points: payload.definitionPoints.map(point), textPosition: point(payload.textPosition), textHeight: scalar(payload.textHeight), rotation: scalar(payload.rotation), textOverride: payload.textOverride }]
+      return []
+    }).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+    const sourceSemantics = semantics(source)
     renderer.resize(1000, 600); Object.assign(renderer.camera, { centerX: 30, centerY: 40, scale: 7 }); renderer.render()
-    const approved = canvas.toDataURL(), originalPixels = renderer.context.getImageData(0, 0, canvas.width, canvas.height).data
+    const approved = canvas.toDataURL()
     renderer.setDocument(reopened); Object.assign(renderer.camera, { centerX: 30, centerY: 40, scale: 7 }); renderer.render()
-    const reopenedImage = canvas.toDataURL(), root = reopened.listEntities({ ownerId: reopened.snapshot().spaces.modelSpaceId }), newPixels = renderer.context.getImageData(0, 0, canvas.width, canvas.height).data
-    let changed = 0, maximum = 0
-    for (let i = 0; i < originalPixels.length; i += 4) { let differs = false; for (let c = 0; c < 4; c++) { const delta = Math.abs(originalPixels[i + c] - newPixels[i + c]); maximum = Math.max(maximum, delta); differs ||= delta > 0 } if (differs) changed++ }
+    const reopenedImage = canvas.toDataURL(), root = reopened.listEntities({ ownerId: reopened.snapshot().spaces.modelSpaceId }), reopenedSemantics = semantics(reopened)
     renderer.dispose(); canvas.remove()
-    return { approved, reopenedImage, changed, maximum, dimensions: [source, reopened].map(document => document.listEntities({ type: 'DIMENSION' }).map(entity => ({ payload: entity.payload, style: document.getObject(entity.payload.styleId)?.payload }))), nativeTypes: root.map(item => item.type).sort(), blockCount: reopened.listEntities({ type: 'INSERT' }).length }
+    return { approved, reopenedImage, sourceSemantics, reopenedSemantics, nativeTypes: root.map(item => item.type).sort(), blockCount: reopened.listEntities({ type: 'INSERT' }).length }
   })
   expect(pixels.nativeTypes).toEqual(['CIRCLE', 'DIMENSION', 'INSERT', 'LINE', 'TEXT']); expect(pixels.blockCount).toBe(2)
   await testInfo.attach(`${kind}-approved-native`, { body: Buffer.from(pixels.approved.split(',')[1], 'base64'), contentType: 'image/png' })
   await testInfo.attach(`${kind}-DXF-reopened`, { body: Buffer.from(pixels.reopenedImage.split(',')[1], 'base64'), contentType: 'image/png' })
   await writeFile(`.cache/agent-chat/${kind}-approved.png`, Buffer.from(pixels.approved.split(',')[1], 'base64'))
   await writeFile(`.cache/agent-chat/${kind}-reopened.png`, Buffer.from(pixels.reopenedImage.split(',')[1], 'base64'))
-  expect({ changed: pixels.changed, maximum: pixels.maximum }, JSON.stringify(pixels.dimensions)).toEqual({ changed: 0, maximum: 0 })
+  expect(pixels.reopenedSemantics).toEqual(pixels.sourceSemantics)
   await page.getByRole('button', { name: 'Undo this change', exact: true }).click()
   await expect(page.locator('.chat-proposal-state')).toContainText('Change undone')
   const undone = (await save()).activeDocument
@@ -132,7 +146,7 @@ async function openChat(page) {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'chat-ui-drawing', units: 'millimeter' })
   await page.locator('#file-input').setInputFiles({ name: 'chat.kjd', mimeType: 'application/json', buffer: Buffer.from(await sdk.writeDocument(document, { format: 'KJD' })) })
   await expect(page.locator('#entity-count')).toHaveText('0 entities')
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await expect(page.locator('#chat-input')).toBeVisible()
 }
 
@@ -148,7 +162,7 @@ for(const kind of ['move','rotate','scale'])test(`chat discovers and reviews an 
   await openChat(page)
   await page.locator('#file-input').setInputFiles({name:'selection.kjd',mimeType:'application/json',buffer:Buffer.from(await sdk.writeDocument(drawing,{format:'KJD'}))})
   await expect(page.locator('#revision')).toHaveText(`REV ${drawing.revision}`)
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await page.evaluate(async()=>{
     const {KJCanvasRenderer}=await import('/packages/kjdraw-sdk/src/canvas-renderer.js'), original=KJCanvasRenderer.prototype.drawPreview
     window.selectionPreviews=[]
@@ -199,11 +213,11 @@ for(const kind of ['move','rotate','scale'])test(`chat discovers and reviews an 
   for(const object of applied.listObjects())expect(redone.getObject(object.id)).toEqual(object)
   expect(requests).toHaveLength(4);expect(errors).toEqual([])
 })
-async function connect(page) {
+async function connect(page,protocol='chat-completions') {
   await page.getByRole('button', { name: 'Connect model', exact: true }).click()
   await page.locator('#chat-endpoint').fill('/api/model')
   await page.locator('#chat-model').fill('browser-fixture')
-  await page.locator('#chat-protocol').selectOption('chat-completions')
+  await page.locator('#chat-protocol').selectOption(protocol)
   await page.getByRole('button', { name: 'Use this connection', exact: true }).click()
 }
 async function send(page, text) {
@@ -215,6 +229,35 @@ async function snapshot(page, width, name) {
   await mkdir('.cache/agent-chat', { recursive: true })
   await page.screenshot({ path: `.cache/agent-chat/${name}-${width}.png` })
 }
+
+test('chat displays Responses API SSE text incrementally',async({page})=>{
+ await openChat(page)
+ await page.evaluate(()=>{
+  window.chatStreamStates=[]
+  new MutationObserver(()=>{for(const node of document.querySelectorAll('.chat-message-body'))if(node.textContent.includes('Stream'))window.chatStreamStates.push(node.textContent)}).observe(document.querySelector('#chat-messages'),{childList:true,subtree:true,characterData:true})
+ })
+ let requestBody
+ await page.route('**/api/model',route=>{
+  requestBody=route.request().postDataJSON()
+  const response={status:'completed',output:[{id:'msg-stream',type:'message',status:'completed',role:'assistant',content:[{type:'output_text',text:'Stream one two',annotations:[]}]}],usage:{input_tokens:3,output_tokens:3,total_tokens:6}}
+  return route.fulfill({status:200,contentType:'text/event-stream; charset=utf-8',body:[
+   'event: response.output_text.delta',
+   'data: {"type":"response.output_text.delta","sequence_number":0,"item_id":"msg-stream","output_index":0,"content_index":0,"delta":"Stream one"}',
+   '',
+   'event: response.output_text.delta',
+   'data: {"type":"response.output_text.delta","sequence_number":1,"item_id":"msg-stream","output_index":0,"content_index":0,"delta":" two"}',
+   '',
+   'event: response.output_text.done',
+   'data: {"type":"response.output_text.done","sequence_number":2,"item_id":"msg-stream","output_index":0,"content_index":0,"text":"Stream one two"}',
+   '',
+   `event: response.completed\ndata: ${JSON.stringify({type:'response.completed',sequence_number:3,response})}`,'','',
+  ].join('\n')})
+ })
+ await connect(page,'responses');await send(page,'Stream a status response.')
+ await expect(page.locator('.chat-message-body').last()).toHaveText('Stream one two')
+ await expect.poll(()=>page.evaluate(()=>window.chatStreamStates)).toContain('Stream one')
+ expect(requestBody.stream).toBe(true);expect(requestBody.store).toBe(false);expect(requestBody.stream_options).toBeUndefined()
+})
 
 test('chat queries the real drawing, previews native geometry, applies once, saves and undoes', async ({ page }) => {
   const errors = [], requests = []
@@ -228,7 +271,8 @@ test('chat queries the real drawing, previews native geometry, applies once, sav
   })
   await page.route('**/api/model', async route => {
     const body = route.request().postDataJSON(); requests.push(body)
-    expect(body.tools.map(tool => tool.function.name).sort()).toEqual([...KJDRAW_CHAT_TOOL_NAMES].sort())
+    expect(body.tools.map(tool => tool.function.name).sort()).toEqual([...KJDRAW_CHAT_TOOL_NAMES,
+      'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_plan'].sort())
     if (requests.length === 1) return route.fulfill({ json: wire([['read', 'cad_read_drawing']]) })
     const result = JSON.parse(body.messages.at(-1).content)
     expect(result.ok).toBe(true)
@@ -274,18 +318,23 @@ test('chat refuses unadvertised legacy creation tools without applying a proposa
   await expect(page.getByRole('button', { name: 'Apply changes', exact: true })).toHaveCount(0)
 })
 
-test('disconnected chat and invalid external connections never send drawing data', async ({ page }) => {
+test('disconnected chat and configuring an external endpoint never send drawing data before a request', async ({ page }) => {
   const requests = []
   await openChat(page)
   await page.route('**/api/model', route => { requests.push(route.request()); return route.fulfill({ json: wire([], 'Unexpected') }) })
   await send(page, 'Inspect this private drawing')
   await expect(page.locator('#chat-messages')).toContainText('Connect a model')
   await expect(page.locator('#chat-input')).toHaveValue('Inspect this private drawing')
-  await page.locator('#chat-endpoint').fill('https://example.com/api/model')
+  await page.locator('#chat-endpoint').fill('ftp://example.com/api/model')
   await page.locator('#chat-model').fill('fixture')
   await page.getByRole('button', { name: 'Use this connection', exact: true }).click()
-  await expect(page.locator('.chat-error')).toContainText('same-origin')
+  await expect(page.locator('.chat-error')).toContainText('HTTP(S)')
   expect(requests).toHaveLength(0)
+  await page.locator('#chat-endpoint').fill('https://example.com/api/model')
+  await page.getByRole('button', { name: 'Use this connection', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Model configured · fixture', exact: true })).toBeVisible()
+  expect(requests).toHaveLength(0)
+  await page.getByRole('button', { name: 'Model configured · fixture', exact: true }).click()
   await page.locator('#chat-endpoint').fill('/api/model')
   await page.getByRole('button', { name: 'Use this connection', exact: true }).click()
   await page.getByRole('button', { name: 'Model configured · fixture', exact: true }).click()
@@ -337,7 +386,7 @@ test('Chinese IME, newlines and long untrusted text remain usable at 390 pixels'
   await expect(page.locator('.workbench')).not.toHaveClass(/inspector-open/)
   await page.locator('#toggle-inspector').click()
   await expect(page.locator('#agent-tab')).toBeVisible()
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await page.locator('#chat-input').fill('设计一个安装支架')
   await page.locator('#chat-input').dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, bubbles: true })
   expect(requests).toBe(0)
@@ -422,6 +471,73 @@ test('chat preview belongs to the current document identity even before the host
   expect(previewAfterSwitch).toBeNull()
 })
 
+test('chat routes a Chinese mixed chart request through one editable Cartesian compiler', async ({page})=>{
+  await page.goto('/')
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
+  await page.evaluate(async()=>{
+    const {createAgentChat}=await import('/apps/playground/agent-chat.js')
+    const {createKJDrawSDK}=await import('/packages/kjdraw-sdk/src/index.js')
+    const sdk=createKJDrawSDK(),document=sdk.createDocument({documentId:'chart-route',units:'millimeter'})
+    const container=window.document.createElement('section');container.id='chart-route-chat'
+    container.style.cssText='position:fixed;inset:0 auto auto 0;width:440px;height:650px;z-index:10000;background:white;display:flex;flex-direction:column'
+    window.document.body.append(container);window.chartRoute={sdk,document,tools:[]}
+    const chat=createAgentChat(container,{locale:()=> 'zh',getContext:()=>({sdk,document}),getSelected:()=>[],onPreview(){},onBeforeRun(){},runMutation:operation=>operation(),onApplied(){},onSave(){}})
+    chat.setModel({createConversation({tools,instructions}){
+      window.chartRoute.tools=tools.map(tool=>tool.name);window.chartRoute.instructions=instructions
+      return {next:async()=>({text:'已生成可编辑组合图，请检查后应用。',calls:[{id:'chart',name:'cad_propose_cartesian_chart',arguments:{version:'1.0.0',expectedRevision:0,units:'millimeter',drawingId:'CHART-UI',title:'季度产量与目标',categories:['一季度','二季度','三季度','四季度'],series:[{id:'actual',name:'实际',kind:'bar',values:[82.5,96.125,91.75,108.0625]},{id:'target',name:'目标',kind:'line',values:[90,90,100,100]}],showValues:true}}]})}
+    }})
+  })
+  const chat=page.locator('#chart-route-chat')
+  await chat.locator('#chat-input').fill('绘制季度产量柱状图和目标折线图。')
+  await chat.locator('#chat-send').click()
+  await expect(chat.getByRole('button',{name:'应用修改',exact:true})).toBeEnabled()
+  expect(await page.evaluate(()=>window.chartRoute.tools)).toEqual(['cad_propose_cartesian_chart'])
+  expect(await page.evaluate(()=>window.chartRoute.instructions)).toContain('Capability builtin.cartesian-chart@1.0.0')
+  expect(await page.evaluate(()=>window.chartRoute.document.listEntities().length)).toBe(0)
+  await chat.getByRole('button',{name:'应用修改',exact:true}).click()
+  await expect(chat.locator('.chat-proposal-state')).toContainText('修改已应用')
+  const result=await page.evaluate(()=>({revision:window.chartRoute.document.revision,count:window.chartRoute.document.listEntities().length,types:[...new Set(window.chartRoute.document.listEntities().map(entity=>entity.type))].sort(),layers:window.chartRoute.document.getTable('layers').records.map(layer=>layer.name)}))
+  expect(result.revision).toBe(1);expect(result.count).toBeGreaterThan(20)
+  expect(result.types).toEqual(['CIRCLE','LINE','LWPOLYLINE','TEXT'])
+  expect(result.layers).toEqual(expect.arrayContaining(['CHART_AXIS','CHART_GRID','CHART_TEXT','CHART_ACTUAL','CHART_TARGET']))
+  const labels=await page.evaluate(()=>window.chartRoute.document.listEntities({type:'TEXT'}).map(entity=>entity.payload.text))
+  expect(labels).toEqual(expect.arrayContaining(['82.5','96.125','91.75','108.0625']))
+})
+
+test('chat keeps general tools for geological, negated and mixed drawing requests', async ({page}) => {
+  await page.goto('/')
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
+  await page.evaluate(async()=>{
+    const {createAgentChat}=await import('/apps/playground/agent-chat.js')
+    const {createKJDrawSDK}=await import('/packages/kjdraw-sdk/src/index.js')
+    const sdk=createKJDrawSDK(),document=sdk.createDocument({units:'millimeter'})
+    const container=window.document.createElement('section');container.id='ambiguous-chat'
+    container.style.cssText='position:fixed;inset:0 auto auto 0;width:440px;height:650px;z-index:10000;background:white;display:flex;flex-direction:column'
+    window.document.body.append(container);window.ambiguousChat={document,requests:[]}
+    const chat=createAgentChat(container,{locale:()=> 'zh',getContext:()=>({sdk,document}),getSelected:()=>[],onPreview(){},onBeforeRun(){},runMutation:operation=>operation(),onApplied(){},onSave(){}})
+    chat.setModel({createConversation({tools,instructions}){
+      window.ambiguousChat.requests.push({tools:tools.map(tool=>tool.name),instructions})
+      return {next:async()=>({text:'需要先明确绘图要求。',calls:[]})}
+    }})
+  })
+  const chat=page.locator('#ambiguous-chat')
+  const prompts=['绘制钻孔地质柱状图。','不要绘制柱状图。','绘制建筑平面图和季度产量柱状图。']
+  for(let i=0;i<prompts.length;i++){
+    await chat.locator('#chat-input').fill(prompts[i])
+    await chat.locator('#chat-send').click()
+    await expect.poll(()=>page.evaluate(()=>window.ambiguousChat.requests.length)).toBe(i+1)
+    await expect(chat.locator('#chat-send')).toBeEnabled()
+  }
+  const result=await page.evaluate(()=>({requests:window.ambiguousChat.requests,revision:window.ambiguousChat.document.revision,count:window.ambiguousChat.document.listEntities().length}))
+  for(const request of result.requests){
+    expect([...request.tools].sort()).toEqual([...KJDRAW_CHAT_TOOL_NAMES,
+      'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_plan'].sort())
+    expect(request.instructions??'').not.toContain('Capability builtin.')
+  }
+  expect(result.revision).toBe(0);expect(result.count).toBe(0)
+  await expect(chat.getByRole('button',{name:'应用修改',exact:true})).toHaveCount(0)
+})
+
 test('chat sends only the MOVE schema for an exact selected translation', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
@@ -465,6 +581,7 @@ test('an old chat undo cannot erase a later manual edit', async ({ page }) => {
   await page.locator('#command-input').press('Escape')
   await expect(page.locator('#entity-count')).toHaveText('10 entities')
   const revision = await page.locator('#revision').textContent()
+  await openAiChat(page)
   await page.getByRole('button', { name: 'Undo this change', exact: true }).click()
   await expect(page.locator('#chat-messages')).toContainText('The drawing changed.')
   await expect(page.locator('#entity-count')).toHaveText('10 entities')
@@ -551,7 +668,7 @@ test('engineering proposal previews native dimensions and dashed layers, then sa
 
 test('manufacturing intent previews a compiled editable sheet and evidence before one approval', async ({ page }) => {
   const input={version:'1.0.0',expectedRevision:0,units:'millimeter',drawingId:'FP-240',title:'CNC FIXTURE PLATE',revision:'A',material:'MIC-6 CAST ALUMINUM',quantity:1,length:240,width:140,thickness:12,
-    holePatterns:[{rows:4,columns:6,origin:[20,20],spacing:[40,32],throughDiameter:6},{rows:2,columns:2,origin:[15,15],spacing:[210,110],throughDiameter:8.5,counterboreDiameter:14,counterboreDepth:5}],
+    holePatterns:[{rows:4,columns:6,origin:[20,20],spacing:[40,32],throughDiameter:6},{rows:2,columns:2,origin:[8,8],spacing:[224,124],throughDiameter:8.5,counterboreDiameter:14,counterboreDepth:5}],
     slots:[{center:[120,70],length:44,width:12,orientationDegrees:0}],sheet:{origin:[0,0],size:[420,297]},textHeight:3}
   const sdk=createKJDrawSDK(),document=sdk.createDocument({units:'millimeter'}),compiled=buildAgentManufacturingSheet(document,input)
   await openChat(page)
@@ -734,7 +851,7 @@ test('reopened road project revises the same drawing in chat, preserves external
   await openChat(page)
   await page.locator('#file-input').setInputFiles({name:'saved-road.kjp',mimeType:'application/octet-stream',buffer:Buffer.from(packageBytes)})
   await expect(page.locator('#entity-count')).toHaveText(`${original.entities.length+1} entities`)
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await page.evaluate(async()=>{
     const {KJCanvasRenderer}=await import('/packages/kjdraw-sdk/src/canvas-renderer.js'),draw=KJCanvasRenderer.prototype.drawPreview
     window.roadRevisionPreviews=[]
@@ -819,7 +936,7 @@ test('reopened road project revises the same drawing in chat, preserves external
   await page.locator('#file-input').setInputFiles({name:'undone-road.kjp',mimeType:'application/octet-stream',buffer:undoneBytes})
   await expect(page.locator('#revision')).toHaveText(`REV ${undone.activeDocument.revision}`)
   await expect(page.locator('#entity-count')).toHaveText(`${original.entities.length+1} entities`)
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await send(page,`Continue editing ${roadDrawingFixtureOptions.drawingId} from this saved Undo state: widen each side by 0.25 m without shifting elevations.`)
   await expect(page.getByRole('button',{name:'Apply changes',exact:true})).toBeEnabled()
   await expect(page.locator('.chat-proposal-state')).toContainText('Your drawing is unchanged')

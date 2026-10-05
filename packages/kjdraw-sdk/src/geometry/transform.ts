@@ -12,6 +12,32 @@ import type { Point2Input } from './vector2.js'
 
 export type GeometryEntityPayload = Record<string, unknown>
 
+function withoutUndefined<T extends Record<string, unknown>>(record: T): T {
+  for (const key of Object.keys(record)) if (record[key] === undefined) delete record[key]
+  return record
+}
+
+/** Some native attributes repeat their canonical alignment point in the
+ * attribute subclass. Transform only an exact redundant point, never opaque
+ * XDATA coordinates or unsupported vendor geometry. The DXF writer validates
+ * this equality again before allowing a lossless export. */
+function transformedAttributeAlignmentTags(payload: GeometryEntityPayload, matrix: AffineMatrix3Input): Record<string, unknown> {
+  if (!Array.isArray(payload.dxfAttributeExtraTags) || !Array.isArray(payload.alignmentPoint) || payload.alignmentPoint.length !== 3) return {}
+  const tags = payload.dxfAttributeExtraTags as readonly { code: number; value: string }[]
+  for (let index = 0; index < tags.length; index++) {
+    if (tags[index]!.code === 1001) break
+    if (tags[index]!.code !== 11) continue
+    const point = tags.slice(index, index + 3)
+    if (point.length !== 3 || !point.every((tag, axis) => tag.code === [11, 21, 31][axis] &&
+      typeof tag.value === 'string' && /^[ \t]*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?[ \t]*$/.test(tag.value) && Number.isFinite(Number(tag.value)) &&
+      Number(tag.value) === (payload.alignmentPoint as readonly unknown[])[axis])) return {}
+    const next = transformPoint3(matrix, payload.alignmentPoint as Point2Input)
+    return { dxfAttributeExtraTags: tags.map((tag, tagIndex) => tagIndex >= index && tagIndex < index + 3
+      ? { ...tag, value: String(next[tagIndex - index]) } : tag) }
+  }
+  return {}
+}
+
 function angleOf(vector: Point2Input): number {
   const record = vector as { readonly x?: unknown; readonly y?: unknown }
   const coordinates = Array.isArray(vector) ? vector : [record.x, record.y]
@@ -20,6 +46,9 @@ function angleOf(vector: Point2Input): number {
 
 function transformAngle(matrix: AffineMatrix3Input, angle: unknown): number {
   const number = Number(angle)
+  // Translation changes placement, not the stored angle representation. In
+  // particular, do not wrap a source DXF angle into [-PI, PI] when moving text.
+  if (Number(matrix[0]) === 1 && Number(matrix[1]) === 0 && Number(matrix[2]) === 0 && Number(matrix[3]) === 1) return number
   return angleOf(transformVector3(matrix, [Math.cos(number), Math.sin(number)]))
 }
 
@@ -155,7 +184,6 @@ export function transformEntityPayload(
       }
     case 'LWPOLYLINE':
     case 'POLYLINE':
-    case 'WIPEOUT':
     case 'REVISION_CLOUD':
       return {
         ...payload,
@@ -192,6 +220,7 @@ export function transformEntityPayload(
         position: transformPoint3(matrix, payload.position as Point2Input),
         alignmentPoint: payload.alignmentPoint
           && transformPoint3(matrix, payload.alignmentPoint as Point2Input),
+        ...(['ATTDEF', 'ATTRIB'].includes(normalizedType) ? transformedAttributeAlignmentTags(payload, matrix) : {}),
         height: payload.height == null ? undefined : Number(payload.height) * scale(),
         ...(normalizedType === 'MTEXT' && payload.width != null ? { width: Number(payload.width) * scale() } : {}),
         rotation: transformAngle(matrix, payload.rotation ?? 0),
@@ -209,6 +238,15 @@ export function transformEntityPayload(
         mirrored: mirrored ? !payload.mirrored : payload.mirrored,
       }
     }
+    case 'WIPEOUT':
+      return withoutUndefined({
+        ...payload,
+        position: payload.position == null ? undefined : transformPoint3(matrix, payload.position as Point2Input),
+        uVector: payload.uVector == null ? undefined : transformVector3(matrix, payload.uVector as Point2Input),
+        vVector: payload.vVector == null ? undefined : transformVector3(matrix, payload.vVector as Point2Input),
+        vertices: ((payload.vertices ?? payload.points ?? []) as readonly unknown[])
+          .map(vertex => transformVertex(matrix, vertex, mirrored, scale())),
+      })
     case 'IMAGE':
       return {
         ...payload,
@@ -262,6 +300,11 @@ export function transformEntityPayload(
           && transformPoint3(matrix, payload.textPosition as Point2Input),
         rotation: transformAngle(matrix, payload.rotation ?? 0),
       }
+    case 'TOLERANCE': {
+      const axis = transformVector3(matrix, (payload.xAxisDirection ?? [1, 0, 0]) as Point2Input), z = Number(axis[2] ?? 0), length = Math.hypot(axis[0], axis[1], z)
+      if (!(length > 1e-15)) throw new KJValidationError('TOLERANCE x-axis direction became degenerate')
+      return { ...payload, position: transformPoint3(matrix, payload.position as Point2Input), xAxisDirection: [axis[0] / length, axis[1] / length, z / length] }
+    }
     case 'VIEWPORT':
       return {
         ...payload,

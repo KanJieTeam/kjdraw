@@ -9,6 +9,32 @@ summary.zh: 接入你选择的模型、网关或 Agent 框架，共用一套 CAD
 ## Choose a connection {#connection}
 
 KJDraw does not require a particular AI vendor. Choose a protocol adapter, supply your model and host transport, and run the same CAD tools. A custom `KJAgentModel` connects frameworks, local models or other protocols without changing the drawing engine.
+## Agent and client matrix {#agent-client-matrix}
+
+The drawing contract is independent of the model vendor. A client that can launch an stdio MCP server can use the same KJDraw tools; clients without native MCP support can connect through an MCP-capable host or call the TypeScript adapter directly.
+
+| Client or model family | Recommended path | What changes | What stays the same |
+| --- | --- | --- | --- |
+| OpenAI Codex | Register the `kjdraw` stdio server in Codex MCP settings | Client configuration only | Tool names, proposals and approval boundary |
+| Claude Desktop, Cursor, Cline | Add the same server entry to the client's MCP configuration | Client configuration only | KJD/DXF document contract |
+| Kimi Code, WorkBuddy, ZCode, TraeCode | Run the user-level installer and follow the client's import prompt | Client configuration and one-time import | Local files and host approval |
+| Doubao, DeepSeek and other domestic models | Use an MCP-capable host, or pass their tool-call JSON through `createKJModelAdapter` / `createKJDomesticModelAdapter` | Provider endpoint and transport | CAD tools, validation and receipts |
+| Custom harness, gateway or private model | Implement `KJAgentModel` or expose the stdio server from the host | Your conversation loop and credentials | The KJDraw agent session and document model |
+
+Portable MCP entry for a locally built package containing `kjdraw-mcp.mjs`: create `proposals` and `results` in the host project and replace both absolute-path placeholders. Verify the installed npm version first; `next` may still resolve to an older candidate without this executable.
+
+```jsonc
+{
+  "mcpServers": {
+    "kjdraw": {
+      "command": "node",
+      "args": ["/absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs", "--workspace", "/absolute/project", "--blank", "drawing.kjd", "--units", "millimeter", "--proposal-dir", "proposals", "--candidate-dir", "results"]
+    }
+  }
+}
+```
+
+KJDraw does not discover provider keys, choose network endpoints or approve edits. Keep those responsibilities in the client or host and treat model text as untrusted input.
 
 | Connection | Adapter value | Host transport |
 | --- | --- | --- |
@@ -18,11 +44,11 @@ KJDraw does not require a particular AI vendor. Choose a protocol adapter, suppl
 | Gemini GenerateContent | `gemini-generate-content` | GenerateContent REST endpoint, with model in the URL |
 | Your framework, gateway or local model | Custom `KJAgentModel` | Your own conversation bridge |
 
-These adapters are implemented and tested against protocol fixtures and real CAD operations. That is not a claim that every model, vendor extension or live endpoint has been tested. Native function calling must be supported by the selected model. For text-only models, a custom bridge can parse and validate a structured response; never execute model-generated JavaScript.
+The built-in adapters support the protocols listed above. Compatibility with a particular model or vendor extension depends on that endpoint's function-calling behavior. For text-only models, a custom bridge can parse and validate a structured response; never execute model-generated JavaScript.
 
 ## Wire the model once {#quickstart}
 
-Available in the current source checkout. Check that your installed package contains `model-adapters` and `agent-runner` before using these entries.
+Install KJDraw, then import the model adapter and bounded task runner from their public package entries:
 
 ```ts
 import { createKJDrawSDK } from '@kanjieteam/kjdraw'
@@ -52,6 +78,20 @@ const result = await runKJAgentTask({
 
 Chat-compatible endpoints differ in output token fields: the default is `max_tokens`; set `chatTokenParameter: 'max_completion_tokens'` when required. The other adapters map `maxOutputTokens` to their protocol. Full runtime argument validation remains enabled; Responses explicitly uses non-strict tool generation rather than promising identical provider-side schema support.
 
+## Doubao through Volcengine Ark {#doubao-ark}
+
+The source-tree adapter accepts provider doubao on Ark's Chat Completions protocol. Your trusted host supplies the model ID, HTTPS transport and ARK_API_KEY; KJDraw never reads that key. Ark's documented base URL is https://ark.cn-beijing.volces.com/api/v3 and the request path is /chat/completions. Enable tool calling on a model that supports it. The adapter preserves an assistant's encrypted reasoning block across tool-result turns, including a complete block delivered in a streaming response.
+
+    import { createKJDomesticModelAdapter } from '@kanjieteam/kjdraw/domestic-model-profiles'
+
+    const model = createKJDomesticModelAdapter({
+      provider: 'doubao',
+      model: selectedArkModelId,
+      reasoning: { mode: 'enabled' },
+      request: ({ body, signal }) => callTrustedArkGateway(body, signal),
+    })
+
+The model ID and gateway function above are provided by your host. The [Ark Chat API](https://docs.volcengine.com/docs/ark/chat-api?lang=zh) and [thinking/tool-call guide](https://docs.volcengine.com/docs/ark/deep-thinking?lang=zh) define the wire fields. Local protocol fixtures pass, but no live Ark account or specific model has been certified by those tests.
 ## Choose tools for a task {#task-tools}
 
 `toolNames` is an optional host policy for one run. Omit it to retain all session tools. Supply a nonempty list of unique exact names from `session.definitions`; unknown names, duplicates and empty lists fail before opening a model conversation. Definitions retain their canonical order and complete schemas, including drawing units. The runner snapshots the selection before invoking the model, so later array changes cannot widen access.
@@ -70,7 +110,9 @@ Every adapter and custom bridge receives the same selected definitions. If a res
 
 The runner stops when it has proposals. It never calls `approve()`. After an authenticated user reviews the exact arguments, your host calls `session.approve(planId, user.id)` or `session.reject(planId, user.id)` and checks the result. Model text must be displayed as untrusted text, not unsanitized HTML.
 
-Each run starts a fresh model conversation. After applying a proposal, start a new run with the next user request and let it read the current drawing. This version does not provide durable conversation resume, automatic file saving, rendered previews for every tool or a built-in MCP server. See [Agent workflows](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) for the available CAD tools and geometric review API.
+Each run starts from the drawing's current revision. After applying a proposal, submit the next request as a new run so the model reads the updated geometry. Your application owns conversation persistence and save policy. See [Agent workflows](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) for CAD tools, proposal previews and geometry checks.
+
+To expose the same tool registry through a packaged local stdio server, follow the [MCP integration](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/) guide. It includes persistent client configuration, a real JSON-RPC call and the host-controlled file and approval boundary.
 
 ## Measure tokens and time {#usage}
 
@@ -90,13 +132,13 @@ Adapters also accept `onUsage: usage => hostMetrics.record(usage)` for response 
 node node_modules/@kanjieteam/kjdraw/examples/model-agent.mjs
 ```
 
-The default is offline: it tests all four wire formats, simulated host approval, saved geometry and undo. It makes no model calls.
+By default, the example runs offline and demonstrates all four wire formats, host approval, saved geometry and undo without contacting a model.
 
-For a live proposal-only check, configure `KJDRAW_MODEL_PROTOCOL`, `KJDRAW_MODEL_NAME`, `KJDRAW_MODEL_ENDPOINT` and `KJDRAW_MODEL_API_KEY` in a trusted server/CLI environment, then add `--live`. The endpoint is the complete trusted REST URL. The example rejects redirects and URL credentials, limits response bytes and never applies live proposals automatically. It uses a synthetic circle request, at most four model requests and eight tools; live calls can incur provider charges. DeepSeek may be used for low-cost evaluation; it is not a dependency or default model.
+To connect an online model, configure `KJDRAW_MODEL_PROTOCOL`, `KJDRAW_MODEL_NAME`, `KJDRAW_MODEL_ENDPOINT` and `KJDRAW_MODEL_API_KEY` in a trusted server or CLI environment, then add `--live`. The endpoint is the complete trusted REST URL. The example rejects redirects and URL credentials, limits response bytes and never applies live proposals automatically. It sends at most four model requests and eight tool calls; provider charges may apply.
 
 ## Extend and validate {#extend}
 
-Implement `KJAgentModel.createConversation({ instructions, tools })` and return `next(input, signal)`. A turn returns `text` plus `calls` containing `id`, `name` and `arguments`. Inputs are either the initial prompt or ordered tool results. Keep vendor continuation data private to that conversation and preserve call/result IDs. Existing harnesses can also use `KJAgentToolSession` directly and retain their own loop.
+Implement `KJAgentModel.createConversation({ instructions, tools })` and return `next(input, signal)`. A turn returns `text` plus `calls` containing `id`, `name` and `arguments`. Inputs are either the initial prompt or ordered tool results. Keep vendor continuation data private to that conversation and preserve call/result IDs. Existing Agent runtimes can also use `KJAgentToolSession` directly and manage their own execution loop.
 
 Adapters retain Responses reasoning items, chat reasoning fields, Claude signed thinking blocks and Gemini thought signatures in their original conversation. They do not place those fields in the public answer. Truncated, blocked, malformed or unsupported responses stop before tool dispatch. Tool validation errors can be returned to the model for bounded correction. Timeouts cannot stop a transport that ignores its signal from consuming remote resources; the host must enforce its own network and billing limits.
 
@@ -106,6 +148,32 @@ Protocol references: [OpenAI function calling](https://developers.openai.com/api
 ## 选择接入方式 {#connection}
 
 KJDraw 不依赖特定 AI 厂商。选择协议适配器，传入模型和宿主请求函数，就能使用同一套 CAD 工具。其他框架、本地模型或协议可实现 `KJAgentModel`，无需修改绘图引擎。
+## 智能体与客户端接入矩阵 {#agent-client-matrix-zh}
+
+图档和工具契约不绑定模型厂商。能启动 stdio MCP server 的客户端可以直接使用同一套 KJDraw 工具；不原生支持 MCP 的客户端，可通过支持 MCP 的宿主转接，或直接调用 TypeScript 适配器。
+
+| 客户端或模型家族 | 推荐路径 | 变化的部分 | 保持不变的部分 |
+| --- | --- | --- | --- |
+| OpenAI Codex | 在 Codex MCP 设置中注册 `kjdraw` stdio server | 客户端配置 | 工具名、提案和审批边界 |
+| Claude Desktop、Cursor、Cline | 在客户端 MCP 配置中加入同一 server | 客户端配置 | KJD/DXF 图档契约 |
+| Kimi Code、WorkBuddy、ZCode、TraeCode | 运行用户级安装器，按提示完成一次导入 | 客户端配置与一次导入 | 本地文件和宿主审批 |
+| 豆包、DeepSeek 及其他国产模型 | 通过支持 MCP 的宿主接入，或把工具调用 JSON 交给 `createKJModelAdapter` / `createKJDomesticModelAdapter` | 模型接口和传输层 | CAD 工具、校验和回执 |
+| 自建 Harness、网关或私有模型 | 实现 `KJAgentModel`，或由宿主暴露 stdio server | 会话循环和凭据管理 | KJDraw Agent 会话和图档模型 |
+
+本地构建且包含 `kjdraw-mcp.mjs` 的包可使用以下配置：先在宿主工程创建 `proposals` 和 `results` 目录，替换两处绝对路径；npm `next` 仍可能是没有该命令的旧候选版，接入前须先核对实际安装版本。
+
+```jsonc
+{
+  "mcpServers": {
+    "kjdraw": {
+      "command": "node",
+      "args": ["/absolute/project/node_modules/@kanjieteam/kjdraw/bin/kjdraw-mcp.mjs", "--workspace", "/absolute/project", "--blank", "drawing.kjd", "--units", "millimeter", "--proposal-dir", "proposals", "--candidate-dir", "results"]
+    }
+  }
+}
+```
+
+KJDraw 不会搜索模型密钥、选择网络地址或批准修改；这些职责由客户端或宿主承担，模型文本始终按不可信输入处理。
 
 | 接入方式 | 适配器值 | 宿主请求目标 |
 | --- | --- | --- |
@@ -115,11 +183,11 @@ KJDraw 不依赖特定 AI 厂商。选择协议适配器，传入模型和宿主
 | Gemini GenerateContent | `gemini-generate-content` | GenerateContent REST 接口，模型名放在 URL 中 |
 | 自有框架、网关、本地模型 | 自定义 `KJAgentModel` | 你的会话桥接实现 |
 
-这些适配器已通过协议样例与真实 CAD 操作测试，但不代表所有模型、扩展字段和在线服务都已实测。所选模型需要支持工具调用；纯文本模型可通过自定义桥接解析并校验结构化结果，不能执行模型输出的 JavaScript。
+内置适配器支持上表所列协议；具体模型和厂商扩展字段的兼容性取决于对应接口的工具调用行为。纯文本模型可通过自定义桥接解析并校验结构化结果，但不能执行模型输出的 JavaScript。
 
 ## 配置一次模型连接 {#quickstart}
 
-以下入口已加入当前源码；使用前确认安装包包含 `model-adapters` 与 `agent-runner`。
+安装 KJDraw 后，从公开子路径导入模型适配器和有界任务运行器：
 
 ```ts
 import { createKJDrawSDK } from '@kanjieteam/kjdraw'
@@ -149,6 +217,20 @@ const result = await runKJAgentTask({
 
 兼容接口的输出 token 字段并不完全相同：默认使用 `max_tokens`，需要时设置 `chatTokenParameter: 'max_completion_tokens'`；其他适配器按各自协议映射 `maxOutputTokens`。所有工具参数仍由运行时严格校验；Responses 显式使用非 strict 生成模式，不假设各厂商的服务端 Schema 支持完全一致。
 
+## 通过火山方舟接入豆包 {#doubao-ark-zh}
+
+源码中的适配器支持豆包所用的方舟 Chat Completions 协议。模型 ID、HTTPS 请求函数和 ARK_API_KEY 均由可信宿主提供，KJDraw 不读取密钥。官方文档中的基础地址为 https://ark.cn-beijing.volces.com/api/v3，请求路径为 /chat/completions；应选择支持工具调用的模型。适配器在工具结果的下一轮原样保留加密思考块，流式响应中的完整加密块也会保留。
+
+    import { createKJDomesticModelAdapter } from '@kanjieteam/kjdraw/domestic-model-profiles'
+
+    const model = createKJDomesticModelAdapter({
+      provider: 'doubao',
+      model: selectedArkModelId,
+      reasoning: { mode: 'enabled' },
+      request: ({ body, signal }) => callTrustedArkGateway(body, signal),
+    })
+
+上面的模型 ID 和网关函数由你的宿主实现。字段依据[方舟 Chat API](https://docs.volcengine.com/docs/ark/chat-api?lang=zh)及[深度思考与工具调用说明](https://docs.volcengine.com/docs/ark/deep-thinking?lang=zh)。本地协议测试已通过，但这些测试不能替代真实方舟账号及具体模型的在线联调。
 ## 按任务选择工具 {#task-tools}
 
 `toolNames` 是宿主为一次运行设置的可选权限范围。省略时保留全部会话工具；提供时必须是 `session.definitions` 中非空、不重复的确切名称。未知名称、重复项和空列表在打开模型会话前报错。选中定义保持原始顺序和完整参数约束，包括图档单位。运行器在调用模型前复制选择结果，之后修改传入数组不会扩大权限。
@@ -167,7 +249,9 @@ const result = await runKJAgentTask({
 
 一旦得到提案，运行器就停止，不会调用 `approve()`。经过认证的用户审核后，宿主再调用 `session.approve(planId, user.id)` 或 `session.reject(planId, user.id)`，并核对结果。模型回复应当作为不可信文字展示，不能直接当作 HTML 渲染。
 
-每次运行新建模型会话。应用修改后，用用户的新需求再次运行，让模型重新读取当前图纸。这一版不包含持久会话恢复、自动保存、全部工具的几何预览或内置 MCP 服务。可用绘图工具与几何审核接口见 [Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/)。
+每次运行都从图纸的当前修订版本开始。应用方案后，把后续需求作为新任务运行，让模型读取更新后的几何。对话持久化与保存策略由应用负责。CAD 工具、方案预览和几何检查见 [Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/)。
+
+若要通过包内本地 stdio 服务向 MCP 客户端提供同一套工具注册表，请按 [MCP 集成](https://kanjieteam.github.io/kjdraw/docs/latest/mcp/)操作。该页面给出了长期客户端配置、真实 JSON-RPC 调用，以及由宿主管理的文件和审批边界。
 
 ## 测量 token 与耗时 {#usage}
 
@@ -187,13 +271,13 @@ console.log({ totals, transportWallMs, runWallMs, complete })
 node node_modules/@kanjieteam/kjdraw/examples/model-agent.mjs
 ```
 
-默认离线运行，检查四种消息格式、模拟宿主批准、保存后的图元与撤销，不调用模型。
+默认离线运行，演示四种消息格式、宿主批准、保存后的图元与撤销，不连接模型。
 
-要执行在线提案测试，在可信服务端或命令行环境配置 `KJDRAW_MODEL_PROTOCOL`、`KJDRAW_MODEL_NAME`、`KJDRAW_MODEL_ENDPOINT` 与 `KJDRAW_MODEL_API_KEY`，再加 `--live`。地址填写完整的可信 REST 接口。示例拒绝重定向和 URL 凭据、限制响应大小，不会自动应用在线提案。测试使用合成圆形需求，最多四次模型请求、八次工具调用；在线请求可能产生费用。DeepSeek 可用于低成本测试，但不是架构依赖或默认模型。
+要连接在线模型，在可信服务端或命令行环境配置 `KJDRAW_MODEL_PROTOCOL`、`KJDRAW_MODEL_NAME`、`KJDRAW_MODEL_ENDPOINT` 与 `KJDRAW_MODEL_API_KEY`，再加 `--live`。地址填写完整的可信 REST 接口。示例拒绝重定向和 URL 凭据、限制响应大小，也不会自动应用在线提案。每次运行最多发送四次模型请求和八次工具调用；在线请求可能产生费用。
 
 ## 扩展与验证 {#extend}
 
-实现 `KJAgentModel.createConversation({ instructions, tools })`，返回 `next(input, signal)`。每轮返回 `text` 和 `calls`；调用包含 `id`、`name`、`arguments`。输入是初始需求或有序工具结果。厂商会话数据留在自己的会话对象中，保留调用与结果的 ID。已有 harness 也可以直接使用 `KJAgentToolSession`，继续管理自己的循环。
+实现 `KJAgentModel.createConversation({ instructions, tools })`，返回 `next(input, signal)`。每轮返回 `text` 和 `calls`；调用包含 `id`、`name`、`arguments`。输入是初始需求或有序工具结果。厂商会话数据留在自己的会话对象中，保留调用与结果的 ID。已有 Agent 运行时也可以直接使用 `KJAgentToolSession`，自行管理执行循环。
 
 适配器保留 Responses 推理条目、Chat 推理字段、Claude 签名思考块和 Gemini 思考签名，不会将这些字段放进公开回复。截断、拦截、结构损坏或尚未支持的响应会在工具执行前停止；参数校验错误可以反馈给模型，在预算内修正。超时不能强制停止忽略取消信号的远端请求，宿主仍须限制网络资源和费用。
 

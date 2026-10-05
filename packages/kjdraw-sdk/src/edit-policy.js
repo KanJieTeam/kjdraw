@@ -8,11 +8,14 @@ const ENTITY_WRITES = new Set([
     'setXData',
     'putOpaquePayload'
 ]);
+export function resolveCommandLayerId(layerId, currentLayerId) {
+    return String(layerId ?? currentLayerId ?? '');
+}
 export function createCommandEditScope(transaction, commandId) {
     let rejection = null;
     const methods = new Map();
     const assertLayerWritable = (layerId, entityId)=>{
-        const effectiveLayerId = String(layerId ?? transaction._draft().tables.layers.currentId ?? '');
+        const effectiveLayerId = resolveCommandLayerId(layerId, transaction._draft().tables.layers.currentId);
         const layer = transaction.getObject(effectiveLayerId);
         if (!layer || layer.type !== 'LAYER') return;
         const reason = layer.payload.locked === true ? 'locked' : layer.payload.frozen === true ? 'frozen' : layer.payload.visible === false ? 'hidden' : null;

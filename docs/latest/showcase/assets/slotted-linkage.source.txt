@@ -1,0 +1,27 @@
+// examples/curated-machine-components.mjs#L116-L139
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+function drawLinkage(d) {
+  // Flat plate outline is 150 x 46. The center slot is a schematic 12-wide obround.
+  d.poly([[53, 98], [59, 92], [197, 92], [203, 98], [203, 132], [197, 138], [59, 138], [53, 132]], true)
+  d.circle(68, 115, 6)
+  d.circle(188, 115, 6)
+  d.center(68, 115, 10)
+  d.center(188, 115, 10)
+  d.arc(112, 115, 6, Math.PI / 2, Math.PI * 1.5)
+  d.arc(144, 115, 6, Math.PI * 1.5, Math.PI * 2.5)
+  d.line(112, 109, 144, 109)
+  d.line(112, 121, 144, 121)
+  d.line(112, 115, 144, 115, 'center')
+  d.rect(53, 71, 203, 79)
+  d.dim(53, 138, 203, 138, 128, 152)
+  d.dim(53, 92, 53, 138, 36, 115)
+  d.dim(68, 92, 188, 92, 128, 61)
+  d.dim(53, 71, 53, 79, 39, 75)
+  d.text(60, 163, 'PLAN VIEW / 2X DIA 12 THRU', 3)
+  d.text(213, 133, 'SLOT 12 WIDE', 3)
+  d.text(213, 121, 'SLOT CENTERS 32', 3)
+  d.text(213, 109, 'END PITCH 120', 3)
+  d.text(213, 97, 'THICKNESS 8', 3)
+  d.text(60, 52, 'OBROUND SLOT / VERIFY FIT BEFORE FABRICATION', 2.8)
+}

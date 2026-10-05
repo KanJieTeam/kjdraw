@@ -1,0 +1,58 @@
+// examples/curated-building-sheets.mjs#L180-L234
+// Case builder excerpt. Shared helpers and imports: use the repository source link.
+
+async function retailPowerOneLineSheet() {
+  return createSheet('retail-power-one-line', 'Small retail power one-line', 'electrical',
+    ({ line, rect, circle, poly, text }) => {
+      text(15, 190, 'ELECTRICAL SINGLE-LINE / LOAD GROUPS', 4, 'accent')
+      text(15, 182, 'Concept topology, not a wiring or protection design.', 2.4, 'detail')
+      text(25, 166, 'UTILITY SUPPLY', 2.3)
+      circle(37, 147, 9, 'accent')
+      text(32, 146, 'AC', 3.4, 'accent')
+      line(46, 147, 66, 147)
+      rect(66, 141, 79, 153, 'highlight')
+      line(68, 143, 77, 151, 'highlight')
+      text(64, 157, 'MAIN', 2.2)
+      line(79, 147, 101, 147)
+      rect(101, 134, 135, 160, 'accent')
+      text(108, 148, 'DB-01', 3.5, 'accent')
+      text(105, 139, 'PANEL', 2.2)
+      line(135, 147, 145, 147)
+      line(145, 147, 145, 67)
+      // Each protected branch leaves the panel bus and terminates at its load symbol.
+      const circuits = [
+        { y: 130, tag: 'C01', label: 'LIGHTING', load: 'LED x 12', symbol: 'light' },
+        { y: 109, tag: 'C02', label: 'SOCKETS', load: 'GENERAL', symbol: 'socket' },
+        { y: 88, tag: 'C03', label: 'SIGNAGE', load: 'SIGN x 1', symbol: 'sign' },
+        { y: 67, tag: 'C04', label: 'HVAC', load: 'FCU x 2', symbol: 'motor' },
+      ]
+      for (const circuit of circuits) {
+        const y = circuit.y
+        line(145, y, 164, y)
+        circle(145, y, 1.8, 'highlight')
+        rect(164, y - 4, 173, y + 4, 'highlight')
+        line(166, y - 2, 171, y + 2, 'highlight')
+        line(173, y, 204, y)
+        if (circuit.symbol === 'light') {
+          circle(210, y, 5, 'accent')
+          line(206, y - 4, 214, y + 4, 'accent')
+          line(206, y + 4, 214, y - 4, 'accent')
+        } else if (circuit.symbol === 'socket') {
+          circle(210, y, 5, 'accent')
+          line(208, y - 1, 208, y + 2, 'accent')
+          line(212, y - 1, 212, y + 2, 'accent')
+        } else if (circuit.symbol === 'sign') {
+          rect(204, y - 4, 216, y + 4, 'accent')
+          text(206, y - 1, 'S', 3, 'accent')
+        } else {
+          circle(210, y, 6, 'accent')
+          text(207, y - 1, 'M', 3, 'accent')
+        }
+        text(24, y + 1, circuit.tag, 3, 'highlight')
+        text(49, y + 1, circuit.label, 3)
+        text(119, y + 1, circuit.load, 2.5, 'detail')
+      }
+      poly([[19, 45], [278, 45], [278, 175]], 'detail')
+      text(20, 40, 'Editable lines, symbols, labels and layer-separated circuit groups.', 2.1, 'detail')
+    }, { circuits: 4, panelCount: 1, concept: true })
+}

@@ -50,10 +50,12 @@ test('DXF text and intermediate MTEXT chunks retain significant whitespace', asy
   const text = '  中文图签  '
   const file = modernFile('AC1032', 'ANSI_936', text).replace(
     '0\r\nENDSEC\r\n0\r\nEOF',
-    '0\r\nMTEXT\r\n5\r\n200\r\n8\r\n0\r\n10\r\n0\r\n20\r\n0\r\n40\r\n2.5\r\n3\r\nfirst chunk  \r\n1\r\nlast chunk  \r\n0\r\nENDSEC\r\n0\r\nEOF')
+    '0\r\nMTEXT\r\n5\r\n200\r\n8\r\n0\r\n10\r\n0\r\n20\r\n0\r\n40\r\n2.5\r\n41\r\n0\r\n3\r\nfirst chunk  \r\n1\r\nlast chunk  \r\n0\r\nENDSEC\r\n0\r\nEOF')
   const doc = await adapter.read(new TextEncoder().encode(file))
   const expected = [text, 'first chunk  last chunk  ']
   assert.deepEqual(doc.listEntities().map(e => e.payload.text), expected)
+  assert.equal(Object.hasOwn(doc.listEntities()[1].payload, 'width'), false, 'zero DXF MTEXT width means unbounded text')
   const reopened = await adapter.read(new TextEncoder().encode(adapter.write(doc, { version: '2018' })))
   assert.deepEqual(reopened.listEntities().map(e => e.payload.text), expected)
+  assert.equal(Object.hasOwn(reopened.listEntities()[1].payload, 'width'), false)
 })

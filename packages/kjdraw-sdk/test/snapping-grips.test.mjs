@@ -592,14 +592,37 @@ test('snap references exclude hidden, frozen and other-space geometry while lock
 
 test('intersection pair budget searches nearby primitives before distant drawing content', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'snap-budget' })
-  for (let index = 0; index < 20; index += 1) await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [1000 + index * 10, 1000], end: [1000 + index * 10, 1010] } })
-  const horizontal = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [-10, 0], end: [10, 0] } })
-  const vertical = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, -10], end: [0, 10] } })
+  let horizontal, vertical
+  await document.transact('Dense remote geometry', tx => {
+    for (let index = 0; index < 2059; index += 1) tx.createEntity('LINE', { start: [1000 + index * 2, 1000], end: [1000 + index * 2, 1010] })
+    horizontal = tx.createEntity('LINE', { start: [-10, 0], end: [10, 0] })
+    vertical = tx.createEntity('LINE', { start: [0, -10], end: [0, 10] })
+  })
+  const started = performance.now()
   const hit = sdk.snap([0.1, 0.1], { radius: 1, modes: ['intersection'], maxIntersectionPairs: 1 })[0]
+  const elapsed = performance.now() - started
   assert.equal(hit.mode, 'intersection')
   assert.deepEqual(new Set(hit.entityIds), new Set([horizontal.id, vertical.id]))
   closePoint(hit.point, [0, 0])
+  assert.ok(elapsed < 1000, `local intersection snap took ${elapsed.toFixed(1)}ms in a dense drawing`)
   assert.throws(() => sdk.snap([0, 0], { modes: ['intersection'], maxIntersectionPairs: 0 }), /positive safe integer/)
+})
+
+test('intersection aperture broad phase retains eccentric ellipses without relying on approximate nearest distance', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'snap-ellipse-aperture' })
+  const parameter = 6.182654342264713, point = [100 * Math.cos(parameter), Math.sin(parameter)]
+  const normal = [Math.cos(parameter) / 100, Math.sin(parameter)]
+  const magnitude = Math.hypot(...normal), cursor = [point[0] + normal[0] / magnitude, point[1] + normal[1] / magnitude]
+  const ellipse = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [0, 0, 0], majorAxis: [100, 0, 0], ratio: .01, startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  const line = await sdk.executeCommand('CREATE', { type: 'LINE', payload: {
+    start: [-point[0] * 2, -point[1] * 2], end: [point[0] * 2, point[1] * 2],
+  } })
+  const hit = sdk.snap(cursor, { radius: 1.01, modes: ['intersection'], entityIds: [ellipse.id, line.id], maxIntersectionPairs: 1 })[0]
+  assert.equal(hit.mode, 'intersection')
+  assert.deepEqual(new Set(hit.entityIds), new Set([ellipse.id, line.id]))
+  closePoint(hit.point, point, 1e-7)
 })
 
 test('document snap settings default, persist through KJD and participate in undo-redo', async () => {

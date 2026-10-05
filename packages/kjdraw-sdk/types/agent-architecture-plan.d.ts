@@ -29,6 +29,7 @@ export interface KJAgentArchitecturePlanInput {
     version: typeof KJDRAW_ARCHITECTURE_PLAN_VERSION;
     expectedRevision: number;
     units: 'millimeter';
+    locale?: 'zh-CN' | 'en';
     drawingId: string;
     title: string;
     width: number;
