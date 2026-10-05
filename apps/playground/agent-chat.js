@@ -1,4 +1,4 @@
-import { KJAgentToolSession } from '../../packages/kjdraw-sdk/src/agent-tools.js'
+import { KJAgentToolSession, KJDRAW_AGENT_TOOLS } from '../../packages/kjdraw-sdk/src/agent-tools.js'
 import { KJModelError } from '../../packages/kjdraw-sdk/src/model-adapters.js'
 import { createChatModelAdapter, CHAT_OUTPUT_TOKEN_LIMITS, readChatModelResponse } from './chat-model-settings.js'
 import { CHAT_MODEL_PROVIDER_PRESETS, formatChatModelUpstreamEndpoint, getChatModelAdapterOptions, getChatModelProviderPreset } from './chat-model-presets.js'
@@ -30,6 +30,7 @@ const moveToolNames = Object.freeze(['cad_propose_move'])
 // first page of unrelated entities. General/compound requests retain all reads.
 const labelMoveToolNames = Object.freeze(['cad_find_text', 'cad_query_drawing', 'cad_propose_move'])
 const textEditToolNames = Object.freeze(['cad_find_text', 'cad_query_drawing', 'cad_propose_text_edit'])
+const readToolNames = new Set(KJDRAW_AGENT_TOOLS.filter(tool => tool.effect === 'read').map(tool => tool.name))
 const builtinCapabilityRegistry = createKJDrawBuiltinCapabilityRegistry()
 /** Host policy only: SDK defaults and explicitly selected/locked tools remain unchanged. */
 export function getKJDrawChatToolNames(document,roadDrawingIds=[]) {
@@ -75,6 +76,10 @@ export function getKJDrawChatToolNamesForRequest(document,request,selectedIds=[]
     const retained=explicitReadOnly?selected.filter(name=>!name.startsWith('cad_propose_')):selected
     return Object.freeze([...new Set([...retained,'cad_read_geology_source',...(explicitReadOnly?[]:['cad_propose_geology_revision'])])])
   }
+  // An explicit whole-drawing read-only request needs discovery/measurement,
+  // not every creation schema. Never interpret a partial preservation clause
+  // as global read-only authority, and never execute a request in this router.
+  if(explicitReadOnly)return Object.freeze(names.filter(name=>readToolNames.has(name)))
   if(isExplicitSingleMoveRequest(document,request,selectedIds))return retainSourceTools(moveToolNames)
   // Negated edit vocabulary does not establish a text-edit intent. Retain the
   // complete tool policy, without interpreting or executing the user's words.
