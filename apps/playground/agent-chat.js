@@ -84,13 +84,13 @@ export function getKJDrawChatToolNamesForRequest(document,request,selectedIds=[]
   // Negated edit vocabulary does not establish a text-edit intent. Retain the
   // complete tool policy, without interpreting or executing the user's words.
   if(/\bread[- ]only\b|\b(?:do not|don't|dont|without)\s+(?:any\s+)?(?:edit|editing|change|changing|modify|modifying)\b|只读|别改图|不改图|不要修改图纸|不修改图纸/.test(normalized))return retainSourceTools(names)
-  const textIntent=/\b(?:text|note|title.?block|revision|quantity|label|callout|field)\b|文字|注释|标题栏|修订|数量|标签|字段/.test(normalized)
+  const textIntent=/\b(?:text|note|title.?block|revision|quantity|label|callout|field)\b|文字|注释|备注|原文|标题栏|修订|数量|标签|字段/.test(normalized)
   // Soil names may label native pattern resources rather than TEXT objects.
   // Keep geometric discovery/editing available; this only selects capabilities.
   const materialOrPatternIntent=/\b(?:hatch|pattern|lithology|soil|strat(?:um|a))\b|花纹|填充|图案|岩性|地层|填土|黏土|粘土|黄土|粉土|砂土|砾石|卵石/.test(normalized)
   if(materialOrPatternIntent)return retainSourceTools(names)
   if(hasGeologySource&&/\b(?:borehole|strat(?:um|a)|groundwater|lithology|spt|sample)\b|钻孔|孔深|孔口|水位|分层|地层|岩性|标贯|取样|柱状图|剖面图/.test(normalized))return retainSourceTools(['cad_read_geology_source','cad_propose_geology_revision'])
-  const textAction=/\b(?:change|edit|update|replace|set|correct|rename)\b|修改|更改|更新|替换|改成|设为/.test(normalized)
+  const textAction=/\b(?:change|edit|update|replace|set|correct|rename|append|prepend)\b|修改|更改|更新|替换|改成|设为|追加|附加|补充|(?:原文|末尾|开头)\s*加|加上/.test(normalized)
   const geometryIntent=/\b(?:draw|create|move|translate|rotate|delete|erase|relayer|add|remove|copy|stretch|offset|fillet|chamfer|radius|diameter|polyline|lwpolyline|vertex|vertices|segment|bulge|width|line|circle|arc|ellipse|spline|hatch|dimension)\b|绘制|创建|移动|平移|旋转|删除|擦除|调层|添加|移除|复制|拉伸|偏移|圆角|倒角|半径|直径|孔径|多段线|顶点|线段|凸度|线宽|宽度|圆弧|椭圆|样条|填充|尺寸/.test(normalized)
   if(document.listEntities().length>0&&textIntent&&textAction&&!geometryIntent)return retainSourceTools(textEditToolNames)
   const labelMove=/\b(?:move|translate|shift)\b[^.]{0,120}\b(?:label|text|note)s?\b|(?:移动|平移|挪动)[^。]{0,120}(?:标签|文字|注释)/.test(normalized)

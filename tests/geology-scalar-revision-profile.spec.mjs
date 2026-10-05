@@ -11,6 +11,7 @@ import { runKJAgentTask } from '../packages/kjdraw-sdk/src/agent-runner.js'
 import { createKJModelAdapter } from '../packages/kjdraw-sdk/src/model-adapters.js'
 import { KJDRAW_GEOLOGY_KNOWLEDGE_PACK } from '../packages/kjdraw-sdk/src/knowledge-packs/geology-core.js'
 import { createKJDomesticModelAdapter } from '../packages/kjdraw-sdk/src/domestic-model-profiles.js'
+import { projectPriorAgentDefinitions } from './helpers/prior-agent-definition-compatibility.mjs'
 
 const { KJAgentToolSession, KJDRAW_AGENT_TOOLS } = agent
 const SCALAR = 'cad_propose_geology_scalar_revision', PROFILE = 'geology-scalars-v1'
@@ -98,12 +99,13 @@ const resources = document => ['layers', 'textStyles', 'linetypes'].map(table =>
 
 test('scalar tool and untouched full definitions remain exact while general geology adds explicit stratum deltas', () => {
   assert.equal(KJDRAW_AGENT_TOOLS.length, 57)
-  const previousDefinitions = KJDRAW_AGENT_TOOLS.filter(tool => ![SCALAR, 'cad_propose_geology_revision', 'cad_query_curve_bounds', 'cad_query_curve_neighborhood', ...hatchNames].includes(tool.name))
+  const priorDefinitions = projectPriorAgentDefinitions(KJDRAW_AGENT_TOOLS)
+  const previousDefinitions = priorDefinitions.filter(tool => ![SCALAR, 'cad_propose_geology_revision', 'cad_query_curve_bounds', 'cad_query_curve_neighborhood', ...hatchNames].includes(tool.name))
   assert.equal(previousDefinitions.length, 51)
   assert.equal(hash(previousDefinitions), '878db2c154dbef9bdfaa321cae2adeb5991a630f5759bea7b955916a610eb64c')
   assert.deepEqual(KJDRAW_AGENT_TOOLS.filter(tool => hatchNames.includes(tool.name)).map(tool => ({ name: tool.name, effect: tool.effect })),
     [{ name: hatchNames[0], effect: 'read' }, { name: hatchNames[1], effect: 'propose' }])
-  assert.equal(hash(KJDRAW_AGENT_TOOLS.find(tool => tool.name === 'cad_propose_geology_revision')), 'a0629c3b6cc72058e7cb34b9f34c3d2b0eb176191459b2b6d44a2417929ca460')
+  assert.equal(hash(priorDefinitions.find(tool => tool.name === 'cad_propose_geology_revision')), 'a0629c3b6cc72058e7cb34b9f34c3d2b0eb176191459b2b6d44a2417929ca460')
   const tool = KJDRAW_AGENT_TOOLS.find(tool => tool.name === SCALAR)
   assert.equal(tool.effect, 'propose'); assert.ok(Object.isFrozen(tool))
   const schema = tool.inputSchema

@@ -5,6 +5,7 @@ import { createKJDrawSDK } from '../packages/kjdraw-sdk/src/sdk.js'
 import { KJAgentToolSession, KJDRAW_AGENT_TOOLS, KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES } from '../packages/kjdraw-sdk/src/agent-tools.js'
 import { canonicalStringify } from '../packages/kjdraw-sdk/src/utils.js'
 import { nativeHatchIslandGeometry } from '../scripts/testing/helpers/geology-native-hatch-island-oracle.mjs'
+import { projectPriorAgentDefinitions } from './helpers/prior-agent-definition-compatibility.mjs'
 
 const hash = value => createHash('sha256').update(canonicalStringify(value)).digest('hex')
 const creationNames = ['cad_propose_drawing_pattern', 'cad_propose_drawing_annotated']
@@ -23,8 +24,9 @@ const input = document => ({ expectedRevision: document.revision, units: documen
 test('full-bound descriptions do not change any unbound global or scalar-v1 effective wire bytes', t => {
   const { sdk, document } = fixture(t)
   assert.equal(KJDRAW_AGENT_TOOLS.length, 57)
-  assert.equal(hash(KJDRAW_AGENT_TOOLS), '2cc7ebef693b7012c0fd3be88f8eb2e9db9668853369a35a2e46fe409d8e44ef')
-  const previous = KJDRAW_AGENT_TOOLS.filter(tool => !['cad_query_curve_bounds', 'cad_query_curve_neighborhood',
+  const priorDefinitions = projectPriorAgentDefinitions(KJDRAW_AGENT_TOOLS)
+  assert.equal(hash(priorDefinitions), '2cc7ebef693b7012c0fd3be88f8eb2e9db9668853369a35a2e46fe409d8e44ef')
+  const previous = priorDefinitions.filter(tool => !['cad_query_curve_bounds', 'cad_query_curve_neighborhood',
     'cad_read_hatch_patterns', 'cad_propose_hatch_pattern', 'cad_propose_geology_revision'].includes(tool.name))
   assert.equal(hash(previous), 'e53379d183b3a5acc75156020ab6807cf835955e10421195264944d58b012611')
   const scalar = new KJAgentToolSession(sdk, document, { toolProfile: 'geology-scalars-v1' })

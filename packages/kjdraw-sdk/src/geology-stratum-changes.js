@@ -4,7 +4,8 @@ const fields = [
     'name',
     'lithology',
     'description',
-    'code'
+    'code',
+    'patternVisibility'
 ];
 const lithologies = [
     'fill',
@@ -109,6 +110,10 @@ export function applyGeologyStratumChanges(before, changes) {
         if (!Object.keys(set).length) fail('set requires explicit changed fields');
         for (const field of Object.keys(set)){
             const value = set[field], maximum = field === 'description' ? 512 : field === 'name' ? 64 : field === 'code' ? 24 : 32;
+            if (field === 'patternVisibility') {
+                if (value !== 'filled' && value !== 'boundary-only') fail('patternVisibility requires filled or boundary-only; it is a display choice, not a lithology change');
+                continue;
+            }
             if (typeof value !== 'string' || !value.trim() || value.length > maximum || field === 'lithology' && !lithologies.includes(value)) fail('set fields must be bounded nonempty strings with a supported lithology');
         }
         if (!Object.keys(set).some((field)=>!Object.hasOwn(layer, field) || layer[field] !== set[field])) fail('an update must change stored facts');

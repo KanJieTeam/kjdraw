@@ -5,6 +5,7 @@ import { KJAgentToolSession, KJDRAW_AGENT_TOOLS } from '../src/agent-tools.js'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { createAgentGeometryPreview } from '../src/agent-preview.js'
 import { canonicalStringify } from '../src/utils.js'
+import { projectPriorAgentDefinitions } from '../../../tests/helpers/prior-agent-definition-compatibility.mjs'
 
 function fixture(options = {}) {
   const sdk = createKJDrawSDK(options)
@@ -18,9 +19,9 @@ function value(result) { assert.equal(result.ok, true, JSON.stringify(result)); 
 
 test('tool definitions are frozen serializable schemas with no approval or arbitrary execution tool', () => {
   assert.equal(KJDRAW_AGENT_TOOLS.length, 57)
-  // General geology revision intentionally gains exact stratum deltas. All
-  // other previously published definitions, including the scalar profile, stay exact.
-  const previousDefinitions = KJDRAW_AGENT_TOOLS.filter(tool => !['cad_query_curve_bounds', 'cad_query_curve_neighborhood', 'cad_read_hatch_patterns', 'cad_propose_hatch_pattern', 'cad_propose_geology_revision'].includes(tool.name))
+  // Assert the exact display-field/description additions, then retain the
+  // original hash guard for every other previously published field.
+  const previousDefinitions = projectPriorAgentDefinitions(KJDRAW_AGENT_TOOLS).filter(tool => !['cad_query_curve_bounds', 'cad_query_curve_neighborhood', 'cad_read_hatch_patterns', 'cad_propose_hatch_pattern', 'cad_propose_geology_revision'].includes(tool.name))
   assert.equal(previousDefinitions.length, 52)
   assert.equal(createHash('sha256').update(canonicalStringify(previousDefinitions)).digest('hex'), 'e53379d183b3a5acc75156020ab6807cf835955e10421195264944d58b012611')
   assert.ok(KJDRAW_AGENT_TOOLS.every(tool => ['read', 'propose'].includes(tool.effect)))

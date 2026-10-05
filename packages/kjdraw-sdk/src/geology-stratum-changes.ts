@@ -10,14 +10,14 @@ export interface KJGeologyStratumTarget {
 }
 export interface KJGeologyStratumChange {
   target: KJGeologyStratumTarget
-  set: Partial<Pick<KJGeologyStratum, 'name' | 'lithology' | 'description' | 'code'>>
+  set: Partial<Pick<KJGeologyStratum, 'name' | 'lithology' | 'description' | 'code' | 'patternVisibility'>>
 }
 /** Existing intervals only. No additions, removals, boundary or identity edits. */
 export interface KJGeologyStratumChanges {
   update: readonly KJGeologyStratumChange[]
 }
 
-const fields = ['name', 'lithology', 'description', 'code'] as const
+const fields = ['name', 'lithology', 'description', 'code', 'patternVisibility'] as const
 const lithologies = ['fill', 'cultivated-soil', 'clay', 'silty-clay', 'silt', 'sand', 'gravel', 'rock',
   'weathered-rock', 'loess', 'loess-collapsible', 'loess-like', 'paleosol', 'calcareous-nodule']
 function fail(message: string): never { throw new KJValidationError(`Geology stratum changes: ${message}`) }
@@ -59,9 +59,10 @@ function closed(value: unknown, allowed: readonly string[], required: readonly s
   return record
 }
 
-/** Resolve every target against the SAME BEFORE array. Only the four explicit
- * textual/classification fields change; order, identity, measured boundaries,
- * grouping, notation, patterns, provenance and all optional presence remain.
+/** Resolve every target against the SAME BEFORE array. Only explicitly set
+ * textual/classification fields or the filled/boundary-only display mode
+ * change; order, identity, measured boundaries, grouping, notation, pattern
+ * definitions, provenance and all other optional presence remain.
  * The existing source compiler still validates final source/layout/topology.
  */
 export function applyGeologyStratumChanges(
@@ -90,6 +91,10 @@ export function applyGeologyStratumChanges(
     if (!Object.keys(set).length) fail('set requires explicit changed fields')
     for (const field of Object.keys(set)) {
       const value = set[field], maximum = field === 'description' ? 512 : field === 'name' ? 64 : field === 'code' ? 24 : 32
+      if (field === 'patternVisibility') {
+        if (value !== 'filled' && value !== 'boundary-only') fail('patternVisibility requires filled or boundary-only; it is a display choice, not a lithology change')
+        continue
+      }
       if (typeof value !== 'string' || !value.trim() || value.length > maximum || field === 'lithology' && !lithologies.includes(value))
         fail('set fields must be bounded nonempty strings with a supported lithology')
     }

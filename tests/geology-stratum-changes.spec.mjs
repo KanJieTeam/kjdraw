@@ -26,11 +26,12 @@ const content = document => {
 const hash = value => createHash('sha256').update(canonicalStringify(value)).digest('hex')
 const value = result => { assert.equal(result.ok, true, JSON.stringify(result.error)); return result.value }
 
-async function columnFixture() {
+async function columnFixture(patternVisibility = 'filled') {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const source = { kind: 'column', input: { expectedRevision: 0, locale: 'zh-CN', verticalScaleDenominator: 200,
     hole: { id: 'PUBLIC-STRATUM-HOLE', collarElevation: 106, depth: 10,
       strata: layers().map(({ stratigraphicNotation, patternLabel, ...layer }) => layer) } } }
+  source.input.hole.strata[0].patternVisibility = patternVisibility
   await sdk.executeCommand('CREATEBATCH', clone(compileGeologyColumn(source.input).commandArgs), { document })
   const recipe = await registerGeologyDrawingRecipe(document, source, { expectedRevision: document.revision })
   return { sdk, document, source, recipe, session: new KJAgentToolSession(sdk, document),
@@ -39,7 +40,7 @@ async function columnFixture() {
 const request = f => ({ expectedRevision: f.document.revision, units: 'millimeter', drawingId: f.recipe.drawingId,
   updates: [{ holeId: f.source.input.hole.id, stratumChanges: changes(f.source.input.hole.strata) }] })
 
-test('stratum delta is additive, closed, frozen and only exposes exact BEFORE identities and four set fields', () => {
+test('stratum delta is additive, closed, frozen and only exposes exact BEFORE identities and five set fields', () => {
   const tool = KJDRAW_AGENT_TOOLS.find(tool => tool.name === 'cad_propose_geology_revision')
   const update = tool.inputSchema.properties.updates.items
   assert.equal(update.required.includes('stratumChanges'), false)
@@ -50,7 +51,8 @@ test('stratum delta is additive, closed, frozen and only exposes exact BEFORE id
   const operation = schema.properties.update.items
   assert.equal(operation.additionalProperties, false); assert.deepEqual(operation.required, ['target', 'set'])
   assert.deepEqual(operation.properties.target.required, ['intervalId', 'expectedTop', 'expectedBottom'])
-  assert.deepEqual(Object.keys(operation.properties.set.properties), ['name', 'lithology', 'description', 'code'])
+  assert.deepEqual(Object.keys(operation.properties.set.properties), ['name', 'lithology', 'description', 'code', 'patternVisibility'])
+  assert.deepEqual(operation.properties.set.properties.patternVisibility.enum, ['filled', 'boundary-only'])
   assert.equal(operation.properties.set.additionalProperties, false)
   assert.doesNotMatch(JSON.stringify(schema), /"anyOf"|"oneOf"|"default"/)
   assert.match(tool.description, /stratumChanges\.update.*BEFORE/)
@@ -82,6 +84,63 @@ test('all four explicit fields resolve from the same BEFORE source in caller-ind
   assert.equal(Object.hasOwn(before[1], 'description'), false)
 })
 
+test('visibility changes are literal display choices and preserve measured and classification facts', () => {
+  const before = layers()
+  const delta = { update: [{ target: target(before[0]), set: { patternVisibility: 'boundary-only' } }] }
+  const expected = clone(before); expected[0].patternVisibility = 'boundary-only'
+  assert.deepEqual(applyGeologyStratumChanges(before, delta), expected)
+  const unrecorded = clone(before); delete unrecorded[0].patternVisibility
+  const explicit = { update: [{ target: target(unrecorded[0]), set: { patternVisibility: 'filled' } }] }
+  assert.deepEqual(applyGeologyStratumChanges(unrecorded, explicit), before)
+  assert.equal(Object.hasOwn(unrecorded[0], 'patternVisibility'), false)
+  assert.throws(() => applyGeologyStratumChanges(before, explicit), /must change/)
+})
+
+for (const [from, to] of [['filled', 'boundary-only'], ['boundary-only', 'filled']])
+test(`exact display delta ${from} -> ${to} matches full replacement and closes native approval/history/DXF`, async () => {
+  const f = await columnFixture(from), reopenedSdk = createKJDrawSDK()
+  try {
+    await f.document.transact('Unrelated manual note', tx => tx.createEntity('TEXT', {
+      position: [500, 500, 0], height: 2, text: 'Keep this unrelated note',
+    }, { id: 'unrelated-note' }))
+    const manual = clone(f.document.getObject('unrelated-note'))
+    const before = content(f.document), beforeHatches = f.document.listEntities({ type: 'HATCH' }).length
+    const args = { expectedRevision: f.document.revision, units: 'millimeter', drawingId: f.recipe.drawingId,
+      updates: [{ holeId: f.source.input.hole.id, stratumChanges: {
+        update: [{ target: target(f.source.input.hole.strata[0]), set: { patternVisibility: to } }],
+      } }] }
+    const expectedSource = clone(f.source); expectedSource.input.hole.strata[0].patternVisibility = to
+    const pending = value(await f.session.call('cad_propose_geology_revision', args))
+    const full = clone(args); delete full.updates[0].stratumChanges
+    full.updates[0].strata = clone(expectedSource.input.hole.strata)
+    const equivalent = value(await f.session.call('cad_propose_geology_revision', full))
+    assert.deepEqual(pending.preview, equivalent.preview)
+    assert.deepEqual(pending.engineeringEvidence, equivalent.engineeringEvidence)
+    assert.deepEqual(content(f.document), before)
+    assert.deepEqual(pending.engineeringEvidence.afterSource.facts.hole, expectedSource.input.hole)
+    const retained = pending.unchangedIds.map(id => clone(f.document.getObject(id)))
+    args.updates[0].stratumChanges.update[0].set.patternVisibility = from
+    assert.equal(value(await f.session.approve(pending.planId, 'public-display-reviewer')).status, 'committed')
+    assert.deepEqual(readGeologyDrawingRecipe(f.document, f.recipe.drawingId).source, expectedSource)
+    assert.deepEqual(f.document.getObject(manual.id), manual)
+    for (const record of retained) assert.deepEqual(f.document.getObject(record.id), record)
+    const afterHatches = f.document.listEntities({ type: 'HATCH' }).length
+    assert.ok(to === 'filled' ? afterHatches > beforeHatches : afterHatches < beforeHatches)
+    const after = content(f.document)
+    await f.document.undo(); assert.deepEqual(content(f.document), before)
+    await f.document.redo(); assert.deepEqual(content(f.document), after)
+    const kjd = await reopenedSdk.readDocument(await f.sdk.writeDocument(f.document, { format: 'KJD' }), { format: 'KJD' })
+    assert.deepEqual(readGeologyDrawingRecipe(kjd, f.recipe.drawingId).source, expectedSource)
+    const dxf = await reopenedSdk.readDocument(await f.sdk.writeDocument(f.document, { format: 'DXF' }), { format: 'DXF' })
+    assert.equal(dxf.validate().valid, true)
+    assert.equal(dxf.listEntities({ type: 'HATCH' }).length, afterHatches)
+    assert.equal(dxf.listEntities().length, f.document.listEntities().length)
+    assert.ok(dxf.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === manual.payload.text))
+    // DXF is graphics only; do not claim this source recipe survived exchange.
+    assert.equal(Object.keys(dxf.snapshot().opaquePayloads).some(key => key.startsWith('geology-drawing-recipe:')), false)
+  } finally { f.dispose(); for (const id of [...reopenedSdk.documents.keys()]) reopenedSdk.closeDocument(id) }
+})
+
 const invalidDeltas = [
   ['missing update', delta => { delete delta.update }],
   ['empty update', delta => { delta.update = [] }],
@@ -107,7 +166,9 @@ const invalidDeltas = [
   ['identity cannot change', delta => { delta.update[0].set.intervalId = 'REPLACEMENT' }],
   ['top cannot change', delta => { delta.update[0].set.top = 1 }],
   ['bottom cannot change', delta => { delta.update[0].set.bottom = 4 }],
-  ['pattern patch cannot change', delta => { delta.update[0].set.patternVisibility = 'boundary-only' }],
+  ['pattern definition cannot change', delta => { delta.update[0].set.patternLines = [] }],
+  ['unsupported visibility', delta => { delta.update[0].set.patternVisibility = 'hidden' }],
+  ['null does not clear visibility', delta => { delta.update[0].set.patternVisibility = null }],
   ['group identity cannot change', delta => { delta.update[0].set.groupId = 'NEW-GROUP' }],
   ['unsupported lithology', delta => { delta.update[0].set.lithology = 'guessed-soil' }],
   ['null does not clear description', delta => { delta.update[0].set.description = null }],

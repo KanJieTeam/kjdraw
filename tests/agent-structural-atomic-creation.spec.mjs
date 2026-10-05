@@ -7,6 +7,7 @@ import { KJAgentToolSession, KJDRAW_AGENT_TOOLS } from '../packages/kjdraw-sdk/s
 import { createAgentGeometryPreview } from '../packages/kjdraw-sdk/src/agent-preview.js'
 import { createAgentHatchPatternCatalog } from '../packages/kjdraw-sdk/src/agent-hatch-pattern.js'
 import { canonicalStringify, stableHash } from '../packages/kjdraw-sdk/src/utils.js'
+import { projectPriorAgentDefinitions } from './helpers/prior-agent-definition-compatibility.mjs'
 
 // Entirely original public synthetic native geometry; no client drawing/source facts.
 const ok = result => { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
@@ -72,7 +73,7 @@ function islandGeometry(payload) {
 
 test('structural creations are additive FULL-bound typed groups; exact global/scalar wire stays frozen', async t => {
   const f = await fixture(t), unbound = KJDRAW_AGENT_TOOLS.find(tool => tool.name === 'cad_propose_structural_edit')
-  assert.equal(hash(KJDRAW_AGENT_TOOLS), '2cc7ebef693b7012c0fd3be88f8eb2e9db9668853369a35a2e46fe409d8e44ef')
+  assert.equal(hash(projectPriorAgentDefinitions(KJDRAW_AGENT_TOOLS)), '2cc7ebef693b7012c0fd3be88f8eb2e9db9668853369a35a2e46fe409d8e44ef')
   assert.equal(Object.hasOwn(unbound.inputSchema.properties, 'creations'), false)
   const bound = f.session.definitions.find(tool => tool.name === unbound.name)
   assert.deepEqual(bound.inputSchema.required, unbound.inputSchema.required)

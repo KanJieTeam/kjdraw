@@ -544,15 +544,15 @@ const geologyObservationChangesBaseSchema = objectWithOptional({
 }, ['add', 'update', 'remove'])
 const geologyObservationChangesSchema: KJAgentToolSchema = { ...geologyObservationChangesBaseSchema,
   description: 'Incremental observations only: at least one explicit operation, at most 256 total. Resolve all targets against the same source snapshot; a record cannot be touched twice. Do not combine observationChanges with a full observations replacement or clearFields:[observations]. All final depth/range/identity/layout rules still apply; no automatic guessing or merging of replacement arrays.' }
-const geologyStratumSetFields = ['name', 'lithology', 'description', 'code'] as const
-const geologyStratumChangesContract = 'For selected existing stratum name/lithology/description/code edits, use updates[].stratumChanges.update with target:{intervalId,expectedTop,expectedBottom} from the same BEFORE source and set containing only requested changed fields. Preserve every unrequested field and interval, including pattern/group/notation/provenance and optional-field presence. No additions, deletions, ID or boundary changes, inferred links or duplicate targets. Never combine stratumChanges with a complete strata replacement. '
+const geologyStratumSetFields = ['name', 'lithology', 'description', 'code', 'patternVisibility'] as const
+const geologyStratumChangesContract = 'For selected existing stratum name/lithology/description/code or patternVisibility edits, use updates[].stratumChanges.update with target:{intervalId,expectedTop,expectedBottom} from the same BEFORE source and set containing only requested changed fields. patternVisibility=filled restores the stored pattern; boundary-only hides its fill while retaining boundaries and source classification. This display change never reclassifies soil or replaces a pattern definition. Preserve every unrequested field and interval, including pattern/group/notation/provenance and optional-field presence. No additions, deletions, ID or boundary changes, inferred links or duplicate targets. Never combine stratumChanges with a complete strata replacement. '
 const geologyStratumChangesSchema: KJAgentToolSchema = {
   ...object({ update: { type: 'array', minItems: 1, maxItems: 80, items: object({
     target: object({ intervalId: { ...text, maxLength: 64 },
       expectedTop: { ...nonnegative, description: 'Exact stored interval top in measured metres from the BEFORE source, not plotted CAD coordinates.' },
       expectedBottom: { ...radius, description: 'Exact stored interval bottom in measured metres from the SAME BEFORE source. No tolerance, boundary adjustment or inferred selector.' } }),
     set: { ...objectWithOptional(Object.fromEntries(geologyStratumSetFields.map(key => [key, geologyStratumSchema.properties![key]!])), geologyStratumSetFields),
-      description: 'Nonempty requested changed fields only: name, lithology, description or code. Every other source field stays exact; no clearing, identities, depths, pattern patches or implicit changes.' },
+      description: 'Nonempty requested changed fields only: name, lithology, description, code or patternVisibility (filled/boundary-only). Every other source field stays exact; no clearing, identities, depths, pattern definition patches or implicit changes.' },
   }) } }),
   description: geologyStratumChangesContract,
 }
@@ -572,7 +572,8 @@ const geologyColumnSchema = objectWithOptional({
   version: { type: 'string', enum: ['1.0.0'] }, expectedRevision: revision, units: { type: 'string', enum: ['millimeter'] },
   locale: { type: 'string', enum: ['zh-CN', 'en'] },
   hole: geologyHoleSchema, verticalScaleDenominator: radius,
-  projectName: { ...text, maxLength: 64 }, title: { ...text, maxLength: 64 },
+  projectName: { ...text, maxLength: 64, description: 'Exact caller-declared project name only. Omit when not supplied; do not invent a test project name.' },
+  title: { ...text, maxLength: 64, description: 'Exact caller-declared drawing title only. Omit when not supplied; the compiler selects its standard title.' },
   pageHeightMillimeters: { type: 'integer', enum: [297, 500, 841] },
   documentFacts: { type: 'array', minItems: 1, maxItems: 8, items: object({
     key: { ...text, maxLength: 32 }, value: { ...text, maxLength: 96 },
@@ -857,7 +858,9 @@ const geologyPlanBaseMapBlockSchema = object({
 })
 const geologyPlanSchema = objectWithOptional({
   version: { type: 'string', enum: ['1.0.0'] }, expectedRevision: revision, units: { type: 'string', enum: ['meter'] },
-  locale: { type: 'string', enum: ['zh-CN', 'en'] }, drawingId: { ...text, maxLength: 64 }, title: { ...text, maxLength: 96 }, revision: { ...text, maxLength: 32 },
+  locale: { type: 'string', enum: ['zh-CN', 'en'] }, drawingId: { ...text, maxLength: 64 },
+  title: { ...text, maxLength: 96, description: 'Exact caller-declared drawing title only. Omit when not supplied; keep any supplied title verbatim.' },
+  revision: { ...text, maxLength: 32, description: 'Optional caller-declared printed title-block revision, NOT expectedRevision or the host document revision. Omit when the caller has not supplied a printed revision.' },
   scale: { type: 'integer', enum: [50, 100, 200, 500, 1000, 2000] },
   boundary: { type: 'array', minItems: 3, maxItems: 128, items: numericTuple(2) },
   boreholes: { type: 'array', minItems: 2, maxItems: 128, items: geologyPlanBoreholeSchema },

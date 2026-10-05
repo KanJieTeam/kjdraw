@@ -10,6 +10,7 @@ import { canonicalStringify } from '../packages/kjdraw-sdk/src/utils.js'
 import { compileGeologyColumn } from '../packages/kjdraw-sdk/src/geology-engineering.js'
 import { readGeologyDrawingRecipe, registerGeologyDrawingRecipe } from '../packages/kjdraw-sdk/src/geology-drawing-update.js'
 import { portableMcpInputSchema, assertPortableMcpInputSchema } from '../packages/kjdraw-sdk/src/mcp-schema-compat.js'
+import { projectPriorAgentDefinitions } from './helpers/prior-agent-definition-compatibility.mjs'
 
 // Native SDK/provider-wire fixtures, not live provider/model-pass evidence.
 const BOUNDS = 'cad_query_curve_bounds', NEAR = 'cad_query_curve_neighborhood'
@@ -59,7 +60,7 @@ async function rejected(f, name, input, code) {
 
 test('full inventory retains native read and HATCH tools with only an explicit general geology delta extension', () => {
   assert.equal(KJDRAW_AGENT_TOOLS.length, 57)
-  const previousDefinitions = KJDRAW_AGENT_TOOLS.filter(tool => ![...nativeNames, ...hatchNames, 'cad_propose_geology_revision'].includes(tool.name))
+  const previousDefinitions = projectPriorAgentDefinitions(KJDRAW_AGENT_TOOLS).filter(tool => ![...nativeNames, ...hatchNames, 'cad_propose_geology_revision'].includes(tool.name))
   assert.equal(previousDefinitions.length, 52)
   assert.equal(hash(previousDefinitions),
     'e53379d183b3a5acc75156020ab6807cf835955e10421195264944d58b012611')
