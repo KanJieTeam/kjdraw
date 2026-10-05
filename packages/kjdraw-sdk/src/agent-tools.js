@@ -1,7 +1,10 @@
 // Generated from agent-tools.ts by scripts/build-typescript.mjs. Do not edit directly.
+import { mergeHatchPatternCatalogs } from './sdk.js';
 import { createCommandReceipt } from './product-contract.js';
 import { createDrawingContext, createLayoutContext } from './drawing-context.js';
 import { findDrawingText } from './drawing-text-search.js';
+import { readAgentHatchPatterns, prepareAgentHatchPatternEdit, createAgentHatchPatternCatalog } from './agent-hatch-pattern.js';
+import { queryNativeCurveBounds, queryNativeCurveNeighborhood } from './agent-native-geometry-query.js';
 import { KJDrawError, KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze, normalizeName, stableHash } from './utils.js';
 import { createId } from './ids.js';
@@ -10,8 +13,10 @@ import { buildAgentDrawingEntities } from './agent-drawing.js';
 import { buildAgentRoadDrawing } from './agent-road-drawing.js';
 import { buildAgentRoadRevision } from './agent-road-revision.js';
 import { restoreRoadDrawingRecipe } from './road-drawing-recipe.js';
-import { readGeologyDrawingRecipe, prepareGeologyDrawingRevision, applyGeologyDrawingRevision } from './geology-drawing-update.js';
+import { readGeologyDrawingRecipe, inspectGeologyDrawingRecipe, prepareGeologyDrawingRevision, applyGeologyDrawingRevision } from './geology-drawing-update.js';
 import { applyGeologyObservationChanges } from './geology-observation-changes.js';
+import { applyGeologyStratumChanges } from './geology-stratum-changes.js';
+import { applyGeologySectionLinkChanges } from './geology-link-changes.js';
 import { createAgentInputAsset } from './input-assets.js';
 export { KJDRAW_ROAD_INPUT_ASSET_SCHEMA } from './input-assets.js';
 import { buildAgentAnnotationEntities } from './agent-annotations.js';
@@ -33,6 +38,24 @@ import { buildAgentCartesianChart } from './agent-cartesian-chart.js';
 import { compileGeologyColumn, compileGeologySection } from './geology-engineering.js';
 import { validateKnowledgePack } from './knowledge-pack.js';
 import { KJDRAW_GEOLOGY_KNOWLEDGE_PACK } from './knowledge-packs/geology-core.js';
+export const KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES = Object.freeze([
+    'cad_read_history',
+    'cad_propose_undo',
+    'cad_propose_redo',
+    'cad_read_geology_source',
+    'cad_propose_geology_scalar_revision',
+    'cad_propose_text_edit',
+    'cad_check_geometry',
+    'cad_read_drawing',
+    'cad_read_page',
+    'cad_measure_distance',
+    'cad_propose_move',
+    'cad_find_text',
+    'cad_query_drawing',
+    'cad_query_topology',
+    'cad_read_layouts',
+    'cad_read_selection_sets'
+]);
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -151,6 +174,81 @@ const queryFilters = {
     }),
     required: []
 };
+const nativeCurveQueryProperties = {
+    documentId: text,
+    expectedRevision: revision,
+    ownerId: text,
+    units: text,
+    ownerPolicy: {
+        type: 'string',
+        enum: [
+            'model-space-only'
+        ]
+    },
+    visibility: {
+        type: 'string',
+        enum: [
+            'include-hidden',
+            'visible-only'
+        ]
+    },
+    typeScope: {
+        type: 'string',
+        enum: [
+            'all-owner-entities',
+            'finite-line-circle-only'
+        ]
+    },
+    unsupportedPolicy: {
+        type: 'string',
+        enum: [
+            'reject',
+            'diagnostics'
+        ]
+    },
+    offset: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 4096
+    },
+    limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 200
+    },
+    maxEntities: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 4096
+    },
+    maxBytes: {
+        type: 'integer',
+        minimum: 1024,
+        maximum: 262144
+    }
+};
+const nativeCurveBoundsSchema = object(nativeCurveQueryProperties);
+const nativeCurveNeighborhoodSchema = object({
+    ...nativeCurveQueryProperties,
+    anchorId: text,
+    radius: {
+        type: 'number',
+        exclusiveMinimum: 0,
+        maximum: 1e12
+    },
+    metric: {
+        type: 'string',
+        enum: [
+            'text-insertion-to-finite-native-xy-curve'
+        ]
+    },
+    boundary: {
+        type: 'string',
+        enum: [
+            'inclusive'
+        ]
+    }
+});
 const nonnegative = {
     ...number,
     minimum: 0
@@ -577,6 +675,56 @@ const structuralEditSchema = objectWithOptional({
 }, [
     'reconnections',
     'relayer'
+]);
+const structuralCreationGroup = (items)=>({
+        type: 'array',
+        minItems: 0,
+        maxItems: 16,
+        items
+    });
+const structuralCreationsSchema = objectWithOptional({
+    lines: structuralCreationGroup(object({
+        start: point,
+        end: point,
+        layerId: text
+    })),
+    polylines: structuralCreationGroup(object({
+        vertices: {
+            type: 'array',
+            minItems: 2,
+            maxItems: 64,
+            items: point
+        },
+        closed: {
+            type: 'boolean'
+        },
+        layerId: text
+    })),
+    hatches: structuralCreationGroup(object({
+        loops: hatchSchema.properties.loops,
+        patternId: {
+            ...text,
+            description: 'Exact patternId published by cad_read_hatch_patterns. The host resolves the complete native definition; raw PAT is not accepted.'
+        },
+        patternScale: radius,
+        patternAngleDegrees: angle,
+        layerId: text
+    })),
+    texts: structuralCreationGroup(object({
+        text: {
+            ...text,
+            maxLength: 4096
+        },
+        position: point,
+        height: radius,
+        rotationDegrees: angle,
+        layerId: text
+    }))
+}, [
+    'lines',
+    'polylines',
+    'hatches',
+    'texts'
 ]);
 const offsetSchema = object({
     expectedRevision: revision,
@@ -2004,6 +2152,46 @@ const geologyObservationChangesSchema = {
     ...geologyObservationChangesBaseSchema,
     description: 'Incremental observations only: at least one explicit operation, at most 256 total. Resolve all targets against the same source snapshot; a record cannot be touched twice. Do not combine observationChanges with a full observations replacement or clearFields:[observations]. All final depth/range/identity/layout rules still apply; no automatic guessing or merging of replacement arrays.'
 };
+const geologyStratumSetFields = [
+    'name',
+    'lithology',
+    'description',
+    'code'
+];
+const geologyStratumChangesContract = 'For selected existing stratum name/lithology/description/code edits, use updates[].stratumChanges.update with target:{intervalId,expectedTop,expectedBottom} from the same BEFORE source and set containing only requested changed fields. Preserve every unrequested field and interval, including pattern/group/notation/provenance and optional-field presence. No additions, deletions, ID or boundary changes, inferred links or duplicate targets. Never combine stratumChanges with a complete strata replacement. ';
+const geologyStratumChangesSchema = {
+    ...object({
+        update: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 80,
+            items: object({
+                target: object({
+                    intervalId: {
+                        ...text,
+                        maxLength: 64
+                    },
+                    expectedTop: {
+                        ...nonnegative,
+                        description: 'Exact stored interval top in measured metres from the BEFORE source, not plotted CAD coordinates.'
+                    },
+                    expectedBottom: {
+                        ...radius,
+                        description: 'Exact stored interval bottom in measured metres from the SAME BEFORE source. No tolerance, boundary adjustment or inferred selector.'
+                    }
+                }),
+                set: {
+                    ...objectWithOptional(Object.fromEntries(geologyStratumSetFields.map((key)=>[
+                            key,
+                            geologyStratumSchema.properties[key]
+                        ])), geologyStratumSetFields),
+                    description: 'Nonempty requested changed fields only: name, lithology, description or code. Every other source field stays exact; no clearing, identities, depths, pattern patches or implicit changes.'
+                }
+            })
+        }
+    }),
+    description: geologyStratumChangesContract
+};
 const geologyGroundwaterObservationSchema = object({
     depth: nonnegative,
     elevation: number,
@@ -2343,12 +2531,15 @@ const geologySectionExampleSchema = objectWithOptional({
     'spacingMeters',
     'title'
 ]);
-const geologyRevisionHoleFields = [
+const geologyScalarRevisionHoleFields = [
     'collarElevation',
     'depth',
     'station',
     'initialWaterDepth',
-    'stableWaterDepth',
+    'stableWaterDepth'
+];
+const geologyRevisionHoleFields = [
+    ...geologyScalarRevisionHoleFields,
     'strata',
     'observations',
     'groundwaterObservations'
@@ -2359,6 +2550,94 @@ const geologyRevisionClearFields = [
     'observations',
     'groundwaterObservations'
 ];
+const geologyScalarRevisionSchema = object({
+    expectedRevision: revision,
+    units: {
+        type: 'string',
+        enum: [
+            'millimeter'
+        ]
+    },
+    drawingId: text,
+    updates: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 24,
+        description: 'Only requested changed native scalar fields, one update per exact existing holeId. Omitted fields retain their exact prior values or absence; no inferred facts or automatic correction.',
+        items: objectWithOptional({
+            holeId: {
+                ...text,
+                maxLength: 64
+            },
+            ...Object.fromEntries(geologyScalarRevisionHoleFields.map((key)=>[
+                    key,
+                    geologyHoleSchema.properties[key]
+                ])),
+            clearFields: {
+                type: 'array',
+                minItems: 1,
+                maxItems: 2,
+                description: 'Explicitly remove an optional water-depth fact because it is unknown or withdrawn. Numeric zero remains a known value, not a clear operation. Never set and clear the same field.',
+                items: {
+                    type: 'string',
+                    enum: [
+                        'initialWaterDepth',
+                        'stableWaterDepth'
+                    ]
+                }
+            }
+        }, [
+            ...geologyScalarRevisionHoleFields,
+            'clearFields'
+        ])
+    }
+});
+const geologyExactLinkSchema = object({
+    fromHoleId: {
+        ...text,
+        maxLength: 64
+    },
+    toHoleId: {
+        ...text,
+        maxLength: 64
+    },
+    fromIntervalId: {
+        ...text,
+        maxLength: 64
+    },
+    toIntervalId: {
+        ...text,
+        maxLength: 64
+    }
+});
+const geologyLinkDeltaGroup = (items)=>objectWithOptional({
+        add: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 256,
+            items
+        },
+        remove: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 256,
+            items
+        }
+    }, [
+        'add',
+        'remove'
+    ]);
+const geologyLinkChangesSchema = {
+    ...objectWithOptional({
+        correlations: geologyLinkDeltaGroup(geologyExactLinkSchema),
+        uncorrelatedOccurrences: geologyLinkDeltaGroup(geologySectionSchema.properties.uncorrelatedOccurrences.items)
+    }, [
+        'correlations',
+        'uncorrelatedOccurrences'
+    ]),
+    description: 'Incremental source links only, with updates:[] on an existing complete-occurrence-map section. Require 1–256 total explicit add/remove operations, resolving exact hole/interval identities against the same BEFORE source. No codes, indices, legacy selectors, inferred partners or reversed endpoints. To unlink a correlation remove it and explicitly add BOTH endpoint uncorrelated occurrences; to connect add the link and explicitly remove BOTH prior uncorrelated occurrences. Surviving declarations retain source order; additions append in caller order. Do not combine with top-level full correlations/uncorrelatedOccurrences lists or nonempty hole updates. Unknown, repeated, already-existing or add-and-remove-same identities fail without a proposal; final complete coverage and compiler topology rules remain mandatory.'
+};
+const geologyRevisionScalarOnlyContract = 'Scalar-only edits must omit both top-level correlations and uncorrelatedOccurrences. Missing is not []: omission preserves the exact prior declaration; [] explicitly replaces it with a present empty list. Supply these complete lists only for explicitly requested or declared link/stratum-coverage changes, never merely to restate read facts or complete the section schema. Preserve unchanged declarations and optional-field presence. ';
 const geologyRevisionSchema = objectWithOptional({
     expectedRevision: revision,
     units: {
@@ -2372,7 +2651,7 @@ const geologyRevisionSchema = objectWithOptional({
         type: 'array',
         minItems: 0,
         maxItems: 24,
-        description: 'Changed hole fields only; do not resend unchanged holes. For a links-only revision of a complete source-backed section, supply updates:[] plus explicit correlations and/or uncorrelatedOccurrences. Columns and requests with no actual supported change still require nonempty hole updates or are rejected.',
+        description: geologyRevisionScalarOnlyContract + 'Changed hole fields only; do not resend unchanged holes. For a links-only revision of a complete source-backed section, supply updates:[] plus linkChanges for an exact incremental add/remove, or explicit complete correlations and/or uncorrelatedOccurrences replacement lists. linkChanges cannot accompany hole updates or full replacement lists. Columns and requests with no actual supported change still require nonempty hole updates or are rejected.',
         items: objectWithOptional({
             holeId: {
                 ...text,
@@ -2392,6 +2671,7 @@ const geologyRevisionSchema = objectWithOptional({
                 description: 'Complete replacement list (complete-array replacement, NOT a patch): preserve every record and optional fact not requested to change. Omitted records are deleted; for a single-record change use observationChanges instead. An empty list explicitly means the caller confirmed there are no observations. clearFields=[observations] removes the field and means unknown; these states are not interchangeable. Null is never a synonym for clear.'
             },
             observationChanges: geologyObservationChangesSchema,
+            stratumChanges: geologyStratumChangesSchema,
             clearFields: {
                 type: 'array',
                 minItems: 1,
@@ -2405,14 +2685,23 @@ const geologyRevisionSchema = objectWithOptional({
         }, [
             ...geologyRevisionHoleFields,
             'observationChanges',
+            'stratumChanges',
             'clearFields'
         ])
     },
-    correlations: geologySectionSchema.properties.correlations,
-    uncorrelatedOccurrences: geologySectionSchema.properties.uncorrelatedOccurrences
+    correlations: {
+        ...geologySectionSchema.properties.correlations,
+        description: geologyRevisionScalarOnlyContract + 'This is a complete correlation-array replacement, not a patch. Preserve every unchanged exact interval-ID tuple when this replacement is explicitly declared; do not copy legacy stratum-code selectors from other APIs.'
+    },
+    uncorrelatedOccurrences: {
+        ...geologySectionSchema.properties.uncorrelatedOccurrences,
+        description: geologyRevisionScalarOnlyContract + 'This is a complete occurrence-array replacement, not a patch. Preserve every unchanged holeId/adjacentHoleId/intervalId declaration when this replacement is explicitly declared; an empty list is not a default or an unknown-state marker.'
+    },
+    linkChanges: geologyLinkChangesSchema
 }, [
     'correlations',
-    'uncorrelatedOccurrences'
+    'uncorrelatedOccurrences',
+    'linkChanges'
 ]);
 function geologySectionExampleIntent(args) {
     const locale = args.locale === 'en' ? 'en' : 'zh-CN';
@@ -3689,9 +3978,15 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         })
     },
     {
+        name: 'cad_propose_geology_scalar_revision',
+        effect: 'propose',
+        description: 'Propose only changed native collarElevation, depth, station, initialWaterDepth or stableWaterDepth on the SAME source-backed column/section after reading cad_read_geology_source at the current drawing revision. Measurements are metres, not plotted millimetres. Use exact drawingId and existing holeId. Unspecified scalar values and every retained interval, observation, link, optional declaration and resource remain unchanged. Only explicit initialWaterDepth/stableWaterDepth clears are supported; zero means a known value, and absent means unknown. Full replacement arrays, observation changes, link changes and extra fields are rejected, never stripped or defaulted. Depth/station changes must remain valid with the unchanged retained facts; no automatic geology repair. This uses the same native source-and-geometry compiler, complete preview and one undoable host-approved GEOLOGY_DRAWING_UPDATE transaction as the general revision API. A valid extra scalar is still visible for host review, not proof of caller intent. Does not read facts automatically or support persisted-task approval.',
+        inputSchema: geologyScalarRevisionSchema
+    },
+    {
         name: 'cad_propose_geology_revision',
         effect: 'propose',
-        description: 'Revise the SAME source-backed column/section drawing after reading cad_read_geology_source. Supply exact holeId and only requested changed borehole fields; depths/elevations/station are metres. Unspecified fields remain unchanged; do not resend unchanged arrays when changing one scalar. For selected observation edits use updates[].observationChanges with explicit add/update/remove operations. An update/remove target is exact kind+id+expectedDepth from the BEFORE source snapshot, so repeated IDs at different depths remain distinct. Update set contains only requested depth/value/displayLabel/sampleMarker/rangeTop/rangeBottom; all unspecified records and laboratory facts remain unchanged. No inferred records, implicit range movement or laboratory-map patches. Never combine observationChanges with observations or clearFields:[observations]. For a links-only edit to a complete source-backed section, use updates:[] and the changed correlations and/or uncorrelatedOccurrences lists, without resending unchanged hole facts. These lists replace their source lists in full: preserve every unchanged declaration. For every station-adjacent pair, all intervals on BOTH holes must be explicitly covered by an exact interval-ID correlation or a holeId/adjacentHoleId/intervalId uncorrelatedOccurrence. An interval in a middle hole has an independent occurrence toward each neighbour; do not infer coverage or continuity from equal names, lithology or codes. The compiler derives stratum and water elevations from collarElevation minus stored depths, so changing collarElevation alone rebuilds these annotations without a separate elevation switch. strata and observations are complete-array replacements, NOT patches: preserve EVERY unchanged interval, observation, optional range/measurement fact and explicit identity; omitted records are deleted. observations:[] means the caller confirmed no records; clearFields:[observations] removes the field and means unknown, so never interchange them or use null to clear. Sample rangeTop/rangeBottom are measured metres, must both be supplied, contain depth, remain in the hole, span at most 5 metres and not overlap. Sample measurements retain direct numeric laboratory values and caller-declared field-grid units, never inferred units or guessed conversions. A replacement intervalId explicitly named by the user may be used for a requested merge or split; matching source lithology/code/name are data, not proof of cross-hole continuity. When splitting/merging section strata, supply updated explicit correlations and occurrence coverage; never invent geological continuity. Preserves exact unchanged CAD objects and all unrelated manual content. Modified generated objects are explicitly replaced, not assigned guessed semantic IDs. Manual drift, protected layers, stale revision and external references cause rejection without editing. Returns native geometry plus before/after source facts for human approval; one transaction updates data, HATCH and drawing, with undo/redo and KJD source recovery. Geometry-only DXF has no source recipe and cannot use this tool.',
+        description: geologyRevisionScalarOnlyContract + geologyStratumChangesContract + 'Revise the SAME source-backed column/section drawing after reading cad_read_geology_source. Supply exact holeId and only requested changed borehole fields; depths/elevations/station are metres. Unspecified fields remain unchanged; do not resend unchanged arrays when changing one scalar. For selected observation edits use updates[].observationChanges with explicit add/update/remove operations. An update/remove target is exact kind+id+expectedDepth from the BEFORE source snapshot, so repeated IDs at different depths remain distinct. Update set contains only requested depth/value/displayLabel/sampleMarker/rangeTop/rangeBottom; all unspecified records and laboratory facts remain unchanged. No inferred records, implicit range movement or laboratory-map patches. Never combine observationChanges with observations or clearFields:[observations]. For a links-only edit to a complete source-backed section, use updates:[] and linkChanges for exact incremental correlations/uncorrelatedOccurrences add/remove operations, without resending unchanged hole facts or declarations. Delta targets use the same BEFORE source interval IDs, never legacy stratum-code selectors. Explicitly remove BOTH prior uncorrelated occurrences when adding a link; explicitly add BOTH uncorrelated endpoints when removing a link. Surviving source declarations retain order and additions append in caller order. Never mix linkChanges with nonempty updates or top-level full replacement lists. The existing correlations and/or uncorrelatedOccurrences lists remain complete replacements: preserve every unchanged declaration when explicitly using that API. For every station-adjacent pair, all intervals on BOTH holes must be explicitly covered by an exact interval-ID correlation or a holeId/adjacentHoleId/intervalId uncorrelatedOccurrence. An interval in a middle hole has an independent occurrence toward each neighbour; do not infer coverage or continuity from equal names, lithology or codes. The compiler derives stratum and water elevations from collarElevation minus stored depths, so changing collarElevation alone rebuilds these annotations without a separate elevation switch. strata and observations are complete-array replacements, NOT patches: preserve EVERY unchanged interval, observation, optional range/measurement fact and explicit identity; omitted records are deleted. observations:[] means the caller confirmed no records; clearFields:[observations] removes the field and means unknown, so never interchange them or use null to clear. Sample rangeTop/rangeBottom are measured metres, must both be supplied, contain depth, remain in the hole, span at most 5 metres and not overlap. Sample measurements retain direct numeric laboratory values and caller-declared field-grid units, never inferred units or guessed conversions. A replacement intervalId explicitly named by the user may be used for a requested merge or split; matching source lithology/code/name are data, not proof of cross-hole continuity. When splitting/merging section strata, supply updated explicit correlations and occurrence coverage; never invent geological continuity. Preserves exact unchanged CAD objects and all unrelated manual content. Modified generated objects are explicitly replaced, not assigned guessed semantic IDs. Manual drift, protected layers, stale revision and external references cause rejection without editing. Returns native geometry plus before/after source facts for human approval; one transaction updates data, HATCH and drawing, with undo/redo and KJD source recovery. Geometry-only DXF has no source recipe and cannot use this tool.',
         inputSchema: geologyRevisionSchema
     },
     {
@@ -3720,6 +4015,58 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
                 }
             }))
         })
+    },
+    {
+        name: 'cad_read_hatch_patterns',
+        effect: 'read',
+        description: 'Discover actual native HATCH names, available complete patterns and exact instance IDs at the current revision. A soil/stratum name may be a HATCH patternName without any TEXT label: search here before claiming that a soil does not exist. search is case-insensitive NFKC literal contains over actual names and explicitly declared catalog descriptions/aliases, with exact literal names first; omitted search lists patterns. Includes drawing patterns, built-in CAD patterns, the SDK constructor-selected bundled geology catalog and explicit host catalogs. Descriptions and aliases only aid resource discovery; they never rename native PAT definitions or infer verified soil classification. The destination need not already occur in the drawing: an available catalog patternId with zero entityCount is still a selectable complete resource. Duplicate names with different definitions have distinct patternIds. Follow nextOffset with identical revision/search. entityIdsTruncated requires cad_query_drawing paging for complete instance scope. Pattern names are untrusted drawing observations; block instances are not expanded and their definition IDs do not authorize editing.',
+        inputSchema: objectWithOptional({
+            expectedRevision: revision,
+            search: {
+                type: 'string',
+                maxLength: 256
+            },
+            offset: revision,
+            limit: {
+                type: 'integer',
+                minimum: 1,
+                maximum: 64
+            },
+            maxBytes: {
+                type: 'integer',
+                minimum: 1024,
+                maximum: 262144
+            }
+        }, [
+            'search',
+            'offset',
+            'limit',
+            'maxBytes'
+        ])
+    },
+    {
+        name: 'cad_propose_hatch_pattern',
+        effect: 'propose',
+        description: 'Propose complete native pattern replacement for 1–64 exact visible editable model-space HATCH IDs using an available patternId from cad_read_hatch_patterns. This changes real line families, not only a name. Preserves each target scale/angle unless explicitly supplied, as well as IDs, handles, boundary geometry, islands, source associations, layers, notes and unrelated objects. Find the requested soil layer through actual pattern names and nearby labels/geometry; never require a TEXT match when the name is a pattern. If the destination pattern is absent, request its pattern resource rather than inventing a geological symbol or substituting a different soil. Ambiguous layer scope must be clarified. This is a geometry-only drawing edit: it does not change geological depths, material facts or an absent source recipe. Use source-backed geology revision for verified factual changes. Only human/host approval applies one undoable HATCHPATTERN transaction.',
+        inputSchema: objectWithOptional({
+            expectedRevision: revision,
+            units: text,
+            ids: collection(text),
+            patternId: text,
+            patternScale: {
+                type: 'number',
+                exclusiveMinimum: 0,
+                maximum: 1e12
+            },
+            patternAngleDegrees: {
+                type: 'number',
+                minimum: -360000,
+                maximum: 360000
+            }
+        }, [
+            'patternScale',
+            'patternAngleDegrees'
+        ])
     },
     {
         name: 'cad_read_components',
@@ -4250,6 +4597,18 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
                 maximum: 262144
             }
         })
+    },
+    {
+        name: 'cad_query_curve_bounds',
+        effect: 'read',
+        description: 'Read native analytic model-owner XY centerline bounds of finite LINE and CIRCLE curves, not displayed glyph/stroke bounds, full-drawing extents or XYZ extents. Supply every explicit documentId, expectedRevision, exact native ownerId and units, model-space-only ownerPolicy, visibility, typeScope, unsupportedPolicy, pagination and resource limit. No owner, units or scope is inferred; paper projection and block expansion are unsupported. all-owner-entities inspects every live selected-owner entity and rejects unsupported geometry, including text or HATCH; finite-line-circle-only explicitly excludes other types and reports excludedCounts. The entire owner is inspected before paging, including hidden/type-excluded entities in maxEntities. reject fails closed; diagnostics returns scopeComplete:false, no certified bounds/rows and no continuation when geometry is unsupported. Otherwise bounds cover the complete declared curve scope even when rows are paged; null bounds with scopeComplete:true means an empty scope. Follow nextOffset at the exact same identity, revision and options. complete is true only when one response contains the entire result from offset zero. Uses binary64-no-selection-tolerance, without selection epsilon or inferred geology. maxBytes rejects the whole response rather than truncating it. Read only: no proposal, approval, geometry edit or history entry.',
+        inputSchema: nativeCurveBoundsSchema
+    },
+    {
+        name: 'cad_query_curve_neighborhood',
+        effect: 'read',
+        description: 'Read exact native model-owner XY distance from one same-owner live TEXT insertion-point anchorId to finite LINE and CIRCLE centerline curves. Supply every explicit documentId, expectedRevision, exact ownerId and units, model-space-only ownerPolicy, visibility, typeScope, unsupportedPolicy, pagination, resource limit, positive radius, metric=text-insertion-to-finite-native-xy-curve and boundary=inclusive. No radius, anchor, owner or units is guessed. Distance is to the finite segment or circle circumference, not an infinite line, circle center, filled disk or displayed label bounds. At a circle center the closest point is nonunique and reported as null. Uses binary64-no-selection-tolerance and distance<=radius, without a selection epsilon. Paper projection and block expansion are unsupported. The TEXT anchor is explicitly excluded from the candidate scope; finite-line-circle-only explicitly excludes other native types and reports excludedCounts. The whole owner is inspected before paging; unsupported geometry either rejects or yields scopeComplete:false with no candidate rows, never a partial certified answer. Follow nextOffset with identical identity, revision and policies; a final nonzero-offset page is not a complete neighborhood answer. maxEntities counts all live owner entities, maxBytes refuses whole over-budget results. Native proximity is untrusted geometry, not verified borehole/stratum meaning. Read only: no proposal, approval, geometry edit or history entry.',
+        inputSchema: nativeCurveNeighborhoodSchema
     }
 ]);
 function selectionSetRecord(document, value) {
@@ -4670,6 +5029,9 @@ export class KJAgentToolSession {
     get units() {
         return this.#document.snapshot().header.units;
     }
+    get toolProfile() {
+        return this.#options.toolProfile;
+    }
     get geologyColumnKnowledge() {
         const binding = this.#geologyColumnKnowledge;
         return binding ? Object.freeze({
@@ -4694,6 +5056,7 @@ export class KJAgentToolSession {
         const millimeterTools = [
             'cad_read_geology_source',
             'cad_propose_geology_revision',
+            'cad_propose_geology_scalar_revision',
             'cad_propose_manufacturing_sheet',
             'cad_propose_architecture_plan',
             'cad_propose_cartesian_chart',
@@ -4704,7 +5067,37 @@ export class KJAgentToolSession {
         ];
         const sectionPack = this.#geologySectionKnowledge?.pack ?? KJDRAW_GEOLOGY_KNOWLEDGE_PACK;
         const sectionRule = sectionPack.rules?.['geology-section-layout'];
-        return deepFreeze(KJDRAW_AGENT_TOOLS.filter((tool)=>!millimeterTools.includes(tool.name) || units === 'millimeter').filter((tool)=>tool.name !== 'cad_propose_site_plan' || units === 'meter').map((tool)=>{
+        return deepFreeze(KJDRAW_AGENT_TOOLS.filter((tool)=>this.#options.toolProfile === 'full' || KJDRAW_GEOLOGY_SCALAR_TOOL_NAMES.includes(tool.name)).filter((tool)=>!millimeterTools.includes(tool.name) || units === 'millimeter').filter((tool)=>tool.name !== 'cad_propose_site_plan' || units === 'meter').map((tool)=>{
+            if (tool.name === 'cad_read_geology_source' && this.#options.toolProfile === 'full') return {
+                ...tool,
+                description: tool.description + ' For a read-only source-versus-manual-geometry audit, set includeInspection:true with an exact drawingId: returns every generated resource/entity conflict and sourceGeometryConsistent without modifying, authorizing a rebuild or labeling unrelated manual objects as source conflicts. Malformed source recipes still reject; all revision tools still reject manual drift. Missing optional facts remain absent; report only the caller-requested missing fields, never invent default measurements.',
+                inputSchema: objectWithOptional({
+                    ...tool.inputSchema.properties,
+                    includeInspection: {
+                        type: 'boolean'
+                    }
+                }, [
+                    'includeInspection'
+                ])
+            };
+            if (tool.name === 'cad_propose_structural_edit' && this.#options.toolProfile === 'full') return {
+                ...tool,
+                description: tool.description + ' Optional creations can add native LINE, open or closed LWPOLYLINE, HATCH and TEXT in this same proposal and transaction, using explicit XY coordinates and existing editable layer IDs. At most 16 total creations plus reconnections and 64 total changed records, including actual owned erase records; no implicit object selection, layer creation or geological inference. HATCH patternId must come from cad_read_hatch_patterns; the host resolves and seals the complete published native PAT definition, never model-supplied PAT. HATCH loops[0] is the outer boundary; later closed polygon loops are disjoint empty islands strictly inside it; separate visible boundary linework is optional only when requested. TEXT must be caller-supplied content or explicitly requested illustrative wording, never fabricated engineering measurements or source facts. A simulation remains illustrative, not a geological source recipe. Omit creations to preserve the existing erase/reconnect/relayer behavior. Host approval remains required; the entire edit is one transaction and one undo.',
+                inputSchema: {
+                    ...tool.inputSchema,
+                    properties: {
+                        ...tool.inputSchema.properties,
+                        units: {
+                            ...tool.inputSchema.properties.units,
+                            enum: [
+                                units
+                            ]
+                        },
+                        creations: structuralCreationsSchema
+                    }
+                }
+            };
+            const description = tool.description + (this.#options.toolProfile !== 'full' ? '' : tool.name === 'cad_propose_drawing_pattern' ? ' Geometry-only requests, including one HATCH alone, can use this tool with arrays:[] and other unneeded geometry groups empty; no TEXT, dimension, leader or other annotation is required. Each HATCH stores its own closed native polygon boundaries: loops[0] is the outer boundary, and later loops are empty islands cut out of that hatch, not separately filled regions. No separate LINE or LWPOLYLINE is needed to establish those boundaries; add visible boundary linework only if the caller requests it. Keep existing drawing objects unchanged unless an edit to them is requested. Pattern scale and angle are reviewable graphical presentation settings, not geological measurements; when unspecified, choose valid display settings for the host preview without inventing source facts.' : tool.name === 'cad_propose_drawing_annotated' ? ' This tool requires at least one actual text, dimension or leader annotation, up to 64 total annotations. For geometry-only creation, including a HATCH with empty islands and no requested annotation, cad_propose_drawing_pattern can prepare the native geometry without annotations. Do not invent a note, label, dimension or leader solely to satisfy this annotation requirement.' : '');
             if (!tool.inputSchema.properties?.units) return tool;
             let properties = {
                 ...tool.inputSchema.properties,
@@ -4744,6 +5137,7 @@ export class KJAgentToolSession {
             }
             return {
                 ...tool,
+                description,
                 inputSchema: {
                     ...tool.inputSchema,
                     properties,
@@ -4754,6 +5148,7 @@ export class KJAgentToolSession {
     }
     #sdk;
     #document;
+    #options;
     #pending = new Map();
     #inputAssets = new Map();
     #inputAssetBytes = 0;
@@ -4765,28 +5160,69 @@ export class KJAgentToolSession {
     #proposals = 0;
     constructor(sdk, document, options = {}){
         if (sdk.documents.get(document.id) !== document) throw new KJValidationError('Agent tools require an attached document');
+        if (!options || typeof options !== 'object' || Array.isArray(options) || ![
+            Object.prototype,
+            null
+        ].includes(Object.getPrototypeOf(options))) throw new KJValidationError('Agent session options require plain data');
+        const copied = {};
+        for (const key of [
+            'toolProfile',
+            'geologyColumnKnowledge',
+            'geologySectionKnowledge',
+            'hatchPatternCatalogs'
+        ]){
+            const descriptor = Object.getOwnPropertyDescriptor(options, key);
+            if (!descriptor) continue;
+            if (!('value' in descriptor) || !descriptor.enumerable) throw new KJValidationError('Agent session profile and knowledge options require enumerable data properties, not accessors');
+            Object.defineProperty(copied, key, {
+                value: descriptor.value,
+                enumerable: true
+            });
+        }
+        const toolProfile = copied.toolProfile === undefined ? 'full' : copied.toolProfile;
+        if (toolProfile !== 'full' && toolProfile !== 'geology-scalars-v1') throw new KJValidationError('Unknown agent tool profile; use full or geology-scalars-v1');
         this.#sdk = sdk;
         this.#document = document;
-        if (options.geologyColumnKnowledge) {
-            const { sha256, pack: source } = options.geologyColumnKnowledge;
+        if (copied.geologyColumnKnowledge) {
+            const { sha256, pack: source } = copied.geologyColumnKnowledge;
             if (typeof sha256 !== 'string' || !/^[a-f0-9]{64}$/u.test(sha256)) throw new KJValidationError('Host geology column knowledge requires an exact lowercase SHA-256');
-            const pack = validateKnowledgePack(source);
+            const pack = validateKnowledgePack(structuredClone(source));
             if (pack.domain !== 'geology' || !pack.rules?.['geology-column-layout']) throw new KJValidationError('Host geology column knowledge must declare the geology domain and geology-column-layout rule');
             this.#geologyColumnKnowledge = {
                 pack,
                 sha256
             };
         }
-        if (options.geologySectionKnowledge) {
-            const { sha256, pack: source } = options.geologySectionKnowledge;
+        if (copied.geologySectionKnowledge) {
+            const { sha256, pack: source } = copied.geologySectionKnowledge;
             if (typeof sha256 !== 'string' || !/^[a-f0-9]{64}$/u.test(sha256)) throw new KJValidationError('Host geology section knowledge requires an exact lowercase SHA-256');
-            const pack = validateKnowledgePack(source);
+            const pack = validateKnowledgePack(structuredClone(source));
             if (pack.domain !== 'geology' || !pack.rules?.['geology-section-layout']) throw new KJValidationError('Host geology section knowledge must declare the geology domain and geology-section-layout rule');
             this.#geologySectionKnowledge = {
                 pack,
                 sha256
             };
         }
+        const hatchPatternCatalogs = mergeHatchPatternCatalogs(sdk.hatchPatternCatalogs, copied.hatchPatternCatalogs === undefined ? [] : copied.hatchPatternCatalogs);
+        createAgentHatchPatternCatalog(document, hatchPatternCatalogs);
+        this.#options = deepFreeze({
+            toolProfile,
+            ...hatchPatternCatalogs ? {
+                hatchPatternCatalogs
+            } : {},
+            ...this.#geologyColumnKnowledge ? {
+                geologyColumnKnowledge: {
+                    pack: this.#geologyColumnKnowledge.pack,
+                    sha256: this.#geologyColumnKnowledge.sha256
+                }
+            } : {},
+            ...this.#geologySectionKnowledge ? {
+                geologySectionKnowledge: {
+                    pack: this.#geologySectionKnowledge.pack,
+                    sha256: this.#geologySectionKnowledge.sha256
+                }
+            } : {}
+        });
     }
     async registerRoadDrawingRecipe(recipe) {
         if (this.#busy) throw new KJValidationError('Session is busy; wait before registering a road recipe');
@@ -4837,6 +5273,25 @@ export class KJAgentToolSession {
             const definition = this.definitions.find((tool)=>tool.name === name);
             if (!definition) throw new KJValidationError('Unknown CAD tool; use a tool from this session definitions');
             validate(definition.inputSchema, input);
+            if (name === 'cad_propose_geology_scalar_revision') {
+                for (const record of [
+                    input,
+                    ...input.updates
+                ]){
+                    if (Object.values(Object.getOwnPropertyDescriptors(record)).some((descriptor)=>!descriptor.enumerable)) throw new KJValidationError('Geology scalar revision fields require enumerable plain data; hidden changes are never discarded');
+                }
+            }
+            if (name === 'cad_propose_structural_edit' && Object.hasOwn(input, 'creations')) {
+                const requireEnumerable = (record)=>{
+                    if (!record || typeof record !== 'object') return;
+                    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(record))){
+                        if (Array.isArray(record) && key === 'length') continue;
+                        if (!descriptor.enumerable) throw new KJValidationError('Structural creations fields require enumerable plain data; hidden changes are never discarded');
+                        requireEnumerable(descriptor.value);
+                    }
+                };
+                requireEnumerable(input);
+            }
             const args = structuredClone(input);
             const document = this.#document;
             let value;
@@ -4857,6 +5312,7 @@ export class KJAgentToolSession {
                     layerOffset: args.layerOffset
                 });
                 else if (name === 'cad_read_layouts') value = createLayoutContext(document, args);
+                else if (name === 'cad_read_hatch_patterns') value = readAgentHatchPatterns(document, args, this.#options.hatchPatternCatalogs);
                 else if (name === 'cad_read_designs') value = createAgentDesignContext(document, args.offset, args.limit, args.maxBytes);
                 else if (name === 'cad_read_components') value = {
                     documentId: document.id,
@@ -4870,20 +5326,27 @@ export class KJAgentToolSession {
                     })
                 };
                 else if (name === 'cad_read_selection_sets') value = createSelectionSetContext(document, args.offset, args.limit, args.maxBytes);
+                else if (name === 'cad_query_curve_bounds') value = queryNativeCurveBounds(document, input);
+                else if (name === 'cad_query_curve_neighborhood') value = queryNativeCurveNeighborhood(document, input);
                 else if (name === 'cad_query_topology') value = createAgentTopologyContext(document, args);
                 else if (name === 'cad_read_geology_source') {
                     const drawingId = String(args.drawingId);
                     const drawingIds = Object.keys(document.snapshot().opaquePayloads).filter((key)=>key.startsWith('geology-drawing-recipe:')).map((key)=>key.slice('geology-drawing-recipe:'.length));
                     if (drawingIds.length > 16) throw new KJValidationError('Geology source listing exceeds 16 drawings');
-                    if (!drawingId) value = {
-                        documentId: document.id,
-                        revision: document.revision,
-                        units: this.units,
-                        drawingIds,
-                        sourceBacked: drawingIds.length > 0
-                    };
-                    else {
-                        const recipe = readGeologyDrawingRecipe(document, drawingId);
+                    if (!drawingId) {
+                        if (args.includeInspection === true) throw new KJValidationError('Geology source inspection requires an exact drawingId');
+                        value = {
+                            documentId: document.id,
+                            revision: document.revision,
+                            units: this.units,
+                            drawingIds,
+                            sourceBacked: drawingIds.length > 0
+                        };
+                    } else {
+                        const inspection = args.includeInspection === true ? inspectGeologyDrawingRecipe(document, drawingId, {
+                            expectedRevision: Number(args.expectedRevision)
+                        }) : null;
+                        const recipe = inspection?.recipe ?? readGeologyDrawingRecipe(document, drawingId);
                         const { columnStylePack: _columnPack, sectionStylePack: _sectionPack, hatchPack: _hatchPack, ...facts } = recipe.source.input;
                         value = {
                             documentId: document.id,
@@ -4914,7 +5377,13 @@ export class KJAgentToolSession {
                             kind: recipe.source.kind,
                             facts,
                             sourceBacked: true,
-                            measurementsVerified: false
+                            measurementsVerified: false,
+                            ...inspection ? {
+                                sourceGeometryConsistent: inspection.sourceGeometryConsistent,
+                                conflicts: inspection.conflicts,
+                                conflictTypes: inspection.conflictTypes,
+                                inspectionOnly: true
+                            } : {}
                         };
                     }
                     if (new TextEncoder().encode(JSON.stringify({
@@ -4935,7 +5404,9 @@ export class KJAgentToolSession {
                         maxBytes: query.maxBytes
                     });
                 } else {
-                    if (args.units !== document.snapshot().header.units) throw new KJValidationError('Unit mismatch; read the drawing units before calling this tool');
+                    const drawingUnits = document.snapshot().header.units;
+                    const metrePointPlan = name === 'cad_propose_geology_plan' && args.units === 'meter' && (drawingUnits === 'meter' || drawingUnits === 'millimeter');
+                    if (!metrePointPlan && args.units !== drawingUnits) throw new KJValidationError('Unit mismatch; read the drawing units before calling this tool');
                     if (name === 'cad_propose_undo' || name === 'cad_propose_redo') {
                         if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session');
                         const command = name === 'cad_propose_undo' ? 'UNDO' : 'REDO';
@@ -4972,18 +5443,23 @@ export class KJAgentToolSession {
                             sourceToolName: name
                         });
                         this.#proposals++;
-                    } else if (name === 'cad_propose_geology_revision') {
+                    } else if (name === 'cad_propose_geology_revision' || name === 'cad_propose_geology_scalar_revision') {
                         if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session');
                         const previous = readGeologyDrawingRecipe(document, String(args.drawingId));
                         const updates = args.updates;
-                        if (!updates.length && (previous.source.kind !== 'section' || !Object.hasOwn(args, 'correlations') && !Object.hasOwn(args, 'uncorrelatedOccurrences'))) throw new KJValidationError('Empty geology updates require an explicit section links-only revision');
+                        const linkChangesDescriptor = Object.getOwnPropertyDescriptor(input, 'linkChanges');
+                        const hasLinkChanges = linkChangesDescriptor !== undefined;
+                        if (hasLinkChanges && !linkChangesDescriptor.enumerable) throw new KJValidationError('Geology linkChanges must be enumerable plain data; hidden operations are never discarded');
+                        if (hasLinkChanges && (updates.length || Object.hasOwn(input, 'correlations') || Object.hasOwn(input, 'uncorrelatedOccurrences'))) throw new KJValidationError('Geology linkChanges requires updates:[] and cannot be combined with complete link replacement lists');
+                        if (hasLinkChanges && previous.source.kind !== 'section') throw new KJValidationError('Geology linkChanges belongs to complete source-backed sections only');
+                        if (!updates.length && (previous.source.kind !== 'section' || !Object.hasOwn(args, 'correlations') && !Object.hasOwn(args, 'uncorrelatedOccurrences') && !hasLinkChanges)) throw new KJValidationError('Empty geology updates require an explicit section links-only revision');
                         if (!updates.length && previous.source.kind === 'section' && previous.source.input.sourceFactMode !== 'complete-occurrence-map') throw new KJValidationError('Links-only revision requires a complete source-backed adjacent-hole occurrence map; do not infer missing declarations');
                         const next = structuredClone(previous.source);
                         const holes = next.kind === 'column' ? [
                             next.input.hole
                         ] : next.input.holes;
                         const seen = new Set();
-                        for (const update of updates){
+                        for (const [updateIndex, update] of updates.entries()){
                             const holeId = String(update.holeId), hole = holes.find((item)=>item.id === holeId);
                             if (!hole || seen.has(holeId) || Object.keys(update).length < 2) throw new KJValidationError('Geology revision requires unique existing hole IDs and changed fields');
                             seen.add(holeId);
@@ -4991,13 +5467,19 @@ export class KJAgentToolSession {
                             if (clearFields && new Set(clearFields).size !== clearFields.length) throw new KJValidationError('Geology revision cannot clear the same field twice');
                             if (clearFields?.some((field)=>Object.hasOwn(update, field))) throw new KJValidationError('Geology revision cannot both clear and set a field. For observations, observations:[] means confirmed no records; clearFields:[observations] deletes the field and means unknown. Preserve the caller-declared meaning when choosing one operation; never treat these states as equivalent.');
                             if (Object.hasOwn(update, 'observationChanges') && (Object.hasOwn(update, 'observations') || clearFields?.includes('observations'))) throw new KJValidationError('Geology revision must choose observationChanges, a complete observations replacement, or clearing unknown observations, never combine them');
+                            const originalUpdate = input.updates[updateIndex];
+                            const stratumChangesDescriptor = Object.getOwnPropertyDescriptor(originalUpdate, 'stratumChanges');
+                            if (stratumChangesDescriptor && (!stratumChangesDescriptor.enumerable || Object.hasOwn(originalUpdate, 'strata'))) throw new KJValidationError('Geology revision requires enumerable stratumChanges and cannot combine it with a complete strata replacement');
+                            const strata = stratumChangesDescriptor ? applyGeologyStratumChanges(hole.strata, stratumChangesDescriptor.value) : undefined;
                             const observations = Object.hasOwn(update, 'observationChanges') ? applyGeologyObservationChanges(hole.observations, update.observationChanges) : undefined;
                             for (const field of clearFields ?? [])delete hole[field];
                             for (const field of geologyRevisionHoleFields)if (Object.hasOwn(update, field)) hole[field] = structuredClone(update[field]);
                             if (observations !== undefined) hole.observations = observations;
+                            if (strata !== undefined) hole.strata = strata;
                         }
                         if (next.kind === 'column' && (args.correlations !== undefined || args.uncorrelatedOccurrences !== undefined)) throw new KJValidationError('Cross-hole links belong to sections only');
                         if (next.kind === 'section') {
+                            if (hasLinkChanges) next.input = applyGeologySectionLinkChanges(previous.source.input, linkChangesDescriptor.value);
                             if (args.correlations !== undefined) next.input.correlations = structuredClone(args.correlations);
                             if (args.uncorrelatedOccurrences !== undefined) next.input.uncorrelatedOccurrences = structuredClone(args.uncorrelatedOccurrences);
                         }
@@ -5564,6 +6046,9 @@ export class KJAgentToolSession {
                             commandArgs = {
                                 changes: args.changes
                             };
+                        } else if (name === 'cad_propose_hatch_pattern') {
+                            command = 'HATCHPATTERN';
+                            commandArgs = prepareAgentHatchPatternEdit(document, args, this.#options.hatchPatternCatalogs);
                         } else if (name === 'cad_propose_design_bind') {
                             command = 'DESIGNCREATE';
                             commandArgs = {
@@ -5598,6 +6083,53 @@ export class KJAgentToolSession {
                                     points: item.points.map(xy),
                                     layerId: item.layerId
                                 }));
+                            const creationsInput = args.creations;
+                            const creations = [];
+                            if (creationsInput !== undefined) {
+                                const { lines = [], polylines = [], hatches = [], texts = [] } = creationsInput;
+                                const count = lines.length + polylines.length + hatches.length + texts.length;
+                                if (!count || count + reconnections.length > 16) throw new KJValidationError('Structural creations require 1–16 entries, with at most 16 creations plus reconnections combined');
+                                const append = (type, payload)=>{
+                                    creations.push({
+                                        id: createId('entity'),
+                                        type,
+                                        payload
+                                    });
+                                };
+                                for (const item of lines)append('LINE', {
+                                    start: xy(item.start),
+                                    end: xy(item.end),
+                                    layerId: item.layerId
+                                });
+                                for (const item of polylines)append('LWPOLYLINE', {
+                                    vertices: item.vertices.map(xy),
+                                    closed: item.closed,
+                                    layerId: item.layerId
+                                });
+                                const catalog = hatches.length ? createAgentHatchPatternCatalog(document, this.#options.hatchPatternCatalogs).entries : [];
+                                for (const item of hatches){
+                                    const entry = catalog.find((candidate)=>candidate.patternId === item.patternId);
+                                    if (!entry) throw new KJValidationError('Structural HATCH patternId must identify a published native pattern from the host catalog');
+                                    append('HATCH', {
+                                        ...structuredClone(entry.pattern),
+                                        patternScale: item.patternScale,
+                                        patternAngle: item.patternAngleDegrees * Math.PI / 180,
+                                        layerId: item.layerId,
+                                        boundaryLoops: item.loops.map((loop, index)=>({
+                                                external: index === 0,
+                                                closed: true,
+                                                vertices: loop.vertices.map(xy)
+                                            }))
+                                    });
+                                }
+                                for (const item of texts)append('TEXT', {
+                                    text: item.text,
+                                    position: xy(item.position),
+                                    height: item.height,
+                                    rotation: item.rotationDegrees * Math.PI / 180,
+                                    layerId: item.layerId
+                                });
+                            }
                             const relayerInput = args.relayer;
                             const relayer = relayerInput ? {
                                 ids: resolveAgentTransformEntityIds(document, relayerInput.ids),
@@ -5613,6 +6145,9 @@ export class KJAgentToolSession {
                                 reconnections,
                                 ...relayer ? {
                                     relayer
+                                } : {},
+                                ...creations.length ? {
+                                    creations
                                 } : {}
                             };
                             structuralEdit = {
@@ -5624,6 +6159,9 @@ export class KJAgentToolSession {
                                     ...impact.effectiveEraseIds
                                 ],
                                 reconnectionIds: reconnections.map((item)=>item.id),
+                                ...creations.length ? {
+                                    creationIds: creations.map((item)=>item.id)
+                                } : {},
                                 groups: impact.groups,
                                 selectionSets: impact.selectionSets,
                                 insertAttachments: impact.insertAttachments,

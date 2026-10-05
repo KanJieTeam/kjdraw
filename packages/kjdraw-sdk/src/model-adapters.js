@@ -3,9 +3,10 @@ import { KJDrawError } from './errors.js';
 import { deepFreeze } from './utils.js';
 import { extractKJModelUsage } from './model-usage.js';
 export class KJModelError extends KJDrawError {
-    constructor(code, message){
+    constructor(code, message, details){
         super(message, {
-            code
+            code,
+            details
         });
     }
 }
@@ -13,6 +14,7 @@ function invalid(message) {
     throw new KJModelError('KJMODEL_PROTOCOL', message);
 }
 const CHAT_EXTENSION_KEYS = new Set([
+    'response_format',
     'thinking',
     'reasoning_effort',
     'enable_thinking',
@@ -26,6 +28,17 @@ function chatExtensions(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Chat request extensions must be an object');
     const input = value;
     if (Object.keys(input).some((key)=>!CHAT_EXTENSION_KEYS.has(key))) invalid('Unsupported or reserved Chat request extension');
+    if (Object.hasOwn(input, 'response_format')) {
+        const descriptor = Object.getOwnPropertyDescriptor(input, 'response_format');
+        if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) invalid('Chat response format must be an enumerable data property');
+        const format = descriptor.value;
+        if (!format || typeof format !== 'object' || Array.isArray(format) || ![
+            Object.prototype,
+            null
+        ].includes(Object.getPrototypeOf(format)) || Reflect.ownKeys(format).length !== 1 || !Object.hasOwn(format, 'type')) invalid('Unsupported Chat response format');
+        const type = Object.getOwnPropertyDescriptor(format, 'type');
+        if (!type || !Object.hasOwn(type, 'value') || !type.enumerable || type.value !== 'json_object') invalid('Unsupported Chat response format');
+    }
     if (input.thinking !== undefined) {
         if (!input.thinking || typeof input.thinking !== 'object' || Array.isArray(input.thinking)) invalid('Invalid Chat thinking configuration');
         const thinking = input.thinking;
@@ -55,7 +68,7 @@ function chatExtensions(value) {
         'prompt_cache_key',
         'safety_identifier'
     ])if (input[key] !== undefined && (typeof input[key] !== 'string' || !input[key].trim() || input[key].length > 256)) invalid(`Invalid Chat ${key} option`);
-    return deepFreeze(jsonCopy(input, 8192));
+    return deepFreeze(jsonCopy(input, 8192, 'request-extensions'));
 }
 function record(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Expected a JSON object from the model transport');
@@ -77,9 +90,15 @@ function jsonArguments(value) {
         return null;
     }
 }
-function jsonCopy(value, budget) {
+function jsonCopy(value, budget, phase) {
     const serialized = JSON.stringify(value);
-    if (!serialized || new TextEncoder().encode(serialized).length > budget) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model response or conversation exceeds its configured JSON byte limit');
+    if (!serialized) invalid('Model payload must be JSON serializable');
+    const actualBytes = new TextEncoder().encode(serialized).length;
+    if (actualBytes > budget) throw new KJModelError('KJMODEL_SIZE_LIMIT', `Model ${phase} exceeds its configured JSON byte limit`, {
+        phase,
+        actualBytes,
+        maxBytes: budget
+    });
     return JSON.parse(serialized);
 }
 const IMAGE_BYTES = 1048576;
@@ -254,7 +273,11 @@ function imagesForPrompt(input) {
         } catch  {
             return invalid('Invalid image base64 encoding');
         }
-        if (binary.length > IMAGE_BYTES) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Each image attachment is limited to 1 MiB of decoded bytes');
+        if (binary.length > IMAGE_BYTES) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Each image attachment is limited to 1 MiB of decoded bytes', {
+            phase: 'image',
+            actualBytes: binary.length,
+            maxBytes: IMAGE_BYTES
+        });
         if (btoa(binary) !== base64) invalid('Image attachment requires canonical base64 encoding');
         imageContainer(Uint8Array.from(binary, (char)=>char.charCodeAt(0)), mimeType);
         output.push({
@@ -292,8 +315,18 @@ function streamRecord(value, label, budget) {
     if (++budget.events > budget.maximumEvents) throw new KJModelError('KJMODEL_SIZE_LIMIT', `Streaming ${label} exceeds its configured event limit`);
     const serialized = JSON.stringify(value);
     if (!serialized) invalid(`Streaming ${label} must be JSON serializable`);
-    budget.bytes += new TextEncoder().encode(serialized).length;
-    if (budget.bytes > budget.maximumBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model response or conversation exceeds its configured JSON byte limit');
+    const eventBytes = new TextEncoder().encode(serialized).length;
+    if (eventBytes > budget.maximumEventBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model stream event exceeds its configured JSON byte limit', {
+        phase: 'stream',
+        actualBytes: eventBytes,
+        maxBytes: budget.maximumEventBytes
+    });
+    budget.bytes += eventBytes;
+    if (budget.bytes > budget.maximumBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model stream envelopes exceed their configured JSON byte limit', {
+        phase: 'stream',
+        actualBytes: budget.bytes,
+        maxBytes: budget.maximumBytes
+    });
     return record(JSON.parse(serialized));
 }
 async function* streamValues(source, signal) {
@@ -339,7 +372,7 @@ async function* streamValues(source, signal) {
         }
     }
 }
-async function assembleResponsesStream(source, maximumBytes, maximumEvents, signal, onTextDelta) {
+async function assembleResponsesStream(source, maximumEventBytes, maximumBytes, maximumEvents, signal, onTextDelta) {
     if (!isAsyncIterable(source)) invalid('Streaming Responses transport must return an async iterable of parsed JSON events');
     const texts = new Map();
     const calls = new Map();
@@ -347,6 +380,7 @@ async function assembleResponsesStream(source, maximumBytes, maximumEvents, sign
         bytes: 0,
         events: 0,
         maximumBytes,
+        maximumEventBytes,
         maximumEvents
     };
     let sequence = -1, terminal;
@@ -447,13 +481,14 @@ async function assembleResponsesStream(source, maximumBytes, maximumEvents, sign
     }
     return terminal;
 }
-async function assembleChatStream(source, maximumBytes, maximumEvents, signal, onTextDelta) {
+async function assembleChatStream(source, maximumEventBytes, maximumBytes, maximumEvents, signal, onTextDelta) {
     if (!isAsyncIterable(source)) invalid('Streaming Chat transport must return an async iterable of parsed JSON chunks');
     const tools = new Map();
     const budget = {
         bytes: 0,
         events: 0,
         maximumBytes,
+        maximumEventBytes,
         maximumEvents
     };
     let text = '', reasoning = '', encryptedContent, finishReason = null, usage;
@@ -565,12 +600,13 @@ async function assembleChatStream(source, maximumBytes, maximumEvents, signal, o
         }
     };
 }
-async function assembleAnthropicStream(source, maximumBytes, maximumEvents, signal, onTextDelta) {
+async function assembleAnthropicStream(source, maximumEventBytes, maximumBytes, maximumEvents, signal, onTextDelta) {
     if (!isAsyncIterable(source)) invalid('Streaming Anthropic transport must return an async iterable of parsed JSON events');
     const budget = {
         bytes: 0,
         events: 0,
         maximumBytes,
+        maximumEventBytes,
         maximumEvents
     }, blocks = new Map();
     let message, stopReason, stopSequence = null, finalUsage;
@@ -723,12 +759,13 @@ async function assembleAnthropicStream(source, maximumBytes, maximumEvents, sign
         }
     };
 }
-async function assembleGeminiStream(source, maximumBytes, maximumEvents, signal, onTextDelta) {
+async function assembleGeminiStream(source, maximumEventBytes, maximumBytes, maximumEvents, signal, onTextDelta) {
     if (!isAsyncIterable(source)) invalid('Streaming Gemini transport must return an async iterable of parsed JSON responses');
     const budget = {
         bytes: 0,
         events: 0,
         maximumBytes,
+        maximumEventBytes,
         maximumEvents
     }, parts = [];
     let finishReason, usageMetadata, modelVersion, responseId;
@@ -824,8 +861,11 @@ export function createKJModelAdapter(options) {
     const chatStreamToolCalls = options.chatStreamToolCalls ?? false;
     if (typeof chatStreaming !== 'boolean' || typeof responsesStreaming !== 'boolean' || typeof anthropicStreaming !== 'boolean' || typeof geminiStreaming !== 'boolean' || typeof chatStreamIncludeUsage !== 'boolean' || typeof chatStreamToolCalls !== 'boolean' || (chatStreaming || chatStreamIncludeUsage || chatStreamToolCalls) && protocol !== 'chat-completions' || responsesStreaming && protocol !== 'responses' || anthropicStreaming && protocol !== 'anthropic-messages' || geminiStreaming && protocol !== 'gemini-generate-content' || (chatStreamIncludeUsage || chatStreamToolCalls) && !chatStreaming) invalid('Streaming options require their matching model protocol');
     const responseBytes = limit(options.maxResponseBytes, 1048576, 16777216);
+    const streamBytes = limit(options.maxStreamBytes, 8388608, 8388608);
     const streamEvents = limit(options.maxStreamEvents, 16384, 131072);
     const historyBytes = limit(options.maxHistoryBytes, 2097152, 16777216);
+    const reuseReadResultReferences = options.reuseReadResultReferences ?? false;
+    if (typeof reuseReadResultReferences !== 'boolean') invalid('reuseReadResultReferences must be a boolean');
     const streaming = chatStreaming || responsesStreaming || anthropicStreaming || geminiStreaming;
     return Object.freeze({
         createConversation ({ instructions, tools, onTextDelta, onUsage, allowTextContinuation }) {
@@ -837,7 +877,10 @@ export function createKJModelAdapter(options) {
                     description: tool.description,
                     parameters: tool.inputSchema
                 }));
-            const schema = jsonCopy(definitions, historyBytes);
+            const schema = jsonCopy(definitions, historyBytes, 'tool-schema');
+            const readTools = new Set(tools.filter((tool)=>tool.effect === 'read').map((tool)=>tool.name));
+            const readReceiptCalls = new Map();
+            const callIdOccurrences = new Map();
             const history = [];
             let pending = [];
             let pendingChatInvalidIds = new Set(), pendingChatHistoryIndex = -1, chatArgumentRecoveries = 0;
@@ -941,10 +984,36 @@ export function createKJModelAdapter(options) {
                             for(let index = 0; index < pending.length; index++){
                                 if (results[index]?.id !== pending[index].id || results[index]?.name !== pending[index].name) invalid('Tool results must preserve the original call IDs, names and order');
                             }
+                            const wireResults = results.map((item, index)=>{
+                                const serialized = JSON.stringify(item.result);
+                                const value = item.result.ok ? item.result.value : undefined;
+                                const hasEntityReferences = value && typeof value === 'object' && !Array.isArray(value) && Array.isArray(value.entities) && value.entities.some((row)=>row && typeof row === 'object' && Object.hasOwn(row, 'nativeEntityReference'));
+                                if (!reuseReadResultReferences || !readTools.has(item.name) || !item.result.ok || pendingChatInvalidIds.has(item.id) || hasEntityReferences || protocol === 'gemini-generate-content' && !geminiIds.has(item.id)) return serialized;
+                                const key = JSON.stringify([
+                                    item.name,
+                                    pending[index].arguments,
+                                    serialized
+                                ]);
+                                const originalToolCallId = readReceiptCalls.get(key);
+                                if (!originalToolCallId || callIdOccurrences.get(originalToolCallId) !== 1) {
+                                    if (callIdOccurrences.get(item.id) === 1) readReceiptCalls.set(key, item.id);
+                                    return serialized;
+                                }
+                                return JSON.stringify({
+                                    ok: true,
+                                    value: {
+                                        status: 'unchanged-read-result',
+                                        originalToolCallId,
+                                        toolName: item.name,
+                                        instruction: 'Reuse the complete result of this earlier tool call in this conversation: the native read ran again with identical arguments and returned byte-identical data. This reference is not approval, a mutation receipt or evidence about anything outside that result.'
+                                    }
+                                });
+                            });
+                            const wireResult = (item)=>wireResults[results.indexOf(item)];
                             if (protocol === 'responses') history.push(...results.map((item)=>({
                                     type: 'function_call_output',
                                     call_id: item.id,
-                                    output: JSON.stringify(item.result)
+                                    output: wireResult(item)
                                 })));
                             else if (protocol === 'chat-completions') {
                                 if (pendingChatInvalidIds.size) {
@@ -968,7 +1037,7 @@ export function createKJModelAdapter(options) {
                                     history.push(...results.filter((item)=>!pendingChatInvalidIds.has(item.id)).map((item)=>({
                                             role: 'tool',
                                             tool_call_id: item.id,
-                                            content: JSON.stringify(item.result)
+                                            content: wireResult(item)
                                         })));
                                     const firstRejection = rejected[0].result;
                                     history.push({
@@ -990,14 +1059,14 @@ export function createKJModelAdapter(options) {
                                 } else history.push(...results.map((item)=>({
                                         role: 'tool',
                                         tool_call_id: item.id,
-                                        content: JSON.stringify(item.result)
+                                        content: wireResult(item)
                                     })));
                             } else if (protocol === 'anthropic-messages') history.push({
                                 role: 'user',
                                 content: results.map((item)=>({
                                         type: 'tool_result',
                                         tool_use_id: item.id,
-                                        content: JSON.stringify(item.result),
+                                        content: wireResult(item),
                                         is_error: !item.result.ok
                                     }))
                             });
@@ -1009,7 +1078,7 @@ export function createKJModelAdapter(options) {
                                                 id: geminiIds.get(item.id)
                                             } : {},
                                             name: item.name,
-                                            response: item.result
+                                            response: JSON.parse(wireResult(item))
                                         }
                                     }))
                             });
@@ -1091,7 +1160,7 @@ export function createKJModelAdapter(options) {
                                 candidateCount: 1
                             }
                         };
-                        const outgoing = deepFreeze(jsonCopy(body, historyBytes));
+                        const outgoing = deepFreeze(jsonCopy(body, historyBytes, 'request'));
                         const startedAt = performance.now();
                         const responseSource = await request({
                             protocol,
@@ -1105,23 +1174,27 @@ export function createKJModelAdapter(options) {
                             notifyText(onTextDelta, text);
                             notifyText(adapterText, text);
                         };
-                        const rawResponse = chatStreaming && streamedResponse ? await assembleChatStream(responseSource, responseBytes, streamEvents, signal, delta) : responsesStreaming && streamedResponse ? await assembleResponsesStream(responseSource, responseBytes, streamEvents, signal, delta) : anthropicStreaming && streamedResponse ? await assembleAnthropicStream(responseSource, responseBytes, streamEvents, signal, delta) : geminiStreaming && streamedResponse ? await assembleGeminiStream(responseSource, responseBytes, streamEvents, signal, delta) : responseSource;
+                        const rawResponse = chatStreaming && streamedResponse ? await assembleChatStream(responseSource, responseBytes, streamBytes, streamEvents, signal, delta) : responsesStreaming && streamedResponse ? await assembleResponsesStream(responseSource, responseBytes, streamBytes, streamEvents, signal, delta) : anthropicStreaming && streamedResponse ? await assembleAnthropicStream(responseSource, responseBytes, streamBytes, streamEvents, signal, delta) : geminiStreaming && streamedResponse ? await assembleGeminiStream(responseSource, responseBytes, streamBytes, streamEvents, signal, delta) : responseSource;
                         if (!streaming && streamedResponse) invalid('Non-streaming model transport returned an async iterable');
                         const usage = extractKJModelUsage(protocol, rawResponse, {
                             latencyMs: Math.max(0, performance.now() - startedAt)
                         });
                         notifyUsage(onUsage, usage);
                         notifyUsage(adapterUsage, usage);
-                        const response = record(jsonCopy(rawResponse, responseBytes));
+                        const response = record(jsonCopy(rawResponse, responseBytes, 'response'));
                         signal.throwIfAborted();
                         turnNumber++;
                         let text = '';
                         const calls = [];
-                        const addCall = (id, name, args)=>calls.push({
-                                id: identifier(id),
+                        const addCall = (id, name, args)=>{
+                            const callId = identifier(id);
+                            calls.push({
+                                id: callId,
                                 name: identifier(name),
                                 arguments: args
                             });
+                            callIdOccurrences.set(callId, (callIdOccurrences.get(callId) ?? 0) + 1);
+                        };
                         if (protocol === 'responses') {
                             if (response.status !== 'completed') throw new KJModelError('KJMODEL_INCOMPLETE', 'Response is incomplete or failed; no tool calls were dispatched');
                             const output = array(response.output);

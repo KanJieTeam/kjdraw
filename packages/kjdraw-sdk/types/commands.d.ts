@@ -5,6 +5,7 @@ import type { KJDocument } from './document.js';
 import type { KJSelectionManager } from './selection.js';
 import type { KJObjectPatch, KJTransaction } from './transaction.js';
 import type { KJObjectPayload, KJObjectSpec } from './schema.js';
+import type { Point3 } from './geometry/index.js';
 export interface KJCommandEnvelopeContext {
     readonly id?: unknown;
     readonly schema?: unknown;
@@ -759,3 +760,27 @@ export declare class KJCommandRegistry {
     executeRegisteredInTransaction(command: KJRegisteredCommand, context: KJCommandContext, args?: KJCommandArguments): Promise<unknown>;
 }
 export declare function registerCoreCommands(registry: KJCommandRegistry): () => void;
+interface KJStructuralReconnection {
+    readonly id: string;
+    readonly type: 'LINE' | 'LWPOLYLINE';
+    readonly points: readonly Point3[];
+    readonly layerId: string;
+}
+interface KJStructuralCreation {
+    readonly id: string;
+    readonly type: 'LINE' | 'LWPOLYLINE' | 'HATCH' | 'TEXT';
+    readonly payload: KJObjectPayload;
+}
+interface KJPreparedStructuralEdit {
+    readonly eraseIds: readonly string[];
+    readonly effectiveEraseIds: readonly string[];
+    readonly reconnections: readonly KJStructuralReconnection[];
+    readonly creations: readonly KJStructuralCreation[];
+    readonly relayer: Readonly<{
+        ids: readonly string[];
+        layerId: string;
+    }> | null;
+}
+/** Shared core/approval-preview preflight; counts actual owned erase records. */
+export declare function prepareStructuralEdit(document: KJDocument, args: KJCommandArguments): KJPreparedStructuralEdit;
+export {};

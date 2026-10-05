@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { zoomViewerCamera, panViewerCamera } from '../apps/playground/ai/drawing-viewer.js'
+import { createDrawingViewer, zoomViewerCamera, panViewerCamera } from '../apps/playground/ai/drawing-viewer.js'
 import { createAiChatRuntime, computeAiDocumentCamera } from '../apps/playground/ai/runtime.js'
 import { createKJDrawSDK } from '../packages/kjdraw-sdk/src/sdk.js'
 
@@ -15,6 +15,73 @@ function canvasFixture(width = 640, height = 360) {
     canvas: { width, height, clientWidth: width, clientHeight: height, getContext: () => context,
       getBoundingClientRect: () => ({ width, height }) },
   }
+}
+
+// A small deterministic DOM host: camera lifecycle tests do not need a browser
+// or a provider. The actual runtime proposal test below still renders real CAD.
+function viewerHost(runtime, options = {}) {
+  const frames = new Map()
+  let sequence = 0
+  const window = {
+    devicePixelRatio: 1,
+    requestAnimationFrame: callback => { frames.set(++sequence, callback); return sequence },
+    cancelAnimationFrame: id => frames.delete(id),
+    addEventListener() {}, removeEventListener() {},
+  }
+  class Element {
+    constructor(tag) {
+      this.tagName = tag; this.ownerDocument = document; this.children = []
+      this.dataset = {}; this.attributes = {}; this.events = new Map()
+      this.clientWidth = 640; this.clientHeight = 360; this.width = 640; this.height = 360
+      this.classList = { add() {}, remove() {} }
+    }
+    get isConnected() { return this === document.body || Boolean(this.parentElement?.isConnected) }
+    setAttribute(key, value) { this.attributes[key] = value }
+    getAttribute(key) { return this.attributes[key] }
+    append(...elements) {
+      for (const element of elements) { element.remove(); element.parentElement = this; this.children.push(element) }
+    }
+    remove() {
+      if (this.parentElement) this.parentElement.children = this.parentElement.children.filter(child => child !== this)
+      this.parentElement = null
+    }
+    addEventListener(name, handler) { this.events.set(name, handler) }
+    removeEventListener(name) { this.events.delete(name) }
+    emit(name, event = {}) { this.events.get(name)?.({ preventDefault() {}, ...event }) }
+    getBoundingClientRect() { return { width: this.clientWidth, height: this.clientHeight, left: 0, top: 0, right: this.clientWidth, bottom: this.clientHeight } }
+    querySelector(selector) {
+      const all = this.children.flatMap(child => [child, ...child.descendants()])
+      return all.find(element => selector.startsWith('.') ? element.className === selector.slice(1) : element.tagName === selector)
+    }
+    descendants() { return this.children.flatMap(child => [child, ...child.descendants()]) }
+    focus() { document.activeElement = this }
+    showModal() { this.open = true }
+    close() { this.open = false; this.emit('close') }
+  }
+  const document = { defaultView: window, createElement: tag => new Element(tag) }
+  document.body = new Element('body')
+  const container = document.createElement('div')
+  document.body.append(container)
+  const { canvas, calls } = canvasFixture()
+  const sourceCanvas = document.createElement('canvas')
+  sourceCanvas.getContext = canvas.getContext
+  const viewer = createDrawingViewer({ container, runtime, canvas: sourceCanvas, ...options })
+  const flush = () => { for (const [id, callback] of frames) { frames.delete(id); callback() } }
+  const shell = container.querySelector('.drawing-viewer')
+  const stage = container.querySelector('.drawing-viewer-stage')
+  const button = action => shell.descendants().find(element => element.dataset.viewerAction === action)
+  return { viewer, flush, shell, stage, canvas: sourceCanvas, calls, button, document }
+}
+
+function cameraRuntime() {
+  const renders = []
+  const runtime = {
+    revision: 1,
+    getViewerCamera: ({ mode, planId }) => ({ centerX: mode === 'proposal' ? Number(planId) : runtime.revision * 10, centerY: 20, scale: 2 }),
+    renderDocument: (_canvas, options) => { renders.push({ mode: 'document', camera: { ...options.camera } }); return { rendered: 1 } },
+    renderProposal: (_canvas, planId, options) => { renders.push({ mode: 'proposal', planId, camera: { ...options.camera } }); return { rendered: 1 } },
+  }
+  return { runtime, renders }
 }
 
 const worldAt = (camera, [x, y], { width, height }) => [
@@ -41,6 +108,125 @@ test('pointer pan follows screen movement without modifying its previous camera'
   const camera = { centerX: 10, centerY: 30, scale: 2 }
   assert.deepEqual(panViewerCamera(camera, 60, -20), { centerX: -20, centerY: 20, scale: 2 })
   assert.deepEqual(camera, { centerX: 10, centerY: 30, scale: 2 })
+})
+
+test('opt-in refresh preserves zoom and pan across revision, mode and plan changes; explicit fit resets', () => {
+  const { runtime, renders } = cameraRuntime()
+  const host = viewerHost(runtime)
+  host.viewer.refresh({ preserveCamera: true })
+  host.flush()
+  assert.deepEqual(host.viewer.getCamera(), { centerX: 10, centerY: 20, scale: 2 })
+  host.button('zoom-in').emit('click')
+  host.stage.emit('keydown', { key: 'ArrowRight' })
+  host.flush()
+  const camera = host.viewer.getCamera()
+  camera.centerX += 999 // getCamera returns a copy, not the viewer's mutable state.
+  const saved = host.viewer.getCamera()
+  for (const next of [{}, { mode: 'proposal', planId: '90' }, { planId: '120' }, { mode: 'document' }]) {
+    runtime.revision++
+    host.viewer.refresh({ ...next, preserveCamera: true })
+    host.flush()
+    assert.deepEqual(host.viewer.getCamera(), saved)
+    assert.deepEqual(renders.at(-1).camera, saved)
+  }
+  host.viewer.refresh({ preserveCamera: true, fit: true })
+  host.flush()
+  assert.deepEqual(host.viewer.getCamera(), { centerX: runtime.revision * 10, centerY: 20, scale: 2 })
+  host.button('zoom-in').emit('click'); host.flush()
+  host.viewer.fit(); host.flush()
+  assert.equal(host.viewer.getCamera().scale, 2)
+  host.viewer.destroy()
+})
+
+test('default refresh still resets on revisions, modes and plans', () => {
+  const { runtime } = cameraRuntime()
+  const host = viewerHost(runtime)
+  host.flush()
+  for (const [next, centerX] of [[{}, 20], [{ mode: 'proposal', planId: '90' }, 90], [{ planId: '120' }, 120], [{ mode: 'document' }, 50]]) {
+    host.button('zoom-in').emit('click'); host.flush()
+    runtime.revision++
+    host.viewer.refresh(next); host.flush()
+    assert.deepEqual(host.viewer.getCamera(), { centerX, centerY: 20, scale: 2 })
+  }
+  host.viewer.destroy()
+})
+
+test('preserved refresh also keeps its camera when review controls resize the viewport in that refresh', () => {
+  const { runtime } = cameraRuntime()
+  runtime.getViewerCamera = ({ mode, width, height }) => ({ centerX: mode === 'proposal' ? 99 : 10, centerY: 20, scale: (mode === 'proposal' ? 8 : 2) * Math.min(width / 640, height / 360) })
+  const host = viewerHost(runtime)
+  host.flush(); host.button('zoom-in').emit('click'); host.stage.emit('keydown', { key: 'ArrowRight' }); host.flush()
+  const saved = host.viewer.getCamera()
+  host.stage.clientHeight = 280
+  host.viewer.refresh({ mode: 'proposal', planId: '90', preserveCamera: true }); host.flush()
+  assert.deepEqual(host.viewer.getCamera(), saved)
+  host.stage.clientHeight = 360
+  host.viewer.refresh({ mode: 'document', preserveCamera: true }); host.flush()
+  assert.deepEqual(host.viewer.getCamera(), saved)
+  // A later independent viewport resize still uses the original relative-fit
+  // behavior, rather than disabling responsive/fullscreen rendering altogether.
+  host.stage.clientWidth = 1280; host.stage.clientHeight = 720
+  host.viewer.enlarge(); host.flush()
+  assert.deepEqual(host.viewer.getCamera(), { ...saved, scale: saved.scale * 2 })
+  host.viewer.destroy()
+})
+
+test('refresh labels updates button titles, aria labels, fullscreen heading and close control', () => {
+  const { runtime } = cameraRuntime()
+  const host = viewerHost(runtime)
+  host.flush(); host.viewer.enlarge(); host.flush()
+  const labels = { title: '图纸预览', zoomIn: '放大', zoomOut: '缩小', fit: '适合窗口', enlarge: '全屏查看', close: '关闭预览', hint: '滚轮缩放，拖动平移' }
+  host.viewer.refresh({ labels, preserveCamera: true }); host.flush()
+  for (const [action, key] of [['zoom-in', 'zoomIn'], ['zoom-out', 'zoomOut'], ['fit', 'fit'], ['enlarge', 'enlarge'], ['close', 'close']]) {
+    const control = action === 'close' ? host.document.body.descendants().find(element => element.dataset.viewerAction === action) : host.button(action)
+    assert.equal(control.title, labels[key])
+    assert.equal(control.getAttribute('aria-label'), labels[key])
+    if (action === 'fit' || action === 'enlarge') assert.equal(control.textContent, labels[key])
+  }
+  assert.equal(host.document.body.querySelector('h2').textContent, labels.title)
+  assert.equal(host.shell.getAttribute('aria-label'), labels.title)
+  assert.equal(host.canvas.getAttribute('aria-label'), labels.title)
+  assert.equal(host.stage.getAttribute('aria-label'), labels.title)
+  assert.equal(host.shell.querySelector('.drawing-viewer-hint').textContent, labels.hint)
+  host.viewer.close(); host.viewer.enlarge(); host.flush()
+  assert.equal(host.document.body.querySelector('h2').textContent, labels.title)
+  host.viewer.destroy()
+})
+
+test('stale actual proposal clears its bitmap without displaying current geometry or mutating CAD', async () => {
+  const runtime = createAiChatRuntime({ endpoint: 'https://example.invalid/v1/chat/completions', model: 'mock-model',
+    fetchImpl: async () => Response.json({ choices: [{ message: { role: 'assistant', content: '', tool_calls: [{
+      id: 'viewer-stale', type: 'function', function: { name: 'cad_propose_drawing_pattern', arguments: JSON.stringify({
+        expectedRevision: 0, units: 'millimeter', lines: [[0, 0, 20, 0]], circles: [], arcs: [], polylines: [], arrays: [],
+      }) },
+    }] }, finish_reason: 'tool_calls' }] }),
+  })
+  let host
+  try {
+    const result = await runtime.send('Draw a line from 0,0 to 20,0 millimeters')
+    assert.equal(result.status, 'proposal')
+    host = viewerHost(runtime, { mode: 'proposal', planId: result.proposal.planId })
+    host.flush()
+    assert.equal(host.shell.dataset.viewerError, undefined)
+    assert.ok(host.calls.some(([method]) => method === 'lineTo'))
+    assert.equal((await runtime.approve(result.proposal.planId)).status, 'applied')
+    const before = await runtime.exportLocalState()
+    let bitmapResets = 0
+    let width = host.canvas.width
+    Object.defineProperty(host.canvas, 'width', { get: () => width, set: value => { bitmapResets++; width = value } })
+    const renderedCalls = host.calls.length
+    host.viewer.refresh({ preserveCamera: true }); host.flush()
+    assert.equal(host.shell.dataset.viewerError, 'true')
+    assert.equal(host.shell.dataset.viewerRendered, '0')
+    assert.equal(bitmapResets, 1)
+    assert.equal(host.calls.length, renderedCalls) // No renderer or document fallback ran.
+    assert.equal(host.button('zoom-in').disabled, true)
+    assert.deepEqual(await runtime.exportLocalState(), before)
+    host.viewer.refresh({ mode: 'document', preserveCamera: true }); host.flush()
+    assert.equal(host.shell.dataset.viewerError, undefined)
+    assert.equal(host.shell.dataset.viewerRendered, '1')
+    assert.deepEqual(await runtime.exportLocalState(), before)
+  } finally { host?.viewer.destroy(); runtime.destroy() }
 })
 
 test('document fit uses visible model entities, including locked layers, instead of paper or hidden extents', async () => {

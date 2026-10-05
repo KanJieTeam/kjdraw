@@ -12,6 +12,7 @@ export interface KJHatchPatternCatalogLine {
 export interface KJHatchPatternCatalogEntry {
   name: string
   description: string
+  aliases?: string[]
   lines: KJHatchPatternCatalogLine[]
 }
 
@@ -72,10 +73,14 @@ export function parseAutoCADPat(source: string): ReadonlyDeep<KJHatchPatternCata
     const values = fields.map((value, index) => number(value, `line ${lineIndex + 1} field ${index + 1}`))
     const dashes = values.slice(5)
     if (dashes.length && dashes.every(value => value === 0)) fail(`line ${lineIndex + 1} dash cycle cannot contain only dots`)
+    const angle = values[0]! * Math.PI / 180
+    // PAT delta-x/delta-y are in the individual line family's local basis.
+    // Native HATCH/DXF offsets are OCS vectors; base points are already OCS.
+    const cosine = Math.cos(angle), sine = Math.sin(angle)
     current.lines.push({
-      angle: values[0]! * Math.PI / 180,
+      angle,
       base: [values[1]!, values[2]!],
-      offset: [values[3]!, values[4]!],
+      offset: [values[3]! * cosine - values[4]! * sine, values[3]! * sine + values[4]! * cosine],
       dashes,
     })
   }

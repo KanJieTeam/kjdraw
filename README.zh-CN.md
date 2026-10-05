@@ -18,11 +18,11 @@
 </div>
 
 <p align="center">
-  <a href="https://kanjieteam.github.io/kjdraw/">
-    <img src="docs/media/kjdraw-workflow.gif" alt="KJDraw 工作台：打开图纸、审核改动、绘制并标注零件" width="100%" />
+  <a href="https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/">
+    <img src="docs/media/ai-geology-live-20261003/synthetic-live-model-highlights.gif" alt="真实 DeepSeek 在同一张合成地质剖面中完成十轮审阅修改、撤销重做和 DXF 重开" width="100%" />
   </a>
   <br/>
-  <sub>录制于内置工作台，图中 Agent 面板播放的是预设场景。在真实 AI 客户端中使用，请看下方快速开始。</sub>
+  <sub>真实 DeepSeek · 同一张合成剖面，十轮修改 · 精简录屏。<a href="https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/">完整录屏与检查结果 ↗</a></sub>
 </p>
 
 ## 画出来，还能继续改

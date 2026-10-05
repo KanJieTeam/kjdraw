@@ -13,6 +13,8 @@ function workflowTimeoutMinutes(workflow) {
 }
 
 function exactMainWaitSeconds(workflow) {
+  const deadlineWindow = /poll_wait_seconds=(\d+)/.exec(workflow)?.[1]
+  if (deadlineWindow) return Number(deadlineWindow)
   const attempts = /for attempt in \$\(seq 1 (\d+)\)/.exec(workflow)?.[1]
   const interval = /sleep (\d+)/.exec(workflow)?.[1]
   assert.ok(attempts && interval, 'exact-main gate must declare a bounded polling window')

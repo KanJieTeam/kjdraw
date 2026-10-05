@@ -39,7 +39,7 @@ export interface KJAgentGeometryPreview {
         before: KJReadonlyObjectRecord;
         after: KJReadonlyObjectRecord | null;
     }>[];
-    readonly command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT' | 'ROAD_DRAWING_UPDATE' | 'GEOLOGY_DRAWING_UPDATE' | 'UNDO' | 'REDO';
+    readonly command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT' | 'HATCHPATTERN' | 'ROAD_DRAWING_UPDATE' | 'GEOLOGY_DRAWING_UPDATE' | 'UNDO' | 'REDO';
     readonly historyChange?: {
         readonly targetHistoryId: string;
         readonly targetRevision: number;
@@ -67,7 +67,7 @@ export interface KJAgentGeometryPreviewOptions {
     maxPreviewBytes?: number;
 }
 /** Run bounded core geometry on a detached document. No host plugins, authority, network or source history is invoked. */
-export declare function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT', args: Record<string, unknown>, options?: KJAgentGeometryPreviewOptions): Promise<KJAgentGeometryPreview>;
+export declare function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT' | 'HATCHPATTERN', args: Record<string, unknown>, options?: KJAgentGeometryPreviewOptions): Promise<KJAgentGeometryPreview>;
 /** Project the engine's retained snapshot; this never guesses inverse geometry. */
 export declare function createAgentHistoryPreview(document: KJDocument, command: 'UNDO' | 'REDO', targetHistoryId: string, expectedRevision: number): KJAgentGeometryPreview;
 export declare function agentPreviewMatchesDocument(document: KJDocument, preview: KJAgentGeometryPreview): boolean;

@@ -1,6 +1,6 @@
 // Generated from geology-engineering.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
-import { stableHash, deepFreeze } from './utils.js';
+import { stableHash, canonicalStringify, deepFreeze } from './utils.js';
 import { validateKnowledgePack } from './knowledge-pack.js';
 import { hatchPatternFromKnowledgePack } from './hatch-pattern-catalog.js';
 import { layoutCadMText } from './geometry/text-layout.js';
@@ -1602,6 +1602,9 @@ function sectionLayout(input) {
         ...value.sourceBackedStratigraphicGroupLabels == null ? [] : [
             'sourceBackedStratigraphicGroupLabels'
         ],
+        ...value.legendStyle == null ? [] : [
+            'legendStyle'
+        ],
         ...value.headingTextStyle == null ? [] : [
             'headingTextStyle'
         ],
@@ -2411,6 +2414,31 @@ function sectionLayout(input) {
         const gridEnd = footerGrid[index + 1]?.start ?? right;
         if (declaredGrid && (index === 0 && Math.abs(cell.start - left) > 1e-6 || index && cell.start <= footerGrid[index - 1].start || gridEnd - cell.start < 28)) throw new KJValidationError('Geology: section footer cell is out of bounds or unreadable');
     }
+    let legendStyle;
+    if (value.legendStyle != null) {
+        const keys = [
+            'left',
+            'right',
+            'bottom',
+            'top',
+            'columns',
+            'swatchWidth',
+            'swatchHeight',
+            'textHeight',
+            'textWidthFactor',
+            'gap'
+        ];
+        if (!value.legendStyle || typeof value.legendStyle !== 'object' || Array.isArray(value.legendStyle) || Object.keys(value.legendStyle).sort().join(',') !== [
+            ...keys
+        ].sort().join(',')) throw new KJValidationError('Geology: section legend needs an exact declarative placement schema');
+        const supplied = value.legendStyle;
+        const style = Object.fromEntries(keys.map((key)=>[
+                key,
+                numeric(supplied[key], `section legend ${key}`)
+            ]));
+        if (style.left < innerMargins.left || style.right > scalars.paperWidth - innerMargins.right || style.right <= style.left || style.bottom < scalars.plotTop + 12 || style.top > Math.min(scalars.scaleY - 2, scalars.titleY - 2, scalars.paperHeight - innerMargins.top) || style.top - style.bottom < 2 || !Number.isInteger(style.columns) || style.columns < 1 || style.columns > 16 || style.swatchWidth < 2 || style.swatchWidth > 20 || style.swatchHeight < 1.5 || style.swatchHeight > 10 || style.textHeight < 1.5 || style.textHeight > 5 || style.textWidthFactor < .5 || style.textWidthFactor > 1.5 || style.gap < .5 || style.gap > 4) throw new KJValidationError('Geology: section legend leaves its reserved strip or is physically unreadable');
+        legendStyle = style;
+    }
     return {
         ...scalars,
         drawingOrigin,
@@ -2450,6 +2478,9 @@ function sectionLayout(input) {
         } : {},
         ...sourceBackedStratigraphicGroupLabels ? {
             sourceBackedStratigraphicGroupLabels
+        } : {},
+        ...legendStyle ? {
+            legendStyle
         } : {},
         ...footerFrameStyle ? {
             footerFrameStyle
@@ -2841,6 +2872,120 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
             ...hatches[layer.patternKey ?? layer.lithology] ?? {},
             ...presentation ?? {}
         });
+    const assertRegionClear = (left, bottom, right, top)=>{
+        left += drawingOrigin[0];
+        right += drawingOrigin[0];
+        bottom += drawingOrigin[1];
+        top += drawingOrigin[1];
+        const overlaps = (xmin, ymin, xmax, ymax)=>xmax > left + 1e-6 && xmin < right - 1e-6 && ymax > bottom + 1e-6 && ymin < top - 1e-6;
+        const segmentIntersects = (start, end, halfWidth = 0)=>{
+            let lo = 0, hi = 1;
+            const dx = end[0] - start[0], dy = end[1] - start[1];
+            for (const [p, q] of [
+                [
+                    -dx,
+                    start[0] - left + halfWidth - 1e-6
+                ],
+                [
+                    dx,
+                    right - start[0] + halfWidth - 1e-6
+                ],
+                [
+                    -dy,
+                    start[1] - bottom + halfWidth - 1e-6
+                ],
+                [
+                    dy,
+                    top - start[1] + halfWidth - 1e-6
+                ]
+            ]){
+                if (p === 0) {
+                    if (q < 0) return false;
+                    continue;
+                }
+                const ratio = q / p;
+                if (p < 0) lo = Math.max(lo, ratio);
+                else hi = Math.min(hi, ratio);
+                if (lo > hi) return false;
+            }
+            return true;
+        };
+        for (const entity of entities){
+            const payload = entity.payload;
+            let collision = false;
+            if (entity.type === 'LINE') collision = segmentIntersects(payload.start, payload.end);
+            else if (entity.type === 'LWPOLYLINE') {
+                const vertices = payload.vertices;
+                const halfWidth = (payload.constantWidth ?? 0) / 2;
+                collision = vertices.some((start, index)=>index + 1 < vertices.length ? segmentIntersects(start, vertices[index + 1], halfWidth) : payload.closed === true && segmentIntersects(start, vertices[0], halfWidth));
+            } else if (entity.type === 'TEXT') {
+                const point = payload.alignmentPoint ?? payload.position, height = payload.height;
+                const width = [
+                    ...payload.text
+                ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? .8 : 1.2) * height, 0) * (payload.widthFactor ?? 1);
+                const alignment = payload.horizontalAlignment;
+                const vertical = alignment === 4 ? 2 : payload.verticalAlignment;
+                const xmin = point[0] - (alignment === 1 || alignment === 4 ? width / 2 : alignment === 2 ? width : 0);
+                const ymin = point[1] - (vertical === 2 ? height / 2 : vertical === 3 ? height : height * .25);
+                if (alignment === 5) {
+                    const start = payload.position;
+                    collision = overlaps(Math.min(start[0], point[0]), Math.min(start[1], point[1]) - height, Math.max(start[0], point[0]), Math.max(start[1], point[1]) + height);
+                } else {
+                    const radians = payload.rotation ?? 0;
+                    const corners = [
+                        [
+                            xmin,
+                            ymin
+                        ],
+                        [
+                            xmin + width,
+                            ymin
+                        ],
+                        [
+                            xmin + width,
+                            ymin + height * 1.25
+                        ],
+                        [
+                            xmin,
+                            ymin + height * 1.25
+                        ]
+                    ].map(([x, y])=>[
+                            point[0] + (x - point[0]) * Math.cos(radians) - (y - point[1]) * Math.sin(radians),
+                            point[1] + (x - point[0]) * Math.sin(radians) + (y - point[1]) * Math.cos(radians)
+                        ]);
+                    collision = overlaps(Math.min(...corners.map((corner)=>corner[0])), Math.min(...corners.map((corner)=>corner[1])), Math.max(...corners.map((corner)=>corner[0])), Math.max(...corners.map((corner)=>corner[1])));
+                }
+            } else {
+                let points = [];
+                if (entity.type === 'HATCH') points = payload.boundaryLoops.flatMap((loop)=>loop.vertices ?? (loop.edges ?? []).flatMap((edge)=>edge.center && edge.radius ? [
+                            [
+                                edge.center[0] - edge.radius,
+                                edge.center[1] - edge.radius
+                            ],
+                            [
+                                edge.center[0] + edge.radius,
+                                edge.center[1] + edge.radius
+                            ]
+                        ] : []));
+                else if (entity.type === 'SOLID') points = payload.vertices;
+                else if (entity.type === 'CIRCLE') {
+                    const center = payload.center, radius = payload.radius;
+                    points = [
+                        [
+                            center[0] - radius,
+                            center[1] - radius
+                        ],
+                        [
+                            center[0] + radius,
+                            center[1] + radius
+                        ]
+                    ];
+                } else throw new KJValidationError('Geology: section legend cannot safely reserve space beside an unsupported annotation primitive');
+                if (points.length) collision = overlaps(Math.min(...points.map((point)=>point[0])), Math.min(...points.map((point)=>point[1])), Math.max(...points.map((point)=>point[0])), Math.max(...points.map((point)=>point[1])));
+            }
+            if (collision) throw new KJValidationError('Geology: section legend overlaps existing native geometry or annotation');
+        }
+    };
     const finish = (parameters)=>deepFreeze({
             commandArgs: {
                 entities,
@@ -2889,6 +3034,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
         circularHatch,
         solidPolygonHatch,
         hatch,
+        assertRegionClear,
         finish
     };
 }
@@ -4053,8 +4199,22 @@ function validateSectionOccurrenceCoverage(input, holes, byId) {
         if (coverage.get(identity) != null) throw new KJValidationError('Geology: duplicate or conflicting interval occurrence declaration');
         coverage.set(identity, status);
     };
-    for (const link of input.correlations){
-        if (!link.fromIntervalId || !link.toIntervalId || link.fromStratumCode || link.toStratumCode) throw new KJValidationError('Geology: complete occurrence map requires exact interval-ID correlations');
+    for (const [index, link] of input.correlations.entries()){
+        if (!link.fromIntervalId || !link.toIntervalId || link.fromStratumCode || link.toStratumCode) {
+            const legacy = [
+                'fromStratumCode',
+                'toStratumCode'
+            ].filter((field)=>link[field]);
+            const missing = [
+                'fromIntervalId',
+                'toIntervalId'
+            ].filter((field)=>!link[field]);
+            const problems = [
+                legacy.length ? `remove legacy selector fields ${legacy.join(', ')}; keep the actual source interval IDs` : '',
+                missing.length ? `missing interval-ID fields ${missing.join(', ')}; read the actual source interval IDs; never guess them` : ''
+            ].filter(Boolean).join('; ');
+            throw new KJValidationError(`Geology: complete occurrence map requires exact interval-ID correlations: correlations[${index}] ${problems}. Allowed exact correlation fields: fromHoleId, toHoleId, fromIntervalId, toIntervalId.`);
+        }
         mark(link.fromHoleId, link.toHoleId, link.fromIntervalId, 'linked');
         mark(link.toHoleId, link.fromHoleId, link.toIntervalId, 'linked');
     }
@@ -4127,9 +4287,11 @@ export function compileGeologySection(input) {
     const x = (hole)=>originX + (hole.station - holes[0].station) * hs;
     const y = (hole, depth)=>layout.plotBottom + (hole.collarElevation - depth - datum) * vs;
     if (x(holes.at(-1)) > layout.plotRight - 4 || holes.some((hole)=>y(hole, 0) > layout.plotTop || y(hole, hole.depth) < layout.plotBottom)) throw new KJValidationError('Geology: section does not fit A3 at the declared scales and datum');
-    const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, [
+    const sectionStrata = [
         ...byId.values()
-    ].flatMap((value)=>value.strata)), undefined, undefined, layout.drawingOrigin);
+    ].flatMap((value)=>value.strata);
+    const sectionPatterns = patternDefinitions(input.hatchPack, sectionStrata);
+    const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision, sectionPatterns, undefined, undefined, layout.drawingOrigin);
     const emitPlaced = (baseX, baseY, value, placement)=>g.placedText(3, baseX + placement.offset[0], baseY + placement.offset[1], value, placement.height, placement.textWidthFactor, placement.horizontalAlignment === 'middle' ? 4 : placement.horizontalAlignment === 'center' ? 1 : placement.horizontalAlignment === 'right' ? 2 : 0, placement.verticalAlignment === 'middle' ? 2 : 0, 0);
     const emitTextRole = (baseX, baseY, value, placement)=>g.placedText(3, baseX + placement.offset[0], baseY + placement.offset[1], value, placement.height, placement.textWidthFactor, placement.horizontalAlignment, placement.verticalAlignment, 0);
     const fixed = (value, precision)=>value.toFixed(precision);
@@ -4707,9 +4869,76 @@ export function compileGeologySection(input) {
         if (length < 0.2 || length > 4000) throw new KJValidationError(`Geology: source-backed boundary polyline ${boundaryIndex + 1} is physically unreadable`);
         g.poly(1, points, closed);
     }
+    let legendEntryCount = 0, legendHatchCount = 0;
+    if (layout.legendStyle) {
+        const style = layout.legendStyle, presentation = layout.sectionHatchPresentation?.boreholeColumn;
+        const entries = [
+            ...new Map(sectionStrata.map((layer)=>{
+                const resolved = {
+                    patternName: pattern[layer.lithology],
+                    solid: false,
+                    patternScale: .6,
+                    patternAngle: 0,
+                    ...sectionPatterns[layer.patternKey ?? layer.lithology] ?? {},
+                    ...presentation ?? {}
+                };
+                return [
+                    canonicalStringify({
+                        name: layer.name,
+                        resolved,
+                        visibility: layer.patternVisibility ?? 'filled'
+                    }),
+                    layer
+                ];
+            })).values()
+        ];
+        const cellWidth = (style.right - style.left) / style.columns;
+        const rowHeight = Math.max(style.swatchHeight, style.textHeight * 1.4) + style.gap;
+        if (entries.length > 64 || Math.ceil(entries.length / style.columns) * rowHeight > style.top - style.bottom + 1e-9) throw new KJValidationError('Geology: section legend exceeds its declared entry/row density; names must never be omitted');
+        for (const layer of entries){
+            const textWidth = [
+                ...layer.name
+            ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? .8 : 1.2) * style.textHeight, 0) * style.textWidthFactor;
+            if (textWidth > cellWidth - style.swatchWidth - 3 * style.gap) throw new KJValidationError('Geology: exact source interval name does not fit its declared legend cell');
+        }
+        g.assertRegionClear(style.left, style.bottom, style.right, style.top);
+        for (const [index, layer] of entries.entries()){
+            const left = style.left + index % style.columns * cellWidth + style.gap;
+            const centerY = style.top - Math.floor(index / style.columns) * rowHeight - rowHeight / 2;
+            const bottom = centerY - style.swatchHeight / 2, top = centerY + style.swatchHeight / 2;
+            g.rect(1, left, bottom, left + style.swatchWidth, top);
+            if (layer.patternVisibility !== 'boundary-only') {
+                g.hatch([
+                    [
+                        left,
+                        bottom
+                    ],
+                    [
+                        left + style.swatchWidth,
+                        bottom
+                    ],
+                    [
+                        left + style.swatchWidth,
+                        top
+                    ],
+                    [
+                        left,
+                        top
+                    ]
+                ], layer, presentation);
+                legendHatchCount++;
+            }
+            g.text(3, left + style.swatchWidth + style.gap, centerY - style.textHeight / 2, layer.name, style.textHeight, false, style.textWidthFactor);
+        }
+        legendEntryCount = entries.length;
+    }
     return g.finish({
         horizontalScaleDenominator: input.horizontalScaleDenominator,
         verticalScaleDenominator: input.verticalScaleDenominator,
+        ...layout.legendStyle ? {
+            sourceLinkedLegendEntryCount: legendEntryCount,
+            sourceLinkedLegendHatchCount: legendHatchCount
+        } : {},
         ...layout.elevationTickSequence ? {
             elevationTickCount
         } : {},

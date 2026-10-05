@@ -10,6 +10,7 @@ import { KJDocument as GeologyRecipeDocument } from './document.js'
 import { createDesignRelations, deleteDesignRelations, readDesignRelations, updateDesignRelations } from './design-relations.js'
 import { createEraseImpact } from './erase-impact.js'
 import { applyTextEdits, validateTextEdits } from './text-edit.js'
+import { applyHatchPatternEdits, validateHatchPatternEdits, nativeHatchPattern } from './agent-hatch-pattern.js'
 import { editHatch } from './hatch-edit.js'
 import { insertCatalogComponent, searchComponentCatalog } from './component-library.js'
 import type { KJRoadDrawingResult } from './road-drawing.js'
@@ -32,6 +33,7 @@ import {
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js'
 import type { ReadonlyDeep } from './utils.js'
 import { editEntityGrip } from './grips.js'
+import { layoutCadText } from './geometry/text-layout.js'
 import type { KJPointInput } from './grips.js'
 import { migrateBreakDimensionAssociations, migrateCircleBreakDimensionAssociations, migratePolylineDimensionAssociations, normalizeDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js'
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js'
@@ -496,6 +498,7 @@ export class KJCommandRegistry {
     if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'entities')) validateCommandData(args, 'CREATEBATCH')
     if (command.id === 'STRUCTURALEDIT' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'STRUCTURALEDIT')
     if (command.id === 'TEXTEDIT' && command.owner === '@kanjieteam/kjdraw') validateTextEdits(args)
+    if (command.id === 'HATCHPATTERN' && command.owner === '@kanjieteam/kjdraw') validateHatchPatternEdits(args)
     if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE')
     if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE')
     if (command.transactional === false) {
@@ -532,6 +535,7 @@ export class KJCommandRegistry {
     if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'entities')) validateCommandData(args, 'CREATEBATCH')
     if (command.id === 'STRUCTURALEDIT' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'STRUCTURALEDIT')
     if (command.id === 'TEXTEDIT' && command.owner === '@kanjieteam/kjdraw') validateTextEdits(args)
+    if (command.id === 'HATCHPATTERN' && command.owner === '@kanjieteam/kjdraw') validateHatchPatternEdits(args)
     if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE')
     if (command.id === 'GEOLOGY_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'GEOLOGY_DRAWING_UPDATE')
     if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`)
@@ -643,6 +647,10 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   disposers.push(registry.register({
     id: 'TEXTEDIT', title: 'Replace exact annotation text',
     execute: ({ document, transaction }, args) => applyTextEdits(document, transaction, args),
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'HATCHPATTERN', title: 'Replace exact native hatch patterns',
+    execute: ({ document, transaction }, args) => applyHatchPatternEdits(document, transaction, args),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'ERASE', aliases: ['DELETE'], title: 'Erase objects',
@@ -1595,17 +1603,24 @@ interface KJStructuralReconnection {
   readonly layerId: string
 }
 
+interface KJStructuralCreation {
+  readonly id: string
+  readonly type: 'LINE' | 'LWPOLYLINE' | 'HATCH' | 'TEXT'
+  readonly payload: KJObjectPayload
+}
+
 interface KJPreparedStructuralEdit {
   readonly eraseIds: readonly string[]
   readonly effectiveEraseIds: readonly string[]
   readonly reconnections: readonly KJStructuralReconnection[]
+  readonly creations: readonly KJStructuralCreation[]
   readonly relayer: Readonly<{ ids: readonly string[]; layerId: string }> | null
 }
 
 function structuralRecord(value: unknown, allowed: readonly string[], required: readonly string[], label: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new KJValidationError(`${label} must be a plain object`)
-  const keys = Object.keys(value)
-  if (keys.some(key => !allowed.includes(key)) || required.some(key => !Object.hasOwn(value, key))) throw new KJValidationError(`${label} fields do not match the declared format`)
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  if (Reflect.ownKeys(value).some(key => typeof key !== 'string' || !allowed.includes(key) || !descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key]!, 'value')) || required.some(key => !Object.hasOwn(value, key))) throw new KJValidationError(`${label} fields do not match the declared data format`)
   return value as Record<string, unknown>
 }
 
@@ -1657,8 +1672,80 @@ function requireStructuralEraseScope(document: KJDocument, ids: readonly string[
   }
 }
 
-function prepareStructuralEdit(document: KJDocument, args: KJCommandArguments): KJPreparedStructuralEdit {
-  const input = structuralRecord(args, ['eraseIds', 'reconnections', 'relayer'], ['eraseIds', 'reconnections'], 'STRUCTURALEDIT')
+/** Bounded plain data only: no plugin callbacks, accessors, opaque metadata or raw DXF. */
+function validateStructuralCreationData(value: unknown): void {
+  let count = 0
+  const seen = new Set<object>()
+  const visit = (item: unknown, depth: number): void => {
+    if (++count > 32768 || depth > 16) throw new KJValidationError('STRUCTURALEDIT creation data exceeds its bounded working set')
+    if (item === null || typeof item === 'boolean') return
+    if (typeof item === 'number' && Number.isFinite(item) && Math.abs(item) <= 1e12) return
+    if (typeof item === 'string' && item.length <= 4096) return
+    if (!item || typeof item !== 'object' || seen.has(item) || (Array.isArray(item) ? Object.getPrototypeOf(item) !== Array.prototype : ![Object.prototype, null].includes(Object.getPrototypeOf(item)))) throw new KJValidationError('STRUCTURALEDIT creations require acyclic finite plain data')
+    seen.add(item)
+    const descriptors = Object.getOwnPropertyDescriptors(item)
+    if (Array.isArray(item) && (item.length > 4096 || Object.keys(item).length !== item.length)) throw new KJValidationError('STRUCTURALEDIT creation arrays must be dense and bounded')
+    for (const key of Reflect.ownKeys(item)) {
+      if (Array.isArray(item) && key === 'length') continue
+      const descriptor = typeof key === 'string' ? descriptors[key] : undefined
+      if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value') || Array.isArray(item) && !/^(0|[1-9]\d*)$/.test(String(key))) throw new KJValidationError('STRUCTURALEDIT creations reject accessors, symbols and opaque fields')
+      visit(descriptor.value, depth + 1)
+    }
+    seen.delete(item)
+  }
+  visit(value, 0)
+  if (new TextEncoder().encode(JSON.stringify(value)).length > 1048576) throw new KJValidationError('STRUCTURALEDIT creations exceed 1 MiB')
+}
+
+function structuralVertices(value: unknown, closed: boolean, maximum: number, label: string): Point3[] {
+  if (!Array.isArray(value) || value.length < (closed ? 3 : 2) || value.length > maximum) throw new KJValidationError(`${label} requires ${closed ? '3' : '2'} to ${maximum} vertices`)
+  const points = value.map((point, index) => structuralPoint(point, `${label}[${index}]`))
+  if (points.some((point, index) => index > 0 && Math.hypot(point[0] - points[index - 1]![0], point[1] - points[index - 1]![1]) <= 1e-12) || closed && Math.hypot(points[0]![0] - points.at(-1)![0], points[0]![1] - points.at(-1)![1]) <= 1e-12) throw new KJValidationError(`${label} must not repeat vertices at a segment or implicit closure`)
+  return points
+}
+
+function structuralSegmentsMeet(a: Point3, b: Point3, c: Point3, d: Point3): boolean {
+  const cross = (p: Point3, q: Point3, r: Point3): number => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+  const on = (p: Point3, q: Point3, r: Point3): boolean => Math.abs(cross(p, q, r)) <= 1e-12 && r[0] >= Math.min(p[0], q[0]) - 1e-12 && r[0] <= Math.max(p[0], q[0]) + 1e-12 && r[1] >= Math.min(p[1], q[1]) - 1e-12 && r[1] <= Math.max(p[1], q[1]) + 1e-12
+  const ac = cross(a, b, c), ad = cross(a, b, d), ca = cross(c, d, a), cb = cross(c, d, b)
+  return (ac > 1e-12 && ad < -1e-12 || ac < -1e-12 && ad > 1e-12) && (ca > 1e-12 && cb < -1e-12 || ca < -1e-12 && cb > 1e-12) || on(a, b, c) || on(a, b, d) || on(c, d, a) || on(c, d, b)
+}
+
+function structuralInside(point: Point3, polygon: readonly Point3[]): boolean {
+  let inside = false
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const a = polygon[index]!, b = polygon[previous]!
+    if ((a[1] > point[1]) !== (b[1] > point[1]) && point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside
+  }
+  return inside
+}
+
+function structuralHatchLoops(value: unknown): { external: boolean; closed: true; vertices: Point3[] }[] {
+  if (!Array.isArray(value) || !value.length || value.length > 32) throw new KJValidationError('STRUCTURALEDIT HATCH requires 1 to 32 polygon loops')
+  const loops = value.map((raw, index) => {
+    const loop = structuralRecord(raw, ['external', 'closed', 'vertices'], ['external', 'closed', 'vertices'], 'STRUCTURALEDIT HATCH loop')
+    if (loop.external !== (index === 0) || loop.closed !== true) throw new KJValidationError('STRUCTURALEDIT HATCH first loop must be outer and later closed loops empty islands')
+    const vertices = structuralVertices(loop.vertices, true, 256, 'STRUCTURALEDIT HATCH vertices'), origin = vertices[0]!
+    const twiceArea = vertices.reduce((sum, a, vertex) => { const b = vertices[(vertex + 1) % vertices.length]!; return sum + (a[0] - origin[0]) * (b[1] - origin[1]) - (b[0] - origin[0]) * (a[1] - origin[1]) }, 0)
+    if (Math.abs(twiceArea) <= 1e-12) throw new KJValidationError('STRUCTURALEDIT HATCH loops must have nonzero area')
+    for (let a = 0; a < vertices.length; a++) for (let b = a + 1; b < vertices.length; b++) {
+      if (b === a + 1 || a === 0 && b === vertices.length - 1) continue
+      if (structuralSegmentsMeet(vertices[a]!, vertices[(a + 1) % vertices.length]!, vertices[b]!, vertices[(b + 1) % vertices.length]!)) throw new KJValidationError('STRUCTURALEDIT HATCH loops must be simple polygons')
+    }
+    return { external: index === 0, closed: true as const, vertices }
+  })
+  if (loops.reduce((sum, loop) => sum + loop.vertices.length, 0) > 4096) throw new KJValidationError('STRUCTURALEDIT HATCH boundary exceeds 4096 vertices')
+  for (let a = 0; a < loops.length; a++) for (let b = a + 1; b < loops.length; b++) {
+    const first = loops[a]!.vertices, second = loops[b]!.vertices
+    for (let i = 0; i < first.length; i++) for (let j = 0; j < second.length; j++) if (structuralSegmentsMeet(first[i]!, first[(i + 1) % first.length]!, second[j]!, second[(j + 1) % second.length]!)) throw new KJValidationError('STRUCTURALEDIT HATCH loops must not intersect or touch')
+    if (a === 0 ? !structuralInside(second[0]!, first) : structuralInside(second[0]!, first) || structuralInside(first[0]!, second)) throw new KJValidationError('STRUCTURALEDIT HATCH islands must be strictly inside the outer loop and disjoint')
+  }
+  return loops
+}
+
+/** Shared core/approval-preview preflight; counts actual owned erase records. */
+export function prepareStructuralEdit(document: KJDocument, args: KJCommandArguments): KJPreparedStructuralEdit {
+  const input = structuralRecord(args, ['eraseIds', 'reconnections', 'relayer', 'creations'], ['eraseIds', 'reconnections'], 'STRUCTURALEDIT')
   const eraseIds = structuralIds(input.eraseIds, 'STRUCTURALEDIT eraseIds'), state = document.snapshot()
   requireStructuralEraseScope(document, eraseIds, new Set(eraseIds))
   const impact = createEraseImpact(document, {
@@ -1687,6 +1774,42 @@ function prepareStructuralEdit(document: KJDocument, args: KJCommandArguments): 
     return { id, type, points, layerId: layer.id }
   })
 
+  const creations: KJStructuralCreation[] = []
+  if (input.creations !== undefined) {
+    validateStructuralCreationData(input.creations)
+    if (!Array.isArray(input.creations) || !input.creations.length || input.creations.length + reconnections.length > 16) throw new KJValidationError('STRUCTURALEDIT supports at most 16 total creations and reconnections; creations must be nonempty')
+    for (const raw of input.creations) {
+      const item = structuralRecord(raw, ['id', 'type', 'payload'], ['id', 'type', 'payload'], 'STRUCTURALEDIT creation'), id = structuralId(item.id, 'STRUCTURALEDIT creation ID')
+      if (reconnectionIds.has(id) || Object.hasOwn(state.objects, id)) throw new KJValidationError(`STRUCTURALEDIT creation ID must be unique and new: ${id}`)
+      reconnectionIds.add(id)
+      const type = item.type
+      const patternFields = ['patternName', 'solid', 'patternLines', 'patternDefinitionAngle', 'patternDefinitionScale', 'patternScale', 'patternAngle']
+      const fields = type === 'LINE' ? ['start', 'end', 'layerId'] : type === 'LWPOLYLINE' ? ['vertices', 'closed', 'layerId'] : type === 'HATCH' ? ['boundaryLoops', ...patternFields, 'layerId'] : type === 'TEXT' ? ['text', 'position', 'height', 'rotation', 'layerId'] : null
+      if (!fields) throw new KJValidationError('STRUCTURALEDIT creations support only native LINE, LWPOLYLINE, HATCH and TEXT')
+      const payload = structuralRecord(item.payload, fields, fields, 'STRUCTURALEDIT creation payload')
+      const layer = structuralLayer(document, payload.layerId, `STRUCTURALEDIT creation layer for ${id}`)
+      if (!document.getTable('layers')?.records.some(record => record.id === layer.id)) throw new KJValidationError('STRUCTURALEDIT creation layer must belong to the live layer table')
+      let geometry: KJObjectPayload
+      if (type === 'LINE') {
+        const points = structuralVertices([payload.start, payload.end], false, 2, 'STRUCTURALEDIT LINE')
+        geometry = { start: points[0], end: points[1] }
+      } else if (type === 'LWPOLYLINE') {
+        if (typeof payload.closed !== 'boolean') throw new KJValidationError('STRUCTURALEDIT LWPOLYLINE closed must be explicit')
+        geometry = { vertices: structuralVertices(payload.vertices, payload.closed, 64, 'STRUCTURALEDIT LWPOLYLINE'), closed: payload.closed }
+      } else if (type === 'HATCH') {
+        const supplied = Object.fromEntries(patternFields.map(key => [key, payload[key]])), pattern = nativeHatchPattern(supplied)
+        if (!Array.isArray(payload.patternLines) || payload.solid !== true && !payload.patternLines.length || stableHash(pattern) !== stableHash(supplied)) throw new KJValidationError('STRUCTURALEDIT HATCH requires a complete canonical native PAT definition')
+        geometry = { boundaryLoops: structuralHatchLoops(payload.boundaryLoops), ...pattern }
+      } else {
+        if (typeof payload.text !== 'string' || !payload.text.trim() || payload.text.length > 4096 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(payload.text) || typeof payload.height !== 'number' || payload.height <= 1e-12 || typeof payload.rotation !== 'number') throw new KJValidationError('STRUCTURALEDIT TEXT requires explicit bounded text, height and rotation')
+        geometry = { text: payload.text, position: structuralPoint(payload.position, 'STRUCTURALEDIT TEXT position'), height: payload.height, rotation: payload.rotation }
+        if (layoutCadText(geometry).corners.some(point => point.some(coordinate => !Number.isFinite(coordinate) || Math.abs(coordinate) > 1e12))) throw new KJValidationError('STRUCTURALEDIT TEXT exceeds the finite ±1e12 display budget')
+      }
+      creations.push({ id, type: type as KJStructuralCreation['type'], payload: { ...geometry, layerId: layer.id } })
+    }
+    if (creations.reduce((sum, spec) => sum + (spec.type === 'HATCH' ? (spec.payload.boundaryLoops as { vertices: Point3[] }[]).reduce((count, loop) => count + loop.vertices.length, 0) : 0), 0) > 4096) throw new KJValidationError('STRUCTURALEDIT creation batch exceeds 4096 hatch vertices')
+  }
+
   let relayer: KJPreparedStructuralEdit['relayer'] = null
   if (input.relayer !== undefined) {
     const relayerInput = structuralRecord(input.relayer, ['ids', 'layerId'], ['ids', 'layerId'], 'STRUCTURALEDIT relayer')
@@ -1704,8 +1827,22 @@ function prepareStructuralEdit(document: KJDocument, args: KJCommandArguments): 
   }
 
   const changedIds = new Set([...impact.effectiveEraseIds, ...(relayer?.ids ?? []), ...reconnectionIds])
-  if (changedIds.size > 64) throw new KJValidationError('STRUCTURALEDIT supports at most 64 total erased, relayered and reconnected entities')
-  return { eraseIds, effectiveEraseIds: impact.effectiveEraseIds, reconnections, relayer }
+  if (creations.length) {
+    const erasedIds = new Set(impact.effectiveEraseIds)
+    // Decision-mode erase impact intentionally omits diagnostics. Count the
+    // actual live memberships that eraseEntities will change, not estimates.
+    for (const record of Object.values(state.objects)) if (!record.erased && record.kind === 'group' && ['GROUP', 'SELECTION_SET'].includes(record.type) && Array.isArray(record.payload.memberIds) && record.payload.memberIds.some(id => typeof id === 'string' && erasedIds.has(id))) changedIds.add(record.id)
+    for (const id of impact.effectiveEraseIds) {
+      const record = document.getObject(id)!
+      if (record.kind === 'entity') structuralEntity(document, id)
+      else if (record.type === 'SEQEND') {
+        if (record.payload.locked === true || record.payload.frozen === true || record.payload.visible === false) throw new KJValidationError('STRUCTURALEDIT attached sequence record must be visible and editable')
+        structuralLayer(document, record.payload.layerId ?? document.getTable('layers')?.currentId, `STRUCTURALEDIT attached record layer for ${id}`)
+      }
+    }
+  }
+  if (changedIds.size > 64) throw new KJValidationError('STRUCTURALEDIT supports at most 64 total erased records, relayered entities and creations/reconnections, including affected memberships when creating')
+  return { eraseIds, effectiveEraseIds: impact.effectiveEraseIds, reconnections, creations, relayer }
 }
 
 function applyStructuralEdit(context: KJCommandContext, args: KJCommandArguments): Readonly<Record<string, unknown>> {
@@ -1715,7 +1852,8 @@ function applyStructuralEdit(context: KJCommandContext, args: KJCommandArguments
   const reconnected = prepared.reconnections.map(spec => context.transaction.createEntity(spec.type, spec.type === 'LINE'
     ? { start: spec.points[0], end: spec.points[1], layerId: spec.layerId }
     : { vertices: spec.points, closed: false, layerId: spec.layerId }, { id: spec.id, ownerId: context.document.spaces.modelSpaceId }))
-  return deepFreeze({ semanticInference: 'none', effectiveEraseIds: [...prepared.effectiveEraseIds], erased, relayered, reconnected })
+  const created = prepared.creations.map(spec => context.transaction.createEntity(spec.type, spec.payload, { id: spec.id, ownerId: context.document.spaces.modelSpaceId }))
+  return deepFreeze({ semanticInference: 'none', effectiveEraseIds: [...prepared.effectiveEraseIds], erased, relayered, reconnected, ...(created.length ? { created } : {}) })
 }
 
 function leaderPoints(value: unknown): Point3[] {

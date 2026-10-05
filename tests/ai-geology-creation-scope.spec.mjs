@@ -6,9 +6,9 @@ import { getKJDrawChatToolNames, getKJDrawChatToolNamesForRequest,
   getKJDrawChatCapabilityForRequest, KJDRAW_CHAT_TOOL_NAMES,
 } from '../apps/playground/agent-chat.js'
 
-const creation = ['cad_propose_geology_column', 'cad_propose_geology_section']
+const creation = ['cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_plan']
 
-test('blank millimeter host exposes both compilers without interpreting user instructions or modifying the drawing', () => {
+test('blank millimeter host exposes native geology compilers without interpreting user instructions or modifying the drawing', () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const before = document.serialize(), policy = getKJDrawChatToolNames(document)
   assert.ok(Object.isFrozen(policy))

@@ -5,3 +5,5 @@
 *.kjp binary
 # Benchmark manifests hash the original output bytes, including DXF line endings.
 docs/benchmarks/**/*.dxf -text
+# Keep actual recorded DXF downloads byte-identical in the public evidence.
+docs/media/ai-geology-live-20261003/*.dxf binary

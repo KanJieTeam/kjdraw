@@ -250,7 +250,7 @@ test('invalid budgets, providers and unknown IDs fail before invoking an injecte
 
 test('completed-case checkpoints preserve partial failures and cannot mutate the authoritative result', async () => {
   const checkpoints = []
-  const report = await runGeologyUserScenarios({ scenarioIds: [inventory.id, exactLabel.id], maxScenarios: 2, maxRequests: 2,
+  const report = await runGeologyUserScenarios({ scenarioIds: [inventory.id, exactLabel.id], maxScenarios: 2, maxRequests: 4,
     modelCall: async () => response({ content: 'No native data was read.' }),
     onCheckpoint: checkpoint => {
       checkpoints.push(structuredClone(checkpoint))
@@ -268,6 +268,8 @@ test('completed-case checkpoints preserve partial failures and cannot mutate the
   assert.ok(checkpoints.every(item => item.trace.every(trace => trace.scenarioId === item.scenarios[0].id)))
   assert.ok(checkpoints.every(item => item.complete === false && item.allSelectedPassed === false && item.passed === 0))
   assert.equal(report.passed, 0)
+  assert.equal(report.requests, 4, 'Each no-read response receives only one bounded actual-model follow-up')
+  assert.ok(report.scenarios.every(item => item.errorCode === 'KJAGENT_READ_REQUIRED'))
   assert.equal(report.allSelectedPassed, false)
   assert.equal(report.scenarios.some(item => item.status === 'INVENTED_PASS'), false)
   assert.match(report.executionSurfaceSha256, /^[a-f0-9]{64}$/)

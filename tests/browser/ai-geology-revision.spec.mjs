@@ -35,6 +35,8 @@ test('AI chat reviews borehole source changes, exports DXF and resumes source fa
   })
   await page.goto('/ai/')
   await page.getByTestId('drawing-file').setInputFiles({ name: 'source-backed-column.kjd', mimeType: 'application/json', buffer: Buffer.from(await sdk.writeDocument(document, { format: 'KJD' })) })
+  await expect(page.locator('#drawing-name')).toHaveText('source-backed-column.kjd')
+  await expect(page.getByTestId('chat-send')).toBeEnabled()
   await page.getByTestId('chat-input').fill('把 ZK01 钻孔稳定水位改成 4 米，同步更新图纸。')
   await page.getByTestId('chat-send').click()
   await page.getByTestId('settings-provider').selectOption('custom')

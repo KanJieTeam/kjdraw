@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { FIXTURE_URL } from '../generate-geology-user-scenarios.mjs'
 import { buildPublicScenarioFixture, fixtureStateSignature, scenarioFixtureInputBindings } from './geology-scenario-fixtures.mjs'
 import { createKJDrawSDK } from '../../../packages/kjdraw-sdk/src/sdk.js'
+import { KJDRAW_AGENT_TOOLS } from '../../../packages/kjdraw-sdk/src/agent-tools.js'
 import { compileGeologyColumn, compileGeologySection } from '../../../packages/kjdraw-sdk/src/geology-engineering.js'
 import { applyGeologyDrawingRevision, prepareGeologyDrawingRevision, readGeologyDrawingRecipe, registerGeologyDrawingRecipe } from '../../../packages/kjdraw-sdk/src/geology-drawing-update.js'
 import { KJDRAW_GEOLOGY_KNOWLEDGE_PACK } from '../../../packages/kjdraw-sdk/src/knowledge-packs/geology-core.js'
@@ -16,6 +17,7 @@ const clone = structuredClone
 const same = (left, right) => canonicalStringify(left) === canonicalStringify(right)
 const project = record => ({ id: record.id, type: record.type, payload: clone(record.payload) })
 const sorted = records => records.map(project).sort((a, b) => a.id.localeCompare(b.id))
+const nativeReadToolNames = new Set(KJDRAW_AGENT_TOOLS.filter(tool => tool.effect === 'read').map(tool => tool.name))
 
 export const NEXT_SCENARIO_DESCRIPTORS = Object.freeze([
   { intent: 'source-water-depth.dated-groundwater-observation', kind: 'source', fixtureId: 'synthetic-source-column-v1', fixtureBranch: 'declared-groundwater-series-style' },
@@ -288,8 +290,9 @@ export function evaluateNextScenarioOracle(value, fixture, evidence) {
       } catch { return { status: 'not-evaluated', scenarioPassed: null, reason: 'raw-model-answer-is-not-valid-structured-json' } }
     }
     check('exact-retained-source-actually-read', !!sourceRead)
-    check('only-successful-native-read-tools', calls.every(call => ['cad_read_drawing', 'cad_query_drawing', 'cad_read_page', 'cad_find_text', 'cad_read_geology_source'].includes(call.name) &&
-      call.result?.ok === true && call.result.value?.documentId === fixture.document.id && call.result.value?.revision === fixture.initialRevision))
+    check('only-successful-native-read-tools', calls.every(call => nativeReadToolNames.has(call.name) &&
+      call.result?.ok === true && call.result.value?.documentId === fixture.document.id && call.result.value?.revision === fixture.initialRevision &&
+      (call.name === 'cad_read_drawing' || call.args?.expectedRevision === fixture.initialRevision)))
     check('read-only-state-unchanged', fixtureStateSignature(evidence.afterDocument) === fixture.initialState)
     check('exact-answer-equals-independent-fixture-facts', same(normalizeUnits(evidence.answer), normalizeUnits(expectedNextScenarioAnswer(scenario, fixture))))
   } else {

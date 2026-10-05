@@ -36,6 +36,24 @@ test('PAT parser accepts legacy DOS EOF and bare terminator records', () => {
   assert.equal(catalog.patterns[0].name, 'LEGACY')
 })
 
+test('PAT converts only the local delta basis to native OCS, not the origin', () => {
+  // Independent ezdxf 1.4.4 reference vectors for these public synthetic rows.
+  const samples = [
+    [45, [-2.8284271247461903, 2.8284271247461903]],
+    [49, [-3.018838320891088, 2.624236115962029]],
+    [90, [-4, 0]],
+    [137, [-2.727993440249994, -2.925414806476682]],
+  ]
+  for (const [angle, expected] of samples) {
+    const line = parseAutoCADPat(`*PUBLIC_DELTA_${angle}\n${angle},7,-2,0,4,1,-3`).patterns[0].lines[0]
+    assert.deepEqual(line.base, [7, -2], 'the PAT origin is already OCS')
+    assert.equal(line.angle, angle * Math.PI / 180)
+    assert.deepEqual(line.dashes, [1, -3])
+    line.offset.forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < 1e-9))
+    assert.notDeepEqual(line.offset, [0, 4], 'negative control catches unrotated PAT deltas')
+  }
+})
+
 test('parsed PAT pattern becomes editable HATCH and survives KJD and DXF reopen', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'pat-catalog-roundtrip', units: 'millimeter' })
   const pattern = hatchPatternFromCatalog(parseAutoCADPat(fixture), 'clay_test', { scale: 1.5, angleDegrees: 15 })

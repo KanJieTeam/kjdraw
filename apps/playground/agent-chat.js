@@ -14,13 +14,13 @@ import { capabilityReference, createKJDrawBuiltinCapabilityRegistry, matchKJDraw
 export const KJDRAW_CHAT_TOOL_NAMES = Object.freeze([
   'cad_read_history', 'cad_propose_undo', 'cad_propose_redo',
   'cad_read_drawing', 'cad_read_page', 'cad_find_text', 'cad_query_drawing', 'cad_query_topology', 'cad_query_impact', 'cad_read_layouts', 'cad_read_designs', 'cad_read_components', 'cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update',
-  'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_set_circle_radius', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet',
+  'cad_measure_distance', 'cad_check_geometry', 'cad_read_hatch_patterns', 'cad_propose_hatch_pattern', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_set_circle_radius', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet',
   'cad_propose_architecture_plan', 'cad_propose_cartesian_chart', 'cad_read_geology_source', 'cad_propose_geology_revision',
 ])
 // Creation is offered by document state, never by a hard-coded instruction.
 // Imported geometry and retained geology recipes keep their existing edit policy.
 const blankMillimeterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES,
-  'cad_propose_geology_column', 'cad_propose_geology_section'])
+  'cad_propose_geology_column', 'cad_propose_geology_section', 'cad_propose_geology_plan'])
 const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['cad_propose_manufacturing_sheet','cad_propose_architecture_plan','cad_propose_cartesian_chart','cad_read_geology_source','cad_propose_geology_revision'].includes(name)), 'cad_propose_site_plan', 'cad_propose_road_drawing'])
 const roadRevisionToolNames = Object.freeze([...meterToolNames, 'cad_propose_road_revision'])
 const selectionToolNames = new Map([KJDRAW_CHAT_TOOL_NAMES,blankMillimeterToolNames,meterToolNames,roadRevisionToolNames].map(names=>[names,Object.freeze([...names,'cad_read_selection_sets'])]))
@@ -80,6 +80,10 @@ export function getKJDrawChatToolNamesForRequest(document,request,selectedIds=[]
   // complete tool policy, without interpreting or executing the user's words.
   if(/\bread[- ]only\b|\b(?:do not|don't|dont|without)\s+(?:any\s+)?(?:edit|editing|change|changing|modify|modifying)\b|只读|别改图|不改图|不要修改图纸|不修改图纸/.test(normalized))return retainSourceTools(names)
   const textIntent=/\b(?:text|note|title.?block|revision|quantity|label|callout|field)\b|文字|注释|标题栏|修订|数量|标签|字段/.test(normalized)
+  // Soil names may label native pattern resources rather than TEXT objects.
+  // Keep geometric discovery/editing available; this only selects capabilities.
+  const materialOrPatternIntent=/\b(?:hatch|pattern|lithology|soil|strat(?:um|a))\b|花纹|填充|图案|岩性|地层|填土|黏土|粘土|黄土|粉土|砂土|砾石|卵石/.test(normalized)
+  if(materialOrPatternIntent)return retainSourceTools(names)
   if(hasGeologySource&&/\b(?:borehole|strat(?:um|a)|groundwater|lithology|spt|sample)\b|钻孔|孔深|孔口|水位|分层|地层|岩性|标贯|取样|柱状图|剖面图/.test(normalized))return retainSourceTools(['cad_read_geology_source','cad_propose_geology_revision'])
   const textAction=/\b(?:change|edit|update|replace|set|correct|rename)\b|修改|更改|更新|替换|改成|设为/.test(normalized)
   const geometryIntent=/\b(?:draw|create|move|translate|rotate|delete|erase|relayer|add|remove|copy|stretch|offset|fillet|chamfer|radius|diameter|polyline|lwpolyline|vertex|vertices|segment|bulge|width|line|circle|arc|ellipse|spline|hatch|dimension)\b|绘制|创建|移动|平移|旋转|删除|擦除|调层|添加|移除|复制|拉伸|偏移|圆角|倒角|半径|直径|孔径|多段线|顶点|线段|凸度|线宽|宽度|圆弧|椭圆|样条|填充|尺寸/.test(normalized)

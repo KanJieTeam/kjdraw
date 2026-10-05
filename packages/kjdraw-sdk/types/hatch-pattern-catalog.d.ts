@@ -9,6 +9,7 @@ export interface KJHatchPatternCatalogLine {
 export interface KJHatchPatternCatalogEntry {
     name: string;
     description: string;
+    aliases?: string[];
     lines: KJHatchPatternCatalogLine[];
 }
 export interface KJHatchPatternCatalog {

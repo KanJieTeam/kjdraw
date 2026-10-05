@@ -27,6 +27,16 @@ export interface KJGeologyDrawingRecipe {
 }
 
 export interface KJGeologyDrawingRevisionOptions { expectedRevision: number }
+/** Read-only diagnostic, never approval or authority to overwrite manual edits. */
+export interface KJGeologyDrawingInspection {
+  documentId: string
+  revision: number
+  drawingId: string
+  recipe: ReadonlyDeep<KJGeologyDrawingRecipe>
+  sourceGeometryConsistent: boolean
+  conflicts: { kind: 'resource' | 'entity'; id: string; reason: 'missing' | 'owner-membership' | 'record-changed' }[]
+  conflictTypes: { id: string; generatedType: string; actualType: string | null }[]
+}
 export interface KJGeologyDrawingRevision {
   recipe: ReadonlyDeep<KJGeologyDrawingRecipe>
   previousRevision: number
@@ -121,15 +131,23 @@ function sameRecord(a: unknown, b: KJObjectRecord): boolean {
   return !!a && typeof a === 'object' && equal({ ...a, handle: '' }, b)
 }
 
-function validateRecipe(document: KJDocument, recipe: KJGeologyDrawingRecipe) {
+function expectedRecipeRecords(document: KJDocument, recipe: KJGeologyDrawingRecipe) {
   const keys = ['schema', 'version', 'compilerVersion', 'documentId', 'drawingId', 'source', 'entityIds', 'resourceRoot', 'textStyleId']
   if (!equal(Object.keys(recipe).sort(), keys.sort()) || recipe.schema !== 'com.kanjie.kjdraw.geology-drawing-recipe' || recipe.version !== 1 || recipe.compilerVersion !== 1) fail('unsupported recipe format')
   if (recipe.documentId !== document.id || document.snapshot().header.units !== 'millimeter') fail('recipe document or units do not match')
-  if (!/^geo-[a-zA-Z0-9_-]{1,100}$/.test(recipe.drawingId) || recipe.resourceRoot !== recipe.drawingId || !document.getObject(recipe.textStyleId)) fail('invalid recipe identity or text style')
+  const textStyle = document.getObject(recipe.textStyleId)
+  if (!/^geo-[a-zA-Z0-9_-]{1,100}$/.test(recipe.drawingId) || recipe.resourceRoot !== recipe.drawingId ||
+    !textStyle || textStyle.erased || textStyle.kind !== 'table-record' || textStyle.type !== 'TEXT_STYLE' ||
+    !document.snapshot().tables.textStyles.recordIds.includes(recipe.textStyleId)) fail('invalid recipe identity or text style')
   if (!Array.isArray(recipe.entityIds) || recipe.entityIds.some(id => typeof id !== 'string' || !id.startsWith(`${recipe.drawingId}-entity-`) || id.length > 200)) fail('invalid recipe entity IDs')
   const compiled = compile(recipe.source)
   const expected = records(document, compiled, recipe.resourceRoot, recipe.textStyleId, recipe.entityIds)
   const state = document.snapshot(), model = new Set(state.objects[document.spaces.modelSpaceId]!.payload.entityIds)
+  return { expected, state, model }
+}
+
+function validateRecipe(document: KJDocument, recipe: KJGeologyDrawingRecipe) {
+  const { expected, state, model } = expectedRecipeRecords(document, recipe)
   for (const record of expected.resources) {
     const table = record.type === 'LAYER' ? state.tables.layers : record.type === 'LINETYPE' ? state.tables.linetypes : state.tables.textStyles
     if (!table.recordIds.includes(record.id) || !sameRecord(document.getObject(record.id), record)) fail(`generated resource changed: ${record.id}`)
@@ -165,8 +183,44 @@ export async function registerGeologyDrawingRecipe(document: KJDocument, source:
 export function readGeologyDrawingRecipe(document: KJDocument, drawingId: string): ReadonlyDeep<KJGeologyDrawingRecipe> {
   const recipe = snapshot(document.snapshot().opaquePayloads[recipeKey(drawingId)]) as KJGeologyDrawingRecipe
   if (!recipe) fail('no source-backed geology recipe; do not infer borehole facts from CAD text')
+  if (recipe.drawingId !== drawingId) fail('recipe key and drawing identity do not match')
   validateRecipe(document, recipe)
   return deepFreeze(recipe)
+}
+
+/** Inspect all generated conflicts without treating unrelated manual CAD as source.
+ * Malformed/foreign recipes still reject. Revision preparation retains its strict
+ * validator and rejects drift even after this read-only diagnostic succeeds. */
+export function inspectGeologyDrawingRecipe(document: KJDocument, drawingId: string, options: KJGeologyDrawingRevisionOptions): ReadonlyDeep<KJGeologyDrawingInspection> {
+  const safeOptions = snapshot(options)
+  if (!equal(Object.keys(safeOptions), ['expectedRevision']) || !Number.isSafeInteger(safeOptions.expectedRevision) || safeOptions.expectedRevision !== document.revision) fail('stale or invalid expected revision')
+  const retained = document.snapshot().opaquePayloads[recipeKey(drawingId)]
+  if (!retained) fail('no source-backed geology recipe; do not infer borehole facts from CAD text')
+  const recipe = snapshot(retained) as KJGeologyDrawingRecipe
+  if (recipe.drawingId !== drawingId) fail('recipe key and drawing identity do not match')
+  const { expected, state, model } = expectedRecipeRecords(document, recipe)
+  const conflicts: KJGeologyDrawingInspection['conflicts'] = []
+  const conflictTypes: KJGeologyDrawingInspection['conflictTypes'] = []
+  const addConflict = (kind: 'resource' | 'entity', record: KJObjectRecord, reason: 'missing' | 'owner-membership' | 'record-changed') => {
+    conflicts.push({ kind, id: record.id, reason })
+    const actual = state.objects[record.id]
+    conflictTypes.push({ id: record.id, generatedType: record.type, actualType: actual && !actual.erased ? actual.type : null })
+  }
+  for (const record of expected.resources) {
+    const table = record.type === 'LAYER' ? state.tables.layers : record.type === 'LINETYPE' ? state.tables.linetypes : state.tables.textStyles
+    const actual = document.getObject(record.id)
+    if (!actual) addConflict('resource', record, 'missing')
+    else if (!table.recordIds.includes(record.id)) addConflict('resource', record, 'owner-membership')
+    else if (!sameRecord(actual, record)) addConflict('resource', record, 'record-changed')
+  }
+  for (const record of expected.entities) {
+    const actual = document.getObject(record.id)
+    if (!actual) addConflict('entity', record, 'missing')
+    else if (!model.has(record.id)) addConflict('entity', record, 'owner-membership')
+    else if (!sameRecord(actual, record)) addConflict('entity', record, 'record-changed')
+  }
+  return deepFreeze({ documentId: document.id, revision: document.revision, drawingId,
+    recipe, sourceGeometryConsistent: conflicts.length === 0, conflicts, conflictTypes })
 }
 
 /** Compile a data revision without changing the document or approving anything. */

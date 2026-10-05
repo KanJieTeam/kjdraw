@@ -25,6 +25,24 @@ export interface KJGeologyDrawingRecipe {
 export interface KJGeologyDrawingRevisionOptions {
     expectedRevision: number;
 }
+/** Read-only diagnostic, never approval or authority to overwrite manual edits. */
+export interface KJGeologyDrawingInspection {
+    documentId: string;
+    revision: number;
+    drawingId: string;
+    recipe: ReadonlyDeep<KJGeologyDrawingRecipe>;
+    sourceGeometryConsistent: boolean;
+    conflicts: {
+        kind: 'resource' | 'entity';
+        id: string;
+        reason: 'missing' | 'owner-membership' | 'record-changed';
+    }[];
+    conflictTypes: {
+        id: string;
+        generatedType: string;
+        actualType: string | null;
+    }[];
+}
 export interface KJGeologyDrawingRevision {
     recipe: ReadonlyDeep<KJGeologyDrawingRecipe>;
     previousRevision: number;
@@ -41,6 +59,10 @@ export declare function createGeologyDrawingRecipe(document: KJDocument, source:
 /** Explicit host registration. The source data travels with KJD and undo history. */
 export declare function registerGeologyDrawingRecipe(document: KJDocument, source: KJGeologyDrawingSource, options: KJGeologyDrawingRevisionOptions): Promise<ReadonlyDeep<KJGeologyDrawingRecipe>>;
 export declare function readGeologyDrawingRecipe(document: KJDocument, drawingId: string): ReadonlyDeep<KJGeologyDrawingRecipe>;
+/** Inspect all generated conflicts without treating unrelated manual CAD as source.
+ * Malformed/foreign recipes still reject. Revision preparation retains its strict
+ * validator and rejects drift even after this read-only diagnostic succeeds. */
+export declare function inspectGeologyDrawingRecipe(document: KJDocument, drawingId: string, options: KJGeologyDrawingRevisionOptions): ReadonlyDeep<KJGeologyDrawingInspection>;
 /** Compile a data revision without changing the document or approving anything. */
 export declare function prepareGeologyDrawingRevision(document: KJDocument, previous: ReadonlyDeep<KJGeologyDrawingRecipe>, next: KJGeologyDrawingSource, options: KJGeologyDrawingRevisionOptions): ReadonlyDeep<KJGeologyDrawingRevision>;
 /** One source-and-geometry transaction, including native HATCH and undo history. */

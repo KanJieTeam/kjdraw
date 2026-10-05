@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="A real DeepSeek session revising one original synthetic geological section through ten reviewed CAD edits, undo, redo and DXF reopening.">
+  <title>Ten real AI edits · KJDraw</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
+</head>
+<body>
+  <main>
+    <nav><a href="../../latest/">KJDraw</a><a href="https://github.com/KanJieTeam/kjdraw">Source on GitHub ↗</a></nav>
+    <h1>One section. Ten real AI edits.</h1>
+    <p class="lede">A real DeepSeek session changes elevations, depth, boundaries, soil patterns and observations on the same original synthetic geological section. Each change is reviewed before it becomes editable CAD.</p>
+    <video controls preload="metadata" playsinline poster="24-live-actual-dxf-reopened.png">
+      <source src="synthetic-live-model-workflow.webm" type="video/webm">
+      <a href="synthetic-live-model-workflow.webm">Download the full recording.</a>
+    </video>
+    <p class="note">Full, uncut browser recording above. The README GIF is a condensed excerpt from this same video; it does not synthesize frames or model responses.</p>
+    <div class="links">
+      <a href="synthetic-live-final.dxf" download>Download the final DXF</a>
+      <a href="synthetic-geology-section.dxf" download>Download the initial DXF</a>
+      <a href="synthetic-live-model-highlights.gif">Condensed GIF</a>
+      <a href="live-recording-manifest.json">Actual requests and checks</a>
+      <a href="cutlist.json">Video timestamps and hashes</a>
+      <a href="dxf-audit.json">Independent DXF audit</a>
+    </div>
+    <h2>The ten requests</h2>
+    <table>
+      <thead><tr><th>Round</th><th>Request</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Raise SYN-03's collar elevation by 0.65 m, keeping the other holes unchanged.</td></tr>
+        <tr><td>2</td><td>Extend SYN-08 by 2 m, changing only the bottom weathered-rock interval.</td></tr>
+        <tr><td>3</td><td>Set SYN-02's stable groundwater depth to 4.90 m.</td></tr>
+        <tr><td>4</td><td>Move SYN-04's clay boundary down by 0.80 m and update the next interval's top.</td></tr>
+        <tr><td>5</td><td>Rename all eight first layers to 示例耕植土 and change their lithology, native hatch and legend together.</td></tr>
+        <tr><td>6</td><td>Add the specified sample at 11.25 m in SYN-05.</td></tr>
+        <tr><td>7</td><td>Change SYN-03's specified SPT observation to N=32 at 16.50 m.</td></tr>
+        <tr><td>8</td><td>Delete SYN-06's specified sample at 21.30 m.</td></tr>
+        <tr><td>9</td><td>Move SYN-05's section station to 85.50 m.</td></tr>
+        <tr><td>10</td><td>Remove SYN-04's supplied stable-water fact and mark it unknown, retaining its initial water observation.</td></tr>
+      </tbody>
+    </table>
+    <h2>What was checked</h2>
+    <p>Every approved revision is compared with a separately compiled expected target: exact source facts, unchanged unrelated facts and objects, and native CAD geometry. The final workflow also exercises native undo, redo, actual browser DXF download and DXF reopening. The manifest includes every captured model request and reported token receipt, including rejected attempts and repairs.</p>
+    <p class="note">This recorded run used 21 actual requests. The provider reported <code>deepseek-flash</code> for the requested <code>deepseek-chat</code> alias: 380,008 input + 4,492 output = 384,500 total tokens. One invalid boundary proposal was rejected and repaired before review; its 40,321 tokens are included. No unavailable-viewer state was observed by the recorder's browser mutation gate. The preceding run failed to produce a fifth-round proposal and is included in the development-run history.</p>
+    <h2>Reproduce the run</h2>
+    <p>Check out the repository, install its development dependencies and build. Use Node.js 22+, the repository's Playwright setup and your own DeepSeek credential in <code>KJDRAW_DEEPSEEK_API_KEY</code>. Never put a key in the command or commit it.</p>
+    <pre><code>npm install
+node scripts/build.mjs
+node scripts/record-synthetic-geology-demo.mjs --live --output .cache/my-live-run --model deepseek-chat --timeout-ms 180000</code></pre>
+    <p class="note">Use a new output directory for every run. <code>KJDRAW_CHROME_PATH</code> can select an existing Chrome installation. This calls the real paid API; responses, timing and cost can differ. The recorder rejects preset model endpoints and retains failed-run evidence.</p>
+    <section class="note divider">
+      <h2>Scope and provenance</h2>
+      <ul>
+        <li>All eight holes, 48 intervals, observations and patterns are original public synthetic data, not a private project. No actual organization or personnel information is used.</li>
+        <li>The starting drawing is built by KJDraw's trusted host compiler. The ten subsequent edits use real model calls; initial AI creation is not claimed.</li>
+        <li>The reproducible harness performs the reviewer approvals. This is not independent human-user acceptance.</li>
+        <li>Edits use the retained source-backed document. The exported DXF preserves supported native graphics, not its source recipe or internal UUIDs. Arbitrary imported DXF source reconstruction is not claimed.</li>
+        <li>This is a demonstrated workflow, not a comparative benchmark or evidence of universal correctness or token savings.</li>
+      </ul>
+      <div class="links"><a href="manifest.json">Synthetic fixture provenance</a><a href="development-runs.json">Earlier development runs and failures</a><a href="https://github.com/KanJieTeam/kjdraw/blob/main/scripts/record-synthetic-geology-demo.mjs">Recording and scoring code</a></div>
+    </section>
+  </main>
+</body>
+</html>

@@ -7,7 +7,19 @@ Contact: kanjieteam@163.com
 
 The public SDK and Rust kernel were extracted from the Kanjie engineering
 workspace. This distribution contains no private project corpus, customer
-files, legacy vendor CAD asset libraries, account services, or model credentials.
+files, account services, or model credentials.
 Public sample geometry and visual identity assets are original project assets.
 Kanjie and KJDraw names identify the project; this license does not grant
 permission to imply endorsement of a third-party product by KanJieTeam.
+
+The separately identified geology-patterns resource contains all 209 literal
+pattern names and 940 line families from user-supplied YTKC legacy ZWCAD.PAT
+definitions. On 2026-10-03, the contributing user explicitly confirmed the
+right to publicly redistribute the complete pattern resource and authorized
+its publication. Names, descriptions, and numeric PAT definitions are retained
+without semantic substitutions. This statement records the user's resource
+authorization; it does not claim authorization or endorsement by a CAD software
+vendor, nor does it redistribute the legacy software or private drawings.
+The resource provenance and exact SHA-256 digests are exported by
+src/knowledge-packs/geology-patterns.js. The symbols are drawing resources,
+not verified geological classifications or a claim of universal standards.

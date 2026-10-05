@@ -28,8 +28,8 @@ for (const input of cases) {
     'node:fs/promises': { readdir: async directory => {
       enumerations.push(directory.href)
       return directory.href.includes('/packages/kjdraw-sdk/test/')
-        ? ['alpha.test.mjs', 'not-a-test.txt', 'beta.test.mjs']
-        : ['one.spec.mjs', 'not-a-test.mjs', 'two.spec.mjs']
+        ? input.sdkFiles ?? ['alpha.test.mjs', 'agent-geology-section.test.mjs', 'not-a-test.txt', 'beta.test.mjs']
+        : input.integrationFiles ?? ['one.spec.mjs', 'not-a-test.mjs', 'two.spec.mjs']
     } },
     'node:child_process': { spawnSync: (executable, args, options) => {
       launches.push({ executable, args, cwd: options.cwd, stdio: options.stdio })
@@ -64,14 +64,18 @@ function execute(cases) {
 }
 
 const parallelisms = [1, 2, 3, 4, 8, 32, 128]
+const isolatedTest = 'packages/kjdraw-sdk/test/agent-geology-section.test.mjs'
+const remainingInventory = ['packages/kjdraw-sdk/test/alpha.test.mjs', 'packages/kjdraw-sdk/test/beta.test.mjs', 'tests/one.spec.mjs', 'tests/two.spec.mjs']
 const defaults = execute(parallelisms.map(parallelism => ({ parallelism })))
 for (const [index, parallelism] of parallelisms.entries()) {
   test(`default runner concurrency is bounded on a ${parallelism}-way host`, () => {
     const actual = defaults[index]
     assert.equal(actual.exitCode, 0)
-    assert.deepEqual(actual.launches.map(launch => launch.args[0]), ['scripts/build-docs-site.mjs', 'scripts/build-api-docs.mjs', '--test'])
-    assert.equal(actual.launches[2].args[1], `--test-concurrency=${Math.min(4, parallelism)}`)
-    assert.equal(actual.launches[2].args.filter(arg => arg.startsWith('--test-concurrency=')).length, 1)
+    assert.deepEqual(actual.launches.map(launch => launch.args[0]), ['scripts/build-docs-site.mjs', 'scripts/build-api-docs.mjs', '--test', '--test'])
+    assert.deepEqual(actual.launches[2].args, ['--test', '--test-concurrency=1', isolatedTest])
+    assert.equal(actual.launches[3].args[1], `--test-concurrency=${Math.min(4, parallelism)}`)
+    assert.equal(actual.launches[3].args.filter(arg => arg.startsWith('--test-concurrency=')).length, 1)
+    assert.deepEqual(actual.launches[3].args.slice(2), remainingInventory)
   })
 }
 
@@ -80,7 +84,8 @@ const explicit = execute(overrides.map(value => ({ parallelism: 2, env: { KJDRAW
 for (const [index, value] of overrides.entries()) {
   test(`explicit decimal concurrency ${JSON.stringify(value)} remains effective`, () => {
     assert.equal(explicit[index].exitCode, 0)
-    assert.equal(explicit[index].launches[2].args[1], `--test-concurrency=${Number(value)}`)
+    assert.equal(explicit[index].launches[2].args[1], '--test-concurrency=1')
+    assert.equal(explicit[index].launches[3].args[1], `--test-concurrency=${Number(value)}`)
   })
 }
 
@@ -98,27 +103,64 @@ for (const [index, value] of invalid.entries()) {
 test('CI reporters and the complete enumerated inventory are retained without skip filters', () => {
   const [actual] = execute([{ parallelism: 128, env: { GITHUB_ACTIONS: 'true' } }])
   assert.equal(actual.exitCode, 0)
+  const reporters = ['--test-reporter=spec', '--test-reporter=./scripts/github-test-reporter.mjs',
+    '--test-reporter-destination=stdout', '--test-reporter-destination=stdout']
   assert.deepEqual(actual.launches[2].args, [
-    '--test', '--test-concurrency=4', '--test-reporter=spec', '--test-reporter=./scripts/github-test-reporter.mjs',
-    '--test-reporter-destination=stdout', '--test-reporter-destination=stdout',
-    'packages/kjdraw-sdk/test/alpha.test.mjs', 'packages/kjdraw-sdk/test/beta.test.mjs', 'tests/one.spec.mjs', 'tests/two.spec.mjs',
+    '--test', '--test-concurrency=1', ...reporters, isolatedTest,
   ])
+  assert.deepEqual(actual.launches[3].args, [
+    '--test', '--test-concurrency=4', ...reporters, ...remainingInventory,
+  ])
+  const executedFiles = actual.launches.slice(2).flatMap(launch => launch.args.filter(arg => /\.(?:test|spec)\.mjs$/.test(arg)))
+  assert.deepEqual(executedFiles, [isolatedTest, ...remainingInventory])
+  assert.equal(new Set(executedFiles).size, executedFiles.length)
   assert.deepEqual(actual.enumerations, [new URL('../packages/kjdraw-sdk/test/', import.meta.url).href, new URL('./', import.meta.url).href])
   for (const launch of actual.launches) {
     assert.equal(launch.executable, '/synthetic/node')
     assert.equal(launch.cwd, fileURLToPath(new URL('../', import.meta.url)))
     assert.equal(launch.stdio, 'inherit')
   }
-  assert.ok(!actual.launches[2].args.some(arg => /skip|name-pattern|only/.test(arg)))
+  for (const launch of actual.launches.slice(2)) assert.ok(!launch.args.some(arg => /skip|name-pattern|only/.test(arg)))
 })
 
-test('generation failures and actual Node test failures still propagate without retries', () => {
+test('generation failures and both Node phases propagate failures without retries or omitting remaining tests', () => {
   const results = execute([
     { parallelism: 4, statuses: [9] }, { parallelism: 4, statuses: [0, 7] },
-    { parallelism: 4, statuses: [0, 0, 3] }, { parallelism: 4, statuses: [0, 0, null] },
+    { parallelism: 4, statuses: [0, 0, 3, 0] }, { parallelism: 4, statuses: [0, 0, null, 0] },
+    { parallelism: 4, statuses: [0, 0, 0, 5] }, { parallelism: 4, statuses: [0, 0, 0, null] },
+    { parallelism: 4, statuses: [0, 0, 9, 8] },
   ])
-  assert.deepEqual(results.map(result => result.exitCode), [9, 7, 3, 1])
-  assert.deepEqual(results.map(result => result.launches.length), [1, 2, 3, 3])
+  assert.deepEqual(results.map(result => result.exitCode), [9, 7, 3, 1, 5, 1, 9])
+  assert.deepEqual(results.map(result => result.launches.length), [1, 2, 4, 4, 4, 4, 4])
+  for (const result of results.slice(2)) {
+    assert.deepEqual(result.launches[2].args, ['--test', '--test-concurrency=1', isolatedTest])
+    assert.deepEqual(result.launches[3].args.slice(2), remainingInventory)
+  }
+})
+
+test('missing or duplicate isolated inventory fails closed rather than silently skipping or repeating the timing file', () => {
+  const results = execute([
+    { parallelism: 4, sdkFiles: ['alpha.test.mjs', 'beta.test.mjs'] },
+    { parallelism: 4, sdkFiles: ['agent-geology-section.test.mjs', 'alpha.test.mjs', 'agent-geology-section.test.mjs'] },
+  ])
+  for (const result of results) {
+    assert.equal(result.exitCode, 1)
+    assert.equal(result.launches.length, 2)
+    assert.deepEqual(result.errors, [`Timing-sensitive SDK test inventory must include ${isolatedTest} exactly once.`])
+  }
+})
+
+test('duplicate ordinary inventory fails closed and an isolated-only inventory does not trigger automatic Node rediscovery', () => {
+  const [duplicate, isolatedOnly] = execute([
+    { parallelism: 4, integrationFiles: ['one.spec.mjs', 'one.spec.mjs'] },
+    { parallelism: 4, sdkFiles: ['agent-geology-section.test.mjs'], integrationFiles: [] },
+  ])
+  assert.equal(duplicate.exitCode, 1)
+  assert.equal(duplicate.launches.length, 2)
+  assert.deepEqual(duplicate.errors, ['Node test inventory contains duplicate paths.'])
+  assert.equal(isolatedOnly.exitCode, 0)
+  assert.equal(isolatedOnly.launches.length, 3)
+  assert.deepEqual(isolatedOnly.launches[2].args, ['--test', '--test-concurrency=1', isolatedTest])
 })
 
 test('section assertion keeps its exact 5000 ms boundary and exposes actual workload diagnostics', () => {

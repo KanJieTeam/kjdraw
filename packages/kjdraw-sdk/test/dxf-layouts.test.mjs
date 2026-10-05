@@ -48,12 +48,16 @@ test('DXF R12 block-contained paper geometry stays in paper space', async () => 
 test('DXF resolves layout subclass owner, preserves sparse tab order and does not invent Layout1 from 67', async () => {
   const doc = await read(section('TABLES', record('BLOCK_RECORD', 5, 'B0', 2, '*Paper_Space7')) +
     section('OBJECTS', record('LAYOUT', 5, 'B1', 330, 'FF', 100, 'AcDbPlotSettings', 1, 'Plot preset', 100, 'AcDbLayout', 1, 'Sheet Z', 71, 17, 330, 'B0') + record('LAYOUT', 5, 'C1', 100, 'AcDbLayout', 1, 'Empty', 71, 3, 330, 'C0')) +
-    section('ENTITIES', line('E0', 'B0') .replace('10\n1\n', '67\n1\n10\n1\n')))
+    // This roundtrip fixture needs an existing reactor target, not the DEAD
+    // placeholder used by read-only ownership fixtures above.
+    section('ENTITIES', line('E0', 'B0').replace('330\nDEAD\n', '330\nB1\n').replace('10\n1\n', '67\n1\n10\n1\n')))
   assert.deepEqual(layoutsOf(doc).map(l => [l.name, l.payload.tabOrder]), [['Model', 0], ['Empty', 3], ['Sheet Z', 17]])
   assert.equal(doc.listEntities({ ownerId: layoutsOf(doc)[2].payload.blockRecordId }).length, 1)
+  assert.deepEqual(doc.listEntities()[0].payload.dxfReactorIds, [layoutsOf(doc)[2].id])
   const output = await createKJDrawSDK().writeDocument(doc, { format: 'DXF', version: '2018' })
   const again = await read(output)
   assert.deepEqual(layoutsOf(again).map(l => [l.name, l.payload.tabOrder]), layoutsOf(doc).map(l => [l.name, l.payload.tabOrder]))
+  assert.deepEqual(again.listEntities()[0].payload.dxfReactorIds, [layoutsOf(again)[2].id])
 })
 
 test('DXF duplicate cross-section space entities import once; conflicting handles and ambiguous owners reject', async () => {

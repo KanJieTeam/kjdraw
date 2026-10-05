@@ -497,6 +497,48 @@ function recordOwner(record) {
     }
     return '';
 }
+function reactorHandles(record) {
+    const handles = [];
+    let active = false;
+    for (const tag of record.tags){
+        if (tag.code === 102) {
+            if (tag.value === '{ACAD_REACTORS') {
+                if (active) throw new KJValidationError('Malformed DXF entity reactor group');
+                active = true;
+            } else if (active && tag.value === '}') active = false;
+            else if (active) throw new KJValidationError('Unsupported nested DXF entity reactor group');
+        } else if (active) {
+            const handle = tag.value.trim().toUpperCase();
+            if (tag.code !== 330 || !/^[0-9A-F]+$/.test(handle) || handle === '0' || handles.length >= 4096) throw new KJValidationError('Invalid DXF entity reactor reference');
+            handles.push(handle);
+        }
+    }
+    if (active) throw new KJValidationError('Unclosed DXF entity reactor group');
+    return handles;
+}
+function readHatchStyle(record) {
+    const tags = values(record, 75), style = tags.length ? Number(tags[0]) : 0;
+    if (tags.length > 1 || tags.length && !/^[ \t]*[+-]?\d+[ \t]*$/.test(String(tags[0])) || ![
+        0,
+        1,
+        2
+    ].includes(style)) throw new KJValidationError('DXF HATCH island style must be 0, 1 or 2');
+    return style;
+}
+function nativeHatchStyle(payload) {
+    const style = payload.hatchStyle === undefined ? payload.rawTags ? readHatchStyle({
+        type: 'HATCH',
+        tags: [
+            ...payload.rawTags
+        ]
+    }) : 0 : payload.hatchStyle;
+    if (typeof style !== 'number' || ![
+        0,
+        1,
+        2
+    ].includes(style)) throw new KJValidationError('DXF HATCH island style must be 0, 1 or 2');
+    return style;
+}
 function isSpaceBlock(name) {
     return /^[*$](MODEL_SPACE|PAPER_SPACE(?:_?\d+)?)$/.test(normalizeName(name));
 }
@@ -969,7 +1011,14 @@ function hatchBoundaryLoops(record) {
         }
         if (tags[cursor]?.code === 97) {
             const sourceCount = Number(tags[cursor++].value);
-            cursor += Math.min(sourceCount, tags.slice(cursor).filter((tag)=>tag.code === 330).length);
+            if (!Number.isInteger(sourceCount) || sourceCount < 0 || sourceCount > 4096) throw new KJValidationError('Invalid DXF HATCH source boundary count');
+            const sourceBoundaryHandles = [];
+            for(let sourceIndex = 0; sourceIndex < sourceCount; sourceIndex++){
+                const tag = tags[cursor++], handle = tag?.value.trim().toUpperCase();
+                if (tag?.code !== 330 || !handle || !/^[0-9A-F]+$/.test(handle) || handle === '0') throw new KJValidationError('Invalid DXF HATCH source boundary handle');
+                sourceBoundaryHandles.push(handle);
+            }
+            if (sourceBoundaryHandles.length) loops.at(-1).sourceBoundaryHandles = sourceBoundaryHandles;
         }
     }
     if (!loops.length) throw new KJValidationError('DXF HATCH contains no boundary loops');
@@ -1196,6 +1245,7 @@ function entityPayload(record, blockIds, resources = {}) {
                 const patternLines = importedHatchPatternLines(record);
                 const patternAngle = number(record, 52, 0) * Math.PI / 180;
                 const patternScale = number(record, 41, 1);
+                const hatchStyle = readHatchStyle(record);
                 return {
                     type: 'HATCH',
                     payload: {
@@ -1203,6 +1253,9 @@ function entityPayload(record, blockIds, resources = {}) {
                         patternName: first(record, 2, 'SOLID'),
                         solid: number(record, 70, 0) === 1,
                         associative: number(record, 71, 0) === 1,
+                        ...hatchStyle ? {
+                            hatchStyle
+                        } : {},
                         patternAngle,
                         patternScale,
                         ...patternLines ? {
@@ -1871,11 +1924,34 @@ async function readDXF(source, options = {}) {
             if (handle) ownerSpaces.set(handle, ownerId);
         }
         for (const record of sourceEntityRecords)if (first(record, 410) && normalizeName(first(record, 410)) !== 'MODEL' && !ownerSpaces.has(recordOwner(record))) ensurePaperSpace(String(first(record, 410)));
+        const resourceHandleIds = new Map();
+        const registerResourceHandle = (handle, id)=>{
+            if (handle) resourceHandleIds.set(handle, resourceHandleIds.has(handle) ? '' : id);
+        };
+        const resourceTables = {
+            LAYER: 'layers',
+            LTYPE: 'linetypes',
+            STYLE: 'textStyles',
+            DIMSTYLE: 'dimensionStyles',
+            UCS: 'ucs',
+            VIEW: 'views'
+        };
+        for (const record of tableRecords){
+            const tableName = resourceTables[record.type], handle = String(first(record, record.type === 'DIMSTYLE' ? 105 : 5) ?? '').toUpperCase();
+            const id = record.type === 'BLOCK_RECORD' ? ownerSpaces.get(handle) ?? blockIds.get(normalizeName(first(record, 2))) : tableName ? transaction._draft().tables[tableName].recordIds.find((id)=>normalizeName(transaction.getObject(id)?.name) === normalizeName(first(record, 2))) : undefined;
+            if (id) registerResourceHandle(handle, id);
+        }
+        for (const layout of sourceLayouts){
+            const id = transaction._draft().spaces.layoutIds.find((id)=>normalizeName(transaction.getObject(id)?.name) === normalizeName(layout.name));
+            if (id) registerResourceHandle(layout.handle, id);
+        }
         const occupiedHandles = new Set(Object.values(transaction._draft().objects).map((object)=>object.handle));
         const entityHandleIds = new Map();
         const viewportReferences = [];
         const leaderReferences = [];
         const dimensionReferences = [];
+        const hatchReferences = [];
+        const reactorReferences = [];
         const importRecord = (record, index, ownerId, scope, parentInsertId)=>{
             const layerName = normalizeName(first(record, 8, '0'));
             const layerId = layerIds.get(layerName) ?? defaultLayerId;
@@ -1883,6 +1959,10 @@ async function readDXF(source, options = {}) {
             const dimensionAssociations = record.type === 'DIMENSION' ? readDimensionAssociationHandles(record) : null;
             const sourceHandle = String(first(record, 5, '')).toUpperCase();
             const handleAvailable = /^[0-9A-F]+$/.test(sourceHandle) && !occupiedHandles.has(sourceHandle);
+            const importedReactorHandles = [
+                'VIEWPORT',
+                'PROXY_ENTITY'
+            ].includes(converted.type) ? [] : reactorHandles(record);
             let created;
             try {
                 created = transaction.createEntity(converted.type, {
@@ -1919,6 +1999,11 @@ async function readDXF(source, options = {}) {
                 if (created.type === 'LEADER' && converted.payload.annotationHandle) leaderReferences.push({
                     id: created.id,
                     annotationHandle: String(converted.payload.annotationHandle).toUpperCase()
+                });
+                if (created.type === 'HATCH') hatchReferences.push(created.id);
+                if (importedReactorHandles.length) reactorReferences.push({
+                    id: created.id,
+                    handles: importedReactorHandles
                 });
             } catch (error) {
                 if (record.attributes || parentInsertId) throw error;
@@ -2009,6 +2094,32 @@ async function readDXF(source, options = {}) {
             importSpaceRecord(record, index, ownerId, paperSpace ? `paper-space:${layoutName}` : 'model-space');
             await importCheckpoint();
         }
+        for (const id of hatchReferences){
+            const hatch = transaction.getObject(id), unresolved = [];
+            const boundaryLoops = hatch.payload.boundaryLoops.map((loop)=>{
+                if (!loop.sourceBoundaryHandles?.length) return loop;
+                const sourceBoundaryIds = loop.sourceBoundaryHandles.map((handle)=>{
+                    const boundaryId = entityHandleIds.get(handle), boundary = boundaryId ? transaction.getObject(boundaryId) : null;
+                    if (!boundary || boundary.kind !== 'entity' || boundary.erased || boundary.ownerId !== hatch.ownerId) {
+                        unresolved.push(handle);
+                        return '';
+                    }
+                    return boundary.id;
+                });
+                return {
+                    ...loop,
+                    sourceBoundaryIds
+                };
+            });
+            transaction.updateObject(id, {
+                payload: {
+                    boundaryLoops,
+                    ...unresolved.length ? {
+                        unresolvedHatchBoundaryHandles: unresolved
+                    } : {}
+                }
+            });
+        }
         for (const { id, associations } of dimensionReferences){
             const resolved = associations.map(({ entityHandle, ...association })=>{
                 const entityId = entityHandleIds.get(entityHandle);
@@ -2077,8 +2188,9 @@ async function readDXF(source, options = {}) {
             });
         }
         const viewportObjects = records(section(tags, 'OBJECTS'));
+        let viewportMetadata = null;
         try {
-            const viewportMetadata = captureViewportMetadata(transaction._draft(), viewportObjects, viewportReferences);
+            viewportMetadata = captureViewportMetadata(transaction._draft(), viewportObjects, viewportReferences);
             if (viewportMetadata) transaction.putOpaquePayload(DXF_VIEWPORT_METADATA_KEY, viewportMetadata);
         } catch (error) {
             if (!(error instanceof KJValidationError)) throw error;
@@ -2087,6 +2199,36 @@ async function readDXF(source, options = {}) {
                 sourceVersion: transaction._draft().header.sourceVersion,
                 reason: error.message,
                 records: viewportObjects
+            });
+        }
+        const metadataHandles = new Set(viewportMetadata?.records.map((record)=>String(record.tags.find((tag)=>tag.code === 5)?.value ?? '').toUpperCase()) ?? []);
+        if (viewportMetadata?.rootHandle) metadataHandles.add(viewportMetadata.rootHandle);
+        for (const { id, handles } of reactorReferences){
+            const unresolved = [], dxfReactorIds = [], references = [];
+            for (const handle of handles){
+                const ambiguous = Number(entityHandleIds.has(handle)) + Number(resourceHandleIds.has(handle)) + Number(metadataHandles.has(handle)) > 1;
+                const targetId = entityHandleIds.has(handle) ? entityHandleIds.get(handle) : resourceHandleIds.get(handle);
+                const target = targetId ? transaction.getObject(targetId) : null;
+                if (!ambiguous && target && !target.erased) {
+                    dxfReactorIds.push(target.id);
+                    references.push({
+                        id: target.id
+                    });
+                } else if (!ambiguous && metadataHandles.has(handle)) references.push({
+                    metadataHandle: handle
+                });
+                else unresolved.push(handle);
+            }
+            transaction.updateObject(id, {
+                payload: {
+                    dxfReactorIds,
+                    ...references.some((reference)=>'metadataHandle' in reference) ? {
+                        dxfReactorReferences: references
+                    } : {},
+                    ...unresolved.length ? {
+                        unresolvedDxfReactorHandles: unresolved
+                    } : {}
+                }
             });
         }
         reportDXF(options, 'import', importCompleted, 'entities', importTotal);
@@ -2589,7 +2731,7 @@ function emitEntityExtrusion(output, payload) {
 function emitLegacyPolyline(output, entity, layerName, ownerHandle, space, context) {
     const { version } = context;
     const p = entity.payload ?? {};
-    emitEntityHeader(output, 'POLYLINE', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames);
+    emitEntityHeader(output, 'POLYLINE', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames, context.reactorGroups?.get(entity.handle));
     emitSubclass(output, version, 'AcDb2dPolyline');
     emitPoint(output, [
         0,
@@ -2625,7 +2767,18 @@ function nativeHatchPatternLines(payload) {
             dashes: line.dashes
         }));
 }
-function hasUnchangedHatchGeometry(payload) {
+function referencedEntityHandle(id, ownerId, context, label) {
+    const target = context.objects?.get(id);
+    if (!target || target.erased || target.kind !== 'entity' || target.ownerId !== ownerId) throw new KJValidationError(`DXF ${label} requires a live entity in the same owner space`);
+    return target.handle;
+}
+function hatchBoundaryHandles(loop, entity, context) {
+    const ids = loop.sourceBoundaryIds ?? loop.sourceBoundaryHandles?.map((handle)=>context.sourceEntityIds?.get(handle) ?? '') ?? [];
+    if (!Array.isArray(ids) || ids.length > 4096 || ids.some((id)=>typeof id !== 'string' || !id)) throw new KJValidationError('DXF HATCH has an unavailable or duplicate source boundary reference');
+    if (loop.sourceBoundaryHandles && loop.sourceBoundaryHandles.length !== ids.length) throw new KJValidationError('DXF HATCH source boundary reference count changed without its source metadata');
+    return ids.map((id)=>referencedEntityHandle(id, entity.ownerId, context, 'HATCH source boundary'));
+}
+function hasUnchangedHatchGeometry(payload, context) {
     if (!payload.rawTags?.length) return false;
     const imported = entityPayload({
         type: 'HATCH',
@@ -2634,23 +2787,213 @@ function hasUnchangedHatchGeometry(payload) {
         ]
     }, new Map()).payload;
     const normalized = normalizeStandardEntityPayload('HATCH', imported);
+    const sourceLoops = imported.boundaryLoops;
+    if (payload.boundaryLoops?.some((loop, index)=>loop.sourceBoundaryIds !== undefined && canonicalStringify(loop.sourceBoundaryIds) !== canonicalStringify(sourceLoops[index]?.sourceBoundaryHandles?.map((handle)=>context.sourceEntityIds?.get(handle) ?? '') ?? []))) return false;
     const state = (value)=>canonicalStringify([
             normalizeName(value.patternName),
             Boolean(value.solid),
             Boolean(value.associative),
+            nativeHatchStyle(value),
             Number(value.patternScale ?? 1),
             Number(value.patternAngle ?? 0),
-            value.boundaryLoops,
+            value.boundaryLoops?.map(({ sourceBoundaryIds: _ids, sourceBoundaryHandles: _handles, ...geometry })=>geometry),
             value.patternLines,
             value.patternDefinitionAngle,
             value.patternDefinitionScale
         ]);
     return state(payload) === state(normalized);
 }
+function hatchSourceMetadata(entity, references, dictionaries, version) {
+    const result = {
+        groups: [],
+        header: [],
+        body: [],
+        xdata: [],
+        applications: [],
+        nativeTail: [],
+        doublePattern: 0,
+        spatialXdata: false
+    };
+    const raw = entity.payload?.rawTags ?? [];
+    const fail = (reason)=>{
+        throw new KJValidationError('DXF HATCH source metadata cannot be exported without loss: ' + reason);
+    };
+    const common = new Set([
+        5,
+        6,
+        8,
+        48,
+        60,
+        62,
+        67,
+        330,
+        370,
+        410,
+        420
+    ]);
+    const integer = (tag, min, max)=>/^[ \t]*[+-]?\d+[ \t]*$/.test(tag.value) && Number.isSafeInteger(Number(tag.value)) && Number(tag.value) >= min && Number(tag.value) <= max;
+    const scalar = (tag)=>/^[ \t]*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?[ \t]*$/.test(tag.value) && Number.isFinite(Number(tag.value));
+    const hasSubclass = raw.some((tag)=>tag.code === 100 && tag.value === 'AcDbHatch');
+    let inBody = false, inXdata = false, depth = 0;
+    const groups = new Set(), apps = new Set();
+    for(let index = 0; index < raw.length; index++){
+        const tag = raw[index];
+        if (!tag || !Number.isInteger(tag.code) || typeof tag.value !== 'string' || /[\r\n\0]/.test(tag.value)) fail('invalid source tag');
+        if (tag.code === 102) {
+            if (inXdata || ![
+                '{ACAD_REACTORS',
+                '{ACAD_XDICTIONARY'
+            ].includes(tag.value) || groups.has(tag.value)) fail('unsupported or duplicate reference group');
+            groups.add(tag.value);
+            const start = tag.value, entries = [];
+            while(++index < raw.length && raw[index].code !== 102)entries.push(raw[index]);
+            if (raw[index]?.value !== '}') fail('unclosed reference group');
+            if (start === '{ACAD_REACTORS') {
+                if (entries.some((entry)=>entry.code !== 330 || !/^[0-9A-F]+$/i.test(entry.value.trim()))) fail('invalid reactor group');
+                continue;
+            }
+            if (VERSION_RANK[version] < VERSION_RANK['2000']) fail('extension dictionary requires DXF 2000 or newer');
+            if (entries.length !== 1 || entries[0].code !== 360) fail('invalid extension dictionary group');
+            const target = dictionaries.get(entries[0].value.trim().toUpperCase());
+            if (!target) return fail('extension dictionary target or owner is unavailable');
+            if (target.owner !== entity.handle) fail('extension dictionary target or owner is unavailable');
+            result.groups.push({
+                code: 102,
+                value: start
+            }, {
+                code: 360,
+                value: target.handle
+            }, {
+                code: 102,
+                value: '}'
+            });
+            continue;
+        }
+        if (tag.code === 1001) {
+            if (depth || !tag.value.trim() || tag.value.length > 255 || apps.has(normalizeName(tag.value))) fail('invalid or duplicate XDATA application');
+            apps.add(normalizeName(tag.value));
+            result.applications.push(tag.value);
+            result.xdata.push(tag);
+            inXdata = true;
+            continue;
+        }
+        if (inXdata) {
+            if (result.xdata.length >= 4096) fail('XDATA exceeds its bounded budget');
+            if (tag.code === 1002) {
+                if (tag.value === '{') depth++;
+                else if (tag.value === '}') depth--;
+                else fail('invalid XDATA control string');
+                if (depth < 0 || depth > 16) fail('unbalanced XDATA control strings');
+            } else if (tag.code === 1005) {
+                const handle = tag.value.trim().toUpperCase(), mapped = handle === '0' ? '0' : references.get(handle);
+                if (!mapped) return fail('XDATA handle target is unavailable');
+                result.xdata.push({
+                    ...tag,
+                    value: mapped
+                });
+                continue;
+            } else if (tag.code >= 1010 && tag.code <= 1013) {
+                const pointTags = raw.slice(index, index + 3);
+                if (pointTags.length !== 3 || pointTags.some((entry, axis)=>entry.code !== tag.code + axis * 10 || !scalar(entry))) fail('invalid XDATA point');
+                result.spatialXdata = true;
+                result.xdata.push(...pointTags);
+                index += 2;
+                continue;
+            } else if (!(tag.code === 1000 && tag.value.length <= 255 || tag.code === 1004 && tag.value.length <= 254 && /^(?:[0-9A-F]{2})*$/i.test(tag.value) || [
+                1040,
+                1041,
+                1042
+            ].includes(tag.code) && scalar(tag) || tag.code === 1070 && integer(tag, -32768, 32767) || tag.code === 1071 && integer(tag, -2147483648, 2147483647))) fail('unsupported XDATA value or reference');
+            result.xdata.push(tag);
+            continue;
+        }
+        if (tag.code >= 1000) fail('XDATA value without an application');
+        if (tag.code === 100) {
+            if (![
+                'AcDbEntity',
+                'AcDbHatch'
+            ].includes(tag.value)) fail('unsupported subclass');
+            if (tag.value === 'AcDbHatch') inBody = true;
+            continue;
+        }
+        if (!hasSubclass && tag.code === 10) inBody = true;
+        if (common.has(tag.code) && !(inBody && tag.code === 330)) continue;
+        if (!inBody) {
+            if (tag.code === 430 && tag.value.length <= 255) {
+                if (VERSION_RANK[version] < VERSION_RANK['2004']) fail('color name requires DXF 2004 or newer');
+            } else if (tag.code === 440 && integer(tag, 0, 0xffffffff)) {
+                if (VERSION_RANK[version] < VERSION_RANK['2004']) fail('transparency requires DXF 2004 or newer');
+            } else if (tag.code === 284 && integer(tag, 0, 3)) {
+                if (VERSION_RANK[version] < VERSION_RANK['2007']) fail('shadow mode requires DXF 2007 or newer');
+            } else if (!(isViewportMetadataReference(tag.code) && tag.value === '0' || tag.code === 999)) fail('unsupported entity header field');
+            result.header.push(tag);
+            continue;
+        }
+        if (isViewportMetadataReference(tag.code) && tag.code !== 330) fail('unsupported hatch reference');
+        result.body.push(tag);
+    }
+    if (depth) fail('unclosed XDATA control string');
+    if (result.xdata.reduce((total, tag)=>total + tag.value.length + 4, 0) > 16384) fail('XDATA exceeds 16 KiB');
+    const record = {
+        type: 'HATCH',
+        tags: result.body
+    };
+    const doubles = values(record, 77);
+    if (doubles.length > 1 || doubles.length && !integer({
+        code: 77,
+        value: doubles[0]
+    }, 0, 1)) fail('invalid double-pattern flag');
+    result.doublePattern = doubles.length ? Number(doubles[0]) : 0;
+    const pixels = values(record, 47);
+    if (pixels.length > 1 || pixels.length && (!scalar({
+        code: 47,
+        value: pixels[0]
+    }) || Number(pixels[0]) < 0)) fail('invalid pixel size');
+    if (pixels.length) result.nativeTail.push({
+        code: 47,
+        value: pixels[0]
+    });
+    const seeds = result.body.flatMap((tag, index)=>tag.code === 98 ? [
+            index
+        ] : []);
+    if (seeds.length > 1) fail('duplicate seed count');
+    if (seeds.length) {
+        const start = seeds[0], count = result.body[start];
+        if (!integer(count, 0, 4096)) fail('invalid seed count');
+        const points = result.body.slice(start + 1, start + 1 + Number(count.value) * 2);
+        if (points.length !== Number(count.value) * 2 || points.some((entry, index)=>entry.code !== (index % 2 ? 20 : 10) || !scalar(entry))) fail('invalid seed points');
+        result.nativeTail.push(count, ...points);
+    }
+    return result;
+}
 function emitHatch(output, entity, layerName, ownerHandle, space, context) {
     const { version } = context;
     const p = entity.payload ?? {};
-    if (hasUnchangedHatchGeometry(p)) {
+    const hatchStyle = nativeHatchStyle(p);
+    const metadata = context.hatchMetadata?.get(entity.handle);
+    const referenceGroups = [
+        ...context.reactorGroups?.get(entity.handle) ?? [],
+        ...metadata?.groups ?? []
+    ];
+    if (metadata?.spatialXdata && p.rawTags?.length) {
+        const record = {
+            type: 'HATCH',
+            tags: [
+                ...p.rawTags
+            ]
+        };
+        const original = normalizeStandardEntityPayload('HATCH', entityPayload(record, new Map()).payload);
+        const sourceNormal = [
+            number(record, 210),
+            number(record, 220),
+            number(record, 230, 1)
+        ];
+        const geometry = (payload)=>canonicalStringify(payload.boundaryLoops?.map(({ sourceBoundaryIds: _ids, sourceBoundaryHandles: _handles, ...loop })=>loop));
+        if (geometry(p) !== geometry(original) || Number(p.elevation ?? number(record, 30)) !== number(record, 30) || canonicalStringify(p.normal ?? sourceNormal) !== canonicalStringify(sourceNormal) || Number(p.thickness ?? number(record, 39)) !== number(record, 39)) throw new KJValidationError('DXF HATCH source metadata cannot be exported without loss: spatial XDATA requires unchanged boundary geometry and coordinate system');
+    }
+    if (p.unresolvedHatchBoundaryHandles?.length) throw new KJValidationError('DXF HATCH has unresolved source boundary references; export stopped to prevent data loss');
+    for (const loop of p.boundaryLoops ?? [])hatchBoundaryHandles(loop, entity, context);
+    if (hasUnchangedHatchGeometry(p, context)) {
         const properties = {
             ...entityDrawingProperties({
                 type: 'HATCH',
@@ -2660,24 +3003,16 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
             }, {}),
             ...p
         };
-        emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version, properties, context.linetypeNames);
+        emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version, properties, context.linetypeNames, referenceGroups);
+        for (const tag of metadata?.header ?? [])emit(output, tag.code, tag.value);
         emitSubclass(output, version, 'AcDbHatch');
-        for (const tag of p.rawTags){
-            if ([
-                5,
-                6,
-                8,
-                48,
-                60,
-                62,
-                67,
-                330,
-                370,
-                410,
-                420
-            ].includes(tag.code) || tag.code === 100) continue;
-            else emit(output, tag.code, tag.value);
+        for (const tag of metadata?.body ?? []){
+            if (tag.code === 330) {
+                const id = context.sourceEntityIds?.get(tag.value.trim().toUpperCase()) ?? '';
+                emit(output, 330, referencedEntityHandle(id, entity.ownerId, context, 'HATCH source boundary'));
+            } else emit(output, tag.code, tag.value);
         }
+        for (const tag of metadata?.xdata ?? [])emit(output, tag.code, tag.value);
         return;
     }
     if (p.rawTags?.length) {
@@ -2690,6 +3025,54 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
         if (number(record, 30) !== 0 || number(record, 210) !== 0 || number(record, 220) !== 0 || number(record, 230, 1) !== 1) {
             throw new KJValidationError('Edited non-planar DXF HATCH geometry requires an OCS-aware adapter');
         }
+        const supported = new Set([
+            10,
+            20,
+            30,
+            2,
+            70,
+            71,
+            91,
+            92,
+            72,
+            73,
+            93,
+            42,
+            97,
+            330,
+            11,
+            21,
+            40,
+            50,
+            51,
+            74,
+            94,
+            95,
+            96,
+            12,
+            22,
+            13,
+            23,
+            75,
+            76,
+            52,
+            41,
+            77,
+            78,
+            53,
+            43,
+            44,
+            45,
+            46,
+            79,
+            49,
+            98,
+            47,
+            210,
+            220,
+            230
+        ]);
+        if (metadata?.body.some((tag)=>!supported.has(tag.code))) throw new KJValidationError('DXF HATCH source metadata cannot be exported without loss: unsupported hatch subclass field');
     }
     const requireXY = (value)=>{
         if (value.some((component)=>!Number.isFinite(component)) || (value[2] ?? 0) !== 0) throw new KJValidationError('Native DXF HATCH geometry must use finite XY points at Z=0');
@@ -2718,7 +3101,8 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
             } else throw new KJValidationError(`Native DXF HATCH edge type ${edge.type} is not supported; use LINE, ARC, ELLIPSE or SPLINE boundaries`);
         }
     }
-    emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames);
+    emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames, referenceGroups);
+    for (const tag of metadata?.header ?? [])emit(output, tag.code, tag.value);
     emitSubclass(output, version, 'AcDbHatch');
     emitPoint(output, [
         0,
@@ -2801,15 +3185,17 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
                 } else throw new KJValidationError(`DXF HATCH writer does not support ${edge.type} boundary edges`);
             }
         }
-        emit(output, 97, 0);
+        const sourceHandles = hatchBoundaryHandles(loop, entity, context);
+        emit(output, 97, sourceHandles.length);
+        for (const handle of sourceHandles)emit(output, 330, handle);
     }
-    emit(output, 75, 0);
+    emit(output, 75, hatchStyle);
     emit(output, 76, 1);
     if (!p.solid) {
         const lines = nativeHatchPatternLines(p);
         emit(output, 52, (p.patternAngle ?? 0) * 180 / Math.PI);
         emit(output, 41, p.patternScale ?? 1);
-        emit(output, 77, 0);
+        emit(output, 77, metadata?.doublePattern ?? 0);
         emit(output, 78, lines.length);
         for (const line of lines){
             emit(output, 53, line.angleDegrees);
@@ -2821,6 +3207,8 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
             for (const dash of line.dashes)emit(output, 49, dash);
         }
     }
+    for (const tag of metadata?.nativeTail ?? [])emit(output, tag.code, tag.value);
+    for (const tag of metadata?.xdata ?? [])emit(output, tag.code, tag.value);
 }
 function validateViewportBoundary(boundary) {
     const p = dxfPayload(boundary);
@@ -2866,8 +3254,17 @@ function emitRawEntity(output, entity, layerName, ownerHandle, space, context) {
         }, {}),
         ...entity.payload
     };
-    emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version, properties, context.linetypeNames);
+    emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version, properties, context.linetypeNames, context.reactorGroups?.get(entity.handle));
+    let inReactors = false;
     for (const tag of entity.payload?.rawTags ?? []){
+        if (tag.code === 102 && tag.value === '{ACAD_REACTORS' && context.reactorGroups?.has(entity.handle)) {
+            inReactors = true;
+            continue;
+        }
+        if (inReactors) {
+            if (tag.code === 102 && tag.value === '}') inReactors = false;
+            continue;
+        }
         if ([
             5,
             6,
@@ -3065,7 +3462,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         }, layerName, ownerHandle, space, context);
         return;
     }
-    emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames, context.viewportGroups?.get(entity.handle));
+    emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames, context.viewportGroups?.get(entity.handle) ?? context.reactorGroups?.get(entity.handle));
     if (entity.type === 'LINE') {
         emitSubclass(output, version, 'AcDbLine');
         emitPoint(output, p.start);
@@ -3584,6 +3981,15 @@ function writeDXF(document, options = {}) {
             String(layout.payload.blockRecordId),
             layout.handle
         ]));
+    const objects = new Map(Object.values(state.objects).map((record)=>[
+            record.id,
+            record
+        ]));
+    const sourceEntityIds = new Map();
+    for (const record of objects.values())if (record.kind === 'entity' && !record.erased) {
+        const handle = String(record.source?.originalHandle ?? record.handle).toUpperCase();
+        sourceEntityIds.set(handle, sourceEntityIds.has(handle) ? '' : record.id);
+    }
     const context = {
         version,
         allocateHandle: createHandleAllocator([
@@ -3593,10 +3999,104 @@ function writeDXF(document, options = {}) {
         linetypeNames: new Map(documentTableRecords(document, 'linetypes').map((record)=>[
                 record.id,
                 String(record.name)
-            ]))
+            ])),
+        objects,
+        sourceEntityIds
     };
+    const reactorGroups = new Map();
     const metadataRootHandle = viewportMetadata ? context.allocateHandle() : null;
     const metadataReferences = viewportMetadata ? viewportMetadataReferenceMap(state, viewportMetadata, metadataRootHandle) : new Map();
+    const metadataReactorHandles = new Map(viewportMetadata?.records.map((record)=>{
+        const handle = String(record.tags.find((tag)=>tag.code === 5)?.value ?? '').toUpperCase();
+        return [
+            handle,
+            metadataReferences.get(handle) ?? handle
+        ];
+    }) ?? []);
+    if (viewportMetadata?.rootHandle) metadataReactorHandles.set(viewportMetadata.rootHandle, metadataRootHandle);
+    const reactorObjectIds = new Set([
+        ...document.listEntities().map((entity)=>entity.id),
+        ...[
+            'layers',
+            'linetypes',
+            'textStyles',
+            'dimensionStyles',
+            'ucs',
+            'views',
+            'blockRecords'
+        ].flatMap((name)=>documentTableRecords(document, name).map((record)=>record.id)),
+        ...VERSION_RANK[version] >= VERSION_RANK['2000'] ? layouts.map((layout)=>layout.id) : []
+    ]);
+    for (const entity of document.listEntities()){
+        const payload = dxfPayload(entity);
+        if (payload.unresolvedDxfReactorHandles?.length) throw new KJValidationError('DXF entity has unresolved reactor references; export stopped to prevent data loss');
+        if (payload.dxfReactorIds !== undefined || payload.dxfReactorReferences !== undefined) {
+            if (!Array.isArray(payload.dxfReactorIds) || payload.dxfReactorIds.length > 4096 || payload.dxfReactorIds.some((id)=>typeof id !== 'string' || !id)) throw new KJValidationError('Invalid DXF entity reactor references');
+            const references = payload.dxfReactorReferences ?? payload.dxfReactorIds.map((id)=>({
+                    id
+                }));
+            if (!Array.isArray(references) || references.length > 4096 || references.some((reference)=>!reference || typeof reference !== 'object' || Object.keys(reference).length !== 1 || !('id' in reference && typeof reference.id === 'string' && reference.id || 'metadataHandle' in reference && typeof reference.metadataHandle === 'string' && /^[0-9A-F]+$/.test(reference.metadataHandle)))) throw new KJValidationError('Invalid DXF entity reactor reference graph');
+            if (canonicalStringify(references.flatMap((reference)=>'id' in reference ? [
+                    reference.id
+                ] : [])) !== canonicalStringify(payload.dxfReactorIds)) throw new KJValidationError('DXF entity reactor reference graph is inconsistent');
+            if (!references.length) continue;
+            if (!isSubclassDXF(version)) throw new KJValidationError('DXF R12 cannot preserve entity reactor references');
+            reactorGroups.set(entity.handle, [
+                {
+                    code: 102,
+                    value: '{ACAD_REACTORS'
+                },
+                ...references.map((reference)=>{
+                    if ('metadataHandle' in reference) {
+                        const handle = metadataReactorHandles.get(reference.metadataHandle);
+                        if (!handle) throw new KJValidationError('DXF entity reactor metadata target is unavailable');
+                        return {
+                            code: 330,
+                            value: handle
+                        };
+                    }
+                    const target = objects.get(reference.id);
+                    if (!target || target.erased || !reactorObjectIds.has(reference.id)) throw new KJValidationError('DXF entity reactor requires a live exported DXF object');
+                    return {
+                        code: 330,
+                        value: target.handle
+                    };
+                }),
+                {
+                    code: 102,
+                    value: '}'
+                }
+            ]);
+        }
+    }
+    context.reactorGroups = reactorGroups;
+    const hatchReferences = new Map(metadataReactorHandles);
+    for (const [handle, id] of sourceEntityIds){
+        const target = objects.get(id);
+        if (target && reactorObjectIds.has(id)) hatchReferences.set(handle, target.handle);
+    }
+    const hatchDictionaries = new Map(viewportMetadata?.records.filter((record)=>record.type === 'DICTIONARY').map((record)=>{
+        const handle = String(record.tags.find((tag)=>tag.code === 5)?.value ?? '').toUpperCase();
+        const owner = recordOwner({
+            type: record.type,
+            tags: [
+                ...record.tags
+            ]
+        });
+        return [
+            handle,
+            {
+                handle: metadataReferences.get(handle) ?? handle,
+                owner: metadataReferences.get(owner) ?? owner
+            }
+        ];
+    }) ?? []);
+    context.hatchMetadata = new Map(document.listEntities({
+        type: 'HATCH'
+    }).map((entity)=>[
+            entity.handle,
+            hatchSourceMetadata(dxfEntity(entity), hatchReferences, hatchDictionaries, version)
+        ]));
     if (viewportMetadata) {
         if (VERSION_RANK[version] < VERSION_RANK['2000']) throw new KJValidationError('DXF viewport metadata: requires DXF 2000 or newer');
         const groups = new Map();
@@ -3674,10 +4174,7 @@ function writeDXF(document, options = {}) {
             block.name
         ]));
     const resources = {
-        objects: new Map(Object.values(state.objects).map((record)=>[
-                record.id,
-                record
-            ])),
+        objects,
         textStyleNames: new Map(textStyles.map((record)=>[
                 record.id,
                 record.name
@@ -3779,6 +4276,9 @@ function writeDXF(document, options = {}) {
         ...hasDimensionAssociations ? [
             'KJDRAW'
         ] : [],
+        ...[
+            ...context.hatchMetadata.values()
+        ].flatMap((metadata)=>metadata.applications),
         ...allEntities.flatMap((entity)=>entity.payload?.dxfAttributeExtraTags == null ? [] : attributeExtraApplications(entity.payload.dxfAttributeExtraTags, entity.payload.alignmentPoint, (entity.payload.horizontalAlignment ?? 0) === 0 && (entity.payload.verticalAlignment ?? 0) === 0))
     ];
     const applications = new Map();

@@ -42,12 +42,25 @@ async function observeRenderer(page) {
 async function mockMove(page, revision) {
   const requests = []
   await page.route(modelEndpoint, route => {
-    const request = route.request()
-    requests.push(request.postDataJSON())
+    const request = route.request(), body = request.postDataJSON()
+    requests.push(body)
     expect(request.headers().authorization).toBeUndefined()
+    const host = body.messages.find(message => message.role === 'user' && message.content.startsWith('Host context: document '))
+    expect(host.content).toContain(`Host context: document interactive-viewer-fixture; revision ${revision}; units millimeter.`)
+    const output = body.messages.findLast(message => message.role === 'tool')
+    if (!output) return route.fulfill({ json: { choices: [{ message: { role: 'assistant', content: '', tool_calls: [{
+      id: 'viewer-read', type: 'function', function: { name: 'cad_query_drawing', arguments: JSON.stringify({
+        expectedRevision: revision, filters: { ids: ['moving-edge'] }, offset: 0, limit: 1,
+        layerOffset: 0, maxLayers: 1, maxBytes: 10240,
+      }) },
+    }] }, finish_reason: 'tool_calls' }] } })
+    const result = JSON.parse(output.content)
+    expect(result).toMatchObject({ ok: true, value: { documentId: 'interactive-viewer-fixture', revision, units: 'millimeter' } })
+    expect(result.value.entities).toHaveLength(1)
+    expect(result.value.entities[0]).toMatchObject({ id: 'moving-edge', type: 'LINE', geometry: { start: [5, 10, 0], end: [45, 10, 0] } })
     return route.fulfill({ json: { choices: [{ message: { role: 'assistant', content: '', tool_calls: [{
       id: 'viewer-move', type: 'function', function: { name: 'cad_propose_move', arguments: JSON.stringify({
-        expectedRevision: revision, units: 'millimeter', ids: ['moving-edge'], dx: 20, dy: 30,
+        expectedRevision: result.value.revision, units: result.value.units, ids: [result.value.entities[0].id], dx: 20, dy: 30,
       }) },
     }] }, finish_reason: 'tool_calls' }] } })
   })
@@ -70,7 +83,11 @@ async function importDrawing(page, name, content) {
     name, mimeType: name.endsWith('.dxf') ? 'application/dxf' : 'application/json', buffer: Buffer.from(content),
   })
   await expect(page.locator('#drawing-name')).toHaveText(name)
-  await expect(page.getByTestId('drawing-context').locator('.drawing-viewer-stage canvas')).toBeVisible()
+  const context = page.getByTestId('drawing-context')
+  // The persistent workspace is the primary preview; its optional inline
+  // counterpart starts collapsed and is opened explicitly for these controls.
+  if (!await context.evaluate(node => node.open)) await context.locator('summary').click()
+  await expect(context.locator('.drawing-viewer-stage canvas')).toBeVisible()
 }
 
 async function camera(canvas) {
@@ -218,7 +235,9 @@ test('applied AI result renders the revised full drawing and supports inline and
   expect(reopened.validate().valid).toBe(true)
   expect(reopened.listEntities()).toHaveLength(3)
   expect(reopened.listEntities({ type: 'LINE' })[0].payload.start).toEqual([25, 40, 0])
-  expect(requests).toHaveLength(1)
+  // One actual native read and one proposal; neither approval nor viewing
+  // makes another model request, and the host request budget is unchanged.
+  expect(requests).toHaveLength(2)
   expect(errors).toEqual([])
 })
 

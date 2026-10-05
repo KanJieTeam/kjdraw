@@ -33,9 +33,20 @@ test('real CAD proposal stays pending until approval and exports a reopenable DX
 
   const card = page.getByTestId('drawing-result')
   await expect(card).toBeVisible()
-  await expect(card).toContainText('REV 0')
+  await expect(card.locator('.proposal-subtitle')).toHaveText('Revision 0')
   await expect(page.getByTestId('proposal-approve')).toBeVisible()
   await expect(page.getByTestId('drawing-download')).toHaveCount(0)
+  await expect(page.getByTestId('chat-send')).toBeEnabled()
+  const persistedDrawing = async () => {
+    const bytes = await page.evaluate(async () => {
+      const saved = await (await import('/apps/playground/ai/local-history.js')).loadLocalHistory()
+      return saved.sessions.find(session => session.id === saved.activeId).state.drawing
+    })
+    return createKJDrawSDK().readDocument(bytes, { format: 'KJD' })
+  }
+  const beforeApproval = await persistedDrawing()
+  expect(beforeApproval.revision).toBe(0)
+  expect(beforeApproval.listEntities()).toHaveLength(0)
   await expect.poll(() => card.locator('canvas').evaluate(canvas => {
     if (!canvas.width || !canvas.height) return 0
     const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data
@@ -49,6 +60,11 @@ test('real CAD proposal stays pending until approval and exports a reopenable DX
 
   await page.getByTestId('proposal-approve').click()
   await expect(page.getByTestId('drawing-download')).toBeVisible()
+  await expect(card.locator('.proposal-subtitle')).toHaveText('Revision 1')
+  const afterApproval = await persistedDrawing()
+  expect(afterApproval.id).toBe(beforeApproval.id)
+  expect(afterApproval.revision).toBe(beforeApproval.revision + 1)
+  expect(afterApproval.listEntities()).toHaveLength(1)
   await expect.poll(() => card.locator('canvas').evaluate(canvas => {
     const pixels=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data
     let drawn=0
@@ -106,12 +122,28 @@ test('imports an existing KJD, edits its entity, restores the chat, and download
     tx.createEntity('LINE', { start:[5,5,0], end:[45,5,0] }, { id:'seed-edge' })
   })
   const args = { expectedRevision:source.revision, units:'millimeter', ids:['seed-edge'], dx:5, dy:2 }
-  await page.route('https://ai-test.invalid/v1/chat/completions', route => route.fulfill({ json: {
+  await page.route('https://ai-test.invalid/v1/chat/completions', route => {
+    const body = route.request().postDataJSON()
+    const host = body.messages.find(message => message.role === 'user' && message.content.startsWith('Host context: document '))
+    expect(host.content).toContain(`Host context: document ${source.id}; revision ${source.revision}; units millimeter.`)
+    const output = body.messages.findLast(message => message.role === 'tool')
+    if (!output) return route.fulfill({ json: { choices: [{ message: { role: 'assistant', content: '', tool_calls: [{
+      id: 'read-seed-edge', type: 'function', function: { name: 'cad_query_drawing', arguments: JSON.stringify({
+        expectedRevision: source.revision, filters: { ids: ['seed-edge'] }, offset: 0, limit: 1,
+        layerOffset: 0, maxLayers: 1, maxBytes: 10240,
+      }) },
+    }] }, finish_reason: 'tool_calls' }] } })
+    const read = JSON.parse(output.content)
+    expect(read).toMatchObject({ ok: true, value: { documentId: source.id, revision: source.revision, units: 'millimeter' } })
+    expect(read.value.entities).toHaveLength(1)
+    expect(read.value.entities[0]).toMatchObject({ id: 'seed-edge', type: 'LINE', geometry: { start: [5,5,0], end: [45,5,0] } })
+    return route.fulfill({ json: {
     id:'mock-move', object:'chat.completion', model:'browser-fixture',
     choices:[{ index:0, message:{ role:'assistant', content:'', tool_calls:[{
       id:'move-1', type:'function', function:{ name:'cad_propose_move', arguments:JSON.stringify(args) },
     }] }, finish_reason:'tool_calls' }],
-  } }))
+  } })
+  })
   await page.goto('/ai/')
   await page.getByTestId('drawing-file').setInputFiles({
     name:'seed.kjd', mimeType:'application/json', buffer:Buffer.from(await sdk.writeDocument(source,{format:'KJD'})),
@@ -254,10 +286,24 @@ test('building edits are chosen by model tools, impact-checked, and never inferr
   await page.route('https://ai-test.invalid/v1/chat/completions',route=>{
     const body=route.request().postDataJSON()
     requests.push(body)
-    const userMessage=body.messages.findLast(message=>message.role==='user')?.content ?? ''
+    const userMessage=body.messages.find(message=>message.role==='user' && message.content.startsWith('Host context: document '))?.content ?? ''
+    expect(userMessage).toContain(`Host context: document ${source.id}; revision ${source.revision}; units millimeter.`)
     if(userMessage.endsWith('Current user request: 删掉顶部三个楼')){
+      const output=body.messages.findLast(message=>message.role==='tool')
+      if(!output) return route.fulfill({json:{choices:[{message:{role:'assistant',content:'',tool_calls:[{
+        id:'read-ambiguous-top-row',type:'function',function:{name:'cad_query_spatial_candidates',arguments:JSON.stringify({
+          expectedRevision:source.revision,indices:[0,1,2,3],
+        })},
+      }]},finish_reason:'tool_calls'}]}})
+      const read=JSON.parse(output.content)
+      expect(read).toMatchObject({ok:true,value:{expectedRevision:source.revision,total:6,returned:4,completeInventory:false}})
+      expect(read.value.candidates).toHaveLength(4)
+      expect(read.value.candidates.flatMap(candidate=>candidate.memberIds)).toEqual([
+        'building-0','floor-0','building-1','floor-1','building-2','floor-2','building-3','floor-3',
+      ])
       return route.fulfill({json:{choices:[{message:{role:'assistant',content:'顶部有四栋候选，请指出是哪三栋。'},finish_reason:'stop'}]}})
     }
+    expect(userMessage).toMatch(/Current user request: 删掉底部两个楼$/)
     const revision=source.revision
     let name,args
     if(phase===0){name='cad_query_spatial_candidates';args={expectedRevision:revision,indices:[4,5]}}
@@ -279,6 +325,8 @@ test('building edits are chosen by model tools, impact-checked, and never inferr
   await page.getByTestId('drawing-file').setInputFiles({
     name:'six-buildings.kjd',mimeType:'application/json',buffer:Buffer.from(await sdk.writeDocument(source,{format:'KJD'})),
   })
+  await expect(page.locator('#drawing-name')).toHaveText('six-buildings.kjd')
+  await expect(page.getByTestId('chat-send')).toBeEnabled()
   await page.getByTestId('chat-input').fill('删掉顶部三个楼')
   await page.getByTestId('chat-send').click()
   await expect(page.locator('#settings-dialog')).toBeVisible()
@@ -313,6 +361,16 @@ test('imported DXF geology edits disclose missing source facts instead of exposi
   let captured
   await page.route('https://ai-test.invalid/v1/chat/completions',route=>{
     captured=route.request().postDataJSON()
+    const host=captured.messages.find(message=>message.role==='user' && message.content.startsWith('Host context: document '))
+    expect(host.content).toContain('not a verified borehole source table')
+    const output=captured.messages.findLast(message=>message.role==='tool')
+    if(!output) return route.fulfill({json:{choices:[{message:{role:'assistant',content:'',tool_calls:[{
+      id:'read-imported-section',type:'function',function:{name:'cad_read_drawing',arguments:'{}'},
+    }]},finish_reason:'tool_calls'}]}})
+    const read=JSON.parse(output.content)
+    expect(read).toMatchObject({ok:true,value:{units:'millimeter'}})
+    expect(read.value.entities).toHaveLength(2)
+    expect(read.value.entities.map(entity=>entity.type).sort()).toEqual(['LINE','TEXT'])
     return route.fulfill({json:{choices:[{message:{role:'assistant',content:'请提供 ZK01 的原始分层表和与邻孔的对比关系，不能只改图上的文字。'},finish_reason:'stop'}]}})
   })
   await page.goto('/ai/')
@@ -329,7 +387,7 @@ test('imported DXF geology edits disclose missing source facts instead of exposi
   await page.getByTestId('chat-input').fill('把 ZK01 第三层改成砂层并重绘剖面图')
   await page.getByTestId('chat-send').click()
   await expect(page.locator('.message.assistant .message-content').last()).toContainText('原始分层表')
-  expect(captured.messages.findLast(message=>message.role==='user').content).toContain('not a verified borehole source table')
+  expect(captured.messages.find(message=>message.role==='user' && message.content.startsWith('Host context: document ')).content).toContain('not a verified borehole source table')
   const names=captured.tools.map(tool=>tool.function.name)
   expect(names).not.toContain('cad_propose_geology_section')
   expect(names).not.toContain('cad_propose_geology_column')

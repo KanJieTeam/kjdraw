@@ -8,6 +8,13 @@ import { PUBLIC_FIXTURE_IDS, buildPublicScenarioFixture, fixtureStateSignature, 
 import { KJAgentToolSession } from '../packages/kjdraw-sdk/src/agent-tools.js'
 import { readGeologyDrawingRecipe } from '../packages/kjdraw-sdk/src/geology-drawing-update.js'
 import { canonicalStringify } from '../packages/kjdraw-sdk/src/utils.js'
+import { ROUND3_ORACLE_SCENARIO_IDS } from '../scripts/testing/helpers/geology-round3-scenario-oracles.mjs'
+import { HISTORY_ORACLE_SCENARIO_IDS } from '../scripts/testing/helpers/geology-history-scenario-oracles.mjs'
+import { ROUND4_NATIVE_SCENARIO_IDS } from '../scripts/testing/helpers/geology-round4-native-oracles.mjs'
+import { ROUND5_INVENTORY_SCENARIO_IDS } from '../scripts/testing/helpers/geology-round5-inventory-oracles.mjs'
+import { SUPPLIED_CREATION_SCENARIO_IDS } from '../scripts/testing/helpers/geology-supplied-creation-oracles.mjs'
+import { ROUND6_SOURCE_WORKFLOW_SCENARIO_IDS } from '../scripts/testing/helpers/geology-round6-source-workflow-oracles.mjs'
+import { ROUND7_POINT_PLAN_SCENARIO_IDS } from '../scripts/testing/helpers/geology-round7-point-plan-oracles.mjs'
 
 const corpus = JSON.parse(await readFile(FIXTURE_URL, 'utf8'))
 const scenarioById = new Map(corpus.scenarios.map(scenario => [scenario.id, scenario]))
@@ -71,8 +78,7 @@ async function collectProposal(scenario, fixture, trace, gold) {
     if (gold.afterSource.kind === 'section') for (const key of ['correlations', 'uncorrelatedOccurrences']) {
       if (canonicalStringify(gold.afterSource.input[key]) !== canonicalStringify(gold.beforeSource.input[key])) sectionChanges[key] = clone(gold.afterSource.input[key])
     }
-    // The API requires at least one declared hole update, even for a link-only revision.
-    if (!updates.length && Object.keys(sectionChanges).length) updates.push({ holeId: afterHoles[0].id, strata: clone(afterHoles[0].strata) })
+    // Link-only revisions declare their exact occurrence map without inventing a hole update.
     return trace.call('cad_propose_geology_revision', { ...base, drawingId: fixture.drawingId, updates, ...sectionChanges })
   }
   await trace.call('cad_query_drawing', { expectedRevision: fixture.initialRevision, filters: { ids: gold.targetIds }, offset: 0, layerOffset: 0, limit: 64, maxLayers: 100, maxBytes: 262144 })
@@ -103,11 +109,13 @@ test('1080-row read-only preflight probes every declared verified fixture branch
   assert.equal(report.userScenarioPasses, null)
   assert.equal(report.executionStatus, 'not-run')
   assert.deepEqual(report.fixtureProbes.filter(item => !item.branch).map(item => item.actualReadFormat), ['DXF', 'KJD', 'KJD'])
-  assert.equal(report.fixtureProbes.filter(item => item.branch).length, 15)
+  assert.equal(report.fixtureProbes.filter(item => item.branch).length, 40)
   assert.ok(report.fixtureProbes.every(item => item.status === 'built-and-validated'))
 })
 
-for (const id of VERIFIED_SCENARIO_IDS) {
+// Round3's exact native execution assertions live in its dedicated suite. This
+// original suite retains its own explicit driver; no placeholder is a pass.
+for (const id of VERIFIED_SCENARIO_IDS.filter(id => !ROUND3_ORACLE_SCENARIO_IDS.includes(id) && !HISTORY_ORACLE_SCENARIO_IDS.includes(id) && !ROUND4_NATIVE_SCENARIO_IDS.includes(id) && !ROUND5_INVENTORY_SCENARIO_IDS.includes(id) && !SUPPLIED_CREATION_SCENARIO_IDS.includes(id) && !ROUND6_SOURCE_WORKFLOW_SCENARIO_IDS.includes(id) && !ROUND7_POINT_PLAN_SCENARIO_IDS.includes(id))) {
   const scenario = scenarioById.get(id)
   test(`exact executable fixture/oracle selftest, never a model pass: ${scenario.id}`, async () => {
     if (assessScenarioReadiness(scenario).status === 'not-ready') {
@@ -363,7 +371,7 @@ test('output frames expose only schema placeholders, while caller-declared split
         assert.equal(frame.includes(fixture.drawingId), false)
         assert.equal(frame.includes('106.5'), false)
         assert.equal(frame.includes('102.5'), false)
-        if (id.startsWith('GUS1-invalid-source.') || id.startsWith('GUS1-ambiguity.')) {
+        if (id.startsWith('GUS1-invalid-source.') || id.startsWith('GUS1-ambiguity.') || id.startsWith('GUS1-geological-presentation.unsupported-existing-scale-edit-')) {
           assert.ok(frame.includes('blocked or clarification-required'), 'grammar declares both decision alternatives, not the expected decision')
         } else {
           assert.equal(frame.includes('clarification-required'), false)

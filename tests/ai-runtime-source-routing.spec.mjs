@@ -178,7 +178,7 @@ test('explicit read-only source inspection never requests a proposal correction 
   } finally { chat.destroy(); fixture.dispose() }
 })
 
-test('geometry-only DXF does not acquire source mutation tools from geology-like labels or host revision framing', async () => {
+test('geometry-only DXF does not acquire source mutation tools or accept zero-read prose from geology-like labels or host revision framing', async () => {
   const fixture = await retainedSourceFixture(), requests = []
   const question = 'This DXF has no retained source record. Please supply the actual source facts; no proposal exists.'
   const chat = createAiChatRuntime({ endpoint: 'https://source-routing-fixture.invalid/chat/completions', model: 'fixture-model',
@@ -194,15 +194,66 @@ test('geometry-only DXF does not acquire source mutation tools from geology-like
   })
   try {
     await restoreFixture(chat, fixture, 'DXF')
-    const before = (await chat.exportLocalState()).drawing
+    const before = await chat.exportLocalState()
     const result = await chat.send('Set I-CLAY descriptionSource=interval.' + identityNotice)
-    assert.equal(result.status, 'message')
-    assert.equal(result.text, question)
-    assert.equal(result.proposalRepairAttempts, 0, 'no successful source or CAD read permits a correction')
+    assert.equal(result.status, 'error')
+    assert.equal(result.error.code, 'KJAGENT_READ_REQUIRED')
+    assert.equal(result.text, '')
     assert.equal(result.proposal, undefined)
     assert.equal(result.receipt, undefined)
-    assert.equal(requests.length, 1)
-    assert.equal((await chat.exportLocalState()).drawing, before)
+    assert.equal(requests.length, 2, 'At most one reminder; host does not fabricate or dispatch a CAD read')
+    const after = await chat.exportLocalState()
+    assert.equal(after.drawing, before.drawing)
+    assert.deepEqual(after.drawingHistory, before.drawingHistory)
     assert.equal(chat.drawingHistory.canUndo, false)
+  } finally { chat.destroy(); fixture.dispose() }
+})
+
+test('geometry-only DXF can clarify genuinely missing source facts after a real CAD read without gaining source revision tools', async () => {
+  const fixture = await retainedSourceFixture(), requests = []
+  const question = 'This DXF has no retained source record. Please supply the actual source facts; no proposal exists.'
+  const chat = createAiChatRuntime({ endpoint: 'https://source-routing-fixture.invalid/chat/completions', model: 'fixture-model', captureToolOutputs: true,
+    fetchImpl: async (_url, request) => {
+      const body = JSON.parse(request.body)
+      requests.push(body)
+      const names = body.tools.map(tool => tool.function.name)
+      assert.equal(names.includes('cad_read_geology_source'), false)
+      assert.equal(names.includes('cad_propose_geology_revision'), false)
+      assert.ok(names.includes('cad_query_drawing') && names.includes('cad_propose_text_edit'))
+      if (requests.length === 1) return modelResponse('cad_query_drawing', { expectedRevision: chat.revision,
+        filters: {}, offset: 0, layerOffset: 0, limit: 200, maxLayers: 100, maxBytes: 262144 }, 'actual-dxf-before-clarification')
+      if (requests.length === 2) {
+        const actual = JSON.parse(body.messages.at(-1).content)
+        assert.equal(actual.ok, true)
+        assert.equal(actual.value.revision, chat.revision)
+        assert.equal(actual.value.units, 'millimeter')
+        assert.ok(actual.value.entities.length > 0)
+      } else {
+        assert.equal(requests.length, 3)
+        assert.match(body.messages.at(-1).content, /requirements are genuinely missing/)
+      }
+      return modelResponse(null, null, null, question)
+    },
+  })
+  try {
+    await restoreFixture(chat, fixture, 'DXF')
+    const before = await chat.exportLocalState()
+    const result = await chat.send('Set I-CLAY descriptionSource=interval.' + identityNotice)
+    assert.equal(result.status, 'message', JSON.stringify(result.error))
+    assert.equal(result.text, question)
+    assert.equal(result.noProposal, true)
+    assert.equal(result.proposalRepairAttempts, 1)
+    assert.equal(result.proposal, undefined)
+    assert.equal(result.receipt, undefined)
+    assert.equal(requests.length, 3)
+    assert.equal(result.toolOutputs.length, 1)
+    assert.equal(result.toolOutputs[0].name, 'cad_query_drawing')
+    assert.equal(result.toolOutputs[0].result.ok, true)
+    assert.equal(result.toolOutputs[0].result.value.documentId, JSON.parse(before.drawing).documentId)
+    const after = await chat.exportLocalState()
+    assert.equal(after.drawing, before.drawing)
+    assert.deepEqual(after.drawingHistory, before.drawingHistory)
+    assert.equal(chat.drawingHistory.canUndo, false)
+    assert.equal((await chat.approve('no-retained-source-plan')).error.code, 'AI_PROPOSAL_MISSING')
   } finally { chat.destroy(); fixture.dispose() }
 })

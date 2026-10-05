@@ -91,6 +91,11 @@
       "import": "./src/knowledge-packs/geology-core.js",
       "default": "./src/knowledge-packs/geology-core.js"
     },
+    "./knowledge-packs/geology-patterns": {
+      "types": "./types/knowledge-packs/geology-patterns.d.ts",
+      "import": "./src/knowledge-packs/geology-patterns.js",
+      "default": "./src/knowledge-packs/geology-patterns.js"
+    },
     "./knowledge-compiler": {
       "types": "./types/knowledge-compiler.d.ts",
       "import": "./src/knowledge-compiler.js",

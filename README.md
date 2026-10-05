@@ -18,11 +18,11 @@ that stay editable, verifiable, undoable, and reopenable.
 </div>
 
 <p align="center">
-  <a href="https://kanjieteam.github.io/kjdraw/">
-    <img src="docs/media/kjdraw-workflow.gif" alt="KJDraw workbench: open a drawing, review a change, draw and dimension a part" width="100%" />
+  <a href="https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/">
+    <img src="docs/media/ai-geology-live-20261003/synthetic-live-model-highlights.gif" alt="Real DeepSeek session: ten reviewed edits to one synthetic geological section, followed by undo, redo and DXF reopening" width="100%" />
   </a>
   <br/>
-  <sub>Recorded in the built-in workbench; the Agent panel replays a preset scenario. To use KJDraw from a real AI client, see Quick start.</sub>
+  <sub>Real DeepSeek · ten edits on one synthetic section · condensed recording. <a href="https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/">Full recording and checks ↗</a></sub>
 </p>
 
 ## Draw it. Then keep editing it.
