@@ -57,7 +57,10 @@ export function normalizeOptions(options) {
   if (options.window !== undefined && (!Array.isArray(options.window) || options.window.length !== 4 || !options.window.every(Number.isFinite) || options.window[0] >= options.window[2] || options.window[1] >= options.window[3])) throw new Error('Preview window requires xmin,ymin,xmax,ymax with positive dimensions')
   const maxNormalizationNodes = options.maxNormalizationNodes ?? MAX_NORMALIZATION_NODES
   if (!Number.isSafeInteger(maxNormalizationNodes) || maxNormalizationNodes < 1 || maxNormalizationNodes > MAX_NORMALIZATION_NODES) throw new Error('Native normalization budget must be 1..1000000 nodes per drawing')
-  return { ...options, maxEntities, maxFindings, maxNormalizationNodes }
+  return { units: options.units, scope: options.scope, identity: options.identity,
+    ...(options.layers === undefined ? {} : { layers: [...options.layers] }),
+    ...(options.window === undefined ? {} : { window: [...options.window] }),
+    maxEntities, maxFindings, maxNormalizationNodes }
 }
 
 function logicalReferences(state, maxNormalizationNodes) {

@@ -6,12 +6,26 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { renderCsv, renderHtml, reviewDrawingFiles, writeReviewReport } from '../examples/drawing-review/report.mjs'
+import { normalizeOptions } from '../examples/drawing-review/analysis.mjs'
 
 const cli = fileURLToPath(new URL('../examples/drawing-review/cli.mjs', import.meta.url))
 const demo = fileURLToPath(new URL('../examples/drawing-review/demo.mjs', import.meta.url))
 const dxf = ['0', 'SECTION', '2', 'HEADER', '9', '$ACADVER', '1', 'AC1032', '9', '$INSUNITS', '70', '4', '0', 'ENDSEC',
   '0', 'SECTION', '2', 'ENTITIES', '0', 'LINE', '5', 'AB', '8', '0', '10', '0', '20', '0', '11', '10', '21', '0', '0', 'ENDSEC', '0', 'EOF', ''].join('\n')
 const options = { units: 'millimeter', scope: 'model', identity: 'semantic' }
+
+function stringValues(value) {
+  if (typeof value === 'string') return [value]
+  if (Array.isArray(value)) return value.flatMap(stringValues)
+  if (value && typeof value === 'object') return Object.values(value).flatMap(stringValues)
+  return []
+}
+
+function assertPortableReport(report, privateRoot) {
+  assert.ok(stringValues(report).every(value => !value.includes(privateRoot)))
+  for (const key of ['out', 'before', 'after', 'hostExtra']) assert.equal(Object.hasOwn(report.options, key), false)
+  assert.ok(stringValues(report).every(value => !value.includes('inputIdentity')))
+}
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'kjdraw-report-output-'))
@@ -106,8 +120,8 @@ test('new reports and ordinary repeated reports succeed without rewriting input 
   assert.notDeepEqual(revisedInput, original); assert.deepEqual(await readFile(before), revisedInput)
   assert.deepEqual(await readFile(saved), previous)
   assert.notDeepEqual(await readFile(path.join(out, 'report.html')), previous)
-  const serialized = await readFile(path.join(out, 'report.json'), 'utf8')
-  assert.equal(serialized.includes(root), false); assert.equal(serialized.includes('inputIdentity'), false)
+  const serialized = JSON.parse(await readFile(path.join(out, 'report.json'), 'utf8'))
+  assertPortableReport(serialized, root)
   assert.match(await readFile(path.join(out, 'before-1.svg'), 'utf8'), /<svg/u)
   assert.ok((await readdir(out)).every(name => !name.endsWith('.tmp')))
 })
@@ -166,4 +180,40 @@ test('the original bound report can be written twice without losing its input pr
     assert.equal(await writeReviewReport(report, out), path.join(out, 'report.html'))
     assert.equal(await readFile(before, 'utf8'), dxf)
   }
+})
+
+test('CLI report options exclude host paths while preserving every documented analysis choice', async t => {
+  const { root, before, out } = await fixture(t)
+  const result = spawnSync(process.execPath, [cli, '--before', before, '--after', before, '--out', out,
+    '--units', 'millimeter', '--scope', 'model', '--identity', 'semantic', '--layer', '0', '--window', '-1,-1,20,20',
+    '--max-entities', '123', '--max-findings', '321', '--max-normalization-nodes', '12345'], { encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stderr)
+  const report = JSON.parse(await readFile(path.join(out, 'report.json'), 'utf8'))
+  assertPortableReport(report, root)
+  assert.deepEqual(report.options, { ...options, layers: ['0'], window: [-1, -1, 20, 20], maxEntities: 123, maxFindings: 321, maxNormalizationNodes: 12345 })
+  assert.equal(report.drawings[0].coverage.selectedEntities, 1)
+  assert.equal(report.drawings[0].previews[0].windowPolicy, 'caller-explicit')
+  assert.equal(report.comparison.counts.unchanged, 1)
+  assert.equal(await readFile(before, 'utf8'), dxf)
+})
+
+test('API report options copy portable arrays and discard undocumented host values', async t => {
+  const { root, before, out } = await fixture(t)
+  const layers = ['0'], window = [-1, -1, 20, 20]
+  const input = { before, after: before, out, hostExtra: { privateRoot: root }, ...options, layers, window,
+    maxEntities: 123, maxFindings: 321, maxNormalizationNodes: 12345 }
+  const normalized = normalizeOptions(input)
+  assert.notEqual(normalized.layers, layers); assert.notEqual(normalized.window, window)
+  const report = await reviewDrawingFiles(input)
+  assert.notEqual(report.options.layers, layers); assert.notEqual(report.options.window, window)
+  layers.push('private-host-layer'); window[0] = -99
+  assert.deepEqual(report.options, { ...options, layers: ['0'], window: [-1, -1, 20, 20], maxEntities: 123, maxFindings: 321, maxNormalizationNodes: 12345 })
+  assertPortableReport(report, root)
+  await writeReviewReport(report, out)
+  assertPortableReport(JSON.parse(await readFile(path.join(out, 'report.json'), 'utf8')), root)
+  assertPortableReport({ options: normalized }, root)
+  assert.equal(report.drawings[0].coverage.selectedEntities, 1)
+  assert.equal(report.drawings[0].previews[0].windowPolicy, 'caller-explicit')
+  assert.equal(report.comparison.counts.unchanged, 1)
+  assert.equal(await readFile(before, 'utf8'), dxf)
 })

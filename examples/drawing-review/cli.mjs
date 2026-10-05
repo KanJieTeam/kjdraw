@@ -46,7 +46,8 @@ export function parseArgs(args) {
 export async function main(args = process.argv.slice(2)) {
   const options = parseArgs(args)
   if (options.help) { console.log(HELP); return }
-  const report = await reviewDrawingFiles(options), file = await writeReviewReport(report, options.out)
+  const { out, ...reviewOptions } = options
+  const report = await reviewDrawingFiles(reviewOptions), file = await writeReviewReport(report, out)
   console.log(JSON.stringify({ report: file, mode: report.mode, sources: report.drawings.map(drawing => ({ side: drawing.side, sha256: drawing.source.sha256,
     imported: drawing.coverage.totalImportedEntities, selected: drawing.coverage.selectedEntities, findings: drawing.checks.findings.length,
     unsupported: drawing.coverage.unsupported.length, previews: drawing.previews.map(preview => preview.report.status) })), comparison: report.comparison?.counts ?? null }, null, 2))
