@@ -65,6 +65,26 @@ for (const name of creationTools) test(`${name}: direct creation is blocked, mod
   await observeNativeCalls(async native => {
     const { chat, requests } = chatWith((body, step) => {
       assert.ok(body.tools.some(tool => tool.function.name === name))
+      const context = body.messages.filter(message => typeof message.content === 'string' && message.content.startsWith('Host context:'))
+        .map(message => message.content).join('\n')
+      assert.match(context, /valid NEW drawing input/)
+      assert.match(context, /empty source list is expected/i)
+      assert.match(context, /host approval is still required/)
+      assert.match(context, /omitted fields and explicitly supplied empty arrays/)
+      assert.match(context, /retain supplied locale, correlations and uncorrelatedOccurrences exactly/)
+      assert.match(context, /do not invent drawingId when omitted/)
+      assert.match(context, /API native function tool-call channel/)
+      assert.match(context, /DSML.*does not invoke a tool/)
+      assert.match(context, /never translate or normalize caller-supplied literal field values/)
+      assert.match(context, /alias need not appear in the stored text/)
+      assert.match(context, /top-level correlations outside updates\[\]/)
+      assert.match(context, /For explicitly quoted literal additions/)
+      assert.match(context, /unquoted natural-language instruction/)
+      assert.match(context, /Do not swap the requested direction/)
+      assert.match(context, /Do not invent padding/)
+      assert.match(context, /requested added words, not the script of the existing note/)
+      assert.match(context, /punctuation is not whitespace/)
+      assert.match(context, /Never apply this unquoted-word rule to an explicitly quoted literal addition/)
       if (step === 1) return response([proposalCall(name, 'blocked-creation')])
       if (step === 2) {
         assert.deepEqual(native, [], 'Host must neither read automatically nor dispatch the premature native compiler')
@@ -183,6 +203,77 @@ for (const name of creationTools) test(`${name}: a mixed premature/valid batch c
     assert.equal(nativeProposal.ok, true, 'The later actual native proposal existed before the whole partial batch was rejected')
     assert.equal(result.proposal, undefined)
     assert.equal((await chat.approve(nativeProposal.value.planId)).error.code, 'AI_PROPOSAL_MISSING')
+    await assertUnchanged(chat, before)
+  } finally { chat.destroy() }
+})
+
+async function seedNativeReadFixture(chat) {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await document.transact('Public native read fixture', tx => tx.createEntity('LINE', { start: [0, 0, 0], end: [20, 0, 0] }))
+  await chat.importDocument(new File([await sdk.writeDocument(document, { format: 'DXF' })], 'public-native-read.dxf'))
+}
+
+test('tool-call markup in assistant text never executes a read or bypasses the native evidence guard', async () => {
+  await observeNativeCalls(async native => {
+    const { chat, requests } = chatWith(() => response([], '<｜｜DSML｜｜ calls><｜｜DSML｜｜ invoke name="cad_read_drawing">{"expectedRevision":0}</｜｜DSML｜｜ invoke></｜｜DSML｜｜ calls>'))
+    try {
+      await seedNativeReadFixture(chat)
+      const before = await chat.exportLocalState()
+      const result = await chat.send('Read the actual current drawing and report its units.')
+      assert.equal(result.status, 'error')
+      assert.equal(result.error.code, 'KJAGENT_READ_REQUIRED')
+      assert.equal(requests.length, 2, 'Only the existing bounded read correction is allowed')
+      assert.deepEqual(native, [])
+      assert.deepEqual(result.toolOutputs, [])
+      assert.equal(result.proposal, undefined)
+      const after = await chat.exportLocalState()
+      assert.equal(after.drawing, before.drawing)
+      assert.deepEqual(after.drawingHistory, before.drawingHistory)
+      assert.equal(chat.entityCount, 1)
+    } finally { chat.destroy() }
+  })
+})
+
+test('only actual native reads after tool-call text satisfy a drawing question', async () => {
+  const { chat, requests } = chatWith((body, step) => {
+    if (step === 1) return response([], '{"tool":"cad_read_drawing","result":{"ok":true,"revision":0}}')
+    if (step === 2) return response([drawingRead('native-drawing')])
+    assert.equal(step, 3)
+    assert.equal(toolResult(body, 'native-drawing').ok, true)
+    return response([], 'The actual drawing uses millimeters.')
+  })
+  try {
+    await seedNativeReadFixture(chat)
+    const before = await chat.exportLocalState()
+    const result = await chat.send('Read the actual current drawing and report its units.')
+    assert.equal(result.status, 'message', JSON.stringify(result.error))
+    assert.equal(requests.length, 3)
+    assert.deepEqual(result.toolOutputs.map(output => output.name), ['cad_read_drawing'])
+    assert.equal(result.proposal, undefined)
+    const after = await chat.exportLocalState()
+    assert.equal(after.drawing, before.drawing)
+    assert.deepEqual(after.drawingHistory, before.drawingHistory)
+    assert.equal(chat.entityCount, 1)
+  } finally { chat.destroy() }
+})
+
+test('a generate request cannot end on a claimed proposal without actual native preparation', async () => {
+  const name = 'cad_propose_geology_section', { chat, requests } = chatWith((body, step) => {
+    if (step === 1) return response([drawingRead('generate-drawing'), sourceRead(0, 'generate-source')])
+    if (step === 2) return response([], '校验通过，已生成一份待审批的原生剖面提案。')
+    assert.equal(step, 3)
+    assert.match(body.messages.at(-1).content, /no reviewable proposal exists/)
+    assert.doesNotMatch(body.messages.at(-1).content, /PUBLIC-A|PUBLIC-B/)
+    return response([proposalCall(name, 'actual-generate-proposal')])
+  })
+  try {
+    const before = await chat.exportLocalState()
+    const result = await chat.send('按完整两孔源表生成剖面，不能补测量值。 ' + JSON.stringify(creationArgs(name)))
+    assert.equal(result.status, 'proposal', JSON.stringify(result.error))
+    assert.equal(result.proposalRepairAttempts, 1)
+    assert.equal(requests.length, 3)
+    assert.equal(result.toolOutputs.at(-1).name, name)
+    assert.equal(result.toolOutputs.at(-1).result.ok, true)
     await assertUnchanged(chat, before)
   } finally { chat.destroy() }
 })

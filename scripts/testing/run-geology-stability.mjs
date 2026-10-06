@@ -5,7 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { runGeologyUserScenarios } from './run-geology-user-scenarios.mjs'
 
-const ids = Object.freeze([
+const coreIds = Object.freeze([
   'GUS1-cad-query.raw-mtext-zh-direct',
   'GUS1-cad-persistence.undo-latest-commit-zh-direct',
   'GUS1-cad-persistence.redo-latest-undo-zh-direct',
@@ -20,7 +20,7 @@ const ids = Object.freeze([
   'GUS1-batch-historical-workflow.historical-dxf-note-revision-zh-direct',
 ])
 const args = process.argv.slice(2)
-const allowed = new Set(['--run', '--help', '--provider', '--model', '--repeats', '--output-dir'])
+const allowed = new Set(['--run', '--help', '--provider', '--model', '--repeats', '--output-dir', '--suite'])
 const values = new Map()
 for (let index = 0; index < args.length; index++) {
   const flag = args[index]
@@ -35,12 +35,17 @@ const model = values.get('--model') ?? 'deepseek-chat'
 const repetitions = values.get('--repeats') ?? '5'
 if (!/^[1-9]\d*$/u.test(repetitions) || Number(repetitions) > 20) throw new Error('--repeats must be 1..20')
 const repeats = Number(repetitions)
-const protocol = { provider, requestedModel: model, repeats, scenarioIds: ids,
-  answerContractVersion: 'v5', answerEncoding: 'json-object', maxRequestsPerRepeat: 120,
-  scope: 'Development stability on twelve fixed public synthetic questions; programmatic exact-oracle review, not independent human acceptance. No token-savings control group or general 100% claim.' }
+const suite = values.get('--suite') ?? 'core'
+if (!['core', 'natural-language'].includes(suite)) throw new Error('--suite must be core or natural-language')
+// Existing frozen questions, not generated paraphrases or oracle replacements.
+const ids = suite === 'core' ? coreIds : Object.freeze(coreIds.flatMap(id =>
+  ['-zh-casual', '-en-direct'].map(suffix => id.replace(/-zh-direct$/u, suffix))))
+const protocol = { provider, requestedModel: model, repeats, suite, scenarioIds: ids,
+  answerContractVersion: 'v5', answerEncoding: 'json-object', maxRequestsPerRepeat: ids.length * 10,
+  scope: 'Development stability on fixed public synthetic questions; programmatic exact-oracle review, not independent human acceptance. No token-savings control group or general 100% claim.' }
 if (!values.has('--run') || values.has('--help')) {
   console.log(JSON.stringify({ mode: 'dry-run', modelCalls: 0,
-    usage: 'Set the existing provider environment key (never a CLI argument), then: node scripts/testing/run-geology-stability.mjs --run --repeats 5 --output-dir .cache/geology-stability-new-run',
+    usage: 'Set the existing provider environment key (never a CLI argument), then: node scripts/testing/run-geology-stability.mjs --run --repeats 5 --output-dir .cache/geology-stability-new-run. Add --suite natural-language for 24 fixed colloquial Chinese and English questions; default core has 12.',
     ...protocol }, null, 2))
 } else {
   const destination = values.get('--output-dir')
@@ -55,6 +60,7 @@ if (!values.has('--run') || values.has('--help')) {
       maxScenarios: ids.length, maxRequests: protocol.maxRequestsPerRepeat,
       answerContractVersion: protocol.answerContractVersion, answerEncoding: protocol.answerEncoding,
       onProgress: row => console.log(JSON.stringify({ repeat, ...row })),
+      onModelResponse: diagnostic => archive(`provider-${repeat}-${diagnostic.request}.json`, diagnostic),
       onScenarioResult: ({ scenario, result, evidence, oracle }) => archive(
         `pending-${repeat}-${ids.indexOf(scenario.id)}.json`, { id: scenario.id, status: result.status,
           text: result.text, oracle, toolCalls: evidence.toolCalls, proposal: evidence.proposal }),

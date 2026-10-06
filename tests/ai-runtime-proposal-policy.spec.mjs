@@ -9,13 +9,17 @@ test('proposal follow-up policy covers ordinary edits, not read-only or hypothet
     '把这两个对象向右移动10毫米，其他对象不要修改。', 'Please undo the last change.',
     'Update hole ZK2 depth to 18; do not change other source fields.',
     '在已确认备注原文加“复核版”，其余标点保留。', '给备注末尾加“待复核”。',
-    '补充备注“人工复核”。', 'Append " reviewed" to this note.', 'Prepend "DRAFT: " to the title-block text.']) {
+    '补充备注“人工复核”。', 'Append " reviewed" to this note.', 'Prepend "DRAFT: " to the title-block text.',
+    '按完整源表生成剖面，不能补测量值。', 'Generate the section using supplied facts.', 'Plot the provided borehole data.']) {
     assert.equal(expectsAiDrawingProposal(request, tools), true, request)
   }
   for (const request of ['Read-only: explain how to move this line.', 'Do not modify the drawing; inspect it.',
     'How would moving this line affect its neighbours?', '如果移动这条线会怎么样？',
     '只读，请检查图纸。', 'List the current entities.',
-    '如何给备注原文加“复核版”？', '只读看看备注是否需要补充，不修改图纸。']) {
+    '如何给备注原文加“复核版”？', '只读看看备注是否需要补充，不修改图纸。',
+    '不要生成图纸，只解释需要哪些输入。', '不要创建剖面，先列出源数据。',
+    'Do not generate a drawing; explain required input.', 'Without plotting the drawing, list available data.',
+    'How would you generate the section?', '如果生成这个剖面会怎样？']) {
     assert.equal(expectsAiDrawingProposal(request, tools), false, request)
   }
   assert.equal(expectsAiDrawingProposal('Move the line.', ['cad_read_drawing']), false)

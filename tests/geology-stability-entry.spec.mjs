@@ -18,6 +18,7 @@ test('public stability entry defaults to a zero-call dry run with twelve unique 
     const plan = JSON.parse(result.stdout)
     assert.equal(plan.mode, 'dry-run'); assert.equal(plan.modelCalls, 0)
     assert.equal(plan.repeats, 5); assert.equal(plan.scenarioIds.length, 12)
+    assert.equal(plan.suite, 'core'); assert.equal(plan.maxRequestsPerRepeat, 120)
     assert.equal(new Set(plan.scenarioIds).size, 12)
     assert.equal(plan.answerContractVersion, 'v5'); assert.equal(plan.answerEncoding, 'json-object')
     assert.match(plan.scope, /not independent human acceptance/)
@@ -26,10 +27,27 @@ test('public stability entry defaults to a zero-call dry run with twelve unique 
 
 test('public stability entry rejects invalid budgets, duplicate options and missing output before model calls', () => {
   for (const args of [['--repeats', '0'], ['--repeats', '21'], ['--repeats', '1.5'],
-    ['--repeats', '1', '--repeats', '2'], ['--provider'], ['--unknown'], ['--run']]) {
+    ['--repeats', '1', '--repeats', '2'], ['--suite', 'unknown'], ['--suite', 'core', '--suite', 'natural-language'], ['--provider'], ['--unknown'], ['--run']]) {
     const result = run(...args)
     assert.notEqual(result.status, 0)
     assert.equal(result.stdout, '')
+  }
+})
+
+test('public natural-language suite selects 24 existing frozen runnable variants without a model call', async () => {
+  const result = run('--suite', 'natural-language')
+  assert.equal(result.status, 0, result.stderr)
+  const plan = JSON.parse(result.stdout)
+  assert.equal(plan.modelCalls, 0); assert.equal(plan.suite, 'natural-language')
+  assert.equal(plan.scenarioIds.length, 24); assert.equal(new Set(plan.scenarioIds).size, 24)
+  assert.equal(plan.maxRequestsPerRepeat, 240)
+  const corpus = JSON.parse(await readFile(new URL('./fixtures/geology-user-scenarios-v1.json', import.meta.url), 'utf8'))
+  const { assessScenarioReadiness } = await import('../scripts/testing/preflight-geology-user-scenarios.mjs')
+  for (const id of plan.scenarioIds) {
+    const scenario = corpus.scenarios.find(row => row.id === id)
+    assert.ok(scenario, `Existing frozen question ${id} is required`)
+    assert.equal(assessScenarioReadiness(scenario).status, 'runnable', id)
+    assert.ok(['zh-CN', 'en'].includes(scenario.language))
   }
 })
 
