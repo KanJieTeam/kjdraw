@@ -4,9 +4,18 @@ import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const failures = []
-const publicBenchmarkReports = new Set(['docs/benchmarks/deepseek-2026-09-28.md', 'docs/benchmarks/deepseek-2026-09-29.md', 'docs/benchmarks/cross-model-2026-09-29.md', 'docs/benchmarks/multi-round-editor-soak.md', 'docs/benchmarks/token-efficiency-protocol.md', 'docs/benchmarks/token-efficiency-pilot-2026-09-29.md', 'docs/benchmarks/multiround-correctness-protocol.md'])
+const publicBenchmarkReports = new Set(['docs/benchmarks/deepseek-2026-09-28.md', 'docs/benchmarks/deepseek-2026-09-29.md', 'docs/benchmarks/cross-model-2026-09-29.md', 'docs/benchmarks/multi-round-editor-soak.md', 'docs/benchmarks/token-efficiency-protocol.md', 'docs/benchmarks/token-efficiency-pilot-2026-09-29.md', 'docs/benchmarks/multiround-correctness-protocol.md', 'docs/benchmarks/hosted-ai-smoke-2026-10-06.md'])
 const publicBenchmarkIndices = new Set(['docs/benchmarks/evidence/2026-09-28-deepseek-flash/README.md', 'docs/benchmarks/evidence/2026-09-29-deepseek-flash/README.md', 'docs/benchmarks/evidence/2026-09-29-cross-model/README.md', 'docs/benchmarks/evidence/2026-09-29-token-efficiency/README.md'])
-const benchmarkHashes = new Map()
+// Explicitly reviewed synthetic hosted results, including harness failures.
+// Freeze exact UTF-8/LF content; do not broadly permit development archives.
+const benchmarkHashes = new Map([
+  ['docs/benchmarks/evidence/2026-10-06-hosted-ai-smoke/circle-01.json', '8bc28acb34cd1284875ecf793e367192f4966f2189fffa6b908686acf35cda89'],
+  ['docs/benchmarks/evidence/2026-10-06-hosted-ai-smoke/geology-01.json', 'd5cdb4659ebbe4dc0a88eedf9c872496c0f27e8ce4415635268b7e1a33076366'],
+  ['docs/benchmarks/evidence/2026-10-06-hosted-ai-smoke/geology-02.json', '364627d29001ea76a63607878ac87a3d335ca744b5230789354a473dfc8515bb'],
+  ['docs/benchmarks/evidence/2026-10-06-hosted-ai-smoke/geology-03.json', '5ce87c7ee4b19bcf7ad04a326f6b15224e9dba07beaba20d2ae9b22bc7822af2'],
+  ['docs/benchmarks/evidence/2026-10-06-hosted-ai-smoke/geology-04.json', '37a4355d11fd8c3bf274baf5c6d83ffb99ca9cd91e9df860c938b2bc25713ca5'],
+  ['docs/benchmarks/evidence/2026-10-06-hosted-ai-smoke/geology-05.json', '75ca545b88ad4359f211cf13e436625c55e5c06effc35dfbb35527c76ff49799'],
+])
 for (const index of publicBenchmarkIndices) {
   const content = await readFile(resolve(root, index), 'utf8')
   for (const [, name, digest] of content.matchAll(/^\| `([^`/\\]+\.zip)` \|[^\r\n]*\| `([0-9a-f]{64})` \|$/gm)) benchmarkHashes.set(`${dirname(index).replaceAll('\\', '/')}/${name}`, digest)
@@ -26,7 +35,8 @@ for(const p of files){
   if(/^docs\/product(?:\/|$)|^docs\/audits\/.*\d{4}-\d{2}-\d{2}/.test(p) || p.startsWith('docs/benchmarks/') && !publicBenchmarkReports.has(p) && !publicBenchmarkIndices.has(p) && !benchmarkHashes.has(p))failures.push(`Internal development material must remain outside the public repository: ${p}`)
   if(benchmarkHashes.has(p)){
     const bytes=await readFile(resolve(root,p))
-    if(bytes.length>5_000_000 || createHash('sha256').update(bytes).digest('hex')!==benchmarkHashes.get(p))failures.push(`Public benchmark archive size or SHA-256 mismatch: ${p}`)
+    const hashedBytes = p.endsWith('.json') ? Buffer.from(bytes.toString('utf8').replaceAll('\r\n', '\n'), 'utf8') : bytes
+    if(bytes.length>5_000_000 || createHash('sha256').update(hashedBytes).digest('hex')!==benchmarkHashes.get(p))failures.push(`Public benchmark archive size or SHA-256 mismatch: ${p}`)
   }
   if(/(^|\/)(storage|server|vendor|\.env)(\/|$)|\.(mdb|accdb|docx|dwg|exe|dll|pfx|pem)$/i.test(p))failures.push(`Excluded release path: ${p}`)
   if(!['.md','.json','.js','.mjs','.ts','.tsx','.rs','.toml','.yml','.yaml','.html','.css','.svg'].includes(extname(p)))continue

@@ -1,0 +1,22 @@
+{
+  "schema": "com.kanjie.kjdraw.testing.hosted-live-smoke@1",
+  "suite": "imported-geology",
+  "origin": "https://kanjieteam.github.io/kjdraw/",
+  "requestedModel": "deepseek-chat",
+  "commit": "ed7e5be38873834a51d82dcc1c03f9bf68f34dfe",
+  "scope": "Synthetic development questions; exact programmatic test review, not independent human acceptance, full source regeneration or token-savings evidence.",
+  "privateUserData": false,
+  "mockedModel": false,
+  "rounds": [],
+  "providerRequests": 3,
+  "passed": false,
+  "stage": "graphics-edit-1",
+  "runtimeSha256": "aa6b4e267899bc8a01cacd5e5036c0057832cd84ff676f1488122453be54f468",
+  "initialEntities": 125,
+  "errorCode": "HOSTED_LIVE_SMOKE_FAILED",
+  "failureKind": "AssertionError",
+  "failureLocation": {
+    "line": 73,
+    "column": 10
+  }
+}
