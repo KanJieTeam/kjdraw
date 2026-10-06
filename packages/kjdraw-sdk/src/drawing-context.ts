@@ -80,8 +80,12 @@ export interface KJDrawingContextLayer {
 
 export interface KJDrawingContextEntity {
   readonly id: string
+  /** Native DXF handle, not an alias or the object's UUID. */
+  readonly handle: string
   readonly type: string
   readonly ownerId: string | null
+  /** Native coordinates in this exact owner; INSERTs are not expanded. */
+  readonly coordinateSpace: 'owner-local'
   readonly layerId: string | null
   readonly visible: boolean
   /** Visibility and locking eligibility only; command support is not implied. */
@@ -437,8 +441,8 @@ export function createDrawingContext(document: KJDocument, options: KJDrawingCon
     if (spatialMatch === 'outside') continue
     if (matched++ < offset) continue
     if (result.entities.length >= limit) { result.nextOffset = matched - 1; reasons.add('entity-limit'); break }
-    for (const value of [entity.id, entity.type, entity.ownerId, layerId]) checkIdentity(value, maxBytes)
-    const item: DrawingContextEntityBuilder = { id: entity.id, type: entity.type, ownerId: entity.ownerId, layerId, visible, editable: visible && layer?.payload.locked !== true, ...nativeGeometry(entity, state), ...(spatialMatch ? { spatialMatch } : {}) }
+    for (const value of [entity.id, entity.handle, entity.type, entity.ownerId, layerId]) checkIdentity(value, maxBytes)
+    const item: DrawingContextEntityBuilder = { id: entity.id, handle: entity.handle, type: entity.type, ownerId: entity.ownerId, coordinateSpace: 'owner-local', layerId, visible, editable: visible && layer?.payload.locked !== true, ...nativeGeometry(entity, state), ...(spatialMatch ? { spatialMatch } : {}) }
     const nextCounts = Object.fromEntries(Object.entries(result.pageEntityCounts))
     Object.defineProperty(nextCounts, entity.type, { value: (Object.hasOwn(nextCounts, entity.type) ? nextCounts[entity.type]! : 0) + 1, enumerable: true, writable: true, configurable: true })
     const countBytes = jsonBytes(nextCounts) - jsonBytes(result.pageEntityCounts)

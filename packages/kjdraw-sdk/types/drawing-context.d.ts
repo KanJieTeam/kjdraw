@@ -77,8 +77,12 @@ export interface KJDrawingContextLayer {
 }
 export interface KJDrawingContextEntity {
     readonly id: string;
+    /** Native DXF handle, not an alias or the object's UUID. */
+    readonly handle: string;
     readonly type: string;
     readonly ownerId: string | null;
+    /** Native coordinates in this exact owner; INSERTs are not expanded. */
+    readonly coordinateSpace: 'owner-local';
     readonly layerId: string | null;
     readonly visible: boolean;
     /** Visibility and locking eligibility only; command support is not implied. */

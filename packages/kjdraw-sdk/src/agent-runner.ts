@@ -135,7 +135,7 @@ const entityReferenceProtocols = new Set(['chat-completions', 'responses', 'anth
 const entityReferenceEncoder = new TextEncoder()
 const MAX_ENTITY_REFERENCE_ROWS = 2048
 const MAX_ENTITY_REFERENCE_BYTES = 2 * 1024 * 1024
-const nativeRowKeys = new Set(['id', 'type', 'ownerId', 'layerId', 'visible', 'editable', 'geometry', 'geometryOmittedReason', 'spatialMatch'])
+const nativeRowKeys = new Set(['id', 'handle', 'type', 'ownerId', 'coordinateSpace', 'layerId', 'visible', 'editable', 'geometry', 'geometryOmittedReason', 'spatialMatch'])
 const nativeReceiptKeys = new Set(['documentId', 'revision', 'units', 'spaceId', 'spatialQuery', 'layers', 'entities', 'pageEntityCounts', 'truncated', 'truncationReasons', 'nextOffset', 'nextLayerOffset', 'limits'])
 function referenceRecord(value: unknown): value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) return false
@@ -195,6 +195,8 @@ function nativeReferencePage(output: KJModelToolOutput, readTools: ReadonlySet<s
   for (const row of value.entities) {
     if (!referenceRecord(row) || Object.keys(row).some(key => !nativeRowKeys.has(key)) || typeof row.id !== 'string' || !row.id || row.id.length > 512 || ids.has(row.id) ||
       typeof row.type !== 'string' || !row.type || row.type.length > 512 || row.ownerId !== value.spaceId ||
+      Object.hasOwn(row, 'handle') && (typeof row.handle !== 'string' || !row.handle || row.handle.length > 512) ||
+      Object.hasOwn(row, 'coordinateSpace') && row.coordinateSpace !== 'owner-local' ||
       row.layerId !== null && (typeof row.layerId !== 'string' || !row.layerId || row.layerId.length > 512) || typeof row.visible !== 'boolean' || typeof row.editable !== 'boolean' ||
       spatial === undefined && Object.hasOwn(row, 'spatialMatch') || spatial !== undefined && !['intersects', 'unclassified'].includes(String(row.spatialMatch))) return null
     ids.add(row.id); counts.set(row.type, (counts.get(row.type) ?? 0) + 1)

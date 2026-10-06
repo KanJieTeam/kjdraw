@@ -30,6 +30,25 @@ function spatial(rows = [row()], match = 'unclassified', extra = {}) {
     spatialQuery: { bounds: [0, 0, 20, 20], coordinates: 'owner-xy', mode: 'crossing', unclassifiedIncluded: true }, ...extra,
   })
 }
+
+test('native handles and coordinate policy remain exact in reusable read evidence; changed handles are not the same row', async () => {
+  const native = { ...row(), handle: 'AB', coordinateSpace: 'owner-local' }
+  const changed = { ...native, handle: 'CD' }
+  const { inputs } = await runPages([page([native]), page([native]), page([changed]), page([changed])])
+  assert.deepEqual(inputs[1].results[0].result.value.entities[0], native)
+  assert.ok(ref(inputs[2].results[0].result.value.entities[0]))
+  assert.deepEqual(inputs[3].results[0].result.value.entities[0], changed)
+  assert.ok(ref(inputs[4].results[0].result.value.entities[0]))
+})
+
+test('invalid or future handle/coordinate policies retain full native receipts rather than unsafe reference reuse', async () => {
+  for (const fields of [{ handle: '' }, { handle: 10 }, { coordinateSpace: 'invented-world-space' }]) {
+    const receipt = page([{ ...row(), ...fields }])
+    const { inputs } = await runPages([receipt, receipt])
+    assert.deepEqual(inputs[2].results[0].result.value, receipt)
+    assert.equal(ref(inputs[2].results[0].result.value.entities[0]), undefined)
+  }
+})
 async function runPages(values, options = {}) {
   const { names = values.map(() => query), ids = values.map((_, index) => `read-${index}`), effects = {}, onInput, onConversation,
     throwAt, callsAtTurn, ...runOptions } = options

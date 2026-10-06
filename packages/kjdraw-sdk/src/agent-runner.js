@@ -176,8 +176,10 @@ const MAX_ENTITY_REFERENCE_ROWS = 2048;
 const MAX_ENTITY_REFERENCE_BYTES = 2 * 1024 * 1024;
 const nativeRowKeys = new Set([
     'id',
+    'handle',
     'type',
     'ownerId',
+    'coordinateSpace',
     'layerId',
     'visible',
     'editable',
@@ -246,7 +248,7 @@ function nativeReferencePage(output, readTools) {
     if (spatial !== undefined && (!referenceRecord(spatial) || Object.keys(spatial).length !== 4 || spatial.coordinates !== 'owner-xy' || spatial.mode !== 'crossing' || spatial.unclassifiedIncluded !== true || !Array.isArray(spatial.bounds) || spatial.bounds.length !== 4 || spatial.bounds.some((n)=>typeof n !== 'number' || !Number.isFinite(n) || Math.abs(n) > 1e12) || spatial.bounds[0] > spatial.bounds[2] || spatial.bounds[1] > spatial.bounds[3])) return null;
     const ids = new Set(), counts = new Map();
     for (const row of value.entities){
-        if (!referenceRecord(row) || Object.keys(row).some((key)=>!nativeRowKeys.has(key)) || typeof row.id !== 'string' || !row.id || row.id.length > 512 || ids.has(row.id) || typeof row.type !== 'string' || !row.type || row.type.length > 512 || row.ownerId !== value.spaceId || row.layerId !== null && (typeof row.layerId !== 'string' || !row.layerId || row.layerId.length > 512) || typeof row.visible !== 'boolean' || typeof row.editable !== 'boolean' || spatial === undefined && Object.hasOwn(row, 'spatialMatch') || spatial !== undefined && ![
+        if (!referenceRecord(row) || Object.keys(row).some((key)=>!nativeRowKeys.has(key)) || typeof row.id !== 'string' || !row.id || row.id.length > 512 || ids.has(row.id) || typeof row.type !== 'string' || !row.type || row.type.length > 512 || row.ownerId !== value.spaceId || Object.hasOwn(row, 'handle') && (typeof row.handle !== 'string' || !row.handle || row.handle.length > 512) || Object.hasOwn(row, 'coordinateSpace') && row.coordinateSpace !== 'owner-local' || row.layerId !== null && (typeof row.layerId !== 'string' || !row.layerId || row.layerId.length > 512) || typeof row.visible !== 'boolean' || typeof row.editable !== 'boolean' || spatial === undefined && Object.hasOwn(row, 'spatialMatch') || spatial !== undefined && ![
             'intersects',
             'unclassified'
         ].includes(String(row.spatialMatch))) return null;

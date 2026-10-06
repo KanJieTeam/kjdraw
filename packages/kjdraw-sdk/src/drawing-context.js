@@ -683,14 +683,17 @@ export function createDrawingContext(document, options = {}) {
         }
         for (const value of [
             entity.id,
+            entity.handle,
             entity.type,
             entity.ownerId,
             layerId
         ])checkIdentity(value, maxBytes);
         const item = {
             id: entity.id,
+            handle: entity.handle,
             type: entity.type,
             ownerId: entity.ownerId,
+            coordinateSpace: 'owner-local',
             layerId,
             visible,
             editable: visible && layer?.payload.locked !== true,
