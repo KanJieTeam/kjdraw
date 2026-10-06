@@ -11,6 +11,7 @@ import { KJDrawError, KJRevisionConflictError, KJValidationError } from './error
 import { deepFreeze, normalizeName, stableHash } from './utils.js'
 import { createId } from './ids.js'
 import { expandAgentTextAffixes } from './text-edit.js'
+import { validateAgentSourceText } from './agent-source-text.js'
 import { createAgentGeometryPreview, createAgentHistoryPreview, agentPreviewMatchesDocument, KJDRAW_AGENT_MOVABLE_TYPES, resolveAgentTransformEntityIds, type KJAgentGeometryPreview } from './agent-preview.js'
 import type { KJRegisteredCommand } from './commands.js'
 import type { KJObjectPayload } from './schema.js'
@@ -1347,6 +1348,8 @@ export class KJAgentToolSession {
       const definition = this.definitions.find(tool => tool.name === name)
       if (!definition) throw new KJValidationError('Unknown CAD tool; use a tool from this session definitions')
       validate(definition.inputSchema, input)
+      if (this.#options.toolProfile === 'full' && ['cad_propose_geology_column', 'cad_propose_geology_section',
+        'cad_propose_geology_plan', 'cad_propose_geology_revision'].includes(name)) validateAgentSourceText(input)
       if (name === 'cad_propose_geology_scalar_revision') {
         // Validate the original descriptors before structuredClone can discard
         // a hidden but otherwise declared scalar. Never silently strip changes.
