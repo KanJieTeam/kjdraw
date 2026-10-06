@@ -1,0 +1,63 @@
+{
+  "provider": "deepseek",
+  "requestedModel": "deepseek-chat",
+  "repeats": 5,
+  "suite": "natural-language",
+  "scenarioIds": [
+    "GUS1-cad-query.raw-mtext-zh-casual",
+    "GUS1-cad-query.raw-mtext-en-direct",
+    "GUS1-cad-persistence.undo-latest-commit-zh-casual",
+    "GUS1-cad-persistence.undo-latest-commit-en-direct",
+    "GUS1-cad-persistence.redo-latest-undo-zh-casual",
+    "GUS1-cad-persistence.redo-latest-undo-en-direct",
+    "GUS1-source-water-depth.collar-elevation-revision-zh-casual",
+    "GUS1-source-water-depth.collar-elevation-revision-en-direct",
+    "GUS1-source-strata.rename-and-reclassify-zh-casual",
+    "GUS1-source-strata.rename-and-reclassify-en-direct",
+    "GUS1-source-strata.split-column-interval-zh-casual",
+    "GUS1-source-strata.split-column-interval-en-direct",
+    "GUS1-source-observation.move-sample-depth-zh-casual",
+    "GUS1-source-observation.move-sample-depth-en-direct",
+    "GUS1-source-section.split-with-explicit-correlations-zh-casual",
+    "GUS1-source-section.split-with-explicit-correlations-en-direct",
+    "GUS1-source-section.create-supplied-section-zh-casual",
+    "GUS1-source-section.create-supplied-section-en-direct",
+    "GUS1-investigation-point-layout.explicit-section-route-zh-casual",
+    "GUS1-investigation-point-layout.explicit-section-route-en-direct",
+    "GUS1-geological-presentation.declared-hatch-visibility-zh-casual",
+    "GUS1-geological-presentation.declared-hatch-visibility-en-direct",
+    "GUS1-batch-historical-workflow.historical-dxf-note-revision-zh-casual",
+    "GUS1-batch-historical-workflow.historical-dxf-note-revision-en-direct"
+  ],
+  "answerContractVersion": "v5",
+  "answerEncoding": "json-object",
+  "maxRequestsPerRepeat": 240,
+  "scope": "Development stability on fixed public synthetic questions; programmatic exact-oracle review, not independent human acceptance. No token-savings control group or general 100% claim.",
+  "executedRepeats": 5,
+  "sameSurface": true,
+  "executed": 120,
+  "passed": 117,
+  "failed": 3,
+  "requests": 265,
+  "returnedModels": [
+    "deepseek-flash"
+  ],
+  "failures": [
+    {
+      "repeat": 2,
+      "id": "GUS1-batch-historical-workflow.historical-dxf-note-revision-zh-casual",
+      "reason": "host-approval-not-completed"
+    },
+    {
+      "repeat": 4,
+      "id": "GUS1-source-strata.split-column-interval-en-direct",
+      "reason": "host-approval-not-completed"
+    },
+    {
+      "repeat": 5,
+      "id": "GUS1-source-section.split-with-explicit-correlations-en-direct",
+      "reason": "actual-proposal-and-document-evidence-missing"
+    }
+  ],
+  "allSelectedPassed": false
+}

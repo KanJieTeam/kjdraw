@@ -51,6 +51,23 @@ test('public natural-language suite selects 24 existing frozen runnable variants
   }
 })
 
+test('broad suite selects every currently runnable frozen question, discloses excluded questions and never calls a model in dry run', async () => {
+  const result = run('--suite', 'all-runnable', '--repeats', '1')
+  assert.equal(result.status, 0, result.stderr)
+  const plan = JSON.parse(result.stdout)
+  assert.equal(plan.mode, 'dry-run'); assert.equal(plan.modelCalls, 0)
+  assert.equal(plan.suite, 'all-runnable'); assert.equal(plan.repeats, 1)
+  const corpus = JSON.parse(await readFile(new URL('./fixtures/geology-user-scenarios-v1.json', import.meta.url), 'utf8'))
+  const { assessScenarioReadiness } = await import('../scripts/testing/preflight-geology-user-scenarios.mjs')
+  const expected = corpus.scenarios.filter(row => assessScenarioReadiness(row).status === 'runnable').map(row => row.id)
+  assert.deepEqual(plan.scenarioIds, expected)
+  assert.equal(plan.corpusQuestions, corpus.scenarios.length)
+  assert.equal(plan.notReadyQuestions, corpus.scenarios.length - expected.length)
+  assert.equal(new Set(plan.scenarioIds).size, expected.length)
+  assert.equal(plan.maxRequestsPerRepeat, Math.min(2000, expected.length * 10))
+  assert.match(plan.readinessNote, /never counted as passes/)
+})
+
 test('public stability entry refuses an existing archive without touching its evidence', async t => {
   const folder = await mkdtemp(join(tmpdir(), 'kjdraw-stability-entry-'))
   t.after(() => rm(folder, { recursive: true, force: true }))

@@ -60,6 +60,65 @@ cross-model estimate. The runs cover neither soil reclassification nor layer
 splitting, section-link editing, HATCH replacement or arbitrary imported plans.
 Those capabilities require their own source-fact, geometry and model checks.
 
+## Separate source-backed language stability run
+
+The same checkout also ran the existing **24 fixed colloquial Chinese and
+English geology questions five times** through the real model transport and
+the local chat runtime. This is separate from the deployed-browser smoke above:
+it is not a browser measurement, a blinded holdout, an independent human review
+or a token-efficiency comparison.
+
+The [unchanged run summary](evidence/2026-10-06-hosted-ai-smoke/natural-language-03.json)
+records **117/120 passed, 3 failed**, using 265 actual provider requests.
+`deepseek-chat` was requested; responses reported `deepseek-flash`. All five
+repeats used execution-surface SHA-256
+`0d1978d534f35dfbb970d6c66b86c4589df02a5b6348c54a3f808a6466c1703b`;
+the question corpus SHA-256 was
+`5b87d94884d24f375b04d98f485fe11aaf3768776f38f73df3a748ca6e616d0c`.
+No failed attempt was rerun into the same archive or rescored as a pass.
+
+| Failed question | Observed failure | Approval outcome |
+| --- | --- | --- |
+| Repeat 2, Chinese historical DXF note addition | Model appended ` 复核版` with an unrequested leading space | Exact reviewer rejected the proposal; no commit |
+| Repeat 4, English column split | Supplied replacement names `砂土` and `砾砂` became `沙` and `砾石` | Exact source/geometry reviewer rejected the proposal; no commit |
+| Repeat 5, English section split with supplied links | Model treated the complete replacement table as contradictory and asked for confirmation rather than proposing it | No proposal or commit |
+
+These remain unresolved model-following failures, despite existing guidance
+about literal values and replacement tables. The engine's review boundary
+prevented a bad commit; that is **not** successful task completion. This run
+does not establish arbitrary drawing editing, 100% reliability, general
+ten-round correctness or any percentage of token savings.
+
+To reproduce from this revision, set the provider key in the local environment
+as described below, then use a **new** output directory:
+
+```sh
+node scripts/testing/run-geology-stability.mjs --suite natural-language
+node scripts/testing/run-geology-stability.mjs --run --suite natural-language --repeats 5 --output-dir .cache/geology-language-new
+```
+
+The first command makes zero model calls. The second retains every repeat,
+pending proposal and bounded public-synthetic provider diagnostic locally, and
+exits nonzero when any selected question fails. Its synthetic fixtures,
+questions, exact native/source oracles and runner are included in the repository.
+The public summary does not contain credentials, private drawings or provider
+error bodies. Existing earlier failure archives remain unchanged.
+
+For broader coverage, the additive `all-runnable` suite selects **every** frozen
+question currently marked runnable by preflight, in corpus order. It does not
+select only previously successful questions or alter their oracles:
+
+```sh
+node scripts/testing/run-geology-stability.mjs --suite all-runnable --repeats 1
+node scripts/testing/run-geology-stability.mjs --run --suite all-runnable --repeats 1 --output-dir .cache/geology-all-runnable-new
+```
+
+The dry-run output reports selected and not-ready counts. Paid execution is
+capped at 2,000 provider requests per repeat; a halt, exhausted budget or any
+failed selected question exits nonzero. Providing this entry is not evidence
+that the broad suite has passed. The 117/120 results above remain the original
+24-question measurement, not a measurement of all runnable questions.
+
 ## Reproduce
 
 Use a Node.js 22+ source checkout with its locked development dependencies and

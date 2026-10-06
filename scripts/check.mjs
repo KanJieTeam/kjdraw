@@ -15,6 +15,7 @@ const benchmarkHashes = new Map([
   ['docs/benchmarks/evidence/2026-10-06-hosted-ai-smoke/geology-03.json', '5ce87c7ee4b19bcf7ad04a326f6b15224e9dba07beaba20d2ae9b22bc7822af2'],
   ['docs/benchmarks/evidence/2026-10-06-hosted-ai-smoke/geology-04.json', '37a4355d11fd8c3bf274baf5c6d83ffb99ca9cd91e9df860c938b2bc25713ca5'],
   ['docs/benchmarks/evidence/2026-10-06-hosted-ai-smoke/geology-05.json', '75ca545b88ad4359f211cf13e436625c55e5c06effc35dfbb35527c76ff49799'],
+  ['docs/benchmarks/evidence/2026-10-06-hosted-ai-smoke/natural-language-03.json', '5b419e6cbeaa8f3bf0235664df8530d28f37874938e462541e41eaee36d5919f'],
 ])
 for (const index of publicBenchmarkIndices) {
   const content = await readFile(resolve(root, index), 'utf8')
