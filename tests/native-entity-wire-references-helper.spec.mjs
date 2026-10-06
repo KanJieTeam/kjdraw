@@ -21,6 +21,14 @@ const body = (original = page([structuredClone(native)]), current = page([ref()]
 ] })
 const edit = (wire, index, mutate) => { const parsed = JSON.parse(wire.messages[index].content); mutate(parsed); wire.messages[index].content = JSON.stringify(parsed) }
 
+test('strict resolver preserves actual handle and owner-local policy from retained wire only', () => {
+  const actual = { ...structuredClone(native), handle: 'A1', coordinateSpace: 'owner-local' }
+  const wire = body(page([actual])), before = structuredClone(wire)
+  const decoded = resolveChatToolReceipt(wire)
+  assert.deepEqual(decoded.value.entities, [actual])
+  assert.deepEqual(wire, before)
+})
+
 test('strict resolver restores only actual earlier native rows and keeps current metadata and wire immutable', () => {
   const source = page([structuredClone(native)]), current = page([ref()])
   source.spatialQuery = { bounds: [0, 0, 10, 10], coordinates: 'owner-xy', mode: 'crossing', unclassifiedIncluded: true }
@@ -59,6 +67,10 @@ for (const [name, mutate, index] of [
   ['omitted anchor geometry', wire => edit(wire, 3, value => { value.value.entities[0].geometry = null; value.value.entities[0].geometryOmittedReason = 'response-budget' })],
   ['wrong native owner', wire => edit(wire, 3, value => { value.value.entities[0].ownerId = 'different' })],
   ['missing native type', wire => edit(wire, 3, value => { delete value.value.entities[0].type })],
+  ...['', 42, 'X'.repeat(513)].map(handle => ['invalid native handle', wire => edit(wire, 3, value => { value.value.entities[0].handle = handle })]),
+  ['invented coordinate policy', wire => edit(wire, 3, value => { value.value.entities[0].coordinateSpace = 'world-projected' })],
+  ['injected wrapper handle', wire => edit(wire, 5, value => { value.value.entities[0].handle = 'other-handle' })],
+  ['injected wrapper coordinate policy', wire => edit(wire, 5, value => { value.value.entities[0].coordinateSpace = 'owner-local' })],
   ['injected wrapper type', wire => edit(wire, 5, value => { value.value.entities[0].type = 'HATCH' })],
   ['injected wrapper geometry', wire => edit(wire, 5, value => { value.value.entities[0].geometry = { measured: 123 } })],
   ['unknown reference field', wire => edit(wire, 5, value => { value.value.entities[0].nativeEntityReference.source = 'gold' })],

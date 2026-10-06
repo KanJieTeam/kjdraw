@@ -148,7 +148,8 @@ async function pages(f, filters, limits = {}) {
       assert.equal(row.type, actual.type)
       assert.equal(row.ownerId, actual.ownerId)
       assert.equal(row.layerId, actual.payload.layerId ?? null)
-      assert.equal(Object.hasOwn(row, 'handle'), false, 'Filtered context does not expose native handles')
+      assert.equal(row.handle, actual.handle, 'Handle must come from this exact imported native object')
+      assert.equal(row.coordinateSpace, 'owner-local', 'Native coordinates are not projected INSERT coordinates')
       assert.equal(row.geometry.text, actual.payload.text)
     }
     rows.push(...page.entities)

@@ -38,23 +38,26 @@ const repetitions = values.get('--repeats') ?? '5'
 if (!/^[1-9]\d*$/u.test(repetitions) || Number(repetitions) > 20) throw new Error('--repeats must be 1..20')
 const repeats = Number(repetitions)
 const suite = values.get('--suite') ?? 'core'
-if (!['core', 'natural-language', 'all-runnable'].includes(suite)) throw new Error('--suite must be core, natural-language or all-runnable')
+if (!['core', 'natural-language', 'all-runnable', 'native-identity'].includes(suite)) throw new Error('--suite must be core, natural-language, native-identity or all-runnable')
 // Existing frozen questions, not generated paraphrases or oracle replacements.
-const readyCorpus = suite === 'all-runnable'
+const readyCorpus = ['all-runnable', 'native-identity'].includes(suite)
   ? JSON.parse(await readFile(FIXTURE_URL, 'utf8')).scenarios : null
 const ids = suite === 'all-runnable' ? Object.freeze(readyCorpus
   .filter(scenario => assessScenarioReadiness(scenario).status === 'runnable').map(scenario => scenario.id))
+  : suite === 'native-identity' ? Object.freeze(readyCorpus
+    .filter(scenario => scenario.id.startsWith('GUS1-cad-query.native-object-')
+      && assessScenarioReadiness(scenario).status === 'runnable').map(scenario => scenario.id))
   : suite === 'core' ? coreIds : Object.freeze(coreIds.flatMap(id =>
   ['-zh-casual', '-en-direct'].map(suffix => id.replace(/-zh-direct$/u, suffix))))
 const protocol = { provider, requestedModel: model, repeats, suite, scenarioIds: ids,
-  ...(readyCorpus ? { corpusQuestions: readyCorpus.length,
+  ...(suite === 'all-runnable' ? { corpusQuestions: readyCorpus.length,
     notReadyQuestions: readyCorpus.length - ids.length,
     readinessNote: 'Not-ready questions are not executed and never counted as passes. A transport halt or exhausted request budget fails the run.' } : {}),
   answerContractVersion: 'v5', answerEncoding: 'json-object', maxRequestsPerRepeat: Math.min(2000, ids.length * 10),
   scope: 'Development stability on fixed public synthetic questions; programmatic exact-oracle review, not independent human acceptance. No token-savings control group or general 100% claim.' }
 if (!values.has('--run') || values.has('--help')) {
   console.log(JSON.stringify({ mode: 'dry-run', modelCalls: 0,
-    usage: 'Set the existing provider environment key (never a CLI argument), then: node scripts/testing/run-geology-stability.mjs --run --repeats 5 --output-dir .cache/geology-stability-new-run. Add --suite natural-language for 24 fixed colloquial Chinese and English questions, or --suite all-runnable --repeats 1 for every currently executable frozen question; default core has 12.',
+    usage: 'Set the existing provider environment key (never a CLI argument), then: node scripts/testing/run-geology-stability.mjs --run --repeats 5 --output-dir .cache/geology-stability-new-run. Add --suite natural-language for 24 fixed colloquial Chinese and English questions, --suite native-identity for all six frozen native-object read variants, or --suite all-runnable --repeats 1 for every currently executable frozen question; default core has 12.',
     ...protocol }, null, 2))
 } else {
   const destination = values.get('--output-dir')

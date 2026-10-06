@@ -1,0 +1,12 @@
+{
+  "scope": "Synthetic native identity read-only development regression; not an editing or independent-user benchmark",
+  "executed": 30,
+  "passed": 30,
+  "failed": 0,
+  "requests": 60,
+  "sameSurface": true,
+  "returnedModels": [
+    "deepseek-flash"
+  ],
+  "allPassed": true
+}

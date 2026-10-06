@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 // geometry, saved drawing, cross-request cache or recursive reference fallback.
 const readTools = new Set(['cad_read_drawing', 'cad_read_page', 'cad_query_drawing'])
 const contextKeys = ['documentId', 'revision', 'units', 'spaceId']
-const rowKeys = new Set(['id', 'type', 'ownerId', 'layerId', 'visible', 'editable', 'geometry', 'geometryOmittedReason', 'spatialMatch'])
+const rowKeys = new Set(['id', 'handle', 'coordinateSpace', 'type', 'ownerId', 'layerId', 'visible', 'editable', 'geometry', 'geometryOmittedReason', 'spatialMatch'])
 const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
 const nonempty = value => typeof value === 'string' && value.length > 0
 const cursor = value => value === null || Number.isSafeInteger(value) && value >= 0
@@ -38,6 +38,8 @@ function fullRow(row, value, requireGeometry = false) {
   assert.ok(object(row) && !Object.hasOwn(row, 'nativeEntityReference'), 'Anchor must contain a full native row; reference chains are forbidden')
   assert.ok(Object.keys(row).every(key => rowKeys.has(key)), 'Unexpected native row field')
   assert.ok(nonempty(row.id) && nonempty(row.type), 'Native row identity/type must be complete')
+  if (Object.hasOwn(row, 'handle')) assert.ok(nonempty(row.handle) && row.handle.length <= 512, 'Native handle must be explicit and bounded')
+  if (Object.hasOwn(row, 'coordinateSpace')) assert.equal(row.coordinateSpace, 'owner-local', 'Native coordinates must remain owner-local')
   assert.equal(row.ownerId, value.spaceId, 'Native row owner must match its actual page space')
   assert.ok(row.layerId === null || nonempty(row.layerId)); assert.equal(typeof row.visible, 'boolean'); assert.equal(typeof row.editable, 'boolean')
   assert.ok(Object.hasOwn(row, 'geometry') && Object.hasOwn(row, 'geometryOmittedReason'), 'Native geometry/omission fields must be explicit')

@@ -119,6 +119,44 @@ failed selected question exits nonzero. Providing this entry is not evidence
 that the broad suite has passed. The 117/120 results above remain the original
 24-question measurement, not a measurement of all runnable questions.
 
+## Broad run and separate native-query repair
+
+The [unchanged broad-run summary](evidence/2026-10-06-hosted-ai-smoke/all-runnable-01.json)
+selects 624 runnable questions from the 1,080-question frozen corpus. It
+executed 272: **247 passed and 25 failed**, with 573 provider requests, before
+the provider returned `PROVIDER_PAYMENT_REQUIRED`. The remaining 352 selected
+questions were not executed. The 456 not-ready questions were excluded, not
+counted as passes. This run failed; payment interruption is not successful
+completion. The requested model was `deepseek-chat`; returned responses
+reported `deepseek-flash`.
+
+Six failures exposed missing native handles and coordinate-space policy in
+query receipts. Source commit `85894f9daf5bfc4139c720aa4749e7f44791760d` adds
+the actual imported object handle and explicit `owner-local` policy without
+changing drawing data, frozen questions or their exact oracles. A **separate
+new run** of all six native-object question variants, five repetitions each,
+passed **30/30**, using 60 real requests. The
+[unchanged repair-run summary](evidence/2026-10-06-hosted-ai-smoke/native-query-identity-01.json)
+records the result. This is a local read-only development regression, not
+editing acceptance, browser acceptance, a cross-model comparison or a general
+100% claim. It does not replace the original six failures.
+
+The same six questions and runner are accessible through this reproducible
+entry; it defaults to zero model calls and requires a new paid-run archive:
+
+```sh
+node scripts/testing/run-geology-stability.mjs --suite native-identity
+node scripts/testing/run-geology-stability.mjs --run --suite native-identity --repeats 5 --output-dir .cache/geology-native-identity-new
+```
+
+Other broad-run failures remain under investigation, including literal-value
+editing, polyline changes and missing-source inspection. Six drift-inspection
+failures also involve the legacy V5 oracle's accepted evidence path: full
+inspection receipts require separate versioned verification. They remain
+failures in this V5 archive; no archived result is rescored or promoted to a
+pass. Neither new query metadata nor payment recovery alone demonstrates that
+the remaining questions pass.
+
 ## Reproduce
 
 Use a Node.js 22+ source checkout with its locked development dependencies and

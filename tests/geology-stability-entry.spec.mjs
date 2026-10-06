@@ -68,6 +68,20 @@ test('broad suite selects every currently runnable frozen question, discloses ex
   assert.match(plan.readinessNote, /never counted as passes/)
 })
 
+test('native identity suite selects all six frozen variants without altering prompts or calling a model', async () => {
+  const result = run('--suite', 'native-identity')
+  assert.equal(result.status, 0, result.stderr)
+  const plan = JSON.parse(result.stdout)
+  assert.equal(plan.mode, 'dry-run'); assert.equal(plan.modelCalls, 0)
+  assert.equal(plan.suite, 'native-identity'); assert.equal(plan.repeats, 5)
+  assert.equal(plan.maxRequestsPerRepeat, 60)
+  assert.equal(plan.answerContractVersion, 'v5'); assert.equal(plan.answerEncoding, 'json-object')
+  const corpus = JSON.parse(await readFile(new URL('./fixtures/geology-user-scenarios-v1.json', import.meta.url), 'utf8'))
+  const expected = corpus.scenarios.filter(row => row.id.startsWith('GUS1-cad-query.native-object-')).map(row => row.id)
+  assert.equal(expected.length, 6)
+  assert.deepEqual(plan.scenarioIds, expected)
+})
+
 test('public stability entry refuses an existing archive without touching its evidence', async t => {
   const folder = await mkdtemp(join(tmpdir(), 'kjdraw-stability-entry-'))
   t.after(() => rm(folder, { recursive: true, force: true }))
