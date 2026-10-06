@@ -106,6 +106,33 @@ test(`literal annotation follow-up stays model-driven, review-only and exactly u
   } finally { chat.destroy() }
 })
 
+test('online FULL tool exposes literal affixes and executes only a reviewed native TEXTEDIT', async () => {
+  let callbackFailure = null
+  const { chat, sdk, document, requests } = await fixtureRuntime((body, number, source) => {
+    try {
+    const tool = body.tools.find(item => item.function.name === 'cad_propose_text_edit')
+    assert.ok(tool.function.parameters.properties.changes.items.properties.append)
+    assert.match(body.messages.map(message => message.content).join('\n'), /engine joins them exactly/)
+    if (number === 1) return wire('cad_find_text', { expectedRevision: source.revision, search: 'REV A', match: 'contains' })
+    const receipt = JSON.parse(body.messages.find(message => message.role === 'tool').content)
+    return wire('cad_propose_text_edit', { expectedRevision: source.revision, units: 'millimeter',
+      changes: [{ id: receipt.value.matches[0].id, expectedText: receipt.value.matches[0].text, append: '复核版' }] })
+    } catch (error) { callbackFailure = error; throw error }
+  }, { includeNote: true })
+  try {
+    const before = await chat.exportLocalState()
+    const result = await chat.send('Append "复核版" to the REV A note; do not add any separator.')
+    if (callbackFailure) throw callbackFailure
+    assert.equal(result.status, 'proposal', JSON.stringify(result.error))
+    assert.equal(requests.length, 2)
+    assert.equal((await chat.exportLocalState()).drawing, before.drawing)
+    assert.equal((await chat.approve(result.proposal.planId)).status, 'applied')
+    const reopened = await sdk.readDocument((await chat.exportLocalState()).drawing, { format: 'KJD' })
+    assert.equal(reopened.getObject('note').payload.text, document.getObject('note').payload.text + '复核版')
+    assert.deepEqual(reopened.getObject('untouched'), document.getObject('untouched'))
+  } finally { chat.destroy() }
+})
+
 test('read-only geometry request finishes after its read without an edit correction', async () => {
   const { chat, requests } = await fixtureRuntime((_body, number) => number === 1
     ? wire('cad_read_drawing', {}) : wire(null, null, 'One line and one circle; no proposal created.'))

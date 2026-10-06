@@ -35,6 +35,41 @@ export function validateTextEdits(input: unknown): KJTextEdit[] {
   return result
 }
 
+/** FULL Agent adapter only: explicit literal affixes become ordinary sealed
+ * TEXTEDIT arguments. Never infer separators, targets or original contents.
+ * The original command/schema and scalar-v1 profile remain unchanged.
+ */
+export function expandAgentTextAffixes(input: unknown): KJTextEdit[] {
+  const data = (value: unknown, allowed: string[]): Record<string, unknown> => {
+    if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      ![Object.prototype, null].includes(Object.getPrototypeOf(value))) return fail('affixes require plain data')
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    if (Reflect.ownKeys(value).some(key => typeof key !== 'string' || !allowed.includes(key) ||
+      !descriptors[key]?.enumerable || !Object.hasOwn(descriptors[key]!, 'value'))) return fail('unexpected affix fields or accessors')
+    return value as Record<string, unknown>
+  }
+  const source = data(input, ['changes']).changes
+  if (!Array.isArray(source) || Object.getPrototypeOf(source) !== Array.prototype ||
+    source.length < 1 || source.length > 64 || Reflect.ownKeys(source).length !== source.length + 1)
+    return fail('changes must contain 1–64 dense entries')
+  const changes: KJTextEdit[] = []
+  for (let index = 0; index < source.length; index++) {
+    const descriptor = Object.getOwnPropertyDescriptor(source, String(index))
+    if (!descriptor?.enumerable || !Object.hasOwn(descriptor, 'value')) return fail('affixes forbid array accessors or holes')
+    const row = data(descriptor.value, ['id', 'expectedText', 'text', 'prepend', 'append'])
+    const hasText = Object.hasOwn(row, 'text'), hasPrepend = Object.hasOwn(row, 'prepend'), hasAppend = Object.hasOwn(row, 'append')
+    if (hasText && (hasPrepend || hasAppend) || !hasText && !hasPrepend && !hasAppend)
+      return fail('choose an exact replacement or literal prepend/append, never both')
+    if (typeof row.expectedText !== 'string') return fail('expectedText must be the complete stored string')
+    for (const field of ['prepend', 'append']) if (Object.hasOwn(row, field) &&
+      (typeof row[field] !== 'string' || !(row[field] as string).length || (row[field] as string).length > 16384))
+      return fail('explicit affixes must be nonempty bounded strings')
+    const text = hasText ? row.text : String(row.prepend ?? '') + row.expectedText + String(row.append ?? '')
+    changes.push({ id: row.id as string, expectedText: row.expectedText, text: text as string })
+  }
+  return validateTextEdits({ changes })
+}
+
 export function applyTextEdits(document: KJDocument, transaction: KJTransaction, input: unknown) {
   const changes = validateTextEdits(input)
   for (const change of changes) {

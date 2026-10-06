@@ -8,6 +8,7 @@ import { queryNativeCurveBounds, queryNativeCurveNeighborhood } from './agent-na
 import { KJDrawError, KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze, normalizeName, stableHash } from './utils.js';
 import { createId } from './ids.js';
+import { expandAgentTextAffixes } from './text-edit.js';
 import { createAgentGeometryPreview, createAgentHistoryPreview, agentPreviewMatchesDocument, KJDRAW_AGENT_MOVABLE_TYPES, resolveAgentTransformEntityIds } from './agent-preview.js';
 import { buildAgentDrawingEntities } from './agent-drawing.js';
 import { buildAgentRoadDrawing } from './agent-road-drawing.js';
@@ -5085,6 +5086,42 @@ export class KJAgentToolSession {
                     'includeInspection'
                 ])
             };
+            if (tool.name === 'cad_propose_text_edit' && this.#options.toolProfile === 'full') {
+                const row = tool.inputSchema.properties.changes.items;
+                const affix = {
+                    type: 'string',
+                    minLength: 1,
+                    maxLength: 16384
+                };
+                return {
+                    ...tool,
+                    description: tool.description + ' For literal additions, prefer prepend and/or append instead of rewriting the complete text. Supply the exact complete expectedText and literal affixes only; the engine concatenates prepend + expectedText + append without any inferred whitespace, punctuation or formatting. Never combine text with either affix. Existing replacement rows with text remain supported, including in a mixed atomic batch. The resulting complete strings still pass all native text limits, protection and expected-text checks, and require host review.',
+                    inputSchema: {
+                        ...tool.inputSchema,
+                        properties: {
+                            ...tool.inputSchema.properties,
+                            units: {
+                                ...tool.inputSchema.properties.units,
+                                enum: [
+                                    units
+                                ]
+                            },
+                            changes: {
+                                ...tool.inputSchema.properties.changes,
+                                items: objectWithOptional({
+                                    ...row.properties,
+                                    prepend: affix,
+                                    append: affix
+                                }, [
+                                    'text',
+                                    'prepend',
+                                    'append'
+                                ])
+                            }
+                        }
+                    }
+                };
+            }
             if (tool.name === 'cad_propose_structural_edit' && this.#options.toolProfile === 'full') return {
                 ...tool,
                 description: tool.description + ' Optional creations can add native LINE, open or closed LWPOLYLINE, HATCH and TEXT in this same proposal and transaction, using explicit XY coordinates and existing editable layer IDs. At most 16 total creations plus reconnections and 64 total changed records, including actual owned erase records; no implicit object selection, layer creation or geological inference. HATCH patternId must come from cad_read_hatch_patterns; the host resolves and seals the complete published native PAT definition, never model-supplied PAT. HATCH loops[0] is the outer boundary; later closed polygon loops are disjoint empty islands strictly inside it; separate visible boundary linework is optional only when requested. TEXT must be caller-supplied content or explicitly requested illustrative wording, never fabricated engineering measurements or source facts. A simulation remains illustrative, not a geological source recipe. Omit creations to preserve the existing erase/reconnect/relayer behavior. Host approval remains required; the entire edit is one transaction and one undo.',
@@ -6049,7 +6086,9 @@ export class KJAgentToolSession {
                         } else if (name === 'cad_propose_text_edit') {
                             command = 'TEXTEDIT';
                             commandArgs = {
-                                changes: args.changes
+                                changes: this.#options.toolProfile === 'full' ? expandAgentTextAffixes({
+                                    changes: args.changes
+                                }) : args.changes
                             };
                         } else if (name === 'cad_propose_hatch_pattern') {
                             command = 'HATCHPATTERN';
