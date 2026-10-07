@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:6791125b87e7b6241141bd2ee00de64042258fa443c42fca5ab16aed5cc76e6c",
+  "sourceDigest": "sha256:9e43e15830386bab7343dd0ee503b07ce694be59dd566d14f29eb3cb61e164f1",
   "modules": [
     {
       "exportPath": "./planar-boundaries",
@@ -1371,7 +1371,7 @@
         {
           "name": "KJDrawingContextEntity",
           "kind": "interface",
-          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted native geometry. DIMENSION also exposes a bounded annotation\n     * projection; its stored measurement is explicitly named cachedMeasurement. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n    readonly spatialMatch?: 'intersects' | 'unclassified';\n}",
+          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    /** Native DXF handle, not an alias or the object's UUID. */\n    readonly handle: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    /** Native coordinates in this exact owner; INSERTs are not expanded. */\n    readonly coordinateSpace: 'owner-local';\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted native geometry. DIMENSION also exposes a bounded annotation\n     * projection; its stored measurement is explicitly named cachedMeasurement. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n    readonly spatialMatch?: 'intersects' | 'unclassified';\n}",
           "source": "drawing-context.d.ts",
           "anchor": "drawing-context-interface-kjdrawingcontextentity"
         },
@@ -9867,7 +9867,7 @@
         {
           "name": "KJDrawingContextEntity",
           "kind": "interface",
-          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted native geometry. DIMENSION also exposes a bounded annotation\n     * projection; its stored measurement is explicitly named cachedMeasurement. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n    readonly spatialMatch?: 'intersects' | 'unclassified';\n}",
+          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    /** Native DXF handle, not an alias or the object's UUID. */\n    readonly handle: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    /** Native coordinates in this exact owner; INSERTs are not expanded. */\n    readonly coordinateSpace: 'owner-local';\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted native geometry. DIMENSION also exposes a bounded annotation\n     * projection; its stored measurement is explicitly named cachedMeasurement. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n    readonly spatialMatch?: 'intersects' | 'unclassified';\n}",
           "source": "drawing-context.d.ts",
           "anchor": "root-interface-kjdrawingcontextentity"
         },

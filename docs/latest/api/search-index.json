@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:6791125b87e7b6241141bd2ee00de64042258fa443c42fca5ab16aed5cc76e6c",
+  "sourceDigest": "sha256:9e43e15830386bab7343dd0ee503b07ce694be59dd566d14f29eb3cb61e164f1",
   "entries": [
     {
       "name": "KJPlanarBoundary",
@@ -1378,7 +1378,7 @@
       "module": "@kanjieteam/kjdraw/drawing-context",
       "href": "./api/reference/#drawing-context-interface-kjdrawingcontextentity",
       "anchor": "drawing-context-interface-kjdrawingcontextentity",
-      "summary": "export interface KJDrawingContextEntity { readonly id: string; readonly type: string; readonly ownerId: string | null; readonly layerId: string | null; readonly visible: boolean; /** Visibility and locking eligibility on"
+      "summary": "export interface KJDrawingContextEntity { readonly id: string; /** Native DXF handle, not an alias or the object's UUID. */ readonly handle: string; readonly type: string; readonly ownerId: string | null; /** Native coor"
     },
     {
       "name": "KJDrawingContextLayer",
@@ -10978,7 +10978,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjdrawingcontextentity",
       "anchor": "root-interface-kjdrawingcontextentity",
-      "summary": "export interface KJDrawingContextEntity { readonly id: string; readonly type: string; readonly ownerId: string | null; readonly layerId: string | null; readonly visible: boolean; /** Visibility and locking eligibility on"
+      "summary": "export interface KJDrawingContextEntity { readonly id: string; /** Native DXF handle, not an alias or the object's UUID. */ readonly handle: string; readonly type: string; readonly ownerId: string | null; /** Native coor"
     },
     {
       "name": "KJDrawingContextLayer",
