@@ -6,6 +6,9 @@ on:
   pull_request:
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   sdk:
     strategy:
@@ -43,6 +46,12 @@ jobs:
       - run: node scripts/build-docs-site.mjs
       - name: Generate and validate API docs from source
         run: node scripts/build-api-docs.mjs
+      - name: Check native DIMASSOC with the configured Python
+        # Exercise the identical validator early so platform failures do not
+        # wait behind thousands of unrelated tests before yielding evidence.
+        env:
+          KJDRAW_PYTHON: ${{ steps.setup-python.outputs.python-path }}
+        run: node --test packages/kjdraw-sdk/test/dxf-dimension-association-metadata.test.mjs
       - name: Run SDK tests with the configured Python
         env:
           KJDRAW_PYTHON: ${{ steps.setup-python.outputs.python-path }}

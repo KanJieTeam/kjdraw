@@ -124,9 +124,11 @@ test('independent ezdxf retains DIMASSOC, reciprocal reactors and the exact geom
   const child = spawnSync(process.env.KJDRAW_PYTHON, ['-c', [
     'import io,json,sys,ezdxf',
     'doc=ezdxf.read(io.StringIO(sys.stdin.read()))',
+    'before_assoc=doc.entitydb.get("FB00")',
+    'before_owner=before_assoc.dxf.get("owner") if before_assoc is not None else None',
     'audit=doc.audit()',
     'assoc=doc.entitydb.get("FB00")',
-    'assert assoc is not None and assoc.dxftype()=="DIMASSOC"',
+    'assert assoc is not None and assoc.dxftype()=="DIMASSOC", json.dumps({"beforeType":before_assoc.dxftype() if before_assoc is not None and before_assoc.is_alive else None,"beforeOwner":before_owner,"errors":[str(e.message) for e in audit.errors],"fixes":[str(e.message) for e in audit.fixes],"objectTypes":[e.dxftype() for e in doc.objects]})',
     'assert "FB00" in doc.entitydb["FA01"].get_reactors()',
     'assert "FB00" in doc.entitydb["FA02"].get_reactors()',
     'pointers=[str(t.value) for group in assoc.xtags.subclasses for t in group if t.code==331]',
