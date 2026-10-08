@@ -229,7 +229,7 @@ test('disposes all command and extension contributions owned by one plugin scope
   const manifest = {
     schema: 'com.kanjie.kjdraw.plugin', schemaVersion: 1,
     id: 'example.plugin', name: 'Example plugin', version: '1.0.0',
-    compatibility: { sdk: '>=0.2.0 <1.0.0', kernel: '*' },
+    compatibility: { sdk: `=${sdk.version}`, kernel: '*' },
     permissions: ['commands.register', 'extensions.register'],
     contributes: { commands: ['EXAMPLE'], extensions: ['entity-type/EXAMPLE_ENTITY'] },
   }
