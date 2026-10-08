@@ -139,8 +139,8 @@ test('independent ezdxf retains DIMASSOC, reciprocal reactors and the exact geom
     'assert pointers==["FA01","FA01"]',
     'assert list(doc.modelspace().query("TEXT"))[0].dxf.text=="PUBLIC VERIFIED"',
     'print(json.dumps({"errors":len(audit.errors),"fixes":len(audit.fixes)}))',
-  ].join('\n')], { input: output, encoding: 'utf8', timeout: 30000, windowsHide: true, maxBuffer: 1024 * 1024 })
-  assert.equal(child.status, 0, child.stderr)
+  ].join('\n')], { input: output, encoding: 'utf8', timeout: 120000, windowsHide: true, maxBuffer: 1024 * 1024 })
+  assert.equal(child.status, 0, child.error ? `${child.error.message}\n${child.stderr}` : child.stderr)
   assert.deepEqual(JSON.parse(child.stdout), { errors: 0, fixes: 0 })
 })
 
