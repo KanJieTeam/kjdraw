@@ -320,7 +320,8 @@ test('packed Vanilla editor creates, reopens, verifies and disposes a production
   const outcome = await page.evaluate(() => window.__kjdrawPackedVanillaProduction)
   expect(outcome.error).toBeUndefined()
   expect(errors).toEqual([])
-  expect(packageVersion).toMatch(/^1\.0\.0-/)
+  const sourcePackage = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
+  expect(packageVersion).toBe(sourcePackage.version)
   expect(packedIntegrity).toMatch(/^sha512-/)
   expect(packedSourceInputs.length).toBeGreaterThan(10)
   expect(outcome.result).toMatchObject({
