@@ -5,6 +5,7 @@ import {
   KJRegistrationError,
   createKJDrawSDK,
   createPluginGrant,
+  KJDRAW_VERSION,
   satisfiesVersion,
   validatePluginManifest,
 } from '../src/index.js'
@@ -33,8 +34,9 @@ test('plugin manifest validation locks schema, semantic compatibility and known 
 
 test('plugin scopes require explicit grants and declared contributions', () => {
   const sdk = createKJDrawSDK()
-  assert.throws(() => createPluginGrant(manifest(), []), KJRegistrationError)
-  const scope = sdk.createPluginScope(manifest(), { grantedPermissions: ['commands.register'] })
+  const applicable = manifest({ compatibility: { sdk: `=${KJDRAW_VERSION}`, kernel: '>=1.0.0 <2.0.0' } })
+  assert.throws(() => createPluginGrant(applicable, []), KJRegistrationError)
+  const scope = sdk.createPluginScope(applicable, { grantedPermissions: ['commands.register'] })
   scope.registerCommand({ id: 'TEST.RUN', transactional: false, execute: () => 7 })
   assert.equal(sdk.commands.resolve('TEST.RUN').execute(), 7)
   assert.throws(() => scope.registerCommand({ id: 'UNDECLARED', transactional: false, execute: () => 0 }), /did not declare/)

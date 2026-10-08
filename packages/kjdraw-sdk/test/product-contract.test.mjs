@@ -128,13 +128,15 @@ test('acceptance matrix is machine-readable and passed scope is backed by releas
     'public.documentation',
     'security.release-provenance',
   ])
-  assert.equal(candidateOnlyGates.every(gate => gate.requiredForStable && gate.status === 'partial'), true)
+  const localCorePolicy = matrix.stableReleasePolicy?.mode === 'local-core-and-release-alignment'
+  assert.equal(candidateOnlyGates.every(gate => gate.status === 'partial' &&
+    (localCorePolicy && gate.id === 'cad.production-workflows' ? gate.requiredForStable === false : gate.requiredForStable === true)), true)
   const productionWorkflows = matrix.gates.find(gate => gate.id === 'cad.production-workflows')
   assert.ok(productionWorkflows.evidence.includes('tests/browser/workbench-paper-space.spec.mjs'))
   assert.match(productionWorkflows.gap, /Passing CI, publishing npm or renaming a version cannot pass this gate/)
   for (const id of ['industry.geotechnical-real-corpus', 'industry.mechanical-real-corpus']) {
     const realCorpus = matrix.gates.find(gate => gate.id === id)
-    assert.equal(realCorpus.requiredForStable, true)
+    assert.equal(realCorpus.requiredForStable, !localCorePolicy)
     assert.notEqual(realCorpus.verifyOnCandidate, true)
     assert.ok(['blocked', 'partial', 'passed'].includes(realCorpus.status))
     if (realCorpus.status !== 'passed') {
