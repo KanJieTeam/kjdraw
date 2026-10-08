@@ -868,10 +868,12 @@ export function createKJModelAdapter(options) {
     if (typeof reuseReadResultReferences !== 'boolean') invalid('reuseReadResultReferences must be a boolean');
     const streaming = chatStreaming || responsesStreaming || anthropicStreaming || geminiStreaming;
     return Object.freeze({
-        createConversation ({ instructions, tools, onTextDelta, onUsage, allowTextContinuation }) {
+        createConversation ({ instructions, tools, onTextDelta, onUsage, allowTextContinuation, maxTextContinuations }) {
             if (onTextDelta !== undefined && typeof onTextDelta !== 'function') invalid('onTextDelta must be a function');
             if (onUsage !== undefined && typeof onUsage !== 'function') invalid('onUsage must be a function');
             if (allowTextContinuation !== undefined && typeof allowTextContinuation !== 'boolean') invalid('allowTextContinuation must be a boolean');
+            const textContinuationLimit = maxTextContinuations === undefined ? 1 : maxTextContinuations;
+            if (!Number.isSafeInteger(textContinuationLimit) || textContinuationLimit < 0 || textContinuationLimit > 32) invalid('maxTextContinuations must be an integer from 0 to 32');
             const definitions = tools.map((tool)=>({
                     name: tool.name,
                     description: tool.description,
@@ -889,7 +891,7 @@ export function createKJModelAdapter(options) {
             const geminiIds = new Map();
             return {
                 async next (input, signal) {
-                    const continueText = ended && textContinuationAvailable && allowTextContinuation === true && textContinuations === 0 && input.kind === 'prompt';
+                    const continueText = ended && textContinuationAvailable && allowTextContinuation === true && textContinuations < textContinuationLimit && input.kind === 'prompt';
                     if (busy || ended && !continueText) invalid('Conversation is busy or has ended; start a fresh conversation');
                     busy = true;
                     try {

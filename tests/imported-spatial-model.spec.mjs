@@ -167,27 +167,28 @@ test('a safe clarification with the wrong candidate count remains a semantic fai
   assert.equal(report.originalBytesUnchanged, true)
 })
 
-test('read then proposal corrections remain bound to the original ambiguity and fail closed at the existing text-continuation limit', async () => {
+test('bounded read then proposal corrections retain original ambiguity, obtain real clarification and never guess targets', async () => {
   const observed = []
   const report = await runImportedSpatialModel({ bytes: await publicPlan(), connection,
     fetchImpl: fixtureProvider({ initialClarificationWithoutRead: true }), executionOrigin: 'deterministic-protocol-fixture',
     reviewClarification: ({ text, topCandidateCount }) => topCandidateCount === 5 && text.includes('five upper candidates'),
     onModelResult: ({ operation, result }) => observed.push({ operation, status: result.status,
       errorCode: result.error?.code, names: result.toolOutputs.map(output => output.name), proposal: Boolean(result.proposal) }) })
-  // The existing adapter permits one text continuation, not an unbounded chain
-  // of read and proposal reminders. A successful read must not conceal a later
-  // typed protocol failure or let this fixture advance to the erase task.
-  assert.equal(report.passed, false, JSON.stringify(report))
-  assert.equal(report.nativeProtocolPassed, false)
-  assert.equal(report.semanticClarificationConfirmed, null)
+  // FULL opts into two text corrections within the unchanged shared budget:
+  // a missing-read notice and then a missing-proposal notice. Ambiguity must
+  // still end with a real read and human-reviewed clarification, not a guess.
+  assert.equal(report.passed, true, JSON.stringify(report))
+  assert.equal(report.nativeProtocolPassed, true)
+  assert.equal(report.semanticClarificationConfirmed, true)
   assert.equal(report.naturalLanguageModelCalls, 0)
-  assert.equal(report.requests, 3)
-  assert.equal(report.rounds.length, 1)
-  assert.equal(report.rounds[0].requests, 3)
-  assert.deepEqual(observed[0], { operation: 'ambiguity', status: 'error', errorCode: 'KJMODEL_PROTOCOL',
+  assert.equal(report.requests, 11)
+  assert.equal(report.rounds.length, 4)
+  assert.equal(report.rounds[0].requests, 4)
+  assert.deepEqual(observed[0], { operation: 'ambiguity', status: 'message', errorCode: undefined,
     names: ['cad_query_spatial_candidates'], proposal: false })
-  assert.equal(report.failureStage, 'AMBIGUITY_APPROVAL_ISOLATION')
-  assert.equal(report.failure, 'AMBIGUOUS_TARGET_NOT_CLARIFIED')
+  assert.deepEqual(report.rounds.map(round => round.operation), ['ambiguity', 'erase', 'undo', 'redo'])
+  assert.ok(report.rounds.slice(1).every(round => round.passed && round.dxfAndKjdReopen))
+  assert.equal(report.localHistory.archived, true)
   assert.deepEqual(report.trace.filter(turn => turn.round === 1).flatMap(turn => turn.toolCalls), ['cad_query_spatial_candidates'])
   assert.equal(report.originalBytesUnchanged, true)
 })
@@ -204,7 +205,7 @@ test('persistent prose without actual reads is rejected by the online read guard
   assert.equal(report.passed, false)
   assert.equal(report.nativeProtocolPassed, false)
   assert.equal(report.rounds.length, 1)
-  assert.equal(report.requests, 2)
+  assert.equal(report.requests, 3)
   assert.equal(report.failure, 'AMBIGUOUS_TARGET_NOT_CLARIFIED')
   assert.equal(report.naturalLanguageModelCalls, 0)
   assert.equal(report.originalBytesUnchanged, true)

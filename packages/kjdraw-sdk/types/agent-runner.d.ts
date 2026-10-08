@@ -18,11 +18,13 @@ export interface KJAgentRunOptions {
     };
     maxTurns?: number;
     maxToolCalls?: number;
-    /** Model turns following failed tool batches or missing-proposal correction; default 2, range 0–32. Does not retry transport or approvals. */
+    /** Model turns following failed tool batches or missing-read/proposal correction; default 2, range 0–32. Does not retry transport or approvals. */
     maxRepairAttempts?: number;
+    /** Missing-read corrections allowed within the shared repair/turn budgets; default 1, range 0–32. Only used with expectReadEvidence, never retries transport or changes the drawing. */
+    maxReadRepairAttempts?: number;
     /** Explicit edit intent from the host. After a successful read, allow at most one missing-proposal correction within the shared repair/turn budgets. Defaults to false; never applies a change. */
     expectProposal?: boolean;
-    /** Explicit drawing-read intent from the host. Requires at least one successful selected read tool before completion; allows one missing-read correction within the existing shared budgets. Default false. This does not verify target completeness, pagination or answer correctness. */
+    /** Explicit drawing-read intent from the host. Requires at least one successful selected read tool before completion; missing-read correction is bounded by maxReadRepairAttempts and the shared budgets. Default false. This does not verify target completeness, pagination or answer correctness. */
     expectReadEvidence?: boolean;
     /** Opt-in model-input references to earlier complete, byte-identical native entity rows in this run. Actual reads and full audit outputs are retained; default false. */
     reuseReadEntityReferences?: boolean;
@@ -49,7 +51,7 @@ export interface KJAgentRunResult {
     readonly repairAttempts: number;
     /** Present only when the host requests a proposal. Counts attempted missing-proposal correction turns (0 or 1). */
     readonly proposalRepairAttempts?: number;
-    /** Present only for expectReadEvidence. Counts the single allowed missing-read correction (0 or 1). */
+    /** Present only for expectReadEvidence. Counts attempted missing-read corrections within the host-selected and shared budgets. */
     readonly readRepairAttempts?: number;
     /** Tool errors and explicit cad_check_geometry failures, including ok:true/passed:false. */
     readonly failedToolCalls: number;

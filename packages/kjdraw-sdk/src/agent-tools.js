@@ -2158,8 +2158,10 @@ const geologyStratumSetFields = [
     'name',
     'lithology',
     'description',
+    'descriptionSource',
     'code',
-    'patternVisibility'
+    'patternVisibility',
+    'patternLabel'
 ];
 const geologyStratumChangesContract = 'For selected existing stratum name/lithology/description/code or patternVisibility edits, use updates[].stratumChanges.update with target:{intervalId,expectedTop,expectedBottom} from the same BEFORE source and set containing only requested changed fields. patternVisibility=filled restores the stored pattern; boundary-only hides its fill while retaining boundaries and source classification. This display change never reclassifies soil or replaces a pattern definition. Preserve every unrequested field and interval, including pattern/group/notation/provenance and optional-field presence. No additions, deletions, ID or boundary changes, inferred links or duplicate targets. Never combine stratumChanges with a complete strata replacement. ';
 const geologyStratumChangesSchema = {
@@ -2188,7 +2190,7 @@ const geologyStratumChangesSchema = {
                             key,
                             geologyStratumSchema.properties[key]
                         ])), geologyStratumSetFields),
-                    description: 'Nonempty requested changed fields only: name, lithology, description, code or patternVisibility (filled/boundary-only). Every other source field stays exact; no clearing, identities, depths, pattern definition patches or implicit changes.'
+                    description: 'Nonempty requested changed fields only: name, lithology, description, descriptionSource (interval/layer-definition), code, patternVisibility (filled/boundary-only) or patternLabel (a display label, not soil classification or a hatch definition). descriptionSource must be explicitly supplied or retained from the original source and requires a nonempty final description; never invent provenance. Every other source field stays exact; no clearing, identities, depths, pattern definition patches or implicit changes.'
                 }
             })
         }

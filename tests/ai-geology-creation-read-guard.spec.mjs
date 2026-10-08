@@ -222,7 +222,7 @@ test('tool-call markup in assistant text never executes a read or bypasses the n
       const result = await chat.send('Read the actual current drawing and report its units.')
       assert.equal(result.status, 'error')
       assert.equal(result.error.code, 'KJAGENT_READ_REQUIRED')
-      assert.equal(requests.length, 2, 'Only the existing bounded read correction is allowed')
+      assert.equal(requests.length, 3, 'Only two host-selected read corrections within the shared budget are allowed')
       assert.deepEqual(native, [])
       assert.deepEqual(result.toolOutputs, [])
       assert.equal(result.proposal, undefined)

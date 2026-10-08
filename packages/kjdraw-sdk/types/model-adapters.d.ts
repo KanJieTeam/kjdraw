@@ -46,8 +46,10 @@ export interface KJModelConversationOptions {
     readonly onTextDelta?: (delta: string) => void;
     /** One observation per completed model turn, even when response parsing later fails. Exceptions are isolated. */
     readonly onUsage?: (usage: KJModelUsage) => void;
-    /** Host may append exactly one prompt after a successful text-only turn. Defaults to false; never resumes after transport/protocol failure or while tool results are pending. */
+    /** Host may append bounded prompts after successful text-only turns. Defaults to false; never resumes after transport/protocol failure or while tool results are pending. */
     readonly allowTextContinuation?: boolean;
+    /** Explicit continuation cap; default 1, range 0–32. Requires allowTextContinuation to have an effect. Captured before model execution. */
+    readonly maxTextContinuations?: number;
 }
 export interface KJModelRequest {
     readonly protocol: KJModelProtocol;

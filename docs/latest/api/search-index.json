@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:9e43e15830386bab7343dd0ee503b07ce694be59dd566d14f29eb3cb61e164f1",
+  "sourceDigest": "sha256:df64fa67ae7446bd337715cf2fee39c9e14d3cb949f6b19cfcc136b087211577",
   "entries": [
     {
       "name": "KJPlanarBoundary",

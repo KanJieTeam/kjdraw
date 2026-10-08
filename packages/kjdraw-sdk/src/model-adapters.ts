@@ -24,8 +24,10 @@ export interface KJModelConversationOptions {
   readonly onTextDelta?: (delta: string) => void
   /** One observation per completed model turn, even when response parsing later fails. Exceptions are isolated. */
   readonly onUsage?: (usage: KJModelUsage) => void
-  /** Host may append exactly one prompt after a successful text-only turn. Defaults to false; never resumes after transport/protocol failure or while tool results are pending. */
+  /** Host may append bounded prompts after successful text-only turns. Defaults to false; never resumes after transport/protocol failure or while tool results are pending. */
   readonly allowTextContinuation?: boolean
+  /** Explicit continuation cap; default 1, range 0–32. Requires allowTextContinuation to have an effect. Captured before model execution. */
+  readonly maxTextContinuations?: number
 }
 export interface KJModelRequest {
   readonly protocol: KJModelProtocol
@@ -627,10 +629,12 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
   if (typeof reuseReadResultReferences !== 'boolean') invalid('reuseReadResultReferences must be a boolean')
   const streaming = chatStreaming || responsesStreaming || anthropicStreaming || geminiStreaming
   return Object.freeze({
-    createConversation({ instructions, tools, onTextDelta, onUsage, allowTextContinuation }: KJModelConversationOptions): KJModelConversation {
+    createConversation({ instructions, tools, onTextDelta, onUsage, allowTextContinuation, maxTextContinuations }: KJModelConversationOptions): KJModelConversation {
       if (onTextDelta !== undefined && typeof onTextDelta !== 'function') invalid('onTextDelta must be a function')
       if (onUsage !== undefined && typeof onUsage !== 'function') invalid('onUsage must be a function')
       if (allowTextContinuation !== undefined && typeof allowTextContinuation !== 'boolean') invalid('allowTextContinuation must be a boolean')
+      const textContinuationLimit = maxTextContinuations === undefined ? 1 : maxTextContinuations
+      if (!Number.isSafeInteger(textContinuationLimit) || textContinuationLimit < 0 || textContinuationLimit > 32) invalid('maxTextContinuations must be an integer from 0 to 32')
       const definitions = tools.map(tool => ({ name: tool.name, description: tool.description, parameters: tool.inputSchema }))
       const schema = jsonCopy(definitions, historyBytes, 'tool-schema')
       const readTools = new Set(tools.filter(tool => tool.effect === 'read').map(tool => tool.name))
@@ -644,7 +648,7 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
       const geminiIds = new Map<string, string>()
       return {
         async next(input: KJModelInput, signal: AbortSignal): Promise<KJModelTurn> {
-          const continueText = ended && textContinuationAvailable && allowTextContinuation === true && textContinuations === 0 && input.kind === 'prompt'
+          const continueText = ended && textContinuationAvailable && allowTextContinuation === true && textContinuations < textContinuationLimit && input.kind === 'prompt'
           if (busy || ended && !continueText) invalid('Conversation is busy or has ended; start a fresh conversation')
           busy = true
           try {

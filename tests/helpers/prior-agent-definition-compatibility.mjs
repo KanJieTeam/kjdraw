@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 const oldContract = 'For selected existing stratum name/lithology/description/code edits, use updates[].stratumChanges.update with target:{intervalId,expectedTop,expectedBottom} from the same BEFORE source and set containing only requested changed fields. Preserve every unrequested field and interval, including pattern/group/notation/provenance and optional-field presence. No additions, deletions, ID or boundary changes, inferred links or duplicate targets. Never combine stratumChanges with a complete strata replacement. '
 const newContract = 'For selected existing stratum name/lithology/description/code or patternVisibility edits, use updates[].stratumChanges.update with target:{intervalId,expectedTop,expectedBottom} from the same BEFORE source and set containing only requested changed fields. patternVisibility=filled restores the stored pattern; boundary-only hides its fill while retaining boundaries and source classification. This display change never reclassifies soil or replaces a pattern definition. Preserve every unrequested field and interval, including pattern/group/notation/provenance and optional-field presence. No additions, deletions, ID or boundary changes, inferred links or duplicate targets. Never combine stratumChanges with a complete strata replacement. '
 const oldSetDescription = 'Nonempty requested changed fields only: name, lithology, description or code. Every other source field stays exact; no clearing, identities, depths, pattern patches or implicit changes.'
-const newSetDescription = 'Nonempty requested changed fields only: name, lithology, description, code or patternVisibility (filled/boundary-only). Every other source field stays exact; no clearing, identities, depths, pattern definition patches or implicit changes.'
+const newSetDescription = 'Nonempty requested changed fields only: name, lithology, description, descriptionSource (interval/layer-definition), code, patternVisibility (filled/boundary-only) or patternLabel (a display label, not soil classification or a hatch definition). descriptionSource must be explicitly supplied or retained from the original source and requires a nonempty final description; never invent provenance. Every other source field stays exact; no clearing, identities, depths, pattern definition patches or implicit changes.'
 
 export function projectPriorAgentDefinitions(definitions) {
   return definitions.map(definition => {
@@ -17,12 +17,18 @@ export function projectPriorAgentDefinitions(definitions) {
       assert.equal(delta.description, newContract)
       assert.ok(tool.description.includes(newContract))
       const set = delta.properties.update.items.properties.set
-      assert.deepEqual(Object.keys(set.properties), ['name', 'lithology', 'description', 'code', 'patternVisibility'])
+      assert.deepEqual(Object.keys(set.properties), ['name', 'lithology', 'description', 'descriptionSource', 'code', 'patternVisibility', 'patternLabel'])
+      assert.deepEqual(set.properties.patternLabel, { type: 'string', minLength: 1, maxLength: 24 })
+      assert.equal(set.required.includes('patternLabel'), false)
+      assert.deepEqual(set.properties.descriptionSource, { type: 'string', enum: ['interval', 'layer-definition'] })
+      assert.equal(set.required.includes('descriptionSource'), false)
       assert.deepEqual(set.properties.patternVisibility, { type: 'string', enum: ['filled', 'boundary-only'] })
       assert.equal(set.description, newSetDescription)
       assert.equal(set.additionalProperties, false)
       assert.equal(set.required.includes('patternVisibility'), false)
       delete set.properties.patternVisibility
+      delete set.properties.descriptionSource
+      delete set.properties.patternLabel
       set.description = oldSetDescription
       delta.description = oldContract
       tool.description = tool.description.replace(newContract, oldContract)

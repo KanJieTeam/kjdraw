@@ -369,6 +369,8 @@ export async function runKJAgentTask(options) {
     const maxTurns = integer(options.maxTurns, 8, 32), maxToolCalls = integer(options.maxToolCalls, 32, 128);
     const maxRepairAttempts = options.maxRepairAttempts === undefined ? 2 : options.maxRepairAttempts;
     if (!Number.isSafeInteger(maxRepairAttempts) || maxRepairAttempts < 0 || maxRepairAttempts > 32) throw new KJModelError('KJAGENT_OPTIONS', 'Repair attempt limit must be an integer from 0 to 32');
+    const maxReadRepairAttempts = options.maxReadRepairAttempts === undefined ? 1 : options.maxReadRepairAttempts;
+    if (!Number.isSafeInteger(maxReadRepairAttempts) || maxReadRepairAttempts < 0 || maxReadRepairAttempts > 32) throw new KJModelError('KJAGENT_OPTIONS', 'Read repair attempt limit must be an integer from 0 to 32');
     if (options.onProgress !== undefined && typeof options.onProgress !== 'function') throw new KJModelError('KJAGENT_OPTIONS', 'onProgress must be a function');
     if (options.expectProposal !== undefined && typeof options.expectProposal !== 'boolean') throw new KJModelError('KJAGENT_OPTIONS', 'expectProposal must be a boolean');
     if (options.expectReadEvidence !== undefined && typeof options.expectReadEvidence !== 'boolean') throw new KJModelError('KJAGENT_OPTIONS', 'expectReadEvidence must be a boolean');
@@ -513,7 +515,8 @@ export async function runKJAgentTask(options) {
             tools,
             onUsage: observe,
             ...options.expectProposal || expectReadEvidence ? {
-                allowTextContinuation: true
+                allowTextContinuation: true,
+                maxTextContinuations: options.maxReadRepairAttempts === undefined ? 1 : maxRepairAttempts
             } : {}
         });
         let input = {
@@ -562,7 +565,7 @@ export async function runKJAgentTask(options) {
                 if (!text.trim()) throw new KJModelError('KJMODEL_PROTOCOL', 'Model returned neither tool calls nor user-visible text');
                 const hasSuccessfulRead = outputs.some((output)=>output.result.ok && tools.some((tool)=>tool.name === output.name && tool.effect === 'read'));
                 if (expectReadEvidence && !hasSuccessfulRead) {
-                    if (!readRepairAttempts && repairAttempts < maxRepairAttempts && turns < maxTurns && toolCalls < maxToolCalls) {
+                    if (readRepairAttempts < maxReadRepairAttempts && repairAttempts < maxRepairAttempts && turns < maxTurns && toolCalls < maxToolCalls) {
                         repairPending = true;
                         readRepairPending = true;
                         input = {

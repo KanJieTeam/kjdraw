@@ -4,8 +4,10 @@ const fields = [
     'name',
     'lithology',
     'description',
+    'descriptionSource',
     'code',
-    'patternVisibility'
+    'patternVisibility',
+    'patternLabel'
 ];
 const lithologies = [
     'fill',
@@ -109,15 +111,21 @@ export function applyGeologyStratumChanges(before, changes) {
         const set = closed(operation.set, fields, [], 'set');
         if (!Object.keys(set).length) fail('set requires explicit changed fields');
         for (const field of Object.keys(set)){
-            const value = set[field], maximum = field === 'description' ? 512 : field === 'name' ? 64 : field === 'code' ? 24 : 32;
+            const value = set[field], maximum = field === 'description' ? 512 : field === 'name' ? 64 : field === 'code' || field === 'patternLabel' ? 24 : 32;
             if (field === 'patternVisibility') {
                 if (value !== 'filled' && value !== 'boundary-only') fail('patternVisibility requires filled or boundary-only; it is a display choice, not a lithology change');
+                continue;
+            }
+            if (field === 'descriptionSource') {
+                if (value !== 'interval' && value !== 'layer-definition') fail('descriptionSource requires interval or layer-definition provenance');
                 continue;
             }
             if (typeof value !== 'string' || !value.trim() || value.length > maximum || field === 'lithology' && !lithologies.includes(value)) fail('set fields must be bounded nonempty strings with a supported lithology');
         }
         if (!Object.keys(set).some((field)=>!Object.hasOwn(layer, field) || layer[field] !== set[field])) fail('an update must change stored facts');
-        changed.set(index, Object.assign(structuredClone(layer), structuredClone(set)));
+        const updated = Object.assign(structuredClone(layer), structuredClone(set));
+        if (updated.descriptionSource !== undefined && (typeof updated.description !== 'string' || !updated.description.trim())) fail('descriptionSource requires a nonempty final description; no description may be invented');
+        changed.set(index, updated);
     }
     return original.map((layer, index)=>changed.get(index) ?? structuredClone(layer));
 }

@@ -495,6 +495,7 @@ export function createAiChatRuntime(options = {}) {
         ...(reuseEntityReads ? { reuseReadEntityReferences: true, readEntityReferenceProtocol: current.protocol } : {}),
         ...aiDrawingRequestLimits(document.listEntities().length, hasImportedDocument && !scalarProfile),
         expectProposal, expectReadEvidence: document.listEntities().length > 0,
+        ...(scalarProfile ? {} : { maxReadRepairAttempts: 2 }),
         ...(capability ? { capabilities: { registry: capability.registry, lock: capability.lock } } : {}),
         signal: controller.signal, onProgress,
       })

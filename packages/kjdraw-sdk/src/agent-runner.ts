@@ -18,11 +18,13 @@ export interface KJAgentRunOptions {
   capabilities?: { registry: KJAgentCapabilityRegistry; lock: readonly KJAgentCapabilityLockEntry[] }
   maxTurns?: number
   maxToolCalls?: number
-  /** Model turns following failed tool batches or missing-proposal correction; default 2, range 0–32. Does not retry transport or approvals. */
+  /** Model turns following failed tool batches or missing-read/proposal correction; default 2, range 0–32. Does not retry transport or approvals. */
   maxRepairAttempts?: number
+  /** Missing-read corrections allowed within the shared repair/turn budgets; default 1, range 0–32. Only used with expectReadEvidence, never retries transport or changes the drawing. */
+  maxReadRepairAttempts?: number
   /** Explicit edit intent from the host. After a successful read, allow at most one missing-proposal correction within the shared repair/turn budgets. Defaults to false; never applies a change. */
   expectProposal?: boolean
-  /** Explicit drawing-read intent from the host. Requires at least one successful selected read tool before completion; allows one missing-read correction within the existing shared budgets. Default false. This does not verify target completeness, pagination or answer correctness. */
+  /** Explicit drawing-read intent from the host. Requires at least one successful selected read tool before completion; missing-read correction is bounded by maxReadRepairAttempts and the shared budgets. Default false. This does not verify target completeness, pagination or answer correctness. */
   expectReadEvidence?: boolean
   /** Opt-in model-input references to earlier complete, byte-identical native entity rows in this run. Actual reads and full audit outputs are retained; default false. */
   reuseReadEntityReferences?: boolean
@@ -49,7 +51,7 @@ export interface KJAgentRunResult {
   readonly repairAttempts: number
   /** Present only when the host requests a proposal. Counts attempted missing-proposal correction turns (0 or 1). */
   readonly proposalRepairAttempts?: number
-  /** Present only for expectReadEvidence. Counts the single allowed missing-read correction (0 or 1). */
+  /** Present only for expectReadEvidence. Counts attempted missing-read corrections within the host-selected and shared budgets. */
   readonly readRepairAttempts?: number
   /** Tool errors and explicit cad_check_geometry failures, including ok:true/passed:false. */
   readonly failedToolCalls: number
@@ -261,6 +263,8 @@ export async function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgen
   const maxTurns = integer(options.maxTurns, 8, 32), maxToolCalls = integer(options.maxToolCalls, 32, 128)
   const maxRepairAttempts = options.maxRepairAttempts === undefined ? 2 : options.maxRepairAttempts
   if (!Number.isSafeInteger(maxRepairAttempts) || maxRepairAttempts < 0 || maxRepairAttempts > 32) throw new KJModelError('KJAGENT_OPTIONS', 'Repair attempt limit must be an integer from 0 to 32')
+  const maxReadRepairAttempts = options.maxReadRepairAttempts === undefined ? 1 : options.maxReadRepairAttempts
+  if (!Number.isSafeInteger(maxReadRepairAttempts) || maxReadRepairAttempts < 0 || maxReadRepairAttempts > 32) throw new KJModelError('KJAGENT_OPTIONS', 'Read repair attempt limit must be an integer from 0 to 32')
   if (options.onProgress !== undefined && typeof options.onProgress !== 'function') throw new KJModelError('KJAGENT_OPTIONS', 'onProgress must be a function')
   if (options.expectProposal !== undefined && typeof options.expectProposal !== 'boolean') throw new KJModelError('KJAGENT_OPTIONS', 'expectProposal must be a boolean')
   if (options.expectReadEvidence !== undefined && typeof options.expectReadEvidence !== 'boolean') throw new KJModelError('KJAGENT_OPTIONS', 'expectReadEvidence must be a boolean')
@@ -342,7 +346,8 @@ export async function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgen
   try {
     if (controller.signal.aborted) return finish('cancelled')
     const conversation = model.createConversation({ instructions, tools, onUsage: observe,
-      ...(options.expectProposal || expectReadEvidence ? { allowTextContinuation: true } : {}) })
+      ...(options.expectProposal || expectReadEvidence ? { allowTextContinuation: true,
+        maxTextContinuations: options.maxReadRepairAttempts === undefined ? 1 : maxRepairAttempts } : {}) })
     let input: KJModelInput = { kind: 'prompt', text: prompt, ...(options.images !== undefined ? { images: options.images } : {}) }
     for (; turns < maxTurns;) {
       if (repairPending) repairAttempts++
@@ -374,7 +379,7 @@ export async function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgen
         if (!text.trim()) throw new KJModelError('KJMODEL_PROTOCOL', 'Model returned neither tool calls nor user-visible text')
         const hasSuccessfulRead = outputs.some(output => output.result.ok && tools.some(tool => tool.name === output.name && tool.effect === 'read'))
         if (expectReadEvidence && !hasSuccessfulRead) {
-          if (!readRepairAttempts && repairAttempts < maxRepairAttempts && turns < maxTurns && toolCalls < maxToolCalls) {
+          if (readRepairAttempts < maxReadRepairAttempts && repairAttempts < maxRepairAttempts && turns < maxTurns && toolCalls < maxToolCalls) {
             repairPending = true
             readRepairPending = true
             input = { kind: 'prompt', text:

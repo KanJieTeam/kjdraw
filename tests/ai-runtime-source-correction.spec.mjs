@@ -137,7 +137,7 @@ test('genuine missing source requirements survive one correction as clarificatio
   } finally { chat.destroy() }
 })
 
-test('online source clarification without a successful read fails after one bounded read reminder and never creates a proposal', async () => {
+test('online source clarification without a successful read fails after two bounded read reminders and never creates a proposal', async () => {
   const fixture = await sourceColumnFixture()
   let requests = 0
   const question = 'Please provide the new measured water depth; the drawing is unchanged.'
@@ -153,7 +153,7 @@ test('online source clarification without a successful read fails after one boun
     assert.equal(result.text, '', 'Unverified provider prose is not presented as a successful current-document result')
     assert.equal(result.proposal, undefined)
     assert.equal(result.receipt, undefined)
-    assert.equal(requests, 2, 'One read-evidence reminder only; no host-dispatched read or extended budget')
+    assert.equal(requests, 3, 'Two read-evidence reminders within the shared budget; no host-dispatched read')
     assert.equal(Object.hasOwn(result, 'toolOutputs'), false)
     const after = await chat.exportLocalState()
     assert.equal(after.drawing, before.drawing)

@@ -546,7 +546,7 @@ const geologyObservationChangesBaseSchema = objectWithOptional({
 }, ['add', 'update', 'remove'])
 const geologyObservationChangesSchema: KJAgentToolSchema = { ...geologyObservationChangesBaseSchema,
   description: 'Incremental observations only: at least one explicit operation, at most 256 total. Resolve all targets against the same source snapshot; a record cannot be touched twice. Do not combine observationChanges with a full observations replacement or clearFields:[observations]. All final depth/range/identity/layout rules still apply; no automatic guessing or merging of replacement arrays.' }
-const geologyStratumSetFields = ['name', 'lithology', 'description', 'code', 'patternVisibility'] as const
+const geologyStratumSetFields = ['name', 'lithology', 'description', 'descriptionSource', 'code', 'patternVisibility', 'patternLabel'] as const
 const geologyStratumChangesContract = 'For selected existing stratum name/lithology/description/code or patternVisibility edits, use updates[].stratumChanges.update with target:{intervalId,expectedTop,expectedBottom} from the same BEFORE source and set containing only requested changed fields. patternVisibility=filled restores the stored pattern; boundary-only hides its fill while retaining boundaries and source classification. This display change never reclassifies soil or replaces a pattern definition. Preserve every unrequested field and interval, including pattern/group/notation/provenance and optional-field presence. No additions, deletions, ID or boundary changes, inferred links or duplicate targets. Never combine stratumChanges with a complete strata replacement. '
 const geologyStratumChangesSchema: KJAgentToolSchema = {
   ...object({ update: { type: 'array', minItems: 1, maxItems: 80, items: object({
@@ -554,7 +554,7 @@ const geologyStratumChangesSchema: KJAgentToolSchema = {
       expectedTop: { ...nonnegative, description: 'Exact stored interval top in measured metres from the BEFORE source, not plotted CAD coordinates.' },
       expectedBottom: { ...radius, description: 'Exact stored interval bottom in measured metres from the SAME BEFORE source. No tolerance, boundary adjustment or inferred selector.' } }),
     set: { ...objectWithOptional(Object.fromEntries(geologyStratumSetFields.map(key => [key, geologyStratumSchema.properties![key]!])), geologyStratumSetFields),
-      description: 'Nonempty requested changed fields only: name, lithology, description, code or patternVisibility (filled/boundary-only). Every other source field stays exact; no clearing, identities, depths, pattern definition patches or implicit changes.' },
+      description: 'Nonempty requested changed fields only: name, lithology, description, descriptionSource (interval/layer-definition), code, patternVisibility (filled/boundary-only) or patternLabel (a display label, not soil classification or a hatch definition). descriptionSource must be explicitly supplied or retained from the original source and requires a nonempty final description; never invent provenance. Every other source field stays exact; no clearing, identities, depths, pattern definition patches or implicit changes.' },
   }) } }),
   description: geologyStratumChangesContract,
 }

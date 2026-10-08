@@ -201,7 +201,7 @@ test('geometry-only DXF does not acquire source mutation tools or accept zero-re
     assert.equal(result.text, '')
     assert.equal(result.proposal, undefined)
     assert.equal(result.receipt, undefined)
-    assert.equal(requests.length, 2, 'At most one reminder; host does not fabricate or dispatch a CAD read')
+    assert.equal(requests.length, 3, 'At most two reminders within the shared budget; host does not fabricate or dispatch a CAD read')
     const after = await chat.exportLocalState()
     assert.equal(after.drawing, before.drawing)
     assert.deepEqual(after.drawingHistory, before.drawingHistory)
