@@ -28,7 +28,7 @@ KJDraw enforces the published input schemas again when `call()` runs. Tool descr
 Install the package in the application that owns the drawing and review UI:
 
 ```sh
-npm install @kanjieteam/kjdraw@next
+npm install @kanjieteam/kjdraw
 ```
 
 Import the SDK from the package root and Agent tools from the `agent-tools` entry point:
@@ -248,7 +248,7 @@ For the lifecycle and trust model, read the [Agent integration contract](https:/
 在持有图纸和审核界面的应用中安装软件包：
 
 ```sh
-npm install @kanjieteam/kjdraw@next
+npm install @kanjieteam/kjdraw
 ```
 
 从包根目录导入 SDK，从 `agent-tools` 入口导入 Agent 工具：

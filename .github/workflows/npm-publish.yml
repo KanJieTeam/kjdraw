@@ -88,6 +88,21 @@ jobs:
           node scripts/audits/verify-provenance-candidate.mjs
           node scripts/audits/release-readiness.mjs --require-ready
           npm pack --dry-run --workspace packages/kjdraw-sdk
+      - name: Download and verify the exact attested GitHub release bundle
+        shell: bash
+        run: |
+          version="$(node -p "require('./packages/kjdraw-sdk/package.json').version")"
+          mkdir -p dist/published-release
+          gh release download "$RELEASE_TAG" --dir dist/published-release \
+            --pattern "kanjieteam-kjdraw-${version}.tgz" \
+            --pattern "kjdraw-sdk-${version}.spdx.json" \
+            --pattern "kjdraw-sdk-${version}.release.json" \
+            --pattern SHA256SUMS
+          node scripts/audits/verify-release-artifacts.mjs dist/published-release
+          while read -r digest name; do
+            test -n "$digest"
+            gh attestation verify "dist/published-release/$name" --repo "$GITHUB_REPOSITORY"
+          done < dist/published-release/SHA256SUMS
       - name: Check whether this immutable version already exists
         id: registry
         shell: bash
@@ -122,6 +137,20 @@ jobs:
         if: steps.registry.outputs.exists != 'true'
         shell: bash
         run: |
-          npm publish --workspace packages/kjdraw-sdk --access public --tag "${{ steps.registry.outputs.expected_tag }}" --provenance
+          version="$(node -p "require('./packages/kjdraw-sdk/package.json').version")"
+          asset="dist/published-release/kanjieteam-kjdraw-${version}.tgz"
+          npm publish "$asset" --access public --tag "${{ steps.registry.outputs.expected_tag }}" --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Verify registry bytes, tag and npm provenance after publication
+        shell: bash
+        run: |
+          for attempt in $(seq 1 10); do
+            if node scripts/audits/verify-registry-release.mjs dist/published-release; then break; fi
+            if [[ "$attempt" == 10 ]]; then exit 1; fi
+            sleep 15
+          done
+          version="$(node -p "require('./packages/kjdraw-sdk/package.json').version")"
+          mkdir -p dist/npm-smoke
+          npm install --prefix dist/npm-smoke "@kanjieteam/kjdraw@$version" --ignore-scripts --no-audit --no-fund
+          npm audit signatures --prefix dist/npm-smoke

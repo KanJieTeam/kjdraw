@@ -5,7 +5,7 @@
 在支持终端的智能体中，安装 Node.js 22+、已发布的 CAD 运行时和 `kjdraw-cad` Skill。Codex、Claude Code、Cursor 走这条路线**不必注册 MCP**：
 
 ```sh
-npm install -g @kanjieteam/kjdraw@next
+npm install -g @kanjieteam/kjdraw
 npx skills add KanJieTeam/kjdraw -g
 ```
 
@@ -141,6 +141,6 @@ codex mcp list
 
 ## 版本与验收
 
-`1.0.0-rc.4` 已发布到 npm 的 `next` 渠道；`latest` 仍是旧预览版。上面的一行 MCP 安装器使用单独锁定的源码渠道，不等于 npm 安装。正式 1.0 仍需独立用户、跨模型和真实图纸验收。
+当前源码发布目标为 `1.0.0`，正式渠道使用 `latest`；以 `npm view @kanjieteam/kjdraw dist-tags` 查询实际发布结果。上面的一行 MCP 安装器使用单独锁定的旧源码渠道，不等于 npm 安装；优先使用本文开头的 npm＋Skill 路线。
 
-连接器与 CLI 已覆盖用户级路径、幂等安装、冲突拒绝、事务回滚、PowerShell 5.1、MCP 启动和只读诊断。各客户端的真实 GUI 与真实模型独立验收仍是正式 1.0 发布门槛，不能由自动化文件测试替代。
+连接器与 CLI 已覆盖用户级路径、幂等安装、冲突拒绝、事务回滚、PowerShell 5.1、MCP 启动和只读诊断。客户端真实 GUI、独立用户及跨模型验收仍是后续工作；本地自动化测试不能冒称这些验收已经通过。

@@ -61,14 +61,21 @@ const javascriptOnlyFiles = implementationFiles.filter(path => {
 
 const isStableOne = /^1\.\d+\.\d+$/.test(sdkPackage.version)
 const isReleaseCandidate = /^1\.\d+\.\d+-rc\.\d+$/.test(sdkPackage.version)
+const policy = matrix.stableReleasePolicy
+const localCorePolicy = isStableOne && policy?.schema === 'com.kanjie.kjdraw.stable-release-policy@1'
+  && policy.mode === 'local-core-and-release-alignment' && /^\d{4}-\d{2}-\d{2}$/.test(policy.authorizedAt)
+const exactCandidateVerification = isReleaseCandidate || localCorePolicy
 
 const findings = []
 const pendingCandidateVerification = []
 const verifiedCandidateGates = []
+const deferredVerification = []
 // An RC is the artifact used to collect independent user, model and real-corpus
 // evidence. Keep those gaps visible, but do not make their absence prevent the
-// public test artifact from existing. Stable 1.0 still requires every gate.
-const independentEvidence = finding => (isReleaseCandidate ? pendingCandidateVerification : findings).push(finding)
+// public test artifact from existing. A recorded maintainer policy may defer
+// independent acceptance, never exact-commit CI, hosting or artifact checks.
+const independentEvidence = finding => (localCorePolicy && policy.deferredIndependentEvidence?.includes(finding.code)
+  ? deferredVerification : isReleaseCandidate ? pendingCandidateVerification : findings).push(finding)
 const hostedCandidateGates = new Set(['public.workbench', 'public.documentation'])
 if ((isReleaseCandidate || isStableOne) && !externalEvidenceValid) independentEvidence({
   code: 'EXTERNAL_ACCEPTANCE_EVIDENCE_REQUIRED',
@@ -106,6 +113,9 @@ if (matrix.release !== sdkPackage.version) findings.push({
 })
 
 for (const gate of matrix.gates ?? []) {
+  if (localCorePolicy && gate.requiredForStable === false && ['partial', 'blocked'].includes(gate.status)) {
+    deferredVerification.push({ code: 'ACCEPTANCE_GATE_DEFERRED', gate: gate.id, status: gate.status, gap: gate.gap ?? null })
+  }
   if (gate.requiredForStable !== false && gate.status !== 'passed') {
     const finding = {
       code: 'ACCEPTANCE_GATE_NOT_PASSED',
@@ -122,18 +132,18 @@ for (const gate of matrix.gates ?? []) {
         evidence: candidateEvidencePath,
         commit: headCommit,
       })
-    } else if (isReleaseCandidate && gate.verifyOnCandidate === true && gate.status === 'partial' && hostedCandidateGates.has(gate.id) && hostedEvidenceValid) {
+    } else if (exactCandidateVerification && gate.verifyOnCandidate === true && gate.status === 'partial' && hostedCandidateGates.has(gate.id) && hostedEvidenceValid) {
       verifiedCandidateGates.push({ gate: gate.id, evidence: hostedEvidencePath, commit: headCommit })
-    } else if (isReleaseCandidate && gate.verifyOnCandidate === true && gate.status === 'partial' && hostedCandidateGates.has(gate.id) && requireReady) {
+    } else if (exactCandidateVerification && gate.verifyOnCandidate === true && gate.status === 'partial' && hostedCandidateGates.has(gate.id) && (requireReady || isStableOne)) {
       findings.push({
         code: 'HOSTED_CANDIDATE_EVIDENCE_REQUIRED',
         gate: gate.id,
         evidence: hostedEvidencePath,
         commit: headCommit,
       })
-    } else if (isReleaseCandidate && gate.verifyOnCandidate === true && gate.status === 'partial' && gate.id === 'security.release-provenance' && provenanceEvidenceValid) {
+    } else if (exactCandidateVerification && gate.verifyOnCandidate === true && gate.status === 'partial' && gate.id === 'security.release-provenance' && provenanceEvidenceValid) {
       verifiedCandidateGates.push({ gate: gate.id, evidence: provenanceEvidencePath, commit: headCommit })
-    } else if (isReleaseCandidate && gate.verifyOnCandidate === true && gate.status === 'partial' && gate.id === 'security.release-provenance' && requireReady) {
+    } else if (exactCandidateVerification && gate.verifyOnCandidate === true && gate.status === 'partial' && gate.id === 'security.release-provenance' && (requireReady || isStableOne)) {
       findings.push({
         code: 'PROVENANCE_CANDIDATE_EVIDENCE_REQUIRED',
         gate: gate.id,
@@ -161,6 +171,8 @@ const report = {
   release: sdkPackage.version,
   stableOneRelease: isStableOne,
   releaseCandidate: isReleaseCandidate,
+  verificationPolicy: localCorePolicy ? policy : null,
+  deferredVerification,
   ready,
   candidateReady,
   sourceOwnership: {

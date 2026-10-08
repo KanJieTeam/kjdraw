@@ -18,12 +18,22 @@ async function fixture({ target = 'FA01', external = false, type = 'DIMASSOC', e
   for (const [kind, handle] of [['LINE', 'FA01'], ['DIMENSION', 'FA02'], ...(extraReactorOwner ? [['LINE', 'FA04']] : [])]) {
     source = source.replace(tags(0, kind, 5, handle), tags(0, kind, 5, handle, 102, '{ACAD_REACTORS', 330, 'FB00', 102, '}'))
   }
+  // Nongraphical objects need a dictionary owner. A dimension entity is the
+  // association's target, not its OBJECTS-section owner. Stock ezdxf correctly
+  // removes invalidly owned objects during audit on hosted runners.
+  const rootHandle = /0\nSECTION\n2\nOBJECTS\n0\nDICTIONARY\n5\n([0-9A-F]+)\n/.exec(source)?.[1]
+  assert.ok(rootHandle)
+  const rootHeader = tags(0, 'DICTIONARY', 5, rootHandle, 330, 0, 100, 'AcDbDictionary', 281, 1)
+  assert.ok(source.includes(rootHeader))
+  source = source.replace(rootHeader, rootHeader + tags(3, 'PUBLIC_ASSOCIATIONS', 350, 'FB01'))
   source = source.replace(tags(0, 'ENDSEC', 0, 'EOF'), tags(0, type, 5, 'FB00',
-    102, '{ACAD_REACTORS', 330, 'FA02', 102, '}', 330, 'FA02', 100, 'AcDbDimAssoc', 330, 'FA02',
+    102, '{ACAD_REACTORS', 330, 'FA02', 102, '}', 330, 'FB01', 100, 'AcDbDimAssoc', 330, 'FA02',
     90, 3, 70, 0, 71, 0,
     1, 'AcDbOsnapPointRef', 72, 1, 331, target, 73, 1, 91, 0, 40, 0, 10, 0, 20, 0, 30, 0, 75, 0,
     1, 'AcDbOsnapPointRef', 72, 1, 331, target, 73, 1, 91, 0, 40, 1, 10, 20, 20, 0, 30, 0, 75, 0,
-    ...(external ? [301, 'EXTERNAL-XREF'] : []), 0, 'ENDSEC', 0, 'EOF'))
+    ...(external ? [301, 'EXTERNAL-XREF'] : []),
+    0, 'DICTIONARY', 5, 'FB01', 330, rootHandle, 100, 'AcDbDictionary', 281, 1, 3, 'PUBLIC_DIMASSOC', 350, 'FB00',
+    0, 'ENDSEC', 0, 'EOF'))
   return { sdk, source, document: await sdk.readDocument(source, { format: 'DXF' }) }
 }
 const rejected = async (sdk, document, pattern) => assert.rejects(sdk.writeDocument(document, { format: 'DXF' }), error => pattern.test(error.cause?.message ?? error.message))

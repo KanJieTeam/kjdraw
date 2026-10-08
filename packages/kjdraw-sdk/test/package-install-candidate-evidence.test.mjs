@@ -128,6 +128,7 @@ test('release readiness reports missing exact package install evidence at the co
   // make the exit code nonzero in a clean CI workspace.
   assert.equal(result.status, report.releaseCandidate ? Number(report.findings.length > 0) : 1)
   assert.equal(report.ready, false)
-  assert.equal(report.pendingCandidateVerification.some(finding => finding.code === 'PACKAGE_INSTALL_CANDIDATE_EVIDENCE_REQUIRED'), true)
+  const independent = report.verificationPolicy ? report.deferredVerification : report.pendingCandidateVerification
+  assert.equal(independent.some(finding => finding.code === 'PACKAGE_INSTALL_CANDIDATE_EVIDENCE_REQUIRED'), true)
   assert.equal(report.packageInstallCandidate.valid, false)
 })

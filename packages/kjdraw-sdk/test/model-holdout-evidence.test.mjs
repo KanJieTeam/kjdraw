@@ -174,11 +174,12 @@ test('release readiness reports external, model holdout and provenance evidence 
   const result = spawnSync(process.execPath, ['scripts/audits/release-readiness.mjs', '--require-ready'], { cwd: root, encoding: 'utf8', env: { ...process.env, KJDRAW_EXTERNAL_ACCEPTANCE_EVIDENCE: missing, KJDRAW_MODEL_HOLDOUT_EVIDENCE: missing, KJDRAW_PROVENANCE_CANDIDATE_EVIDENCE: missing } })
   assert.equal(result.status, 1)
   const report = JSON.parse(result.stdout)
-  assert.equal(report.pendingCandidateVerification.some(finding => finding.code === 'EXTERNAL_ACCEPTANCE_EVIDENCE_REQUIRED'), true)
-  assert.equal(report.pendingCandidateVerification.some(finding => finding.code === 'THREE_MODEL_HOLDOUT_EVIDENCE_REQUIRED'), true)
+  const independent = report.verificationPolicy ? report.deferredVerification : report.pendingCandidateVerification
+  assert.equal(independent.some(finding => finding.code === 'EXTERNAL_ACCEPTANCE_EVIDENCE_REQUIRED'), true)
+  assert.equal(independent.some(finding => finding.code === 'THREE_MODEL_HOLDOUT_EVIDENCE_REQUIRED'), true)
   assert.equal(report.findings.some(finding => finding.code === 'PROVENANCE_CANDIDATE_EVIDENCE_REQUIRED'), true)
-  assert.equal(report.pendingCandidateVerification.some(finding => finding.gate === 'industry.geotechnical-real-corpus'), true)
-  assert.equal(report.pendingCandidateVerification.some(finding => finding.gate === 'industry.mechanical-real-corpus'), true)
+  assert.equal(independent.some(finding => finding.gate === 'industry.geotechnical-real-corpus'), true)
+  assert.equal(independent.some(finding => finding.gate === 'industry.mechanical-real-corpus'), true)
   assert.equal(report.externalAcceptance.valid, false)
   assert.equal(report.modelHoldout.valid, false)
   assert.equal(report.provenanceCandidate.valid, false)
@@ -205,8 +206,8 @@ test('release readiness accepts all three evidence files only for the exact chec
   // Synthetic evidence belongs to this explicit repository, even in fork CI.
   const evidenceEnv = { ...process.env, GITHUB_REPOSITORY: exact.repository, KJDRAW_MODEL_HOLDOUT_EVIDENCE: paths.model, KJDRAW_EXTERNAL_ACCEPTANCE_EVIDENCE: paths.external, KJDRAW_PROVENANCE_CANDIDATE_EVIDENCE: paths.provenance }
   const result = spawnSync(process.execPath, ['scripts/audits/release-readiness.mjs'], { cwd: root, encoding: 'utf8', env: evidenceEnv })
-  assert.equal(result.status, 0)
   const report = JSON.parse(result.stdout)
+  assert.equal(result.status, report.verificationPolicy ? 1 : 0, 'stable still needs exact hosted deployment evidence')
   assert.equal(report.modelHoldout.valid, true)
   assert.equal(report.externalAcceptance.valid, true)
   assert.equal(report.provenanceCandidate.valid, true)

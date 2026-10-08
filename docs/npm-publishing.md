@@ -1,10 +1,10 @@
 # npm package and publishing
 
-The distributable SDK package is `@kanjieteam/kjdraw`. The source-tree candidate is `1.0.0-rc.4`. The checkout version does not establish npm publication. Use the live registry queries below to distinguish source changes from the artifacts users can install.
+The distributable SDK package is `@kanjieteam/kjdraw`. The source-tree target is `1.0.0`. The checkout version does not establish npm publication. Use the live registry queries below to distinguish source changes from the artifacts users can install.
 
 Candidates in the 1.0 release line use the `next` dist-tag; stable promotion will use `latest` only after the release gates pass.
 
-An RC is a public test artifact, not a production-readiness claim. Its release gate still requires exact-main CI and Pages, a clean source build, full automated tests, packed-package consumer checks, three-industry browser candidate evidence, hosted-site checks and provenance checks. Independent-user acceptance, three-model holdout, manually collected package-install evidence and 100% real-drawing corpus regression remain reported as pending and are hard requirements for stable 1.0. Do not describe an RC as having passed those pending gates.
+The maintainer's 2026-10-08 policy requires local core regression, exact-main CI and Pages, a clean source build, full automated tests, packed consumers, hosted-site checks and provenance for stable promotion. Independent users, three-model holdout, manually collected install evidence and whole-sheet real-corpus regeneration are deferred and not reported as passed. Stable SDK publication does not certify arbitrary AI requests or complete industry production.
 
 Run `npm run audit:distribution` for a read-only source/registry version comparison. `npm run audit:distribution -- --require-current` exits with 1 for a confirmed version/channel mismatch and 2 for an unavailable or malformed response. Run it after publishing, not as a pre-publication CI gate: a new version is necessarily absent before it is published. It never changes tags and does not replace provenance or artifact verification.
 
@@ -12,8 +12,8 @@ Run `npm run audit:distribution` for a read-only source/registry version compari
 
 ```sh
 npm view @kanjieteam/kjdraw dist-tags
-npm view @kanjieteam/kjdraw@1.0.0-rc.4 version
-npm install @kanjieteam/kjdraw@next
+npm view @kanjieteam/kjdraw@1.0.0 version
+npm install @kanjieteam/kjdraw
 ```
 
 The version query checks the current checkout's candidate; it is not a publication claim. An absent version is not installable from npm; distinguish that response from a network or authentication failure. The `next` tag may advance when a later candidate is published. An untagged `npm install @kanjieteam/kjdraw` follows `latest`, which may differ from `next`. For reproducible installs, replace `next` with the exact version returned by the registry.
@@ -73,6 +73,8 @@ OIDC is recommended; `NPM_TOKEN` is optional and is not needed after the trusted
 Create an annotated version tag whose name exactly matches the SDK package version, for example `v1.0.0-rc.4` for the current source candidate. A tag is not evidence that npm publication succeeded. The `Release` workflow accepts only a tag whose target is on `main`, then waits for both the exact-SHA `CI` and `Deploy playground` runs to succeed. It rebuilds and tests the SDK, verifies generated sources and declarations, audits an isolated packed-package consumer, creates the GitHub release and delegates npm publication.
 
 The npm workflow independently checks the tag, GitHub release, exact-SHA CI and Pages deployment before publishing. Existing npm versions are immutable: a rerun succeeds only when the expected dist-tag already points to that exact version. The workflow never silently moves `latest` or `next` for an existing version. An existing draft GitHub release is also left untouched; review and publish or delete it manually before rerunning.
+
+The npm workflow downloads the attested GitHub release bundle, validates its source-bound manifest/checksums and publishes that exact tarball instead of repacking the checkout. After publication it compares the registry version, expected channel, SHA-512 integrity and downloaded bytes with the release bundle, then installs the exact version in a clean consumer and verifies npm signatures/provenance. A successful GitHub release alone is not successful npm publication.
 
 No workflow in this repository retrieves credentials or publishes from a developer workstation. Running a workflow is an explicit maintainer action, and the release gates remain authoritative.
 

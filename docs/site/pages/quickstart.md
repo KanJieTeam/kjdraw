@@ -14,11 +14,11 @@ Start with Node.js 22 or newer and a small TypeScript project:
 npm create vite@latest kjdraw-five-minute -- --template vanilla-ts
 cd kjdraw-five-minute
 npm install
-npm view @kanjieteam/kjdraw@next version
-npm install @kanjieteam/kjdraw@next
+npm view @kanjieteam/kjdraw dist-tags
+npm install @kanjieteam/kjdraw
 ```
 
-These instructions use the published `next` candidate, currently 1.0.0-rc.4. If a registry mirror prints an older version, wait for synchronization or use the [source checkout steps](https://kanjieteam.github.io/kjdraw/docs/latest/installation/#en-installation-release-channels). Pin the exact published version for reproducible builds.
+These instructions use the stable `latest` channel. Check the actual registry tags above; a checkout version is not a publication claim. If a mirror is stale, use the official registry or the [source checkout steps](https://kanjieteam.github.io/kjdraw/docs/latest/installation/#en-installation-release-channels). Pin the exact published version for reproducible builds.
 
 Replace `src/main.ts` with the complete example below. The workbench injects its own component styles; the host element only needs an explicit height.
 
@@ -94,11 +94,11 @@ Continue to **React** or **Vue** for framework components, **Files** for KJD/KJP
 npm create vite@latest kjdraw-five-minute -- --template vanilla-ts
 cd kjdraw-five-minute
 npm install
-npm view @kanjieteam/kjdraw@next version
-npm install @kanjieteam/kjdraw@next
+npm view @kanjieteam/kjdraw dist-tags
+npm install @kanjieteam/kjdraw
 ```
 
-以上命令安装已发布的 `next` 候选版，当前为 1.0.0-rc.4。如果镜像显示旧版本，请等待同步或按[源码构建步骤](https://kanjieteam.github.io/kjdraw/docs/latest/installation/#zh-installation-release-channels)安装。需要可复现构建时请锁定已发布的确切版本。
+以上命令使用正式的 `latest` 渠道；先查询实际 registry tags，源码版本不等于已经发布。镜像过期时使用官方 registry 或按[源码构建步骤](https://kanjieteam.github.io/kjdraw/docs/latest/installation/#zh-installation-release-channels)安装。需要可复现构建时请锁定已发布的确切版本。
 
 用下面的完整示例替换 `src/main.ts`。工作台会注入自身组件样式，宿主元素只需要明确的高度。
 

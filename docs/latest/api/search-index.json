@@ -1,8 +1,8 @@
 {
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:df64fa67ae7446bd337715cf2fee39c9e14d3cb949f6b19cfcc136b087211577",
+  "version": "1.0.0",
+  "sourceDigest": "sha256:b9816ee5760e75ea7b5199778f1317aa3f0327e22d3444c940f0bfe968c7070c",
   "entries": [
     {
       "name": "KJPlanarBoundary",
@@ -3850,7 +3850,7 @@
       "module": "@kanjieteam/kjdraw/core",
       "href": "./api/reference/#core-const-kjdraw-version",
       "anchor": "core-const-kjdraw-version",
-      "summary": "export declare const KJDRAW_VERSION: '1.0.0-rc.4';"
+      "summary": "export declare const KJDRAW_VERSION: '1.0.0';"
     },
     {
       "name": "KJDrawError",
@@ -10890,7 +10890,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-const-kjdraw-version",
       "anchor": "root-const-kjdraw-version",
-      "summary": "export declare const KJDRAW_VERSION: '1.0.0-rc.4';"
+      "summary": "export declare const KJDRAW_VERSION: '1.0.0';"
     },
     {
       "name": "KJDrawBuiltinCapabilityDescriptor",

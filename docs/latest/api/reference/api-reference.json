@@ -1,9 +1,9 @@
 {
   "schema": "com.kanjie.kjdraw.api-reference@1",
   "package": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.4",
+  "version": "1.0.0",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:df64fa67ae7446bd337715cf2fee39c9e14d3cb949f6b19cfcc136b087211577",
+  "sourceDigest": "sha256:b9816ee5760e75ea7b5199778f1317aa3f0327e22d3444c940f0bfe968c7070c",
   "modules": [
     {
       "exportPath": "./planar-boundaries",
@@ -3582,7 +3582,7 @@
         {
           "name": "KJDRAW_VERSION",
           "kind": "const",
-          "declaration": "export declare const KJDRAW_VERSION: '1.0.0-rc.4';",
+          "declaration": "export declare const KJDRAW_VERSION: '1.0.0';",
           "source": "version.d.ts",
           "anchor": "core-const-kjdraw-version"
         },
@@ -9790,7 +9790,7 @@
         {
           "name": "KJDRAW_VERSION",
           "kind": "const",
-          "declaration": "export declare const KJDRAW_VERSION: '1.0.0-rc.4';",
+          "declaration": "export declare const KJDRAW_VERSION: '1.0.0';",
           "source": "version.d.ts",
           "anchor": "root-const-kjdraw-version"
         },

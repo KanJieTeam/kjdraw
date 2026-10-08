@@ -1,8 +1,8 @@
 {
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.4",
-  "sourceDigest": "sha256:8849933ba42c87c9a8b710438bf71fc22a72f4b18950b52597eb1d39990fee90",
+  "version": "1.0.0",
+  "sourceDigest": "sha256:81bec078e83bb8a3a4b31e5ab9a7fdbf026b85bca3c9ba45cc4367ac3ebe009f",
   "locales": [
     "en",
     "zh"

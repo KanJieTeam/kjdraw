@@ -5,7 +5,7 @@
 For a terminal-capable agent, install Node.js 22+, the published CAD runtime, and the `kjdraw-cad` Skill. Codex, Claude Code and Cursor do **not** need an MCP entry for this route:
 
 ```sh
-npm install -g @kanjieteam/kjdraw@next
+npm install -g @kanjieteam/kjdraw
 npx skills add KanJieTeam/kjdraw -g
 ```
 
@@ -129,6 +129,6 @@ Verify all three signals:
 2. A create result identifies KJDraw, reports `candidate-ready`, and includes KJD, DXF, and SVG candidate paths.
 3. Your source drawing has not been overwritten.
 
-User-level configuration and real-engine command-line smoke tests are covered by the repository tests. Independent GUI and real-model acceptance for each claimed client remains a KJDraw 1.0 release gate; this page does not claim that gate has passed.
+User-level configuration and real-engine command-line smoke tests are covered by the repository tests. Independent GUI and real-model acceptance for each client remains follow-up work under the maintainer's 2026-10-08 policy; this page does not claim those checks have passed. Prefer the npm/Skill route above; the source-pinned MCP installer remains a separate legacy channel.
 
 [中文说明](try-in-ai.zh-CN.md) · [Agent integration](agent.md) · [Release status](status.md)

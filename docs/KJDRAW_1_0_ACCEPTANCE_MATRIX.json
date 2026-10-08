@@ -1,7 +1,14 @@
 {
   "schema": "com.kanjie.kjdraw.acceptance-matrix@2",
-  "release": "1.0.0-rc.4",
+  "release": "1.0.0",
   "target": "1.0.0",
+  "stableReleasePolicy": {
+    "schema": "com.kanjie.kjdraw.stable-release-policy@1",
+    "mode": "local-core-and-release-alignment",
+    "authorizedAt": "2026-10-08",
+    "basis": "Maintainer explicitly authorized stable promotion using local core regression plus exact-commit CI, hosted deployment, packed consumers and release provenance. Industry and independent acceptance remain unfinished, not passed.",
+    "deferredIndependentEvidence": ["EXTERNAL_ACCEPTANCE_EVIDENCE_REQUIRED", "THREE_MODEL_HOLDOUT_EVIDENCE_REQUIRED", "PACKAGE_INSTALL_CANDIDATE_EVIDENCE_REQUIRED"]
+  },
   "evaluatedAt": "2026-09-18",
   "note": "A requiredForStable gate must pass on the exact release-candidate commit before stable promotion. Repository-owned gates may pass locally; hosted browser, live deployment and release-provenance gates remain partial until their external run succeeds.",
   "gates": [
@@ -104,7 +111,7 @@
     },
     {
       "id": "cad.production-workflows",
-      "requiredForStable": true,
+      "requiredForStable": false,
       "verifyOnCandidate": true,
       "status": "partial",
       "evidence": [
@@ -122,13 +129,13 @@
     },
     {
       "id": "industry.geotechnical-real-corpus",
-      "requiredForStable": true,
+      "requiredForStable": false,
       "status": "blocked",
       "gap": "All locally parseable real borehole columns, geological sections and investigation plans must be regenerated from source facts and reusable knowledge, then pass strict per-drawing semantic, geometry, hatch, text and layout comparison at 100%. Import, conversion, file reopen and synthetic examples are not passes. Private source drawings and detailed reports remain local; this gate cannot be substituted by candidate browser evidence."
     },
     {
       "id": "industry.mechanical-real-corpus",
-      "requiredForStable": true,
+      "requiredForStable": false,
       "status": "blocked",
       "gap": "All locally parseable real mechanical drawings must be regenerated from source facts and reusable knowledge, then pass strict whole-sheet semantic, geometry, dimensions, symbols, text and layout comparison at 100%. Import, conversion, file reopen and component-only recognition are not passes. Private source drawings and detailed reports remain local; this gate cannot be substituted by candidate browser evidence."
     },

@@ -66,7 +66,7 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
 test('English and Chinese homepages lead with the same concise Skill-first CAD setup', async () => {
   const [english, chinese] = await Promise.all([read('README.md'), read('README.zh-CN.md')])
   for (const source of [chinese, english]) {
-    assert.match(source, /npm install -g @kanjieteam\/kjdraw@next/)
+    assert.match(source, /npm install -g @kanjieteam\/kjdraw\s/)
     assert.match(source, /npx skills add KanJieTeam\/kjdraw -g/)
     assert.doesNotMatch(source, /npx skills add KanJieTeam\/kjdraw[^\n]*-a codex/)
     assert.match(source, /kjdraw agent/)
