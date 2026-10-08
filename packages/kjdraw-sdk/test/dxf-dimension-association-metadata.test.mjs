@@ -123,7 +123,11 @@ test('independent ezdxf retains DIMASSOC, reciprocal reactors and the exact geom
   const output = await sdk.writeDocument(document, { format: 'DXF' })
   const child = spawnSync(process.env.KJDRAW_PYTHON, ['-c', [
     'import io,json,sys,ezdxf',
-    'doc=ezdxf.read(io.StringIO(sys.stdin.read()))',
+    // StringIO's default does not normalize CRLF. Windows stdin did that for
+    // us; Unix stdin does not. Use the same universal-newline reader as a DXF
+    // opened from disk, preserving every tag value instead of trimming data.
+    'doc=ezdxf.read(io.StringIO(sys.stdin.read(), newline=None))',
+    'assert doc.dxfversion=="AC1021"',
     'before_assoc=doc.entitydb.get("FB00")',
     'before_owner=before_assoc.dxf.get("owner") if before_assoc is not None else None',
     'audit=doc.audit()',
@@ -138,4 +142,11 @@ test('independent ezdxf retains DIMASSOC, reciprocal reactors and the exact geom
   ].join('\n')], { input: output, encoding: 'utf8', timeout: 30000, windowsHide: true, maxBuffer: 1024 * 1024 })
   assert.equal(child.status, 0, child.stderr)
   assert.deepEqual(JSON.parse(child.stdout), { errors: 0, fixes: 0 })
+})
+
+test('independent DXF text transport declares universal newlines instead of relying on Windows stdin translation', async () => {
+  const { readFile } = await import('node:fs/promises')
+  const source = await readFile(new URL(import.meta.url), 'utf8')
+  assert.ok(source.includes('io.StringIO(sys.stdin.read(), newline=None)'))
+  assert.equal(/^\s*'doc=ezdxf\.read\(io\.StringIO\(sys\.stdin\.read\(\)\)\)',?\s*$/mu.test(source), false)
 })
