@@ -15,6 +15,14 @@ interface Metadata {
   records: RecordData[]
   entityReferences: { handle: string; id: string }[]
   viewports: { id: string; fingerprint: string }[]
+  dimensionAssociationEntities?: { id: string; fingerprint: string }[]
+}
+const metadataTypes = ['DICTIONARY', 'XRECORD', 'SCALE', 'VISUALSTYLE', 'DIMASSOC']
+function associationFingerprint(payload: Readonly<Record<string, unknown>>, ownerId: string | null): string {
+  // Reactor aliases are resolved after capture. They are transport references,
+  // not permission to change geometry governed by the opaque association.
+  return stableHash({ ownerId, payload: Object.fromEntries(Object.entries(payload).filter(([key]) =>
+    !['dxfReactorIds', 'dxfReactorReferences', 'unresolvedDxfReactorHandles'].includes(key))) })
 }
 const handle = (record: RecordData): string => record.tags.find(tag => tag.code === 5)?.value.toUpperCase() ?? ''
 const referenceCode = (code: number): boolean => code >= 320 && code <= 369 || code >= 390 && code <= 399 || code === 480 || code === 481
@@ -42,10 +50,11 @@ function viewportReferences(tags: readonly Tag[]): { handle: string; type: 'DICT
   return result
 }
 
-/** Capture only the complete metadata graph reached by a viewport extension
- * dictionary/reactor. Values are opaque data, never executable or geological facts. */
-export function captureViewportMetadata(state: ReadonlyDeep<KJDocumentState>, objects: readonly RecordData[], viewports: readonly { id: string; record: RecordData }[]): Metadata | null {
-  const roots: string[] = [], owners: Metadata['viewports'] = []
+/** Capture the complete graph reached by a viewport extension or a known native
+ * DIMASSOC reactor. This is preservation, not a dimension/constraint solver.
+ * Values are opaque data, never executable or geological facts. */
+export function captureViewportMetadata(state: ReadonlyDeep<KJDocumentState>, objects: readonly RecordData[], viewports: readonly { id: string; record: RecordData }[], dimensionAssociationRoots: readonly string[] = [], dimensionAssociationOwners: readonly string[] = []): Metadata | null {
+  const roots: string[] = [...dimensionAssociationRoots], owners: Metadata['viewports'] = []
   for (const item of viewports) {
     const linked = viewportReferences(item.record.tags)
     roots.push(...linked.map(reference => reference.handle))
@@ -76,7 +85,8 @@ export function captureViewportMetadata(state: ReadonlyDeep<KJDocumentState>, ob
     if (entityId) { entityReferences.set(key, entityId); return }
     const record = byHandle.get(key)
     if (!record) return fail('referenced object is unavailable')
-    if (!['DICTIONARY', 'XRECORD', 'SCALE', 'VISUALSTYLE'].includes(record.type)) return fail('referenced object type is unsupported: ' + record.type)
+    if (!metadataTypes.includes(record.type)) return fail('referenced object type is unsupported: ' + record.type)
+    if (record.type === 'DIMASSOC' && record.tags.some(tag => [301, 302].includes(tag.code) && tag.value !== '' && tag.value !== '0')) return fail('external dimension association cannot be resolved locally')
     if (record.type === 'DICTIONARY' && record.tags.some(tag => tag.code === 330 && tag.value === '0')) {
       if (rootHandle && rootHandle !== key) return fail('multiple source root dictionaries')
       rootHandle = key; return
@@ -88,6 +98,15 @@ export function captureViewportMetadata(state: ReadonlyDeep<KJDocumentState>, ob
     for (const reference of references(record)) visit(reference, depth + 1)
   }
   roots.forEach(root => visit(root))
+  // Persistent reactor hosts are not necessarily a DIMASSOC's group-331
+  // geometric targets. Capture the imported hosts too; only newly copied hosts
+  // should be rejected later, not original records that were missing here.
+  for (const id of dimensionAssociationOwners) {
+    const object = state.objects[id]
+    const source = object?.source && typeof object.source === 'object' ? (object.source as Readonly<Record<string, unknown>>).originalHandle : undefined
+    if (typeof source !== 'string' || entityHandles.get(source.toUpperCase()) !== id) return fail('dimension association host has no unique source alias')
+    visit(source.toUpperCase())
+  }
   for (const item of viewports) for (const reference of viewportReferences(item.record.tags)) {
     if (reference.type && selected.get(reference.handle)?.type !== reference.type) return fail('viewport reference needs ' + reference.type)
   }
@@ -104,7 +123,11 @@ export function captureViewportMetadata(state: ReadonlyDeep<KJDocumentState>, ob
   }
   const result: Metadata = { schema: 'kjdraw.dxf.viewport-metadata.v1', sourceVersion: state.header.sourceVersion,
     rootHandle, rootEntries, records: [...selected.values()].map(record => clone(record)),
-    entityReferences: [...entityReferences].map(([handle, id]) => ({ handle, id })), viewports: owners }
+    entityReferences: [...entityReferences].map(([handle, id]) => ({ handle, id })), viewports: owners,
+    ...([...selected.values()].some(record => record.type === 'DIMASSOC') ? {
+      dimensionAssociationEntities: [...entityReferences.values()].map(id => ({ id, fingerprint: associationFingerprint(state.objects[id]!.payload, state.objects[id]!.ownerId) })),
+    } : {}),
+  }
   if (JSON.stringify(result).length > 2 * 1024 * 1024) return fail('reference graph exceeds 2 MiB')
   return result
 }
@@ -125,8 +148,9 @@ export function prepareViewportMetadata(state: KJDocumentState): Metadata | null
   const types = new Map<string, string>()
   const occupied = new Set(Object.values(state.objects).map(object => object.handle))
   for (const record of metadata.records) {
-    if (!['DICTIONARY', 'XRECORD', 'SCALE', 'VISUALSTYLE'].includes(record.type) || !Array.isArray(record.tags) || record.tags.length > 8192 ||
+    if (!metadataTypes.includes(record.type) || !Array.isArray(record.tags) || record.tags.length > 8192 ||
         record.tags.some(tag => !tag || !Number.isInteger(tag.code) || tag.code <= 0 || tag.code >= 1000 || typeof tag.value !== 'string' || /[\r\n\0]/.test(tag.value))) return fail('invalid stored object record')
+    if (record.type === 'DIMASSOC' && record.tags.some(tag => [301, 302].includes(tag.code) && tag.value !== '' && tag.value !== '0')) return fail('external dimension association cannot be resolved locally')
     const key = handle(record)
     if (record.tags.filter(tag => tag.code === 5).length !== 1 || !/^[0-9A-F]{1,32}$/.test(key) || handles.has(key) || occupied.has(key) || key === metadata.rootHandle) return fail('stored object handle collision')
     handles.add(key)
@@ -140,6 +164,25 @@ export function prepareViewportMetadata(state: KJDocumentState): Metadata | null
     const originalHandle = object.source && typeof object.source === 'object' ? (object.source as Record<string, unknown>).originalHandle : undefined
     if (typeof originalHandle !== 'string' || originalHandle.toUpperCase() !== reference.handle) return fail('stored reference alias does not match its source entity')
     refs.add(reference.handle)
+  }
+  if (metadata.records.some(record => record.type === 'DIMASSOC')) {
+    const guards = metadata.dimensionAssociationEntities
+    if (!Array.isArray(guards) || guards.length !== metadata.entityReferences.length) return fail('dimension association guards are missing')
+    const guardedIds = new Set<string>()
+    for (const guard of guards) {
+      const object = state.objects[guard.id]
+      if (!object || guardedIds.has(guard.id) || !metadata.entityReferences.some(reference => reference.id === guard.id) ||
+          associationFingerprint(object.payload, object.ownerId) !== guard.fingerprint) return fail('dimension-associated entity changed; opaque association needs a graph-aware editor')
+      guardedIds.add(guard.id)
+    }
+    const associations = new Set(metadata.records.filter(record => record.type === 'DIMASSOC').map(handle))
+    for (const object of Object.values(state.objects)) {
+      if (object.erased || object.kind !== 'entity') continue
+      const reactors = object.payload.dxfReactorReferences
+      if (Array.isArray(reactors) && reactors.some(reference => reference && typeof reference === 'object' &&
+          'metadataHandle' in reference && typeof reference.metadataHandle === 'string' && associations.has(reference.metadataHandle)) &&
+          !guardedIds.has(object.id)) return fail('dimension association owner is unregistered; copied reactors need a graph-aware editor')
+    }
   }
   const viewportIds = new Set<string>()
   for (const viewport of metadata.viewports) {

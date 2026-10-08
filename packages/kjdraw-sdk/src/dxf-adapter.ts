@@ -1347,7 +1347,12 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
     const viewportObjects = records(section(tags, 'OBJECTS'))
     let viewportMetadata: ReturnType<typeof captureViewportMetadata> = null
     try {
-      viewportMetadata = captureViewportMetadata(transaction._draft(), viewportObjects, viewportReferences)
+      // Preserve known DIMASSOC reference closures for unrelated native edits.
+      // Other association engines remain unresolved; never strip their reactors.
+      const dimensionAssociationHandles = new Set(viewportObjects.filter(record => record.type === 'DIMASSOC').map(record => String(first(record, 5) ?? '').toUpperCase()))
+      const dimensionAssociationHosts = reactorReferences.filter(reference => reference.handles.some(handle => dimensionAssociationHandles.has(handle)))
+      const dimensionAssociationRoots = dimensionAssociationHosts.flatMap(reference => reference.handles.filter(handle => dimensionAssociationHandles.has(handle)))
+      viewportMetadata = captureViewportMetadata(transaction._draft(), viewportObjects, viewportReferences, dimensionAssociationRoots, dimensionAssociationHosts.map(reference => reference.id))
       if (viewportMetadata) transaction.putOpaquePayload(DXF_VIEWPORT_METADATA_KEY, viewportMetadata)
     } catch (error) {
       if (!(error instanceof KJValidationError)) throw error
@@ -2432,6 +2437,7 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   if (!isDxfVersion(versionText)) throw new KJValidationError(`Unsupported ASCII DXF version: ${versionText}`)
   const version = versionText
   if (viewportMetadata && (!isDxfVersion(viewportMetadata.sourceVersion) || ACADVER[viewportMetadata.sourceVersion] !== ACADVER[version])) throw new KJValidationError('DXF viewport metadata: can only be preserved at its known source DXF format code')
+  if (viewportMetadata?.records.some(record => record.type === 'DIMASSOC') && VERSION_RANK[version] < VERSION_RANK['2000']) throw new KJValidationError('DXF dimension association metadata requires an OBJECTS-capable supported source version')
   const output: string[] = []
   const layers = documentTableRecords(document, 'layers').map(dxfNamedRecord)
   const layerNames = new Map(layers.map(layer => [layer.id, layer.name]))

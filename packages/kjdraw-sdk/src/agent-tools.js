@@ -2190,7 +2190,7 @@ const geologyStratumChangesSchema = {
                             key,
                             geologyStratumSchema.properties[key]
                         ])), geologyStratumSetFields),
-                    description: 'Nonempty requested changed fields only: name, lithology, description, descriptionSource (interval/layer-definition), code, patternVisibility (filled/boundary-only) or patternLabel (a display label, not soil classification or a hatch definition). descriptionSource must be explicitly supplied or retained from the original source and requires a nonempty final description; never invent provenance. Every other source field stays exact; no clearing, identities, depths, pattern definition patches or implicit changes.'
+                    description: 'Nonempty requested changed fields only: name, lithology, description, descriptionSource (interval/layer-definition), code, patternVisibility (filled/boundary-only) or patternLabel (a display label, not soil classification or a hatch definition). An optional published set field absent from the BEFORE interval may be initialized with its exact caller-supplied value; absence alone is not a blocker or a reason for extra consent to prepare the requested proposal. Never infer a value or substitute another field. descriptionSource must be explicitly supplied or retained from the original source and requires a nonempty final description; never invent provenance. Every other source field stays exact; no clearing, identities, depths, pattern definition patches or implicit changes.'
                 }
             })
         }

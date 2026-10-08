@@ -3,7 +3,18 @@ import { createKJDrawSDK, KJAgentToolSession, findDrawingText } from '../../pack
 import { canonicalStringify } from '../../packages/kjdraw-sdk/src/utils.js'
 
 const records = document => document.listEntities().map(entity => structuredClone(entity))
-const preservedDxfPayload = payload => JSON.parse(JSON.stringify({ normal: [0, 0, 1], ...payload }, (key, value) => {
+const preservedDxfPayload = (payload, document) => JSON.parse(JSON.stringify({ normal: [0, 0, 1], ...payload,
+  ...(payload.dxfReactorIds !== undefined ? {
+    // DXF reimport changes SDK UUIDs. Verify the ordered reactor graph by the
+    // actual exported handle, not by UUID and not by dropping the references.
+    dxfReactorReferences: (payload.dxfReactorReferences ?? payload.dxfReactorIds.map(id => ({ id }))).map(reference => {
+      if (reference.metadataHandle !== undefined) return { metadataHandle: reference.metadataHandle }
+      const target = document.getObject(reference.id)
+      assert.ok(target && !target.erased, 'DXF: reactor target disappeared')
+      return { nativeHandle: target.handle }
+    }),
+  } : {}),
+}, (key, value) => {
   if (key === 'rawTags' || key === 'contractVersion' || /Ids?$/.test(key)) return undefined
   return typeof value === 'number' ? Math.round(value * 1e8) / 1e8 : value
 }))
@@ -21,7 +32,7 @@ export async function checkDrawingReopen(sdk, document) {
       if (format === 'KJD') assert.equal(canonicalStringify(actual), canonicalStringify(entity))
       else {
         assert.equal(actual.type, entity.type)
-        assert.equal(canonicalStringify(preservedDxfPayload(actual.payload)), canonicalStringify(preservedDxfPayload(entity.payload)))
+        assert.equal(canonicalStringify(preservedDxfPayload(actual.payload, reopened)), canonicalStringify(preservedDxfPayload(entity.payload, document)))
         for (const key of ['layerId', 'linetypeId', 'styleId', 'blockRecordId']) {
           const expectedName = document.getObject(entity.payload[key])?.name
           const actualName = reopened.getObject(actual.payload[key])?.name

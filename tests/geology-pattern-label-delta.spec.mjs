@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { KJAgentToolSession } from '../packages/kjdraw-sdk/src/agent-tools.js'
+import { KJAgentToolSession, KJDRAW_AGENT_TOOLS } from '../packages/kjdraw-sdk/src/agent-tools.js'
 import { createKJDrawSDK } from '../packages/kjdraw-sdk/src/sdk.js'
 import { applyGeologyStratumChanges } from '../packages/kjdraw-sdk/src/geology-stratum-changes.js'
 import { readGeologyDrawingRecipe } from '../packages/kjdraw-sdk/src/geology-drawing-update.js'
@@ -26,6 +26,19 @@ test('a display-label delta preserves soil name/classification, measured boundar
   assert.deepEqual(after, [{ ...original[0], patternLabel: 'Public label revised' }]); assert.deepEqual(before, original)
   assert.throws(() => applyGeologyStratumChanges(before, { update: [{ target: target(before[0]), set: { patternLabel: 'x'.repeat(25) } }] }), /bounded nonempty/)
   assert.throws(() => applyGeologyStratumChanges(before, { update: [{ target: target(before[0]), set: { patternLabel: ' ' } }] }), /bounded nonempty/)
+})
+
+test('the published optional-field contract permits exact caller initialization, never guesses or substitutes another field', () => {
+  const tool = KJDRAW_AGENT_TOOLS.find(item => item.name === 'cad_propose_geology_revision')
+  const set = tool.inputSchema.properties.updates.items.properties.stratumChanges.properties.update.items.properties.set
+  assert.match(set.description, /absent from the BEFORE interval may be initialized with its exact caller-supplied value/)
+  assert.match(set.description, /Never infer a value or substitute another field/)
+  assert.equal(set.required.includes('patternLabel'), false)
+  const before = [{ intervalId: 'PUBLIC-UNLABELLED', code: '2', name: 'Public clay', lithology: 'clay', top: 3, bottom: 10 }]
+  const after = applyGeologyStratumChanges(before, { update: [{ target: target(before[0]), set: { patternLabel: 'Caller exact label' } }] })
+  assert.deepEqual(after[0], { ...before[0], patternLabel: 'Caller exact label' })
+  assert.equal(Object.hasOwn(before[0], 'patternLabel'), false)
+  assert.equal(after[0].name, before[0].name); assert.equal(after[0].lithology, before[0].lithology)
 })
 
 for (const suffix of ['zh-direct', 'zh-casual', 'en-direct', 'zh-followup', 'mixed', 'zh-correction']) {

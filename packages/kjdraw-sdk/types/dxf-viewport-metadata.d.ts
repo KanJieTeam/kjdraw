@@ -28,13 +28,18 @@ interface Metadata {
         id: string;
         fingerprint: string;
     }[];
+    dimensionAssociationEntities?: {
+        id: string;
+        fingerprint: string;
+    }[];
 }
-/** Capture only the complete metadata graph reached by a viewport extension
- * dictionary/reactor. Values are opaque data, never executable or geological facts. */
+/** Capture the complete graph reached by a viewport extension or a known native
+ * DIMASSOC reactor. This is preservation, not a dimension/constraint solver.
+ * Values are opaque data, never executable or geological facts. */
 export declare function captureViewportMetadata(state: ReadonlyDeep<KJDocumentState>, objects: readonly RecordData[], viewports: readonly {
     id: string;
     record: RecordData;
-}[]): Metadata | null;
+}[], dimensionAssociationRoots?: readonly string[], dimensionAssociationOwners?: readonly string[]): Metadata | null;
 /** Validate stored metadata again after KJD reopen or caller edits. Refuse a
  * stale/erased target rather than writing dangling handles or stripping data. */
 export declare function prepareViewportMetadata(state: KJDocumentState): Metadata | null;
