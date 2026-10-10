@@ -19,7 +19,7 @@ that stay editable, verifiable, undoable, and reopenable.
 
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/">
-    <img src="docs/media/ai-geology-live-20261003/synthetic-live-model-highlights.gif" alt="Real DeepSeek session: ten reviewed edits to one synthetic geological section, followed by undo, redo and DXF reopening" width="100%" />
+    <img src="docs/media/ai-geology-live-20261003/synthetic-live-model-highlights-color.gif" alt="Real DeepSeek session: ten reviewed edits to one synthetic geological section, followed by undo, redo and DXF reopening" width="100%" />
   </a>
   <br/>
   <sub>Real DeepSeek · ten edits on one synthetic section · condensed recording. <a href="https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/">Full recording and checks ↗</a></sub>

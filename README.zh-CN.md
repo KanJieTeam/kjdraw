@@ -19,7 +19,7 @@
 
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/">
-    <img src="docs/media/ai-geology-live-20261003/synthetic-live-model-highlights.gif" alt="真实 DeepSeek 在同一张合成地质剖面中完成十轮审阅修改、撤销重做和 DXF 重开" width="100%" />
+    <img src="docs/media/ai-geology-live-20261003/synthetic-live-model-highlights-color.gif" alt="真实 DeepSeek 在同一张合成地质剖面中完成十轮审阅修改、撤销重做和 DXF 重开" width="100%" />
   </a>
   <br/>
   <sub>真实 DeepSeek · 同一张合成剖面，十轮修改 · 精简录屏。<a href="https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/">完整录屏与检查结果 ↗</a></sub>
