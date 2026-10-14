@@ -31,7 +31,8 @@ export const KJ_EVENT_NAMES = Object.freeze({
     CHANGE: 'document:change',
     UNDO: 'document:undo',
     REDO: 'document:redo',
-    HISTORY: 'document:history'
+    HISTORY: 'document:history',
+    LISTENER_ERROR: 'document:listener-error'
 });
 export const KJ_FORMAT_CAPABILITY = Object.freeze({
     EXACT: 'exact',

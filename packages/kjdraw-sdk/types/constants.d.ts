@@ -16,6 +16,7 @@ export declare const KJ_EVENT_NAMES: Readonly<{
     readonly UNDO: 'document:undo';
     readonly REDO: 'document:redo';
     readonly HISTORY: 'document:history';
+    readonly LISTENER_ERROR: 'document:listener-error';
 }>;
 export type KJEventName = typeof KJ_EVENT_NAMES[keyof typeof KJ_EVENT_NAMES];
 export declare const KJ_FORMAT_CAPABILITY: Readonly<{

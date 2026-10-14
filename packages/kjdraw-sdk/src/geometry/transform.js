@@ -166,17 +166,35 @@ export function transformEntityPayload(type, source, matrix) {
             return {
                 ...payload,
                 controlPoints: (payload.controlPoints ?? []).map((point)=>transformPoint3(matrix, point)),
-                fitPoints: payload.fitPoints == null ? undefined : payload.fitPoints.map((point)=>transformPoint3(matrix, point))
+                fitPoints: payload.fitPoints == null ? undefined : payload.fitPoints.map((point)=>transformPoint3(matrix, point)),
+                ...payload.startTangent == null ? {} : {
+                    startTangent: transformVector3(matrix, payload.startTangent)
+                },
+                ...payload.endTangent == null ? {} : {
+                    endTangent: transformVector3(matrix, payload.endTangent)
+                }
             };
         case 'ELLIPSE':
-            return {
-                ...payload,
-                center: transformPoint3(matrix, payload.center),
-                majorAxis: transformVector3(matrix, payload.majorAxis),
-                majorRadius: payload.majorRadius == null ? undefined : Number(payload.majorRadius) * scale(),
-                majorAxisLength: payload.majorAxisLength == null ? undefined : Number(payload.majorAxisLength) * scale(),
-                clockwise: mirrored ? !payload.clockwise : payload.clockwise
-            };
+            {
+                scale();
+                const turn = Math.PI * 2;
+                const start = Number(payload.startParameter ?? 0), end = Number(payload.endParameter ?? turn);
+                const reflectedStart = (-end % turn + turn) % turn;
+                const span = end - start;
+                const reflectedSpan = span < 0 ? (span % turn + turn) % turn || turn : span;
+                return {
+                    ...payload,
+                    center: transformPoint3(matrix, payload.center),
+                    majorAxis: transformVector3(matrix, payload.majorAxis),
+                    majorRadius: payload.majorRadius == null ? undefined : Number(payload.majorRadius) * scale(),
+                    majorAxisLength: payload.majorAxisLength == null ? undefined : Number(payload.majorAxisLength) * scale(),
+                    clockwise: mirrored ? !payload.clockwise : payload.clockwise,
+                    ...mirrored ? {
+                        startParameter: reflectedStart,
+                        endParameter: reflectedStart + reflectedSpan
+                    } : {}
+                };
+            }
         case 'TEXT':
         case 'MTEXT':
         case 'ATTDEF':

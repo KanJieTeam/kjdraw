@@ -9,5 +9,8 @@ export declare class KJEventBus<Events extends object = Record<PropertyKey, unkn
     once<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>, options?: KJEventSubscriptionOptions): () => boolean;
     off<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>): boolean;
     emit<Name extends keyof Events>(name: Name, payload: Events[Name]): void;
+    /** Deliver every listener and collect synchronous exceptions for notifications
+     * whose underlying operation has already succeeded. Strict emit remains unchanged. */
+    emitSafely<Name extends keyof Events>(name: Name, payload: Events[Name]): unknown[];
     clear(): void;
 }

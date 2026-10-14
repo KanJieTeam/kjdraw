@@ -199,8 +199,18 @@ export function transformEntityPayload(
           ? undefined
           : (payload.fitPoints as readonly unknown[])
             .map(point => transformPoint3(matrix, point as Point2Input)),
+        ...(payload.startTangent == null ? {} : { startTangent: transformVector3(matrix, payload.startTangent as Point2Input) }),
+        ...(payload.endTangent == null ? {} : { endTangent: transformVector3(matrix, payload.endTangent as Point2Input) }),
       }
-    case 'ELLIPSE':
+    case 'ELLIPSE': {
+      // This representation keeps a perpendicular minor axis and a fixed ratio.
+      // A general affine distortion requires recomputing both axes and parameters.
+      scale()
+      const turn = Math.PI * 2
+      const start = Number(payload.startParameter ?? 0), end = Number(payload.endParameter ?? turn)
+      const reflectedStart = ((-end % turn) + turn) % turn
+      const span = end - start
+      const reflectedSpan = span < 0 ? ((span % turn) + turn) % turn || turn : span
       return {
         ...payload,
         center: transformPoint3(matrix, payload.center as Point2Input),
@@ -210,7 +220,9 @@ export function transformEntityPayload(
           ? undefined
           : Number(payload.majorAxisLength) * scale(),
         clockwise: mirrored ? !payload.clockwise : payload.clockwise,
+        ...(mirrored ? { startParameter: reflectedStart, endParameter: reflectedStart + reflectedSpan } : {}),
       }
+    }
     case 'TEXT':
     case 'MTEXT':
     case 'ATTDEF':

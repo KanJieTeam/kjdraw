@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/architecture/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=81bec078e83bb8a3">
+  <link rel="stylesheet" href="../style.css?v=da81617e751d683c">
   <title>Architecture · KJDraw Docs</title>
 </head>
 <body>
@@ -82,6 +82,8 @@
 <p>The document is canonical. Component state, canvas display lists and selection overlays are projections that can be rebuilt. File and compute services enter through explicit adapters instead of becoming hidden global dependencies.</p>
 <h2 id="en-architecture-documents-and-transactions">Documents and transactions</h2>
 <p>A <code>KJDocument</code> owns stable IDs and handles, object ownership, tables, blocks, model/paper spaces, resources and a monotonically changing revision. A transaction edits a draft, validates the result and then publishes it atomically. Undo/redo is session history; reopening a KJP does not claim to reconstruct the in-memory undo stack.</p>
+<p><code>document:before-commit</code> can reject the draft before the authoritative backend commits. Synchronous errors in notifications after commit, undo or redo are reported through <code>document:listener-error</code> with the event name, document ID, revision and original exception. They cannot reject an accepted operation or interrupt other listeners; diagnostic listener errors also remain isolated.</p>
+<p>Native ellipse transforms support translation, rotation, reflection and uniform scaling. Nonuniform scaling and shear reject the transaction because this representation requires recomputing both axes and arc parameters.</p>
 <h2 id="en-architecture-typescript-and-rust-authority">TypeScript and Rust authority</h2>
 <p>Every public runtime module is authored in strict TypeScript. The package provides browser and Node.js ESM together with type declarations. The TypeScript path is the portable reference implementation.</p>
 <p>Rust/WebAssembly can provide document authority, geometry predicates and explicitly bounded solid-mesh operations. Backend identity is observable. Missing WASM is never silently described as Rust-authoritative output.</p>
@@ -104,6 +106,8 @@
 <p>图档是规范真相。组件状态、Canvas 显示列表和选择覆盖层都只是可以重建的投影。文件与计算服务通过显式适配器进入系统，而不是变成隐藏的全局依赖。</p>
 <h2 id="zh-architecture-documents-and-transactions">图档与事务</h2>
 <p><code>KJDocument</code> 管理稳定 ID 与 handle、对象所有权、表、块、模型/图纸空间、资源和单调变化的修订号。事务先编辑草稿，再校验结果，最后原子发布。撤销/重做属于当前会话历史；重新打开 KJP 不会冒充已经恢复 SDK 的内存撤销栈。</p>
+<p><code>document:before-commit</code> 可在权威后端提交前拒绝草稿。提交、撤销或重做后的通知监听器若同步抛错，会通过 <code>document:listener-error</code> 报告事件名、图档 ID、修订号和原始异常；已成功的操作仍然成功，其他监听器仍会执行，诊断监听器的异常也会被隔离。</p>
+<p>原生椭圆变换支持平移、旋转、镜像和等比缩放。非等比缩放和剪切需要重新计算双轴及弧线参数，目前会拒绝并回滚整个事务。</p>
 <h2 id="zh-architecture-typescript-and-rust-authority">TypeScript 与 Rust 权威</h2>
 <p>每个公共运行时模块都以严格 TypeScript 为权威源。安装包同时提供浏览器与 Node.js ESM 以及类型声明；TypeScript 路径是可移植的参考实现。</p>
 <p>Rust/WebAssembly 可以承担图档权威、几何判定和边界明确的实体网格运算。后端身份可观察；WASM 缺失时，系统绝不会把参考结果伪装成 Rust 权威结果。</p>
@@ -117,6 +121,6 @@
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=81bec078e83bb8a3"></script>
+  <script type="module" src="../app.js?v=da81617e751d683c"></script>
 </body>
 </html>

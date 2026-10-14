@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:b9816ee5760e75ea7b5199778f1317aa3f0327e22d3444c940f0bfe968c7070c",
+  "sourceDigest": "sha256:1ad98bfa651d2a3e50f31d099ef79dab243c6d9a612c7b1b3a78dd3b459314ff",
   "modules": [
     {
       "exportPath": "./planar-boundaries",
@@ -2763,7 +2763,7 @@
         {
           "name": "KJ_EVENT_NAMES",
           "kind": "const",
-          "declaration": "export declare const KJ_EVENT_NAMES: Readonly<{\n    readonly BEFORE_COMMIT: 'document:before-commit';\n    readonly AFTER_COMMIT: 'document:after-commit';\n    readonly CHANGE: 'document:change';\n    readonly UNDO: 'document:undo';\n    readonly REDO: 'document:redo';\n    readonly HISTORY: 'document:history';\n}>;",
+          "declaration": "export declare const KJ_EVENT_NAMES: Readonly<{\n    readonly BEFORE_COMMIT: 'document:before-commit';\n    readonly AFTER_COMMIT: 'document:after-commit';\n    readonly CHANGE: 'document:change';\n    readonly UNDO: 'document:undo';\n    readonly REDO: 'document:redo';\n    readonly HISTORY: 'document:history';\n    readonly LISTENER_ERROR: 'document:listener-error';\n}>;",
           "source": "constants.d.ts",
           "anchor": "core-const-kj-event-names"
         },
@@ -3461,6 +3461,13 @@
           "anchor": "core-type-kjdocumentinput"
         },
         {
+          "name": "KJDocumentListenerErrorPayload",
+          "kind": "interface",
+          "declaration": "export interface KJDocumentListenerErrorPayload {\n    eventName: 'document:after-commit' | 'document:change' | 'document:undo' | 'document:redo' | 'document:history';\n    documentId: string;\n    documentRevision: number;\n    error: unknown;\n}",
+          "source": "document.d.ts",
+          "anchor": "core-interface-kjdocumentlistenererrorpayload"
+        },
+        {
           "name": "KJDocumentMetadata",
           "kind": "interface",
           "declaration": "export interface KJDocumentMetadata extends Record<string, unknown> {\n    title: string;\n    createdAt: string;\n    modifiedAt: string | null;\n    createdBy: unknown;\n    tags: unknown[];\n    custom: Record<string, unknown>;\n}",
@@ -3792,7 +3799,7 @@
         {
           "name": "KJEventBus",
           "kind": "class",
-          "declaration": "export declare class KJEventBus<Events extends object = Record<PropertyKey, unknown>> {\n    #private;\n    on<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>, { signal }?: KJEventSubscriptionOptions): () => boolean;\n    once<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>, options?: KJEventSubscriptionOptions): () => boolean;\n    off<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>): boolean;\n    emit<Name extends keyof Events>(name: Name, payload: Events[Name]): void;\n    clear(): void;\n}",
+          "declaration": "export declare class KJEventBus<Events extends object = Record<PropertyKey, unknown>> {\n    #private;\n    on<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>, { signal }?: KJEventSubscriptionOptions): () => boolean;\n    once<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>, options?: KJEventSubscriptionOptions): () => boolean;\n    off<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>): boolean;\n    emit<Name extends keyof Events>(name: Name, payload: Events[Name]): void;\n    /** Deliver every listener and collect synchronous exceptions for notifications\n     * whose underlying operation has already succeeded. Strict emit remains unchanged. */\n    emitSafely<Name extends keyof Events>(name: Name, payload: Events[Name]): unknown[];\n    clear(): void;\n}",
           "source": "events.d.ts",
           "anchor": "core-class-kjeventbus"
         },
@@ -7669,7 +7676,7 @@
         {
           "name": "KJ_EVENT_NAMES",
           "kind": "const",
-          "declaration": "export declare const KJ_EVENT_NAMES: Readonly<{\n    readonly BEFORE_COMMIT: 'document:before-commit';\n    readonly AFTER_COMMIT: 'document:after-commit';\n    readonly CHANGE: 'document:change';\n    readonly UNDO: 'document:undo';\n    readonly REDO: 'document:redo';\n    readonly HISTORY: 'document:history';\n}>;",
+          "declaration": "export declare const KJ_EVENT_NAMES: Readonly<{\n    readonly BEFORE_COMMIT: 'document:before-commit';\n    readonly AFTER_COMMIT: 'document:after-commit';\n    readonly CHANGE: 'document:change';\n    readonly UNDO: 'document:undo';\n    readonly REDO: 'document:redo';\n    readonly HISTORY: 'document:history';\n    readonly LISTENER_ERROR: 'document:listener-error';\n}>;",
           "source": "constants.d.ts",
           "anchor": "root-const-kj-event-names"
         },
@@ -9312,6 +9319,13 @@
           "anchor": "root-type-kjdocumentinput"
         },
         {
+          "name": "KJDocumentListenerErrorPayload",
+          "kind": "interface",
+          "declaration": "export interface KJDocumentListenerErrorPayload {\n    eventName: 'document:after-commit' | 'document:change' | 'document:undo' | 'document:redo' | 'document:history';\n    documentId: string;\n    documentRevision: number;\n    error: unknown;\n}",
+          "source": "document.d.ts",
+          "anchor": "root-interface-kjdocumentlistenererrorpayload"
+        },
+        {
           "name": "KJDocumentMetadata",
           "kind": "interface",
           "declaration": "export interface KJDocumentMetadata extends Record<string, unknown> {\n    title: string;\n    createdAt: string;\n    modifiedAt: string | null;\n    createdBy: unknown;\n    tags: unknown[];\n    custom: Record<string, unknown>;\n}",
@@ -10210,7 +10224,7 @@
         {
           "name": "KJEventBus",
           "kind": "class",
-          "declaration": "export declare class KJEventBus<Events extends object = Record<PropertyKey, unknown>> {\n    #private;\n    on<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>, { signal }?: KJEventSubscriptionOptions): () => boolean;\n    once<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>, options?: KJEventSubscriptionOptions): () => boolean;\n    off<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>): boolean;\n    emit<Name extends keyof Events>(name: Name, payload: Events[Name]): void;\n    clear(): void;\n}",
+          "declaration": "export declare class KJEventBus<Events extends object = Record<PropertyKey, unknown>> {\n    #private;\n    on<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>, { signal }?: KJEventSubscriptionOptions): () => boolean;\n    once<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>, options?: KJEventSubscriptionOptions): () => boolean;\n    off<Name extends keyof Events>(name: Name, listener: KJEventListener<Events[Name]>): boolean;\n    emit<Name extends keyof Events>(name: Name, payload: Events[Name]): void;\n    /** Deliver every listener and collect synchronous exceptions for notifications\n     * whose underlying operation has already succeeded. Strict emit remains unchanged. */\n    emitSafely<Name extends keyof Events>(name: Name, payload: Events[Name]): unknown[];\n    clear(): void;\n}",
           "source": "events.d.ts",
           "anchor": "root-class-kjeventbus"
         },
@@ -13583,6 +13597,13 @@
           "declaration": "export type KJDocumentInput = KJDocumentOptions | KJDocumentState | KJLegacyScene | Record<string, unknown>;",
           "source": "document.d.ts",
           "anchor": "document-type-kjdocumentinput"
+        },
+        {
+          "name": "KJDocumentListenerErrorPayload",
+          "kind": "interface",
+          "declaration": "export interface KJDocumentListenerErrorPayload {\n    eventName: 'document:after-commit' | 'document:change' | 'document:undo' | 'document:redo' | 'document:history';\n    documentId: string;\n    documentRevision: number;\n    error: unknown;\n}",
+          "source": "document.d.ts",
+          "anchor": "document-interface-kjdocumentlistenererrorpayload"
         },
         {
           "name": "KJDocumentQuery",

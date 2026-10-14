@@ -26,6 +26,10 @@ The document is canonical. Component state, canvas display lists and selection o
 
 A `KJDocument` owns stable IDs and handles, object ownership, tables, blocks, model/paper spaces, resources and a monotonically changing revision. A transaction edits a draft, validates the result and then publishes it atomically. Undo/redo is session history; reopening a KJP does not claim to reconstruct the in-memory undo stack.
 
+`document:before-commit` can reject the draft before the authoritative backend commits. Synchronous errors in notifications after commit, undo or redo are reported through `document:listener-error` with the event name, document ID, revision and original exception. They cannot reject an accepted operation or interrupt other listeners; diagnostic listener errors also remain isolated.
+
+Native ellipse transforms support translation, rotation, reflection and uniform scaling. Nonuniform scaling and shear reject the transaction because this representation requires recomputing both axes and arc parameters.
+
 ## TypeScript and Rust authority {#typescript-and-rust-authority}
 
 Every public runtime module is authored in strict TypeScript. The package provides browser and Node.js ESM together with type declarations. The TypeScript path is the portable reference implementation.
@@ -58,6 +62,10 @@ Remote activity begins when the host invokes a configured remote provider, keepi
 ## 图档与事务 {#documents-and-transactions}
 
 `KJDocument` 管理稳定 ID 与 handle、对象所有权、表、块、模型/图纸空间、资源和单调变化的修订号。事务先编辑草稿，再校验结果，最后原子发布。撤销/重做属于当前会话历史；重新打开 KJP 不会冒充已经恢复 SDK 的内存撤销栈。
+
+`document:before-commit` 可在权威后端提交前拒绝草稿。提交、撤销或重做后的通知监听器若同步抛错，会通过 `document:listener-error` 报告事件名、图档 ID、修订号和原始异常；已成功的操作仍然成功，其他监听器仍会执行，诊断监听器的异常也会被隔离。
+
+原生椭圆变换支持平移、旋转、镜像和等比缩放。非等比缩放和剪切需要重新计算双轴及弧线参数，目前会拒绝并回滚整个事务。
 
 ## TypeScript 与 Rust 权威 {#typescript-and-rust-authority}
 

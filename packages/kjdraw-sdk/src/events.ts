@@ -51,6 +51,17 @@ export class KJEventBus<Events extends object = Record<PropertyKey, unknown>> {
     }
   }
 
+  /** Deliver every listener and collect synchronous exceptions for notifications
+   * whose underlying operation has already succeeded. Strict emit remains unchanged. */
+  emitSafely<Name extends keyof Events>(name: Name, payload: Events[Name]): unknown[] {
+    const errors: unknown[] = []
+    for (const listener of [...(this.#listeners.get(name) ?? [])]) {
+      try { (listener as KJEventListener<Events[Name]>)(payload) }
+      catch (error) { errors.push(error) }
+    }
+    return errors
+  }
+
   clear(): void {
     this.#listeners.clear()
   }

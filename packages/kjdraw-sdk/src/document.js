@@ -477,7 +477,6 @@ export class KJDocument {
                 operations: transaction._revisionOperations()
             };
             draft.revisions.push(record);
-            const accepted = await this.#acceptAuthoritativeCommit(draft, before.revision);
             transaction._close();
             let beforeSnapshot = null;
             let afterSnapshot = null;
@@ -486,11 +485,18 @@ export class KJDocument {
                     return beforeSnapshot ??= deepFreeze(clone(before));
                 },
                 get after () {
-                    return afterSnapshot ??= deepFreeze(clone(accepted));
+                    return afterSnapshot ??= deepFreeze(clone(draft));
                 },
                 revision: deepFreeze(clone(record))
             });
             this.#events.emit(KJ_EVENT_NAMES.BEFORE_COMMIT, beforeCommit);
+            if (this.#state !== before) throw new KJTransactionError('Document session changed before commit', {
+                label
+            });
+            const accepted = await this.#acceptAuthoritativeCommit(draft, before.revision);
+            if (this.#state !== before) throw new KJTransactionError('Document session changed during commit', {
+                label
+            });
             const acceptedFingerprint = accepted.revisions.at(-1)?.fingerprint;
             this.#adoptState(accepted, typeof acceptedFingerprint === 'string' ? acceptedFingerprint : null);
             this.#undo.push({
@@ -525,6 +531,7 @@ export class KJDocument {
                 ...options
             });
             const accepted = await this.#acceptAuthoritativeCommit(restored, current.revision);
+            if (this.#state !== current) throw new KJTransactionError('Document session changed during undo');
             this.#undo.pop();
             this.#adoptState(accepted, restored.revisions.at(-1)?.fingerprint ?? null);
             this.#redo.push({
@@ -547,6 +554,7 @@ export class KJDocument {
                 ...options
             });
             const accepted = await this.#acceptAuthoritativeCommit(restored, before.revision);
+            if (this.#state !== before) throw new KJTransactionError('Document session changed during redo');
             this.#redo.pop();
             this.#adoptState(accepted, restored.revisions.at(-1)?.fingerprint ?? null);
             this.#undo.push({
@@ -643,8 +651,18 @@ export class KJDocument {
             revision: deepFreeze(clone(revision)),
             history: this.history
         });
-        this.#events.emit(eventName, payload);
-        this.#events.emit(KJ_EVENT_NAMES.CHANGE, payload);
-        this.#events.emit(KJ_EVENT_NAMES.HISTORY, this.history);
+        const failures = [];
+        const collect = (name, errors)=>{
+            for (const error of errors)failures.push({
+                eventName: name,
+                documentId: this.id,
+                documentRevision: payload.documentRevision,
+                error
+            });
+        };
+        collect(eventName, this.#events.emitSafely(eventName, payload));
+        collect(KJ_EVENT_NAMES.CHANGE, this.#events.emitSafely(KJ_EVENT_NAMES.CHANGE, payload));
+        collect(KJ_EVENT_NAMES.HISTORY, this.#events.emitSafely(KJ_EVENT_NAMES.HISTORY, payload.history));
+        for (const failure of failures)this.#events.emitSafely(KJ_EVENT_NAMES.LISTENER_ERROR, Object.freeze(failure));
     }
 }
