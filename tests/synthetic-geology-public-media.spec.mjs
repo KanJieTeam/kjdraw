@@ -16,6 +16,7 @@ const directory = resolve(root, 'docs/media/ai-geology-live-20261003')
 const pageFile = resolve(directory, 'index.html')
 const pageUrl = 'https://kanjieteam.github.io/kjdraw/docs/media/ai-geology-live-20261003/'
 const gifName = 'synthetic-live-model-highlights.gif'
+const readmeGifName = 'synthetic-live-model-highlights-color.gif'
 const videoName = 'synthetic-live-model-workflow.webm'
 const shaPattern = /^[a-f0-9]{64}$/
 
@@ -43,8 +44,10 @@ async function evidence() {
   return { manifest, prepared, cutlist }
 }
 
-test('both public README heroes link the actual synthetic live GIF to its full recording evidence page', async () => {
-  const expectedImage = `docs/media/ai-geology-live-20261003/${gifName}`
+test('both public README heroes link the published color GIF to its full recording evidence page', async () => {
+  // The README uses the color variant; the original GIF below stays bound to
+  // its byte-exact recording cutlist and provenance checks.
+  const expectedImage = `docs/media/ai-geology-live-20261003/${readmeGifName}`
   for (const file of ['README.md', 'README.zh-CN.md']) {
     const source = await text(resolve(root, file))
     const links = [...source.matchAll(/<a\b[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)]

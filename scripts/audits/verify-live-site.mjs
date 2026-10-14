@@ -48,6 +48,7 @@ try {
     'docs/media/kjdraw-workflow.gif', 'docs/media/kjdraw-workflow-zh.gif',
     'docs/media/ai-geology-live-20261003/index.html', 'docs/media/ai-geology-live-20261003/style.css',
     'docs/media/ai-geology-live-20261003/synthetic-live-model-highlights.gif',
+    'docs/media/ai-geology-live-20261003/synthetic-live-model-highlights-color.gif',
     'docs/media/ai-geology-live-20261003/synthetic-live-model-workflow.webm',
     'docs/media/ai-geology-live-20261003/synthetic-live-final.dxf',
     'docs/media/ai-geology-live-20261003/synthetic-geology-section.dxf',
