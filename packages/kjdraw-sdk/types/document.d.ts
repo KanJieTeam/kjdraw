@@ -92,6 +92,14 @@ export interface KJDocumentBeforeCommitPayload {
     after: ReadonlyDeep<KJDocumentState>;
     revision: ReadonlyDeep<KJRevisionRecord>;
 }
+/** A synchronous observer failure after commit, undo or redo. The operation
+ * remains successful; diagnostic listeners cannot veto an accepted change. */
+export interface KJDocumentListenerErrorPayload {
+    eventName: 'document:after-commit' | 'document:change' | 'document:undo' | 'document:redo' | 'document:history';
+    documentId: string;
+    documentRevision: number;
+    error: unknown;
+}
 interface KJDocumentEvents {
     'document:before-commit': KJDocumentBeforeCommitPayload;
     'document:after-commit': KJDocumentChangePayload;
@@ -99,6 +107,7 @@ interface KJDocumentEvents {
     'document:undo': KJDocumentChangePayload;
     'document:redo': KJDocumentChangePayload;
     'document:history': Readonly<KJDocumentHistory>;
+    'document:listener-error': Readonly<KJDocumentListenerErrorPayload>;
 }
 export declare class KJDocument {
     #private;

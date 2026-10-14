@@ -30,6 +30,8 @@ The provider API is not an authentication layer. Hosts remain responsible for id
 
 A KJD document is a canonical JSON object graph with stable IDs, handles, ownership, tables, spaces, resources and revisions. Transactions operate on a draft, validate, then publish. A rejected transaction must not expose partial changes. Undo/redo is currently session history; reopening a KJP does not recreate the SDK's in-memory undo stack.
 
+`document:before-commit` runs before the authoritative backend commit and can reject the draft by throwing. After a successful commit, undo or redo, synchronous notification errors cannot reject the accepted operation or prevent other listeners from running. Hosts can subscribe to `document:listener-error` to receive the failing event name, document ID, revision and original exception. Diagnostic listener errors do not interrupt delivery.
+
 A KJP project is a ZIP64 package with a manifest, drawing documents and command journal. It can carry assets and snapshots. The project package is portable; it does not require a Kanjie account. Session management and storage binding are separate. A browser download is not equivalent to fsync/atomic native persistence.
 
 ## Commands and agents
@@ -41,5 +43,7 @@ The SDK keeps a short-lived in-process Agent plan registry and binds approval to
 ## Geometry authority
 
 Rust/WASM is available for document sessions, primitive geometry queries and specified solid-mesh operations. Portable 2D reference operations are authored in TypeScript. Backend identity is explicit, and the machine-readable acceptance matrix records the current candidate evidence separately from hosted release verification.
+
+Native ellipse transforms support translation, rotation, reflection and uniform scaling. Nonuniform scaling and shear are rejected atomically until both ellipse axes and arc parameters can be recomputed exactly.
 
 The reference workbench calls public SDK commands, reads document state for rendering, and uses the Rust document bridge when available. It does not include downstream domain compilers, proprietary data or enterprise services, and does not certify arbitrary drawing fidelity or printing.

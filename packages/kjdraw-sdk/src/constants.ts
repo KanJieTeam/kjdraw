@@ -41,6 +41,7 @@ export const KJ_EVENT_NAMES = Object.freeze({
   UNDO: 'document:undo',
   REDO: 'document:redo',
   HISTORY: 'document:history',
+  LISTENER_ERROR: 'document:listener-error',
 } as const)
 
 export type KJEventName = typeof KJ_EVENT_NAMES[keyof typeof KJ_EVENT_NAMES]

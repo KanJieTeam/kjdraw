@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0",
-  "sourceDigest": "sha256:b9816ee5760e75ea7b5199778f1317aa3f0327e22d3444c940f0bfe968c7070c",
+  "sourceDigest": "sha256:1ad98bfa651d2a3e50f31d099ef79dab243c6d9a612c7b1b3a78dd3b459314ff",
   "entries": [
     {
       "name": "KJPlanarBoundary",
@@ -3707,6 +3707,14 @@
       "href": "./api/reference/#core-type-kjdocumentinput",
       "anchor": "core-type-kjdocumentinput",
       "summary": "export type KJDocumentInput = KJDocumentOptions | KJDocumentState | KJLegacyScene | Record<string, unknown>;"
+    },
+    {
+      "name": "KJDocumentListenerErrorPayload",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-interface-kjdocumentlistenererrorpayload",
+      "anchor": "core-interface-kjdocumentlistenererrorpayload",
+      "summary": "export interface KJDocumentListenerErrorPayload { eventName: 'document:after-commit' | 'document:change' | 'document:undo' | 'document:redo' | 'document:history'; documentId: string; documentRevision: number; error: unkn"
     },
     {
       "name": "KJDocumentMetadata",
@@ -10341,6 +10349,14 @@
       "summary": "export type KJDocumentInput = KJDocumentOptions | KJDocumentState | KJLegacyScene | Record<string, unknown>;"
     },
     {
+      "name": "KJDocumentListenerErrorPayload",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdocumentlistenererrorpayload",
+      "anchor": "root-interface-kjdocumentlistenererrorpayload",
+      "summary": "export interface KJDocumentListenerErrorPayload { eventName: 'document:after-commit' | 'document:change' | 'document:undo' | 'document:redo' | 'document:history'; documentId: string; documentRevision: number; error: unkn"
+    },
+    {
       "name": "KJDocumentMetadata",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -15195,6 +15211,14 @@
       "href": "./api/reference/#document-type-kjdocumentinput",
       "anchor": "document-type-kjdocumentinput",
       "summary": "export type KJDocumentInput = KJDocumentOptions | KJDocumentState | KJLegacyScene | Record<string, unknown>;"
+    },
+    {
+      "name": "KJDocumentListenerErrorPayload",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/document",
+      "href": "./api/reference/#document-interface-kjdocumentlistenererrorpayload",
+      "anchor": "document-interface-kjdocumentlistenererrorpayload",
+      "summary": "export interface KJDocumentListenerErrorPayload { eventName: 'document:after-commit' | 'document:change' | 'document:undo' | 'document:redo' | 'document:history'; documentId: string; documentRevision: number; error: unkn"
     },
     {
       "name": "KJDocumentQuery",

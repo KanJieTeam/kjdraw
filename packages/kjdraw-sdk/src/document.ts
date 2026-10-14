@@ -129,6 +129,15 @@ export interface KJDocumentBeforeCommitPayload {
   revision: ReadonlyDeep<KJRevisionRecord>
 }
 
+/** A synchronous observer failure after commit, undo or redo. The operation
+ * remains successful; diagnostic listeners cannot veto an accepted change. */
+export interface KJDocumentListenerErrorPayload {
+  eventName: 'document:after-commit' | 'document:change' | 'document:undo' | 'document:redo' | 'document:history'
+  documentId: string
+  documentRevision: number
+  error: unknown
+}
+
 interface KJDocumentEvents {
   'document:before-commit': KJDocumentBeforeCommitPayload
   'document:after-commit': KJDocumentChangePayload
@@ -136,6 +145,7 @@ interface KJDocumentEvents {
   'document:undo': KJDocumentChangePayload
   'document:redo': KJDocumentChangePayload
   'document:history': Readonly<KJDocumentHistory>
+  'document:listener-error': Readonly<KJDocumentListenerErrorPayload>
 }
 
 interface KJHistoryEntry {
@@ -538,16 +548,18 @@ export class KJDocument {
         operations: transaction._revisionOperations(),
       }
       draft.revisions.push(record)
-      const accepted = await this.#acceptAuthoritativeCommit(draft, before.revision)
       transaction._close()
       let beforeSnapshot: ReadonlyDeep<KJDocumentState> | null = null
       let afterSnapshot: ReadonlyDeep<KJDocumentState> | null = null
       const beforeCommit = Object.freeze({
         get before(): ReadonlyDeep<KJDocumentState> { return beforeSnapshot ??= deepFreeze(clone(before)) },
-        get after(): ReadonlyDeep<KJDocumentState> { return afterSnapshot ??= deepFreeze(clone(accepted)) },
+        get after(): ReadonlyDeep<KJDocumentState> { return afterSnapshot ??= deepFreeze(clone(draft)) },
         revision: deepFreeze(clone(record)),
       })
       this.#events.emit(KJ_EVENT_NAMES.BEFORE_COMMIT, beforeCommit)
+      if (this.#state !== before) throw new KJTransactionError('Document session changed before commit', { label })
+      const accepted = await this.#acceptAuthoritativeCommit(draft, before.revision)
+      if (this.#state !== before) throw new KJTransactionError('Document session changed during commit', { label })
       const acceptedFingerprint = accepted.revisions.at(-1)?.fingerprint
       this.#adoptState(accepted, typeof acceptedFingerprint === 'string' ? acceptedFingerprint : null)
       this.#undo.push({ id: createId('history'), label: String(label), source: record.source, before: historyState(before), after: historyState(accepted), revision })
@@ -571,6 +583,7 @@ export class KJDocument {
         kind: 'undo', label: `Undo ${entry.label}`, targetRevision: entry.revision, ...options,
       })
       const accepted = await this.#acceptAuthoritativeCommit(restored, current.revision)
+      if (this.#state !== current) throw new KJTransactionError('Document session changed during undo')
       this.#undo.pop()
       this.#adoptState(accepted, restored.revisions.at(-1)?.fingerprint as string | undefined ?? null)
       this.#redo.push({ ...entry, after: historyState(current) })
@@ -588,6 +601,7 @@ export class KJDocument {
         kind: 'redo', label: `Redo ${entry.label}`, targetRevision: entry.revision, ...options,
       })
       const accepted = await this.#acceptAuthoritativeCommit(restored, before.revision)
+      if (this.#state !== before) throw new KJTransactionError('Document session changed during redo')
       this.#redo.pop()
       this.#adoptState(accepted, restored.revisions.at(-1)?.fingerprint as string | undefined ?? null)
       this.#undo.push({ ...entry, before: historyState(before), after: historyState(accepted) })
@@ -677,8 +691,15 @@ export class KJDocument {
       revision: deepFreeze(clone(revision)),
       history: this.history,
     })
-    this.#events.emit(eventName, payload)
-    this.#events.emit(KJ_EVENT_NAMES.CHANGE, payload)
-    this.#events.emit(KJ_EVENT_NAMES.HISTORY, this.history)
+    // Accepted state and history cannot be rolled back by notification code.
+    // Deliver the complete lifecycle before reporting each observer failure.
+    const failures: KJDocumentListenerErrorPayload[] = []
+    const collect = (name: KJDocumentListenerErrorPayload['eventName'], errors: unknown[]): void => {
+      for (const error of errors) failures.push({ eventName: name, documentId: this.id, documentRevision: payload.documentRevision, error })
+    }
+    collect(eventName, this.#events.emitSafely(eventName, payload))
+    collect(KJ_EVENT_NAMES.CHANGE, this.#events.emitSafely(KJ_EVENT_NAMES.CHANGE, payload))
+    collect(KJ_EVENT_NAMES.HISTORY, this.#events.emitSafely(KJ_EVENT_NAMES.HISTORY, payload.history))
+    for (const failure of failures) this.#events.emitSafely(KJ_EVENT_NAMES.LISTENER_ERROR, Object.freeze(failure))
   }
 }

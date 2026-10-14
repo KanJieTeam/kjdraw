@@ -38,6 +38,19 @@ export class KJEventBus {
             listener(payload);
         }
     }
+    emitSafely(name, payload) {
+        const errors = [];
+        for (const listener of [
+            ...this.#listeners.get(name) ?? []
+        ]){
+            try {
+                listener(payload);
+            } catch (error) {
+                errors.push(error);
+            }
+        }
+        return errors;
+    }
     clear() {
         this.#listeners.clear();
     }
