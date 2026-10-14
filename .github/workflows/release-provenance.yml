@@ -116,7 +116,7 @@ jobs:
           done < dist/release-candidate/SHA256SUMS | tee dist/provenance-audit/verification.txt
           node --input-type=module -e 'import {writeFileSync} from "node:fs"; const evidence={schema:"com.kanjie.kjdraw.audit.release-provenance@1",repository:process.env.GITHUB_REPOSITORY,commit:process.env.AUDIT_SHA,ref:process.env.GITHUB_REF,run:{id:process.env.GITHUB_RUN_ID,attempt:Number(process.env.GITHUB_RUN_ATTEMPT)},checks:{ci:process.env.AUDIT_CI,pages:process.env.AUDIT_PAGES},attestation:{id:process.env.ATTESTATION_ID,url:process.env.ATTESTATION_URL},published:false}; writeFileSync("dist/provenance-audit/exact-main.json",`${JSON.stringify(evidence,null,2)}\n`)'
       - name: Upload candidate provenance audit
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-provenance-${{ steps.exact-main.outputs.sha }}-${{ github.run_attempt }}
           path: |
